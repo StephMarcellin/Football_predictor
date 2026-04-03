@@ -1,0 +1,68 @@
+# ═══════════════════════════════════════════════════════════
+#  Football Prediction — Configuration centrale
+# ═══════════════════════════════════════════════════════════
+
+project:
+  name: football-prediction
+  version: "0.1.0"
+
+competitions:
+  - ligue_1
+  - premier_league
+  - liga
+  - bundesliga
+  - serie_a
+
+paths:
+  raw_data:      data/raw/
+  processed:     data/processed/
+  features:      data/features/
+  models:        models/
+  db:            db/football.duckdb
+
+prediction:
+  target: result_1n2          # H / D / A
+  classes: [H, D, A]          # Home / Draw / Away
+
+features:
+  form_window: 5              # nb de matchs pour la forme récente
+  h2h_window: 10              # nb de matchs H2H à considérer
+
+model:
+  default: lightgbm
+  test_size: 0.2
+  random_state: 42
+  cv_folds: 5
+
+mlflow:
+  experiment_name: football_1n2
+  tracking_uri: mlruns/
+
+train:
+  use_autoencoder: false      # true pour activer l'auto-encodeur
+  use_stacking:    false      # true pour activer le stacking XGB+RF
+  test_season:     "2024-2025"
+  val_split_pct:   0.5        # % de la saison test alloué à val+test
+  bottleneck_dim:  32         # dims du goulot d'étranglement AE
+  bayes_n_iter:    50         # nb d'itérations BayesSearchCV
+  target:          "result_1n2"
+
+# ── Normalisation des noms de clubs ──────────────────────────────────────────
+# Mapping nom_dans_fichier → nom_canonique
+# Compléter au fur et à mesure que de nouveaux clubs apparaissent dans tes HTML.
+# Les noms canoniques doivent correspondre exactement à ceux de FBref
+# pour que les jointures avec consolide.* fonctionnent.
+club_normalize:
+  # Exemples Ligue 1
+  "Paris-Saint-Germain": "Paris Saint-Germain"
+  "PSG":                 "Paris Saint-Germain"
+  "Paris SG":            "Paris Saint-Germain"
+  
+  "Olympique-Marseille": "Olympique de Marseille"
+  "Saint-Etienne":       "Saint-Étienne"
+  # Exemples Premier League
+  "Man-Utd":             "Manchester United"
+  "Man-City":            "Manchester City"
+  # Exemples Bundesliga
+  "Dortmund":            "Borussia Dortmund"
+  "Leverkusen":          "Bayer Leverkusen"

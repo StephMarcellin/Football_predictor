@@ -1,0 +1,21 @@
+﻿data/
+db/
+docs/
+logs/
+mlruns/
+models/
+*.html
+*_files/
+.ipynb_checkpoints/
+
+# Python (fichiers compilés)
+__pycache__/
+*.py[cod]
+
+# Environnement virtuel (très important pour ne pas envoyer 200 Mo de libs)
+.venv/
+venv/
+env/
+
+# Configuration IDE (si tu utilises VS Code)
+.vscode/
