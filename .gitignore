@@ -1,5 +1,5 @@
 ﻿data/
-db/
+db/football.duckdb
 docs/
 logs/
 mlruns/
