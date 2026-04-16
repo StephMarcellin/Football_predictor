@@ -1,37 +1,23 @@
 """
-Pipeline 04 — Train
-====================
-Entraîne un modèle XGBoost multiclasse (H/D/A) sur features.ml_dataset.
+Pipeline 04 — Train (Two-Stage Stacking)
+==========================================
+Architecture :
+  Stage 1A : LightGBM sur perspective HOME (features équipe domicile)
+  Stage 1B : LightGBM sur perspective AWAY (features équipe extérieur)
+  Stage 1C : Logistic Regression baseline (signal linéaire)
+  Stage 2  : LogReg méta sur [P_1A, P_1B, P_1C] → P(H/D/A) final
 
-Modes disponibles (config.yaml) :
-  use_autoencoder : false → XGBoost direct sur les features brutes
-  use_autoencoder : true  → Réduction dimensionnelle via auto-encodeur
-                            avant XGBoost
-  use_stacking    : true  → Stacking XGBoost + RandomForest → LogReg
-
-Toutes les expériences sont loggées dans MLflow.
-
-BLOC 1 — Charge features.ml_dataset, filtre sur les Matchweeks, vérifie la distribution H/D/A
-BLOC 2 — Split chronologique propre sur date : saisons passées + début saison test → train, milieu → val, fin → test
-BLOC 3 — Preprocessing : imputation médiane + RobustScaler + VarianceThreshold sur les numériques, OneHotEncoder sur rank_tier et kickoff_category, passthrough sur les colonnes rebellious
-BLOC 4 — Auto-encodeur TensorFlow (activé via use_autoencoder: true dans config.yaml). Architecture reprise de ton notebook avec détection automatique des bypass features
-BLOC 5 — XGBoost multi:softprob + BayesSearchCV sur GroupTimeSeriesSplit. Option --no-bayes pour aller vite
-BLOC 6 — Stacking XGB + RF → LogReg (activé via use_stacking: true)
-BLOC 7 — Calibration isotonique par classe (H, D, A séparément)
-BLOC 8 — Évaluation complète + analyse paris avec delta prob_H - prob_A sur plusieurs seuils
-BLOC 9 — MLflow : params, métriques, artifact du modèle
-
-
+Consolidation : pivot home/away → 1 ligne par match
+Évaluation    : Log Loss, Brier Score, Calibration, Précision upsets
 
 Usage :
     python pipelines/04_train.py
-    python pipelines/04_train.py --no-bayes    # skip BayesSearchCV
+    python pipelines/04_train.py --no-shap
+    python pipelines/04_train.py --step 1   # Stage 1 uniquement
 """
 
-import os
-import sys
-import warnings
 import argparse
+import warnings
 import joblib
 from pathlib import Path
 
@@ -41,47 +27,38 @@ import pandas as pd
 import yaml
 import mlflow
 import mlflow.sklearn
-import mlflow.xgboost
+import mlflow.lightgbm
 from loguru import logger
 
-from sklearn.compose import ColumnTransformer
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.feature_selection import VarianceThreshold
-from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import (
-    accuracy_score, classification_report, confusion_matrix, log_loss
-)
-from sklearn.model_selection import GroupKFold
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import RobustScaler, LabelEncoder
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import (
-    LabelEncoder, OneHotEncoder, RobustScaler
+from sklearn.calibration import IsotonicRegression, calibration_curve
+from sklearn.metrics import (
+    accuracy_score, log_loss, classification_report,
+    brier_score_loss, mean_absolute_error
 )
-from sklearn.calibration import CalibratedClassifierCV, calibration_curve
+from sklearn.model_selection import StratifiedKFold
 
-from xgboost import XGBClassifier
+import lightgbm as lgb
 
 warnings.filterwarnings("ignore")
 
 
 # ── Config ────────────────────────────────────────────────────────────────────
-with open("config.yaml", encoding="utf-8") as f:
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+
+with open(ROOT_DIR / "config.yaml", encoding="utf-8") as f:
     CFG = yaml.safe_load(f)
 
-DB_PATH          = CFG["paths"]["db"]
-TRAIN_CFG        = CFG.get("train", {})
-USE_AE           = TRAIN_CFG.get("use_autoencoder", False)
-USE_STACKING     = TRAIN_CFG.get("use_stacking", False)
-TEST_SEASON      = TRAIN_CFG.get("test_season", "2024-2025")
-VAL_SPLIT_PCT    = TRAIN_CFG.get("val_split_pct", 0.5)
-BOTTLENECK_DIM   = TRAIN_CFG.get("bottleneck_dim", 32)
-BAYES_N_ITER     = TRAIN_CFG.get("bayes_n_iter", 50)
-TARGET           = TRAIN_CFG.get("target", "result_1n2")
-MLFLOW_URI       = CFG.get("mlflow", {}).get("tracking_uri", "mlruns")
-MODELS_DIR       = Path(CFG["paths"].get("models", "models"))
+DB_PATH    = CFG["paths"]["duckdb"]
+MODELS_DIR = Path(CFG["paths"].get("models", "models"))
 MODELS_DIR.mkdir(exist_ok=True)
+MLFLOW_URI = CFG.get("mlflow", {}).get("tracking_uri", "mlruns")
+TARGET     = "result_1n2"
 
-# ── Logs ──────────────────────────────────────────────────────────────────────
 Path("logs").mkdir(exist_ok=True)
 logger.add(
     "logs/train.log",
@@ -92,387 +69,446 @@ logger.add(
     format="{time:YYYY-MM-DD HH:mm:ss} | {level:<8} | {message}",
 )
 
-# Colonnes à exclure du modèle (identifiants, pas du signal)
-DROP_COLS = [
-    "team", "opponent", "date", "round", "day", "venue",
-    "league", "season", "season_raw", "season_norm",
-    "source_file", "game", "notes", "time", "match_report",
-    "attendance", "captain", "formation", "opp_formation", "referee",
-    "result",            # version W/D/L — on garde result_1n2
-    "gf", "ga",          # buts du match = data leakage
-    "is_matchweek",      # utilisé pour le filtrage uniquement
+TRAIN_SEASONS = ["2017-2018",
+  "2018-2019",
+  "2019-2020",
+  "2020-2021",
+  "2021-2022",
+  "2022-2023"
+]
+VAL_SEASON    = "2023-2024"
+
+# Colonnes identifiants — jamais dans le modèle
+ID_COLS = [
+    "date", "team", "opponent", "venue", "season", "league_source",
+    "comp_category", "match_id", "final_match_id", "result_1n2",
+    # Cotes exclues des Stage 1 — entrée directe dans Stage 2 uniquement
+    "odds_pinnacle_team", "odds_pinnacle_draw", "odds_pinnacle_opp",
+    "odds_avg_team", "odds_avg_draw", "odds_avg_opp",
+    "pinnacle_prob_team", "pinnacle_prob_draw", "pinnacle_prob_opp",
+    "market_prob_team", "market_prob_draw", "market_prob_opp",
+    "pinnacle_edge", "market_edge",
+    "opp_odds_pinnacle", "opp_pinnacle_prob", "opp_market_prob",
 ]
 
-# Colonnes catégorielles à encoder
-CAT_COLS = ["rank_tier", "kickoff_category"]
+# Features à winsoriser
+COLS_TO_WINSORIZE = [
+    "sterility_index_5", "sterility_diff",
+    "press_resistance_5", "press_resistance_diff",
+    "shield_efficiency_5", "shield_efficiency_diff",
+    "xg_overperformance_5", "xg_opi_diff",
+    "fouls_per_tackle_roll_5",
+]
 
-# Colonnes rebellious (contexte pur, pas de scaling)
-REBELLIOUS_COLS = ["team_rank_pre", "pts_cum_pre", "gd_cum_pre",
-                   "h2h_win_pct", "h2h_avg_gd", "h2h_avg_points",
-                   "month", "home_days_since_last", "away_days_since_last",
-                   "home_matches_14d", "away_matches_14d"]
+# Features propres à chaque perspective
+# Stage 1A = features de l'équipe qui joue à domicile
+# Stage 1B = features de l'équipe qui joue à l'extérieur
+# On les sépare lors du pivot — le reste est partagé
+HOME_SPECIFIC = [
+    "np_xg_roll_venue_5", "shot_quality_ratio_venue_5",
+    "poss_roll_venue_5", "is_home",
+]
+AWAY_SPECIFIC = [c.replace("home", "away") for c in HOME_SPECIFIC
+                 if "home" in c]
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# BLOC 1 — Chargement
+# BLOC 1 — Chargement et pivot home/away
 # ══════════════════════════════════════════════════════════════════════════════
 
-def load_data(con):
-    logger.info("Chargement de features.ml_dataset...")
-    df = con.execute("SELECT * FROM features.ml_dataset").df()
+def load_data() -> pd.DataFrame:
+    """Charge gold.features_final filtré Big5."""
+    logger.info("Chargement gold.features_final...")
+    conn = duckdb.connect(DB_PATH)
+    df = conn.execute("""
+        SELECT *
+        FROM gold.features_final
+        WHERE comp_category = 'Big5'
+          AND result_1n2    IS NOT NULL
+    """).df()
+    conn.close()
+
     df["date"] = pd.to_datetime(df["date"])
-
-    # Filtrer sur les Matchweeks uniquement
-    n_before = len(df)
-    df = df[df["is_matchweek"] == 1].copy()
-    logger.info(f"  {n_before:,} lignes → {len(df):,} Matchweeks")
-    logger.info(f"  Colonnes : {len(df.columns)}")
-
-    # Vérifier la cible
-    if TARGET not in df.columns:
-        raise ValueError(f"Colonne cible '{TARGET}' absente")
-
-    dist = df[TARGET].value_counts().to_dict()
-    logger.info(f"  Distribution cible : {dist}")
+    logger.info(f"  {len(df):,} lignes × {len(df.columns)} colonnes")
+    logger.info(f"  Distribution : {df[TARGET].value_counts().to_dict()}")
     return df
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# BLOC 2 — Split chronologique
-# ══════════════════════════════════════════════════════════════════════════════
-
-def chronological_split(df):
+def pivot_to_match(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Train  : toutes les saisons sauf la dernière
-             + première moitié de la saison test
-    Val    : milieu de la saison test (pour BayesSearchCV)
-    Test   : fin de la saison test (évaluation finale)
+    Pivote les données de 2 lignes par match (home + away)
+    vers 1 ligne par match.
+
+    Principe :
+      - Ligne Home : features de l'équipe domicile
+      - Ligne Away : features de l'équipe extérieur
+      - On joint sur final_match_id en séparant home_ et away_
+
+    Le résultat contient :
+      - Toutes les features Home préfixées h_
+      - Toutes les features Away préfixées a_
+      - result_match : H/D/A du point de vue domicile
     """
-    logger.info(f"Split chronologique (saison test : {TEST_SEASON})...")
+    logger.info("Pivot home/away → 1 ligne par match...")
 
-    mask_past    = df["season"] != TEST_SEASON
-    mask_test_s  = df["season"] == TEST_SEASON
+    id_cols_pivot = ["final_match_id", "date", "season",
+                     "league_source", "comp_category"]
+    feature_cols  = [c for c in df.columns
+                     if c not in ID_COLS + id_cols_pivot
+                     and c not in ["team", "opponent"]]
 
-    df_test_season = df[mask_test_s].sort_values("date")
-    n              = len(df_test_season)
-    split_train    = int(n * (1 - VAL_SPLIT_PCT))
-    split_val      = split_train + int(n * VAL_SPLIT_PCT / 2)
+    # Séparer home et away
+    home = df[df["venue"] == "Home"].copy()
+    away = df[df["venue"] == "Away"].copy()
 
-    idx_train_extra = df_test_season.index[:split_train]
-    idx_val         = df_test_season.index[split_train:split_val]
-    idx_test        = df_test_season.index[split_val:]
+    # Renommer les features
+    home_renamed = home[id_cols_pivot + ["team", "opponent", TARGET] + feature_cols].copy()
+    away_renamed = away[id_cols_pivot + ["team", "opponent"] + feature_cols].copy()
 
-    df_train = pd.concat([df[mask_past], df.loc[idx_train_extra]])
-    df_val   = df.loc[idx_val]
-    df_test  = df.loc[idx_test]
+    home_renamed = home_renamed.rename(
+        columns={c: f"h_{c}" for c in feature_cols}
+    ).rename(columns={"team": "home_team", "opponent": "away_team",
+                       TARGET: "result_match"})
 
-    logger.info(f"  Train : {len(df_train):,} matchs")
-    logger.info(f"  Val   : {len(df_val):,} matchs")
-    logger.info(f"  Test  : {len(df_test):,} matchs")
-    return df_train, df_val, df_test
+    away_renamed = away_renamed.rename(
+        columns={c: f"a_{c}" for c in feature_cols}
+    ).rename(columns={"team": "away_team_check", "opponent": "home_team_check"})
+
+    # Jointure sur final_match_id
+    merged = home_renamed.merge(
+        away_renamed[["final_match_id"] +
+                     [f"a_{c}" for c in feature_cols]],
+        on="final_match_id",
+        how="inner",
+    )
+
+    logger.info(f"  {len(merged):,} matchs consolidés")
+    logger.info(f"  Distribution : {merged['result_match'].value_counts().to_dict()}")
+    return merged
+
+
+def winsorize(df: pd.DataFrame,
+              caps: dict = None,
+              fit: bool = True) -> tuple[pd.DataFrame, dict]:
+    """Capper au percentile 1-99% — caps calculés sur train si fit=True."""
+    cols_present = [c for c in COLS_TO_WINSORIZE if c in df.columns]
+
+    # Ajouter les versions h_ et a_ après pivot
+    cols_h = [f"h_{c}" for c in COLS_TO_WINSORIZE
+              if f"h_{c}" in df.columns]
+    cols_a = [f"a_{c}" for c in COLS_TO_WINSORIZE
+              if f"a_{c}" in df.columns]
+    all_cols = cols_present + cols_h + cols_a
+
+    if fit:
+        caps = {}
+        for col in all_cols:
+            caps[col] = {
+                "lower": df[col].quantile(0.01),
+                "upper": df[col].quantile(0.99),
+            }
+
+    for col, bounds in (caps or {}).items():
+        if col in df.columns:
+            df[col] = df[col].clip(bounds["lower"], bounds["upper"])
+
+    return df, caps
+
+
+def split_data(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Split temporel par saison."""
+    train = df[df["season"].isin(TRAIN_SEASONS)].copy()
+    val   = df[df["season"] == VAL_SEASON].copy()
+    logger.info(f"  Train : {len(train):,} | Val : {len(val):,}")
+    return train, val
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# BLOC 3 — Preprocessing
+# BLOC 2 — Préparation des features par perspective
 # ══════════════════════════════════════════════════════════════════════════════
 
-def prepare_xy(df):
-    """Sépare X et y, retire les colonnes à exclure."""
-    y = df[TARGET].copy()
-    drop = [c for c in DROP_COLS + [TARGET] if c in df.columns]
-    X = df.drop(columns=drop)
+def prepare_perspective(df_match: pd.DataFrame,
+                        perspective: str) -> tuple[pd.DataFrame, pd.Series]:
+    """
+    Extrait les features pour une perspective donnée (home/away).
+    perspective = 'home' → préfixe h_
+    perspective = 'away' → préfixe a_
+    """
+    prefix = "h_" if perspective == "home" else "a_"
+    feat_cols = [c for c in df_match.columns if c.startswith(prefix)]
+
+    X = df_match[feat_cols].copy()
+    X.columns = [c[len(prefix):] for c in X.columns]  # strip prefix
+
+    y_raw = df_match["result_match"]
+    if perspective == "away":
+        # Du point de vue Away : H → A, A → H, D → D
+        y_raw = y_raw.map({"H": "A", "A": "H", "D": "D"})
+
+    return X, y_raw
+
+
+def prepare_combined(df_match: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
+    """Features combinées home + away pour le Stage 2."""
+    h_cols = [c for c in df_match.columns if c.startswith("h_")]
+    a_cols = [c for c in df_match.columns if c.startswith("a_")]
+    X = df_match[h_cols + a_cols].copy()
+    y = df_match["result_match"]
     return X, y
 
 
-def build_preprocessor(X_train):
-    """
-    Construit le ColumnTransformer :
-    - num   : imputation médiane + RobustScaler + VarianceThreshold
-    - cat   : imputation mode + OneHotEncoder
-    - raw   : passthrough (colonnes rebellious)
-    """
-    present_cat  = [c for c in CAT_COLS if c in X_train.columns]
-    present_raw  = [c for c in REBELLIOUS_COLS if c in X_train.columns]
-    num_cols     = [c for c in X_train.select_dtypes(include="number").columns
-                    if c not in present_cat + present_raw]
-
-    logger.info(f"  Numériques  : {len(num_cols)}")
-    logger.info(f"  Catégories  : {present_cat}")
-    logger.info(f"  Passthrough : {len(present_raw)}")
-
-    num_pipe = Pipeline([
-        ("imputer",  SimpleImputer(strategy="median")),
-        ("variance", VarianceThreshold(threshold=0)),
-        ("scaler",   RobustScaler()),
-    ])
-    cat_pipe = Pipeline([
-        ("imputer",  SimpleImputer(strategy="most_frequent")),
-        ("encoder",  OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
+def build_preprocessor() -> Pipeline:
+    return Pipeline([
+        ("imputer", SimpleImputer(strategy="median")),
+        ("scaler",  RobustScaler()),
     ])
 
-    preprocessor = ColumnTransformer([
-        ("num", num_pipe,       num_cols),
-        ("cat", cat_pipe,       present_cat),
-        ("raw", "passthrough",  present_raw),
-    ], remainder="drop")
 
-    return preprocessor, num_cols, present_cat, present_raw
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# BLOC 4 — Auto-encodeur (optionnel)
-# ══════════════════════════════════════════════════════════════════════════════
-
-def build_autoencoder(input_dim, bottleneck_dim):
-    """
-    Auto-encodeur profond : input_dim → 512 → 256 → 128 → bottleneck → ...
-    Repris de ton notebook avec quelques améliorations mineures.
-    """
-    import tensorflow as tf
-    from tensorflow.keras.models import Model
-    from tensorflow.keras.layers import (
-        Input, Dense, Dropout, LeakyReLU, BatchNormalization
-    )
-    from tensorflow.keras.optimizers import Adam
-
-    DROPOUT = 0.2
-    SLOPE   = 0.01
-
-    inp = Input(shape=(input_dim,), name="input_features")
-    x   = inp
-
-    # Encodeur
-    for i, units in enumerate([512, 256, 128], 1):
-        x = Dense(units, kernel_initializer="he_normal", name=f"enc_{i}")(x)
-        x = BatchNormalization()(x)
-        x = LeakyReLU(negative_slope=SLOPE)(x)
-        x = Dropout(DROPOUT)(x)
-
-    bottleneck = Dense(bottleneck_dim, activation="linear",
-                       name="bottleneck")(x)
-    bottleneck = BatchNormalization()(bottleneck)
-
-    # Décodeur
-    x = bottleneck
-    for i, units in enumerate([128, 256, 512], 1):
-        x = Dense(units, kernel_initializer="he_normal", name=f"dec_{i}")(x)
-        x = BatchNormalization()(x)
-        x = LeakyReLU(negative_slope=SLOPE)(x)
-        x = Dropout(DROPOUT)(x)
-
-    out = Dense(input_dim, activation="linear", name="output")(x)
-
-    ae      = Model(inp, out,        name="autoencoder")
-    encoder = Model(inp, bottleneck, name="encoder")
-    ae.compile(optimizer=Adam(learning_rate=0.001), loss="mse")
-
-    return ae, encoder
-
-
-def apply_autoencoder(X_train_s, X_val_s, X_test_s, n_num):
-    """
-    Entraîne l'AE sur la partie numérique de X_train_s,
-    puis encode les trois splits.
-    Retourne les arrays encodés + indices des bypass features.
-    """
-    from tensorflow.keras.callbacks import EarlyStopping
-    from sklearn.metrics import mean_squared_error
-
-    logger.info("  Entraînement auto-encodeur...")
-    X_ae_train = X_train_s[:, :n_num]
-    X_ae_val   = X_val_s[:, :n_num]
-    X_ae_test  = X_test_s[:, :n_num]
-
-    ae, encoder = build_autoencoder(n_num, BOTTLENECK_DIM)
-
-    ae.fit(
-        X_ae_train, X_ae_train,
-        validation_data=(X_ae_val, X_ae_val),
-        epochs=50, batch_size=64, shuffle=True, verbose=0,
-        callbacks=[EarlyStopping(monitor="val_loss", patience=10,
-                                 restore_best_weights=True)]
-    )
-
-    # Diagnostic reconstruction
-    recon      = ae.predict(X_ae_test, verbose=0)
-    mse_feat   = np.mean((X_ae_test - recon) ** 2, axis=0)
-    threshold  = mse_feat.mean() + 2 * mse_feat.std()
-    bypass_idx = np.where(mse_feat > threshold)[0]
-    logger.info(f"  Bottleneck : {BOTTLENECK_DIM} dims | Bypass : {len(bypass_idx)} features")
-
-    # Encoder les données
-    from sklearn.preprocessing import StandardScaler
-    sc = StandardScaler()
-    lat_train = sc.fit_transform(encoder.predict(X_ae_train, verbose=0))
-    lat_val   = sc.transform(encoder.predict(X_ae_val,   verbose=0))
-    lat_test  = sc.transform(encoder.predict(X_ae_test,  verbose=0))
-
-    # Fusion : latent + bypass + reste (cat + raw)
-    rest_train = X_train_s[:, n_num:]
-    rest_val   = X_val_s[:, n_num:]
-    rest_test  = X_test_s[:, n_num:]
-
-    X_final_train = np.hstack([lat_train, X_ae_train[:, bypass_idx], rest_train])
-    X_final_val   = np.hstack([lat_val,   X_ae_val[:, bypass_idx],   rest_val])
-    X_final_test  = np.hstack([lat_test,  X_ae_test[:, bypass_idx],  rest_test])
-
-    logger.info(f"  Dims finales : {X_final_train.shape[1]}")
-    return X_final_train, X_final_val, X_final_test, encoder
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# BLOC 5 — XGBoost multiclasse + BayesSearchCV
-# ══════════════════════════════════════════════════════════════════════════════
-
-def encode_target(y_train, y_val, y_test):
-    """Encode H/D/A en entiers pour XGBoost."""
+def encode_labels(y_train, y_val) -> tuple:
     le = LabelEncoder()
-    y_train_enc = le.fit_transform(y_train)
-    y_val_enc   = le.transform(y_val)
-    y_test_enc  = le.transform(y_test)
-    logger.info(f"  Classes : {dict(enumerate(le.classes_))}")
-    return y_train_enc, y_val_enc, y_test_enc, le
+    return (le.fit_transform(y_train),
+            le.transform(y_val),
+            le)
 
 
-def train_xgboost(X_train, y_train, X_val, y_val, use_bayes=True):
+# ══════════════════════════════════════════════════════════════════════════════
+# BLOC 3 — Stage 1 : modèles par perspective
+# ══════════════════════════════════════════════════════════════════════════════
+def tune_lgbm_perspective(
+    X_train, y_train, X_val, y_val,
+    le, name: str, n_trials: int = 50
+) -> lgb.LGBMClassifier:
     """
-    Entraîne XGBoost multiclasse.
-    Si use_bayes=True : optimisation bayésienne des hyperparamètres.
-    Sinon : hyperparamètres par défaut raisonnables.
+    Optimisation Optuna des hyperparamètres LightGBM.
+    Objectif : minimiser le LogLoss sur le val set.
     """
-    n_classes = len(np.unique(y_train))
+    import optuna
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
 
-    xgb_base = XGBClassifier(
-        objective="multi:softprob",
-        num_class=n_classes,
-        eval_metric="mlogloss",
-        n_jobs=-1,
-        early_stopping_rounds=50,
-        random_state=42,
-    )
+    n_classes = len(le.classes_)
 
-    if not use_bayes:
-        logger.info("  XGBoost avec hyperparamètres par défaut...")
-        xgb_base.set_params(
-            learning_rate=0.05,
-            n_estimators=500,
-            max_depth=4,
-            subsample=0.8,
-            colsample_bytree=0.6,
-            reg_alpha=1.0,
-            reg_lambda=1.0,
-        )
-        xgb_base.fit(
+    def objective(trial):
+        params = {
+            "objective":        "multiclass",
+            "num_class":        n_classes,
+            "metric":           "multi_logloss",
+            "n_estimators":     1000,
+            "is_unbalance":     True,
+            "learning_rate":    trial.suggest_float("learning_rate", 0.01, 0.1, log=True),
+            "max_depth":        trial.suggest_int("max_depth", 3, 6),
+            "num_leaves":       trial.suggest_int("num_leaves", 15, 63),
+            "min_child_samples":trial.suggest_int("min_child_samples", 10, 50),
+            "subsample":        trial.suggest_float("subsample", 0.6, 1.0),
+            "colsample_bytree": trial.suggest_float("colsample_bytree", 0.4, 0.9),
+            "reg_alpha":        trial.suggest_float("reg_alpha", 0.01, 10.0, log=True),
+            "reg_lambda":       trial.suggest_float("reg_lambda", 0.01, 10.0, log=True),
+            "random_state":     42,
+            "n_jobs":           -1,
+            "verbose":          -1,
+        }
+
+        model = lgb.LGBMClassifier(**params)
+        model.fit(
             X_train, y_train,
             eval_set=[(X_val, y_val)],
-            verbose=False,
+            callbacks=[
+                lgb.early_stopping(50, verbose=False),
+                lgb.log_evaluation(-1),
+            ],
         )
-        return xgb_base, xgb_base.get_params()
+        proba = model.predict_proba(X_val)
+        return log_loss(y_val, proba)
 
-    logger.info(f"  BayesSearchCV ({BAYES_N_ITER} itérations)...")
-    try:
-        from skopt import BayesSearchCV
-        from skopt.space import Integer, Real
-        from mlxtend.evaluate import GroupTimeSeriesSplit
-    except ImportError:
-        logger.warning("  skopt/mlxtend non disponible, fallback hyperparams par défaut")
-        return train_xgboost(X_train, y_train, X_val, y_val, use_bayes=False)
-
-    tscv = GroupTimeSeriesSplit(
-        n_splits=3,
-        test_size=len(X_train) // 4
+    logger.info(f"  Optuna [{name}] — {n_trials} trials...")
+    study = optuna.create_study(
+        direction="minimize",
+        sampler=optuna.samplers.TPESampler(
+            seed=42 if "Home" in name else 43
+        ),
     )
-    groups = np.arange(len(X_train))
+    study.optimize(objective, n_trials=n_trials, show_progress_bar=False)
 
-    param_space = {
-        "learning_rate":    Real(0.01, 0.1, prior="log-uniform"),
-        "n_estimators":     Integer(300, 800),
-        "max_depth":        Integer(3, 5),
-        "reg_alpha":        Real(0.1, 10, prior="log-uniform"),
-        "reg_lambda":       Real(0.1, 10, prior="log-uniform"),
-        "subsample":        Real(0.7, 1.0, prior="uniform"),
-        "colsample_bytree": Real(0.4, 0.8, prior="uniform"),
-    }
+    logger.info(f"  Best LogLoss : {study.best_value:.4f}")
+    logger.info(f"  Best params  : {study.best_params}")
 
-    search = BayesSearchCV(
-        xgb_base,
-        search_spaces=param_space,
-        n_iter=BAYES_N_ITER,
-        cv=tscv,
-        scoring="neg_log_loss",
+    # Réentraîner avec les meilleurs paramètres
+    best_params = study.best_params
+    best_model  = lgb.LGBMClassifier(
+        objective="multiclass",
+        num_class=n_classes,
+        metric="multi_logloss",
+        n_estimators=1000,
+        is_unbalance=True,
+        **best_params,
         random_state=42,
-        verbose=0,
+        n_jobs=-1,
+        verbose=-1,
+    )
+    best_model.fit(
+        X_train, y_train,
+        eval_set=[(X_val, y_val)],
+        callbacks=[
+            lgb.early_stopping(50, verbose=False),
+            lgb.log_evaluation(-1),
+        ],
+    )
+
+    proba = best_model.predict_proba(X_val)
+    ll    = log_loss(y_val, proba)
+    acc   = accuracy_score(y_val, np.argmax(proba, axis=1))
+    logger.info(f"    {name} tuné — LogLoss: {ll:.4f} | Acc: {acc:.4f} | BestIter: {best_model.best_iteration_}")
+
+    return best_model
+
+def train_lgbm_perspective(X_train, y_train, X_val, y_val,
+                            le, name: str) -> lgb.LGBMClassifier:
+    """Entraîne un LightGBM multiclasse pour une perspective."""
+    logger.info(f"  Stage 1 — {name}...")
+    model = lgb.LGBMClassifier(
+        objective="multiclass",
+        num_class=len(le.classes_),
+        metric="multi_logloss",
+        n_estimators=1000,
+        learning_rate=0.05,
+        max_depth=4,
+        num_leaves=31,
+        min_child_samples=20,
+        subsample=0.8,
+        colsample_bytree=0.6,
+        reg_alpha=1.0,
+        reg_lambda=1.0,
+        random_state=42,
+        n_jobs=-1,
+        verbose=-1,
+    )
+    model.fit(
+        X_train, y_train,
+        eval_set=[(X_val, y_val)],
+        callbacks=[
+            lgb.early_stopping(50, verbose=False),
+            lgb.log_evaluation(-1),
+        ],
+    )
+    proba = model.predict_proba(X_val)
+    ll    = log_loss(y_val, proba)
+    acc   = accuracy_score(y_val, np.argmax(proba, axis=1))
+    logger.info(f"    {name} — LogLoss: {ll:.4f} | Acc: {acc:.4f} | BestIter: {model.best_iteration_}")
+    return model
+
+
+def train_lr_baseline(X_train, y_train, X_val, y_val,
+                       le) -> LogisticRegression:
+    """Baseline LR sur features combinées."""
+    logger.info("  Stage 1C — LR Baseline...")
+    lr = LogisticRegression(
+        max_iter=1000,
+        C=1.0,
+        random_state=42,
         n_jobs=-1,
     )
-    search.fit(
-        X_train, y_train,
-        groups=groups,
-        eval_set=[(X_val, y_val)],
-        verbose=False,
+    lr.fit(X_train, y_train)
+    proba = lr.predict_proba(X_val)
+    ll    = log_loss(y_val, proba)
+    acc   = accuracy_score(y_val, np.argmax(proba, axis=1))
+    logger.info(f"    LR Baseline — LogLoss: {ll:.4f} | Acc: {acc:.4f}")
+    return lr
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BLOC 4 — Stage 2 : méta-modèle
+# ══════════════════════════════════════════════════════════════════════════════
+
+def build_meta_features(models: dict,
+                         preprocessors: dict,
+                         df_match: pd.DataFrame,
+                         le_home, le_away, le_combined) -> np.ndarray:
+    """
+    Construit la matrice méta à partir des probabilités Stage 1.
+    Chaque modèle contribue 3 colonnes (P_H, P_D, P_A).
+    """
+    parts = []
+
+    # Stage 1A — perspective Home
+    X_h, _ = prepare_perspective(df_match, "home")
+    X_h_s  = preprocessors["home"].transform(X_h)
+    p_home  = models["lgbm_home"].predict_proba(X_h_s)
+    # Réordonner vers H/D/A du point de vue match (home team)
+    p_home  = _reorder_proba(p_home, le_home, ["H", "D", "A"])
+    parts.append(p_home)
+
+    # Stage 1B — perspective Away (inverser H↔A)
+    X_a, _ = prepare_perspective(df_match, "away")
+    X_a_s  = preprocessors["away"].transform(X_a)
+    p_away  = models["lgbm_away"].predict_proba(X_a_s)
+    # Du point de vue away : classe H = victoire away = A du point de vue match
+    p_away  = _reorder_proba(p_away, le_away, ["A", "D", "H"])
+    parts.append(p_away)
+
+    # Stage 1C — LR Baseline sur combined
+    X_c, _ = prepare_combined(df_match)
+    X_c_s  = preprocessors["combined"].transform(X_c)
+    p_lr    = models["lr_baseline"].predict_proba(X_c_s)
+    p_lr    = _reorder_proba(p_lr, le_combined, ["H", "D", "A"])
+    parts.append(p_lr)
+
+    # Stage 1D — Signal marché Pinnacle
+    # Réordonner H/D/A selon le point de vue du match (home_team perspective)
+    # pinnacle_prob_team = P(victoire équipe) = P(H) du point de vue match
+    odds_cols = ["pinnacle_prob_team", "pinnacle_prob_draw", "pinnacle_prob_opp"]
+    if all(c in df_match.columns for c in odds_cols):
+        p_market = df_match[odds_cols].values.astype(float)
+        # Remplacer les NaN par 1/3 (prior uniforme si cotes absentes)
+        p_market = np.where(np.isnan(p_market), 1/3, p_market)
+        parts.append(p_market)  # shape (n, 3) → 3 colonnes méta supplémentaires
+    else:
+        # Fallback si colonnes absentes
+        parts.append(np.full((len(df_match), 3), 1/3))
+
+    return np.hstack(parts)  # shape (n, 12)
+
+
+def _reorder_proba(proba: np.ndarray,
+                   le: LabelEncoder,
+                   target_order: list) -> np.ndarray:
+    """Réordonne les colonnes de proba selon target_order."""
+    current = list(le.classes_)
+    idx     = [current.index(c) if c in current else 0
+               for c in target_order]
+    return proba[:, idx]
+
+
+def train_meta(X_meta_train, y_train,
+               X_meta_val, y_val, le) -> LogisticRegression:
+    """Stage 2 : LogReg méta sur les probabilités Stage 1."""
+    logger.info("── Stage 2 : Méta-modèle LogReg ─────────────────────────")
+    meta = LogisticRegression(
+    max_iter=2000,
+    C=0.1,
+    random_state=42,
     )
-    logger.info(f"  Best score : {search.best_score_:.4f}")
-    logger.info(f"  Best params : {search.best_params_}")
-    return search.best_estimator_, search.best_params_
+    meta.fit(X_meta_train, y_train)
+
+    proba = meta.predict_proba(X_meta_val)
+    ll    = log_loss(y_val, proba)
+    acc   = accuracy_score(y_val, np.argmax(proba, axis=1))
+    logger.info(f"  Stage 2 — LogLoss: {ll:.4f} | Acc: {acc:.4f}")
+    return meta
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# BLOC 6 — Stacking (optionnel)
+# BLOC 5 — Calibration
 # ══════════════════════════════════════════════════════════════════════════════
 
-def train_stacking(xgb_model, X_train, y_train, X_test):
-    """
-    Stacking simple : XGBoost + RandomForest → LogisticRegression.
-    Utilise les prédictions OOF pour entraîner le méta-modèle.
-    """
-    logger.info("  Stacking XGBoost + RandomForest...")
-    rf = RandomForestClassifier(n_estimators=100, max_depth=4,
-                                n_jobs=-1, random_state=42)
-    n_classes = len(np.unique(y_train))
-    kf = GroupKFold(n_splits=3)
-    groups = np.arange(len(X_train))
+def calibrate(model, X_val, y_val_enc, le) -> tuple:
+    """Calibration isotonique par classe sur le val set."""
+    logger.info("── Calibration isotonique ───────────────────────────────")
+    probs = model.predict_proba(X_val)
+    n_cl  = probs.shape[1]
 
-    oof_xgb = np.zeros((len(X_train), n_classes))
-    oof_rf  = np.zeros((len(X_train), n_classes))
-
-    for tr_idx, val_idx in kf.split(X_train, y_train, groups):
-        X_f_tr, X_f_val = X_train[tr_idx], X_train[val_idx]
-        y_f_tr          = y_train[tr_idx]
-        xgb_model.fit(X_f_tr, y_f_tr)
-        rf.fit(X_f_tr, y_f_tr)
-        oof_xgb[val_idx] = xgb_model.predict_proba(X_f_val)
-        oof_rf[val_idx]  = rf.predict_proba(X_f_val)
-
-    X_meta = np.hstack([oof_xgb, oof_rf])
-    meta   = LogisticRegression(max_iter=1000, random_state=42)
-    meta.fit(X_meta, y_train)
-
-    # Entraînement final sur tout le train
-    xgb_model.fit(X_train, y_train)
-    rf.fit(X_train, y_train)
-
-    def predict_stack(X):
-        p_xgb = xgb_model.predict_proba(X)
-        p_rf  = rf.predict_proba(X)
-        return meta.predict_proba(np.hstack([p_xgb, p_rf]))
-
-    logger.info(f"  Poids méta : XGB={meta.coef_[0][:n_classes].mean():.3f}")
-    return predict_stack
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# BLOC 7 — Calibration isotonique
-# ══════════════════════════════════════════════════════════════════════════════
-
-def calibrate_model(model, X_val, y_val):
-    """Calibration isotonique des probabilités sur le set de validation."""
-    logger.info("  Calibration isotonique...")
-    probs  = model.predict_proba(X_val)
-    n_cl   = probs.shape[1]
     calibrators = []
-    from sklearn.calibration import IsotonicRegression
     for c in range(n_cl):
         cal = IsotonicRegression(out_of_bounds="clip")
-        cal.fit(probs[:, c], (y_val == c).astype(int))
+        cal.fit(probs[:, c], (y_val_enc == c).astype(int))
         calibrators.append(cal)
 
     def predict_calibrated(X):
@@ -480,7 +516,6 @@ def calibrate_model(model, X_val, y_val):
         cal_probs = np.column_stack([
             calibrators[c].transform(raw[:, c]) for c in range(n_cl)
         ])
-        # Renormaliser pour que les probas somment à 1
         row_sums = cal_probs.sum(axis=1, keepdims=True)
         return cal_probs / np.where(row_sums == 0, 1, row_sums)
 
@@ -488,195 +523,312 @@ def calibrate_model(model, X_val, y_val):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# BLOC 8 — Évaluation
+# BLOC 6 — Évaluation
 # ══════════════════════════════════════════════════════════════════════════════
+def predict_with_draw_boost(y_proba, le, draw_threshold: float = 0.28) -> np.ndarray:
+    """
+    Décision finale avec boost Draw.
+    Si P(D) > draw_threshold ET P(D) > P(H)*0.7 ET P(D) > P(A)*0.7 → prédit Draw.
+    Sinon, argmax standard.
+    """
+    idx_D = list(le.classes_).index("D")
+    idx_H = list(le.classes_).index("H")
+    idx_A = list(le.classes_).index("A")
 
-def evaluate(y_true, y_pred, y_proba, label_encoder, split_name="Test"):
-    """Rapport complet : classification, confusion, log loss."""
-    class_names = list(label_encoder.classes_)
-    acc  = accuracy_score(y_true, y_pred)
-    loss = log_loss(y_true, y_proba)
+    p_d = y_proba[:, idx_D]
+    p_h = y_proba[:, idx_H]
+    p_a = y_proba[:, idx_A]
 
-    logger.info(f"── Évaluation {split_name} ──────────────────────────────")
-    logger.info(f"  Accuracy  : {acc:.4f}")
-    logger.info(f"  Log Loss  : {loss:.4f}")
+    draw_mask = (p_d > draw_threshold) & (p_d > p_h * 0.7) & (p_d > p_a * 0.7)
+
+    y_pred = np.argmax(y_proba, axis=1).copy()
+    y_pred[draw_mask] = idx_D
+    return y_pred
+
+def evaluate_full(y_true_enc, y_proba, le, label: str) -> dict:
+    """Log Loss + Accuracy + Brier Score + rapport par classe."""
+    y_pred = predict_with_draw_boost(y_proba, le)
+    y_true_dec = le.inverse_transform(y_true_enc)
+    y_pred_dec = le.inverse_transform(y_pred)
+
+    acc  = accuracy_score(y_true_enc, y_pred)
+    ll   = log_loss(y_true_enc, y_proba)
+
+    # Brier Score multiclasse (moyenne sur les classes)
+    brier = np.mean([
+        brier_score_loss(
+            (y_true_enc == c).astype(int),
+            y_proba[:, c]
+        )
+        for c in range(len(le.classes_))
+    ])
+
+    logger.info(f"\n── [{label}] ─────────────────────────────────────────────")
+    logger.info(f"  Accuracy    : {acc:.4f}")
+    logger.info(f"  Log Loss    : {ll:.4f}")
+    logger.info(f"  Brier Score : {brier:.4f}")
     logger.info("\n" + classification_report(
-        y_true, y_pred, target_names=class_names, zero_division=0
+        y_true_dec, y_pred_dec,
+        target_names=list(le.classes_),
+        zero_division=0,
     ))
 
-    cm = confusion_matrix(y_true, y_pred)
-    logger.info(f"  Confusion matrix :\n{cm}")
+    # Calibration curve par classe
+    for c, cls in enumerate(le.classes_):
+        fraction, mean_pred = calibration_curve(
+            (y_true_enc == c).astype(int),
+            y_proba[:, c],
+            n_bins=10,
+        )
+        mae_cal = mean_absolute_error(fraction, mean_pred)
+        logger.info(f"  Calibration MAE [{cls}] : {mae_cal:.4f}")
 
-    return {"accuracy": acc, "log_loss": loss}
+    return {"accuracy": acc, "log_loss": ll, "brier_score": brier}
 
 
-def analyze_bets(y_proba, le, df_test, threshold=0.10):
+def analyze_upsets(y_proba, y_true_enc, le,
+                    df_match: pd.DataFrame) -> pd.DataFrame:
     """
-    Analyse paris style delta prob_H - prob_A.
-    Retourne un DataFrame avec prob_H, prob_A, prob_D, delta et résultat réel.
+    Précision sur les upsets : matchs où le modèle détecte
+    une victoire extérieure improbable.
+    Un upset = P(Away) > P(Home) + seuil
     """
+    logger.info("── Analyse Upsets ───────────────────────────────────────")
     classes = list(le.classes_)
-    idx_H   = classes.index("H") if "H" in classes else None
-    idx_A   = classes.index("A") if "A" in classes else None
-    idx_D   = classes.index("D") if "D" in classes else None
+    idx_H   = classes.index("H")
+    idx_A   = classes.index("A")
+    idx_D   = classes.index("D")
 
-    if idx_H is None or idx_A is None:
-        logger.warning("  Classes H/A non trouvées pour l'analyse paris")
-        return pd.DataFrame()
-
-    df_bets = pd.DataFrame({
-        "team":     df_test["team"].values,
-        "opponent": df_test["opponent"].values,
-        "date":     df_test["date"].values,
-        "league":   df_test["league_source"].values,
-        "prob_H":   y_proba[:, idx_H],
-        "prob_D":   y_proba[:, idx_D] if idx_D is not None else 0,
-        "prob_A":   y_proba[:, idx_A],
-        "result":   df_test[TARGET].values,
+    df_out = pd.DataFrame({
+        "final_match_id": df_match["final_match_id"].values,
+        "home_team":      df_match["home_team"].values,
+        "away_team":      df_match["away_team"].values,
+        "date":           df_match["date"].values,
+        "league":         df_match["league_source"].values,
+        "prob_home":      y_proba[:, idx_H],
+        "prob_draw":      y_proba[:, idx_D],
+        "prob_away":      y_proba[:, idx_A],
+        "actual_result":  le.inverse_transform(y_true_enc),
+        "pred":           le.inverse_transform(np.argmax(y_proba, axis=1)),
     })
 
-    df_bets["delta"]     = df_bets["prob_H"] - df_bets["prob_A"]
-    df_bets["pred"]      = np.select(
-        [df_bets["delta"] > threshold, df_bets["delta"] < -threshold],
-        ["H", "A"], default="D"
-    )
-    df_bets["correct"]   = (df_bets["pred"] == df_bets["result"]).astype(int)
+    df_out["correct"]    = (df_out["pred"] == df_out["actual_result"]).astype(int)
+    df_out["confidence"] = df_out[["prob_home", "prob_draw", "prob_away"]].max(axis=1)
 
-    logger.info("── Analyse paris ────────────────────────────────────────")
-    for t in [0.05, 0.10, 0.15, 0.20]:
-        mask = df_bets["delta"].abs() > t
+    # Matchs upsets détectés (modèle favorise Away)
+    df_upset = df_out[df_out["pred"] == "A"].copy()
+    logger.info(f"\n  Upsets détectés (pred=Away) : {len(df_upset)}")
+    if len(df_upset) > 0:
+        prec = df_upset["correct"].mean()
+        logger.info(f"  Précision sur upsets : {prec:.2%}")
+
+    # Précision par seuil de confiance
+    logger.info(f"\n  {'Seuil':>8} | {'N':>6} | {'Acc':>8}")
+    logger.info(f"  {'-'*28}")
+    for t in [0.40, 0.45, 0.50, 0.55, 0.60]:
+        mask = df_out["confidence"] > t
         n    = mask.sum()
         if n > 0:
-            acc = df_bets.loc[mask, "correct"].mean()
-            logger.info(f"  Delta > {t:.2f} : {n:3d} paris | Précision = {acc:.2%}")
+            acc = df_out.loc[mask, "correct"].mean()
+            logger.info(f"  > {t:.2f}   | {n:>6d} | {acc:>8.2%}")
 
-    return df_bets
+    return df_out
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BLOC 7 — SHAP
+# ══════════════════════════════════════════════════════════════════════════════
+
+def analyze_shap(model, X_val, feature_names: list, le,
+                  label: str = ""):
+    """Top 20 features par classe via SHAP TreeExplainer."""
+    logger.info(f"── SHAP [{label}] ─────────────────────────────────────")
+    try:
+        import shap
+    except ImportError:
+        logger.warning("  pip install shap")
+        return
+
+    explainer = shap.TreeExplainer(model)
+    shap_vals = explainer.shap_values(X_val)
+
+    for i, cls in enumerate(le.classes_):
+        sv       = shap_vals[i] if isinstance(shap_vals, list) else shap_vals[:, :, i]
+        mean_abs = np.abs(sv).mean(axis=0)
+        top_idx  = np.argsort(mean_abs)[::-1][:20]
+        logger.info(f"\n  Top 20 → classe '{cls}' :")
+        for rank, idx in enumerate(top_idx, 1):
+            name = feature_names[idx] if idx < len(feature_names) else f"feat_{idx}"
+            logger.info(f"    {rank:2d}. {name:<45} {mean_abs[idx]:.4f}")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # POINT D'ENTRÉE
 # ══════════════════════════════════════════════════════════════════════════════
 
-def main(use_bayes=True):
-    logger.info("=== Démarrage train ===")
-    logger.info(f"  Mode AE       : {USE_AE}")
-    logger.info(f"  Mode Stacking : {USE_STACKING}")
-    logger.info(f"  BayesSearchCV : {use_bayes}")
-
-    con = duckdb.connect(DB_PATH)
+def main(step: int = 2, use_shap: bool = True, n_trials: int = 50):
+    logger.info("=== Démarrage train Two-Stage Stacking ===")
 
     # ── Données ───────────────────────────────────────────────────────────────
-    df = load_data(con)
-    con.close()
+    df      = load_data()
+    df_match = pivot_to_match(df)
 
-    df_train, df_val, df_test = chronological_split(df)
+    df_train, df_val = split_data(df_match)
 
-    X_train, y_train = prepare_xy(df_train)
-    X_val,   y_val   = prepare_xy(df_val)
-    X_test,  y_test  = prepare_xy(df_test)
+    # Winsorisation — caps sur train uniquement
+    df_train, caps = winsorize(df_train, fit=True)
+    df_val,   _    = winsorize(df_val,   caps=caps, fit=False)
 
-    # ── Preprocessing ─────────────────────────────────────────────────────────
-    logger.info("Preprocessing...")
-    preprocessor, num_cols, cat_cols, raw_cols = build_preprocessor(X_train)
+    # ── Préparation features ──────────────────────────────────────────────────
 
-    X_train_s = preprocessor.fit_transform(X_train)
-    X_val_s   = preprocessor.transform(X_val)
-    X_test_s  = preprocessor.transform(X_test)
+    # Perspective Home
+    X_h_tr, y_h_tr = prepare_perspective(df_train, "home")
+    X_h_val, y_h_val = prepare_perspective(df_val, "home")
 
-    # Nombre de features numériques après VarianceThreshold
-    n_num = preprocessor.named_transformers_["num"].transform(
-        X_train[num_cols].fillna(0)
-    ).shape[1]
+    # Perspective Away
+    X_a_tr, y_a_tr = prepare_perspective(df_train, "away")
+    X_a_val, y_a_val = prepare_perspective(df_val, "away")
 
-    # ── Auto-encodeur (optionnel) ─────────────────────────────────────────────
-    if USE_AE:
-        logger.info("Auto-encodeur...")
-        X_train_s, X_val_s, X_test_s, ae_encoder = apply_autoencoder(
-            X_train_s, X_val_s, X_test_s, n_num
-        )
+    # Combined (pour LR baseline + Stage 2)
+    X_c_tr, y_c_tr = prepare_combined(df_train)
+    X_c_val, y_c_val = prepare_combined(df_val)
 
     # ── Encodage cible ────────────────────────────────────────────────────────
-    y_train_enc, y_val_enc, y_test_enc, le = encode_target(
-        y_train, y_val, y_test
-    )
+    y_h_tr_enc, y_h_val_enc, le_home     = encode_labels(y_h_tr, y_h_val)
+    y_a_tr_enc, y_a_val_enc, le_away     = encode_labels(y_a_tr, y_a_val)
+    y_c_tr_enc, y_c_val_enc, le_combined = encode_labels(y_c_tr, y_c_val)
+
+    # ── Preprocessing ─────────────────────────────────────────────────────────
+    pp_home = build_preprocessor()
+    pp_away = build_preprocessor()
+    pp_comb = build_preprocessor()
+
+    X_h_tr_s  = pp_home.fit_transform(X_h_tr)
+    X_h_val_s = pp_home.transform(X_h_val)
+
+    X_a_tr_s  = pp_away.fit_transform(X_a_tr)
+    X_a_val_s = pp_away.transform(X_a_val)
+
+    X_c_tr_s  = pp_comb.fit_transform(X_c_tr)
+    X_c_val_s = pp_comb.transform(X_c_val)
+
+    preprocessors = {"home": pp_home, "away": pp_away, "combined": pp_comb}
 
     # ── MLflow ────────────────────────────────────────────────────────────────
     mlflow.set_tracking_uri(MLFLOW_URI)
-    mlflow.set_experiment("football_1N2")
+    mlflow.set_experiment("football_1N2_stacking")
 
-    run_name = f"XGB_{'AE_' if USE_AE else ''}{'Stack_' if USE_STACKING else ''}multiclass"
+    with mlflow.start_run(run_name="TwoStage_Stacking_v1"):
+        mlflow.log_params({
+            "train_seasons": str(TRAIN_SEASONS),
+            "val_season":    VAL_SEASON,
+            "train_matches": len(df_train),
+            "val_matches":   len(df_val),
+        })
 
-    with mlflow.start_run(run_name=run_name):
-        mlflow.log_param("use_autoencoder", USE_AE)
-        mlflow.log_param("use_stacking",    USE_STACKING)
-        mlflow.log_param("test_season",     TEST_SEASON)
-        mlflow.log_param("train_size",      len(X_train_s))
-        mlflow.log_param("val_size",        len(X_val_s))
-        mlflow.log_param("test_size",       len(X_test_s))
-        mlflow.log_param("n_features",      X_train_s.shape[1])
+        # ── Stage 1 ───────────────────────────────────────────────────────────
+        logger.info("══ Stage 1 ══════════════════════════════════════════════")
 
-        # ── XGBoost ───────────────────────────────────────────────────────────
-        logger.info("Entraînement XGBoost...")
-        xgb_model, best_params = train_xgboost(
-            X_train_s, y_train_enc,
-            X_val_s,   y_val_enc,
-            use_bayes=use_bayes
+        lgbm_home = tune_lgbm_perspective(
+            X_h_tr_s, y_h_tr_enc, X_h_val_s, y_h_val_enc,
+            le_home, "LGBM Home", n_trials=args.n_trials
         )
-        mlflow.log_params({f"xgb_{k}": v for k, v in best_params.items()
-                           if isinstance(v, (int, float, str))})
+        lgbm_away = tune_lgbm_perspective(
+            X_a_tr_s, y_a_tr_enc, X_a_val_s, y_a_val_enc,
+            le_away, "LGBM Away", n_trials=args.n_trials
+        )
+        lr_base = train_lr_baseline(
+            X_c_tr_s, y_c_tr_enc, X_c_val_s, y_c_val_enc, le_combined
+        )
 
-        # ── Stacking (optionnel) ───────────────────────────────────────────────
-        if USE_STACKING:
-            logger.info("Stacking...")
-            predict_fn = train_stacking(xgb_model, X_train_s, y_train_enc, X_test_s)
-        else:
-            predict_fn = xgb_model.predict_proba
+        models = {
+            "lgbm_home":  lgbm_home,
+            "lgbm_away":  lgbm_away,
+            "lr_baseline": lr_base,
+        }
+
+        if step == 1:
+            logger.info("Step 1 uniquement — arrêt après Stage 1")
+            return
+
+        # ── Stage 2 ───────────────────────────────────────────────────────────
+        logger.info("══ Stage 2 ══════════════════════════════════════════════")
+
+        X_meta_tr  = build_meta_features(
+            models, preprocessors, df_train,
+            le_home, le_away, le_combined
+        )
+        X_meta_val = build_meta_features(
+            models, preprocessors, df_val,
+            le_home, le_away, le_combined
+        )
+
+        meta_model = train_meta(
+            X_meta_tr, y_c_tr_enc,
+            X_meta_val, y_c_val_enc,
+            le_combined
+        )
 
         # ── Calibration ───────────────────────────────────────────────────────
-        logger.info("Calibration...")
-
-        class _ProbWrapper:
-            """Wrapper pour que calibrate_model accepte notre predict_fn."""
-            def predict_proba(self, X):
-                return predict_fn(X)
-
-        wrapper = _ProbWrapper()
-        predict_calibrated, calibrators = calibrate_model(
-            wrapper, X_val_s, y_val_enc
+        predict_cal, calibrators = calibrate(
+            meta_model, X_meta_val, y_c_val_enc, le_combined
         )
 
-        # ── Évaluation ────────────────────────────────────────────────────────
-        logger.info("Évaluation...")
+        # ── Évaluation finale ─────────────────────────────────────────────────
+        proba_cal = predict_cal(X_meta_val)
+        metrics   = evaluate_full(
+            y_c_val_enc, proba_cal, le_combined, "Stage 2 Calibré"
+        )
+        mlflow.log_metrics(metrics)
 
-        # Sur le set de validation
-        proba_val   = predict_calibrated(X_val_s)
-        pred_val    = le.inverse_transform(np.argmax(proba_val, axis=1))
-        metrics_val = evaluate(y_val, pred_val, proba_val, le, "Val")
-        mlflow.log_metrics({f"val_{k}": v for k, v in metrics_val.items()})
+        # Évaluation Stage 1 seul pour comparaison
+        proba_meta_raw = meta_model.predict_proba(X_meta_val)
+        metrics_raw    = evaluate_full(
+            y_c_val_enc, proba_meta_raw, le_combined, "Stage 2 Non-calibré"
+        )
+        mlflow.log_metrics({f"raw_{k}": v for k, v in metrics_raw.items()})
 
-        # Sur le set de test
-        proba_test   = predict_calibrated(X_test_s)
-        pred_test    = le.inverse_transform(np.argmax(proba_test, axis=1))
-        metrics_test = evaluate(y_test, pred_test, proba_test, le, "Test")
-        mlflow.log_metrics({f"test_{k}": v for k, v in metrics_test.items()})
+        # ── Analyse upsets ────────────────────────────────────────────────────
+        df_results = analyze_upsets(
+            proba_cal, y_c_val_enc, le_combined, df_val
+        )
 
-        # Analyse paris
-        analyze_bets(proba_test, le, df_test)
+        # Export résultats
+        results_path = MODELS_DIR / "predictions_val.csv"
+        df_results.to_csv(results_path, index=False)
+        mlflow.log_artifact(str(results_path))
+        logger.info(f"  Prédictions sauvegardées : {results_path}")
 
-        # ── Sauvegarde ────────────────────────────────────────────────────────
-        logger.info("Sauvegarde du modèle...")
+        # ── SHAP ──────────────────────────────────────────────────────────────
+        if use_shap:
+            analyze_shap(
+                lgbm_home, X_h_val_s,
+                list(X_h_val.columns), le_home, "LGBM Home"
+            )
+            analyze_shap(
+                lgbm_away, X_a_val_s,
+                list(X_a_val.columns), le_away, "LGBM Away"
+            )
+
+        # ── Sauvegarde artefacts ───────────────────────────────────────────────
         artifacts = {
-            "preprocessor": preprocessor,
-            "label_encoder": le,
-            "xgb_model":    xgb_model,
-            "calibrators":  calibrators,
+            "preprocessors":   preprocessors,
+            "label_encoders": {
+                "home":     le_home,
+                "away":     le_away,
+                "combined": le_combined,
+            },
+            "models":        models,
+            "meta_model":    meta_model,
+            "calibrators":   calibrators,
+            "winsorize_caps": caps,
+            "feature_names": {
+                "home":     list(X_h_tr.columns),
+                "away":     list(X_a_tr.columns),
+                "combined": list(X_c_tr.columns),
+            },
         }
-        if USE_AE:
-            artifacts["ae_encoder"] = ae_encoder
-        if USE_STACKING:
-            artifacts["predict_fn"] = predict_fn
-
-        model_path = MODELS_DIR / f"{run_name}.joblib"
+        model_path = MODELS_DIR / "football_stacking_v1.joblib"
         joblib.dump(artifacts, model_path)
         mlflow.log_artifact(str(model_path))
         logger.success(f"  Modèle sauvegardé : {model_path}")
@@ -686,7 +838,9 @@ def main(use_bayes=True):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--no-bayes", action="store_true",
-                        help="Désactiver BayesSearchCV (plus rapide)")
+    parser.add_argument("--step",    type=int, default=2)
+    parser.add_argument("--no-shap", action="store_true")
+    parser.add_argument("--n-trials", type=int, default=50,
+                    help="Nombre de trials Optuna par modèle")
     args = parser.parse_args()
-    main(use_bayes=not args.no_bayes)
+    main(step=args.step, use_shap=not args.no_shap, n_trials=args.n_trials)

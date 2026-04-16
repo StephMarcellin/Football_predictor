@@ -1,0 +1,240 @@
+CREATE OR REPLACE TABLE gold.features_training AS
+        WITH base_with_gap AS (
+            SELECT *,
+                CAST(date AS DATE)
+                    - LAG(CAST(date AS DATE))
+                      OVER (PARTITION BY team ORDER BY date) AS days_since_last_match
+            FROM gold.stg_backbone
+        )
+        SELECT
+            -- ══════════════════════════════════════════════════════════════════
+            -- IDENTIFIANTS
+            -- ══════════════════════════════════════════════════════════════════
+            date,
+            team,
+            opponent,
+            venue,
+            season,
+            league_source,
+            comp_category,
+            match_id,
+            result_1n2,
+
+            -- ══════════════════════════════════════════════════════════════════
+            -- CONTEXTE MATCH
+            -- ══════════════════════════════════════════════════════════════════
+            CASE WHEN venue = 'Home' THEN 1 ELSE 0 END AS is_home,
+
+            -- Fatigue / fraîcheur
+            days_since_last_match,
+            CASE WHEN days_since_last_match > 20 THEN 1 ELSE 0 END
+                AS is_return_from_break,     -- repos prolongé (CL, trêve intl.)
+            CASE WHEN days_since_last_match < 4  THEN 1 ELSE 0 END
+                AS is_short_rest,            -- < 4 jours : fatigue cumulative
+
+            -- ══════════════════════════════════════════════════════════════════
+            -- AXE xG — FORME OFFENSIVE ET DÉFENSIVE
+            -- ══════════════════════════════════════════════════════════════════
+
+            -- xG offensif (np = hors pénaltys, plus stable que xg brut)
+            AVG(np_xg)           OVER ({FRAME_GEN})   AS np_xg_roll_{WINDOW},
+            AVG(np_xg)           OVER ({FRAME_VENUE})  AS np_xg_roll_venue_{WINDOW},
+
+            -- xG défensif (xG concédé sur 5 matchs)
+            -- Complément indispensable du xG offensif pour évaluer le niveau
+            AVG(np_xg_conceded)  OVER ({FRAME_GEN})   AS np_xg_conceded_roll_{WINDOW},
+
+            -- Balance xG nette : offensive - défensive
+            -- > 0 → l'équipe crée plus qu'elle ne concède → dominance attendue
+            -- < 0 → l'équipe subit → upset potentiel si elle gagne quand même
+            AVG(np_xg - np_xg_conceded) OVER ({FRAME_GEN}) AS xg_net_roll_{WINDOW},
+
+            -- ══════════════════════════════════════════════════════════════════
+            -- AXE QUALITÉ DE TIR (Shot Quality Ratio)
+            -- ══════════════════════════════════════════════════════════════════
+
+            -- SQR : xG par tir — mesure la QUALITÉ des occasions vs le volume
+            -- Signal clé d'upset : un outsider qui tire peu mais bien (contre-attaque)
+            -- peut battre une équipe qui domine territorialement mais tire mal.
+            AVG(np_xg) OVER ({FRAME_GEN})
+                / NULLIF(AVG(shots_total) OVER ({FRAME_GEN}), 0)
+                AS shot_quality_ratio_{WINDOW},
+
+            -- Version par venue (counter-attacking style peut varier home/away)
+            AVG(np_xg) OVER ({FRAME_VENUE})
+                / NULLIF(AVG(shots_total) OVER ({FRAME_VENUE}), 0)
+                AS shot_quality_ratio_venue_{WINDOW},
+
+            -- Précision des tirs cadrés : shots_on_target / shots_total
+            -- Distinct du SQR : mesure la direction, pas la dangerosité
+            AVG(shots_on_target) OVER ({FRAME_GEN})
+                / NULLIF(AVG(shots_total) OVER ({FRAME_GEN}), 0)
+                AS shot_accuracy_roll_{WINDOW},
+
+            -- ══════════════════════════════════════════════════════════════════
+            -- AXE GARDIEN (Save Rate — Regression to Mean)
+            -- ══════════════════════════════════════════════════════════════════
+
+            -- Taux d'arrêts observé en rolling (plus stable que save_pct par match)
+            -- Si save_rate_roll >> baseline historique → gardien en forme OU chance
+            -- Signal de régression : une équipe qui gagne grâce à son gardien
+            -- finit par revenir à la moyenne → risque d'upset à venir
+
+            AVG(saves) OVER ({FRAME_GEN})
+                / NULLIF(AVG(shots_on_target_faced) OVER ({FRAME_GEN}), 0)
+                AS save_rate_roll_{WINDOW},
+
+            AVG(save_pct) OVER ({FRAME_GEN}) AS roll_save_pct_{WINDOW},
+
+            AVG(shots_on_target_faced) OVER ({FRAME_GEN}) AS roll_sota_{WINDOW},
+
+            -- ══════════════════════════════════════════════════════════════════
+            -- AXE POSSESSION
+            -- ══════════════════════════════════════════════════════════════════
+            AVG(possession) OVER ({FRAME_GEN})   AS poss_roll_{WINDOW},
+            AVG(possession) OVER ({FRAME_VENUE})  AS poss_roll_venue_{WINDOW},
+
+            -- ══════════════════════════════════════════════════════════════════
+            -- AXE PRESSING (PPDA)
+            -- ppda bas = pressing intense (peu de passes adverses autorisées
+            --           avant une action défensive)
+            -- ══════════════════════════════════════════════════════════════════
+
+            -- Pressing exercé par l'équipe
+            AVG(ppda) OVER ({FRAME_GEN}) AS ppda_roll_{WINDOW},
+
+            -- Pressing subi par l'équipe (ppda de ses adversaires vs elle)
+            -- Mesure si l'équipe joue souvent contre des équipes qui pressent
+            AVG(ppda_allowed) OVER ({FRAME_GEN}) AS ppda_allowed_roll_{WINDOW},
+
+            -- Ratio de pressing : ppda / ppda_allowed
+            -- < 1 → l'équipe presse plus qu'elle n'est pressée → avantage tactique
+            -- Signal upset : une équipe avec ratio < 0.7 contre un adversaire à > 1.3
+            --                crée une asymétrie de pressing typique des upsets Bielsa/Klopp
+            AVG(ppda) OVER ({FRAME_GEN})
+                / NULLIF(AVG(ppda_allowed) OVER ({FRAME_GEN}), 0)
+                AS ppda_ratio_roll_{WINDOW},
+
+            -- ══════════════════════════════════════════════════════════════════
+            -- AXE DÉFENSE ACTIVE (Intensity Index)
+            -- Distinct du pressing (ppda) : mesure les duels REMPORTÉS
+            -- plutôt que la pression sur la possession adverse
+            -- ══════════════════════════════════════════════════════════════════
+
+            -- Actions défensives gagnées = tackles_won + interceptions
+            -- Élevé = bloc défensif actif, équipe qui récupère le ballon
+            AVG(tackles_won + interceptions) OVER ({FRAME_GEN})
+                AS defensive_actions_roll_{WINDOW},
+
+            -- Brutalité défensive : fautes / duels gagnés
+            -- Élevé = équipe qui faute beaucoup pour peu de duels gagnés
+            -- Signal de stress défensif ou d'indiscipline sous pression
+            AVG(fouls_committed) OVER ({FRAME_GEN})
+                / NULLIF(AVG(tackles_won) OVER ({FRAME_GEN}), 0)
+                AS fouls_per_tackle_roll_{WINDOW},
+
+            -- ══════════════════════════════════════════════════════════════════
+            -- AXE SURPERFORMANCE xG (Regression to Mean — Upset Signal)
+            -- ══════════════════════════════════════════════════════════════════
+            -- Ratio buts réels / xG sur 5 matchs
+            -- > 1 → l'équipe marque plus que son xG → "chanceuse" → régression attendue
+            -- < 1 → l'équipe marque moins → "malchanceuse" → rebond possible
+            -- Face à une équipe qui sous-performe (< 1), une équipe surperformante
+            -- est plus à risque qu'il n'y paraît → classique setup d'upset
+            AVG(gf) OVER ({FRAME_GEN})
+                / NULLIF(AVG(np_xg) OVER ({FRAME_GEN}), 0) - 1
+                AS xg_overperformance_{WINDOW},
+
+            -- ══════════════════════════════════════════════════════════════════════
+            -- STERILITY INDEX
+            -- Croise la possession avec la qualité de tir (SQR).
+            -- Une équipe qui domine la possession mais génère peu de xG par tir
+            -- est un "faux favori" — elle contrôle sans menacer réellement.
+            -- Valeur haute = possession stérile → signal upset pour l'adversaire.
+            -- Formule : possession rolling / SQR rolling
+            -- Interprétation : plus c'est haut, plus il faut de possession
+            --                  pour générer 1 unité de danger réel.
+            -- ══════════════════════════════════════════════════════════════════════
+            AVG(possession) OVER ({FRAME_GEN})
+                / NULLIF(
+                    AVG(np_xg) OVER ({FRAME_GEN})
+                        / NULLIF(AVG(shots_total) OVER ({FRAME_GEN}), 0)
+                , 0)
+                AS sterility_index_{WINDOW},
+
+            -- ══════════════════════════════════════════════════════════════════════
+            -- PRESS RESISTANCE INDEX
+            -- Mesure la capacité à maintenir la possession SOUS pression adverse.
+            -- ppda_allowed bas = l'adversaire presse fort contre cette équipe.
+            -- possession élevée malgré ppda_allowed bas = résiste au pressing.
+            -- Formule : possession rolling × (1 / ppda_allowed rolling)
+            -- Interprétation : élevé = l'équipe garde le ballon même quand pressée.
+            -- Signal upset : une équipe avec PRI élevé contre un presseur intense
+            --               peut neutraliser le plan de jeu adverse.
+            -- ══════════════════════════════════════════════════════════════════════
+            AVG(possession) OVER ({FRAME_GEN})
+                / NULLIF(AVG(ppda_allowed) OVER ({FRAME_GEN}), 0)
+                AS press_resistance_{WINDOW},
+
+            -- ══════════════════════════════════════════════════════════════════════
+            -- SHIELD EFFICIENCY INDEX
+            -- Combine save_pct rolling avec le volume de xG concédé.
+            -- Une équipe avec save_pct élevé ET xG concédé élevé tient grâce à son
+            -- gardien — situation non répétable → signal de régression imminente.
+            -- Une équipe avec save_pct modéré ET xG concédé faible est
+            -- structurellement solide — le gardien n'est pas en surcharge.
+            -- Formule : save_pct rolling / (1 + np_xg_conceded rolling)
+            -- Interprétation : élevé = efficacité défensive soutenable.
+            --                  save_pct haut mais np_xg_conceded haut → ratio bas
+            --                  malgré la forme → alerte régression.
+            -- ══════════════════════════════════════════════════════════════════════
+            AVG(save_pct) OVER ({FRAME_GEN})
+                / NULLIF(1 + AVG(np_xg_conceded) OVER ({FRAME_GEN}), 0)
+                AS shield_efficiency_{WINDOW},
+
+            
+            -- ══════════════════════════════════════════════════════════════════════
+            -- CONTEXTE DISCIPLINAIRE
+            -- Un carton rouge change structurellement le match à partir du moment
+            -- où il est donné. Les stats post-expulsion sont biaisées (possession
+            -- adverse gonflée, ppda de l'équipe réduite, shots concédés en hausse).
+            -- On expose le flag — le modèle apprend à dévaluer ces matchs.
+            -- ══════════════════════════════════════════════════════════════════════
+            CASE WHEN (red_cards + second_yellow_cards) > 0 THEN 1 ELSE 0 END
+                AS had_red_card,
+
+            -- Proportion de matchs récents avec carton rouge dans la fenêtre
+            -- Élevé → pattern disciplinaire structurel, pas un accident
+            AVG(
+                CASE WHEN (red_cards + second_yellow_cards) > 0 THEN 1.0 ELSE 0.0 END
+            ) OVER ({FRAME_GEN})
+                AS red_card_rate_roll_{WINDOW},
+
+			-- ══════════════════════════════════════════════════════════════════
+            -- GRAIN SAISON (WhoScored) — NIVEAU STRUCTUREL
+            -- Constant sur toute la saison, pas de rolling nécessaire.
+            -- ws_season_xg_for supprimé — remplacé par ws_xg_diff_for
+            -- qui encode la surperformance buts/xG saison (signal régression).
+            -- ══════════════════════════════════════════════════════════════════
+
+            -- Niveau structurel
+            season_att_rating,          -- niveau offensif agrégé (WhoScored)
+            season_def_rating,          -- niveau défensif agrégé (WhoScored)
+
+            -- Qualité de tir saison — baseline structurelle vs SQR rolling FBref
+            -- Écart entre ws_xg_per_shot_for et shot_quality_ratio_roll = dérive de forme
+            ws_xg_per_shot_for,         -- xG/tir offensif saison
+            ws_xg_per_shot_against,     -- xG/tir concédé saison
+
+            -- Surperformance saison buts/xG (Monétiser — régression)
+            -- Distinct de xg_overperformance rolling (5 matchs) :
+            -- ici tendance structurelle de fond, pas fluctuation récente
+            ws_xg_diff_for,             -- surperformance offensive saison
+            ws_xg_diff_against,         -- surperformance défensive saison
+
+            -- Style offensif (Optimiser)
+            ws_dribbles_pg,             -- intensité de dribble — absent FBref
+            ws_fouled_pg,               -- capacité à obtenir des fautes
+            ws_shots_ot_pg              -- cadrage moyen saison
+
+        FROM base_with_gap

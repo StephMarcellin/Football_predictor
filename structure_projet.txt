@@ -1,0 +1,51 @@
+Projet_3étoiles/
+    config.yaml
+    README.md
+    requirements.txt
+    scraping_config.yaml
+    app/
+        streamlit_app.py
+    db/
+        football.duckdb
+    docs/
+        Liste_promu.txt
+        Notes diverses.txt
+    downloaded_files/
+        driver_fixing.lock
+    logs/
+        audit_unmapped.log
+        backtest.log
+        features.log
+        ingest.log
+        odds.log
+        process.log
+        scrape_fbref.log
+        scrape_whoscored.log
+        train.log
+    models/
+        backtest_results.csv
+        football_stacking_v1.joblib
+        predictions_2425.csv
+        predictions_upcoming.csv
+        predictions_val.csv
+    notebooks/
+    pipelines/
+        01b_odds.py
+        01_ingest.py
+        02_process.py
+        03_features - Copie.py
+        03_features.py
+        04_train.py
+        05_predict.py
+        06_backtest.py
+        config_columns.py
+        debug_bronze.py
+        debug_predictions.py
+        generer_tree.py
+        scrape_fbref.py
+        scrape_understat.py
+        scrape_whoscored.py
+        Features_SQL/
+            Différentials.txt
+            Rolling features.txt
+            Staging.txt

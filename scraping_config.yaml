@@ -1,0 +1,31 @@
+# Saisons à scraper
+# Format : "YYYY-YYYY"
+seasons:
+  # - "2017-2018"
+  # - "2018-2019"
+  # - "2019-2020"
+  # - "2020-2021"
+  # - "2021-2022"
+  # - "2022-2023"
+  # - "2023-2024"
+  - "2024-2025"
+
+# Types de stats FBref à scraper
+stat_types:
+  - "schedule"
+  - "shooting"
+  - "keeper"
+  - "misc"
+
+# Ligues à scraper — commenter pour exclure
+leagues:
+  # - "Premier League"
+  # - "Ligue 1"
+  # - "Bundesliga"
+  - "Serie A"
+  # - "La Liga"
+  # - "Championship"
+  # - "Ligue 2"
+  # - "2. Bundesliga"
+  # - "Serie B"
+  # - "La Liga 2"
