@@ -21,6 +21,12 @@ import warnings
 import joblib
 from pathlib import Path
 
+import matplotlib
+matplotlib.use("Agg")   # pas de display requis — sauvegarde fichier uniquement
+import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
+import seaborn as sns
+
 import duckdb
 import numpy as np
 import pandas as pd
@@ -56,6 +62,8 @@ with open(ROOT_DIR / "config.yaml", encoding="utf-8") as f:
 DB_PATH    = CFG["paths"]["duckdb"]
 MODELS_DIR = Path(CFG["paths"].get("models", "models"))
 MODELS_DIR.mkdir(exist_ok=True)
+DIAG_DIR   = MODELS_DIR / "diagnostics"
+DIAG_DIR.mkdir(exist_ok=True)
 MLFLOW_URI = CFG.get("mlflow", {}).get("tracking_uri", "mlruns")
 TARGET     = "result_1n2"
 
@@ -69,14 +77,16 @@ logger.add(
     format="{time:YYYY-MM-DD HH:mm:ss} | {level:<8} | {message}",
 )
 
-TRAIN_SEASONS = ["2017-2018",
-  "2018-2019",
-  "2019-2020",
-  "2020-2021",
-  "2021-2022",
-  "2022-2023"
-]
-VAL_SEASON    = "2023-2024"
+TRAIN_SEASONS = CFG["train"]["TRAIN_SEASONS"]
+VAL_SEASONS = CFG["train"]["VAL_SEASONS"]
+TEST_SEASON = CFG["train"]["TEST_SEASON"]
+
+# TRAIN_SEASONS = [
+#     "2017-2018", "2018-2019", "2019-2020",
+#     "2020-2021", "2021-2022",
+# ]
+# VAL_SEASONS = ["2022-2023", "2023-2024"]   # deux saisons pour plus de robustesse
+# TEST_SEASON = "2024-2025"                  # intouchable jusqu'au backtest final
 
 # Colonnes identifiants — jamais dans le modèle
 ID_COLS = [
@@ -93,11 +103,17 @@ ID_COLS = [
 
 # Features à winsoriser
 COLS_TO_WINSORIZE = [
-    "sterility_index_5", "sterility_diff",
-    "press_resistance_5", "press_resistance_diff",
-    "shield_efficiency_5", "shield_efficiency_diff",
-    "xg_overperformance_5", "xg_opi_diff",
+    "sterility_index_5", 
+    "sterility_diff",
+    "press_resistance_5", 
+    "press_resistance_diff",
+    "shield_efficiency_5", 
+    "shield_efficiency_diff",
+    "xg_overperformance_5", 
+    "xg_opi_diff",
     "fouls_per_tackle_roll_5",
+    "ws_momentum_delta",
+    "ws_momentum_diff",
 ]
 
 # Features propres à chaque perspective
@@ -215,12 +231,18 @@ def winsorize(df: pd.DataFrame,
     return df, caps
 
 
-def split_data(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Split temporel par saison."""
+def split_data(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Split temporel Train / Val / Test."""
     train = df[df["season"].isin(TRAIN_SEASONS)].copy()
-    val   = df[df["season"] == VAL_SEASON].copy()
-    logger.info(f"  Train : {len(train):,} | Val : {len(val):,}")
-    return train, val
+    val   = df[df["season"].isin(VAL_SEASONS)].copy()
+    test  = df[df["season"] == TEST_SEASON].copy()
+    logger.info(f"  Train : {len(train):,} | Val : {len(val):,} | Test : {len(test):,}")
+
+    for name, split in [("Train", train), ("Val", val)]:
+        if "result_match" in split.columns:
+            dist = split["result_match"].value_counts(normalize=True).round(3).to_dict()
+            logger.info(f"  Distribution {name} (post-pivot) : {dist}")
+    return train, val, test
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -270,6 +292,10 @@ def encode_labels(y_train, y_val) -> tuple:
             le.transform(y_val),
             le)
 
+def encode_test_labels(y_test, le: LabelEncoder) -> np.ndarray:
+    """Encode le test set avec un LabelEncoder déjà fitté sur train."""
+    return le.transform(y_test)
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # BLOC 3 — Stage 1 : modèles par perspective
@@ -293,11 +319,11 @@ def tune_lgbm_perspective(
             "num_class":        n_classes,
             "metric":           "multi_logloss",
             "n_estimators":     1000,
-            "is_unbalance":     True,
+            "class_weight":     "balanced",
             "learning_rate":    trial.suggest_float("learning_rate", 0.01, 0.1, log=True),
-            "max_depth":        trial.suggest_int("max_depth", 3, 6),
-            "num_leaves":       trial.suggest_int("num_leaves", 15, 63),
-            "min_child_samples":trial.suggest_int("min_child_samples", 10, 50),
+            "max_depth":        trial.suggest_int("max_depth", 3, 7),
+            "num_leaves":       trial.suggest_int("num_leaves", 15, 127),
+            "min_child_samples":trial.suggest_int("min_child_samples", 10, 80),
             "subsample":        trial.suggest_float("subsample", 0.6, 1.0),
             "colsample_bytree": trial.suggest_float("colsample_bytree", 0.4, 0.9),
             "reg_alpha":        trial.suggest_float("reg_alpha", 0.01, 10.0, log=True),
@@ -402,6 +428,7 @@ def train_lr_baseline(X_train, y_train, X_val, y_val,
     logger.info("  Stage 1C — LR Baseline...")
     lr = LogisticRegression(
         max_iter=1000,
+        class_weight="balanced",
         C=1.0,
         random_state=42,
         n_jobs=-1,
@@ -464,7 +491,27 @@ def build_meta_features(models: dict,
         # Fallback si colonnes absentes
         parts.append(np.full((len(df_match), 3), 1/3))
 
-    return np.hstack(parts)  # shape (n, 12)
+    # Stage 1E — Features contextuelles Draw
+    # h2h_draw_rate : % historique de nuls entre ces deux équipes
+    # h2h_n_matches : fiabilité du signal (peu de matchs = signal faible)
+    # market_prob_draw : le marché encode déjà une info sur la probabilité de nul
+    draw_cols = ["h_h2h_draw_rate", "h_h2h_n_matches", "h_market_prob_draw", "h_league_draw_rate",
+                    "h_sterility_weighted_10",
+                    "h_shots_faced_per_goal_conceded_5"]
+    draw_feats_list = []
+    for c in draw_cols:
+        if c in df_match.columns:
+            arr = df_match[c].to_numpy(dtype=float, na_value=0.0)
+            draw_feats_list.append(arr)
+
+    if draw_feats_list:
+        draw_feats = np.column_stack(draw_feats_list)
+        parts.append(draw_feats)
+
+    if draw_feats.size > 0:
+        parts.append(draw_feats)
+
+    return np.hstack(parts)  # shape (n, 12+)
 
 
 def _reorder_proba(proba: np.ndarray,
@@ -479,12 +526,13 @@ def _reorder_proba(proba: np.ndarray,
 
 def train_meta(X_meta_train, y_train,
                X_meta_val, y_val, le) -> LogisticRegression:
-    """Stage 2 : LogReg méta sur les probabilités Stage 1."""
+    """Stage 2 : LogReg méta — configuration neutre, LogLoss minimal."""
     logger.info("── Stage 2 : Méta-modèle LogReg ─────────────────────────")
     meta = LogisticRegression(
-    max_iter=2000,
-    C=0.1,
-    random_state=42,
+        max_iter=2000,
+        C=0.1,
+        class_weight=None,   # Neutre — pas de biais artificiel
+        random_state=42,
     )
     meta.fit(X_meta_train, y_train)
 
@@ -500,15 +548,39 @@ def train_meta(X_meta_train, y_train,
 # ══════════════════════════════════════════════════════════════════════════════
 
 def calibrate(model, X_val, y_val_enc, le) -> tuple:
-    """Calibration isotonique par classe sur le val set."""
+    """
+    Calibration isotonique par classe.
+    Le val set est splitté en deux moitiés temporelles :
+      - première moitié  → fit des calibrateurs (cal split)
+      - deuxième moitié  → évaluation finale non biaisée (eval split)
+    """
     logger.info("── Calibration isotonique ───────────────────────────────")
-    probs = model.predict_proba(X_val)
-    n_cl  = probs.shape[1]
+
+    n        = len(y_val_enc)
+    split    = n // 2
+    cal_idx  = np.arange(0, split)
+    eval_idx = np.arange(split, n)
+
+    logger.info(f"  Cal split  : {len(cal_idx)} matchs")
+    logger.info(f"  Eval split : {len(eval_idx)} matchs")
+
+    if hasattr(X_val, "iloc"):
+        X_cal  = X_val.iloc[cal_idx]
+        X_eval = X_val.iloc[eval_idx]
+    else:
+        X_cal  = X_val[cal_idx]
+        X_eval = X_val[eval_idx]
+
+    y_cal  = y_val_enc[cal_idx]
+    y_eval = y_val_enc[eval_idx]
+
+    probs_cal = model.predict_proba(X_cal)
+    n_cl      = probs_cal.shape[1]
 
     calibrators = []
     for c in range(n_cl):
         cal = IsotonicRegression(out_of_bounds="clip")
-        cal.fit(probs[:, c], (y_val_enc == c).astype(int))
+        cal.fit(probs_cal[:, c], (y_cal == c).astype(int))
         calibrators.append(cal)
 
     def predict_calibrated(X):
@@ -517,11 +589,66 @@ def calibrate(model, X_val, y_val_enc, le) -> tuple:
             calibrators[c].transform(raw[:, c]) for c in range(n_cl)
         ])
         row_sums = cal_probs.sum(axis=1, keepdims=True)
-        return cal_probs / np.where(row_sums == 0, 1, row_sums)
+        cal_probs = cal_probs / np.where(row_sums == 0, 1, row_sums)
+        return np.clip(cal_probs, 0.01, 0.99)
 
-    return predict_calibrated, calibrators
+    return predict_calibrated, calibrators, X_eval, y_eval, eval_idx
 
+def optimize_draw_threshold(calibrators, meta_model, X_val, y_val_enc, le,
+                             thresholds=None) -> float:
+    """
+    Cherche le seuil P(D) optimal sur le val set (après calibration).
+    Si P(D) > threshold → prédit D, sinon argmax(H, A).
+    
+    Objectif : maximiser le F1-score Draw (précision × recall équilibrés).
+    Retourne le seuil optimal.
+    """
+    if thresholds is None:
+        thresholds = np.arange(0.25, 0.55, 0.01)
 
+    idx_D = list(le.classes_).index("D")
+    idx_H = list(le.classes_).index("H")
+    idx_A = list(le.classes_).index("A")
+
+    raw_proba = meta_model.predict_proba(X_val)
+    n_cl = raw_proba.shape[1]
+    cal_proba = np.column_stack([
+        calibrators[i].predict(raw_proba[:, i])   # ← index entier, pas nom de classe
+        for i in range(n_cl)
+    ])
+    # Renormaliser (isotonique ne garantit pas la somme = 1)
+    row_sums = cal_proba.sum(axis=1, keepdims=True)
+    cal_proba = cal_proba / np.where(row_sums == 0, 1, row_sums)
+    cal_proba = np.clip(cal_proba, 0.01, 0.99)
+
+    results = []
+    for t in thresholds:
+        # Règle de décision : D si P(D) > t, sinon max(H, A)
+        pred = np.where(
+            cal_proba[:, idx_D] > t,
+            idx_D,
+            np.where(cal_proba[:, idx_H] > cal_proba[:, idx_A], idx_H, idx_A)
+        )
+        # F1 Draw uniquement
+        draw_mask_true = (y_val_enc == idx_D)
+        draw_mask_pred = (pred == idx_D)
+        tp = (draw_mask_true & draw_mask_pred).sum()
+        precision = tp / draw_mask_pred.sum() if draw_mask_pred.sum() > 0 else 0
+        recall    = tp / draw_mask_true.sum() if draw_mask_true.sum() > 0 else 0
+        f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+        results.append((t, f1, precision, recall))
+
+    # Seuil optimal = F1 Draw max
+    best = max(results, key=lambda x: x[1])
+    logger.info(f"\n── Optimisation seuil Draw ──────────────────────────────")
+    logger.info(f"  {'Seuil':>6} | {'F1-D':>6} | {'Prec':>6} | {'Recall':>6}")
+    logger.info(f"  {'-'*34}")
+    for t, f1, prec, rec in results:
+        marker = " ◄ BEST" if t == best[0] else ""
+        logger.info(f"  {t:>6.2f} | {f1:>6.4f} | {prec:>6.4f} | {rec:>6.4f}{marker}")
+    logger.info(f"  Seuil optimal Draw : {best[0]:.2f} "
+                f"(F1={best[1]:.4f} | Prec={best[2]:.4f} | Recall={best[3]:.4f})")
+    return best[0]
 # ══════════════════════════════════════════════════════════════════════════════
 # BLOC 6 — Évaluation
 # ══════════════════════════════════════════════════════════════════════════════
@@ -545,9 +672,9 @@ def predict_with_draw_boost(y_proba, le, draw_threshold: float = 0.28) -> np.nda
     y_pred[draw_mask] = idx_D
     return y_pred
 
-def evaluate_full(y_true_enc, y_proba, le, label: str) -> dict:
+def evaluate_full(y_true_enc, y_proba, le, label: str,draw_threshold: float = 0.28) -> dict:
     """Log Loss + Accuracy + Brier Score + rapport par classe."""
-    y_pred = predict_with_draw_boost(y_proba, le)
+    y_pred = predict_with_draw_boost(y_proba, le, draw_threshold= draw_threshold)
     y_true_dec = le.inverse_transform(y_true_enc)
     y_pred_dec = le.inverse_transform(y_pred)
 
@@ -587,7 +714,7 @@ def evaluate_full(y_true_enc, y_proba, le, label: str) -> dict:
 
 
 def analyze_upsets(y_proba, y_true_enc, le,
-                    df_match: pd.DataFrame) -> pd.DataFrame:
+                    df_match: pd.DataFrame,draw_threshold: float = 0.28) -> pd.DataFrame:
     """
     Précision sur les upsets : matchs où le modèle détecte
     une victoire extérieure improbable.
@@ -609,7 +736,7 @@ def analyze_upsets(y_proba, y_true_enc, le,
         "prob_draw":      y_proba[:, idx_D],
         "prob_away":      y_proba[:, idx_A],
         "actual_result":  le.inverse_transform(y_true_enc),
-        "pred":           le.inverse_transform(np.argmax(y_proba, axis=1)),
+        "pred":           le.inverse_transform(predict_with_draw_boost(y_proba, le, draw_threshold=draw_threshold)),
     })
 
     df_out["correct"]    = (df_out["pred"] == df_out["actual_result"]).astype(int)
@@ -663,40 +790,221 @@ def analyze_shap(model, X_val, feature_names: list, le,
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# BLOC 8 — DIAGNOSTIC VISUEL (Draw analysis)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def plot_diagnostics(y_true_enc: np.ndarray,
+                     proba_cal:  np.ndarray,
+                     le,
+                     label:      str = "v1",
+                     draw_threshold: float = 0.28) -> None:
+    """
+    Génère une planche de 4 diagnostics focalisés sur le Draw et sauvegarde
+    dans models/diagnostics/diagnostic_{label}.png
+
+    Graphiques :
+      1. Reliability Diagram (H / D / A)
+         Probabilité prédite (axe X) vs fréquence réelle (axe Y).
+         Une courbe parfaitement calibrée = diagonale.
+         Signal recherché : si la courbe Draw est systématiquement
+         sous la diagonale → le modèle sous-estime P(D).
+
+      2. Distribution de P(Draw) par résultat réel
+         KDE des probabilités prédites pour le Draw,
+         coloré par résultat réel (H / D / A).
+         Signal : les vrais nuls doivent former un mode à droite.
+         Le trait vertical = draw_threshold actuel.
+
+      3. Matrice de Confusion normalisée (recall)
+         Chaque ligne = résultat réel, chaque colonne = prédiction.
+         Valeurs = recall (% de chaque classe bien prédit).
+         Signal : vers quelle classe les nuls sont-ils "volés" ?
+
+      4. Distribution comparée P(H) / P(D) / P(A)
+         Violin plot des 3 distributions de probabilité.
+         Signal : si P(D) est très concentré à gauche (<0.30)
+         → le modèle n'a jamais confiance dans les nuls.
+    """
+    classes  = list(le.classes_)   # ['A', 'D', 'H'] ordre LabelEncoder
+    idx      = {c: i for i, c in enumerate(classes)}
+    n_cls    = len(classes)
+    colors   = {"H": "#2196F3", "D": "#FF9800", "A": "#F44336"}
+    y_pred   = predict_with_draw_boost(proba_cal, le, draw_threshold)
+
+    # ── Figure layout ─────────────────────────────────────────────────────────
+    fig = plt.figure(figsize=(18, 14))
+    fig.patch.set_facecolor("#0F1117")
+    gs  = gridspec.GridSpec(2, 2, figure=fig, hspace=0.38, wspace=0.32)
+    ax_rel  = fig.add_subplot(gs[0, 0])   # Reliability
+    ax_kde  = fig.add_subplot(gs[0, 1])   # KDE P(Draw)
+    ax_cm   = fig.add_subplot(gs[1, 0])   # Confusion matrix
+    ax_vio  = fig.add_subplot(gs[1, 1])   # Violin distributions
+
+    _style_ax = lambda ax: (
+        ax.set_facecolor("#1A1D27"),
+        ax.tick_params(colors="white", labelsize=9),
+        [s.set_edgecolor("#444") for s in ax.spines.values()],
+        ax.xaxis.label.set_color("white"),
+        ax.yaxis.label.set_color("white"),
+        ax.title.set_color("white"),
+    )
+
+    # ── 1. Reliability Diagram ────────────────────────────────────────────────
+    from sklearn.calibration import calibration_curve
+
+    ax_rel.plot([0, 1], [0, 1], "w--", lw=1, alpha=0.5, label="Parfait")
+    for cls in ["H", "D", "A"]:
+        c     = idx[cls]
+        frac, mean_pred = calibration_curve(
+            (y_true_enc == c).astype(int),
+            proba_cal[:, c],
+            n_bins=10,
+        )
+        ax_rel.plot(mean_pred, frac,
+                    "o-", color=colors[cls], lw=2, ms=5,
+                    label=f"{cls}  (MAE={np.mean(np.abs(frac - mean_pred)):.3f})")
+
+    ax_rel.set_title("① Reliability Diagram — Calibration par classe", fontsize=11, pad=10)
+    ax_rel.set_xlabel("Probabilité prédite")
+    ax_rel.set_ylabel("Fréquence réelle")
+    ax_rel.legend(fontsize=8, facecolor="#1A1D27", labelcolor="white",
+                  edgecolor="#444")
+    ax_rel.set_xlim(0, 1); ax_rel.set_ylim(0, 1)
+    _style_ax(ax_rel)
+
+    # ── 2. KDE P(Draw) par résultat réel ─────────────────────────────────────
+    y_true_dec = le.inverse_transform(y_true_enc)
+    p_draw     = proba_cal[:, idx["D"]]
+
+    for cls in ["H", "D", "A"]:
+        mask = y_true_dec == cls
+        if mask.sum() > 10:
+            sns.kdeplot(p_draw[mask], ax=ax_kde,
+                        color=colors[cls], fill=True, alpha=0.25,
+                        linewidth=2, label=f"Réel={cls} (n={mask.sum()})")
+
+    ax_kde.axvline(draw_threshold, color="white", lw=1.5,
+                   ls="--", label=f"Seuil draw_boost={draw_threshold}")
+    ax_kde.set_title("② Distribution P(Draw) par résultat réel", fontsize=11, pad=10)
+    ax_kde.set_xlabel("P(Draw) prédit")
+    ax_kde.set_ylabel("Densité")
+    ax_kde.legend(fontsize=8, facecolor="#1A1D27", labelcolor="white",
+                  edgecolor="#444")
+    ax_kde.set_xlim(0, 1)
+    _style_ax(ax_kde)
+
+    # ── 3. Matrice de Confusion normalisée (recall) ───────────────────────────
+    from sklearn.metrics import confusion_matrix
+
+    # Ordre d'affichage : H, D, A
+    display_order = ["H", "D", "A"]
+    enc_order     = [idx[c] for c in display_order]
+
+    # Convertir en labels décodés pour confusion_matrix
+    y_true_dec_arr = np.array(le.inverse_transform(y_true_enc))
+    y_pred_dec_arr = np.array(le.inverse_transform(y_pred))
+
+    cm = confusion_matrix(y_true_dec_arr, y_pred_dec_arr,
+                          labels=display_order, normalize="true")
+
+    sns.heatmap(cm, annot=True, fmt=".2f", ax=ax_cm,
+                xticklabels=display_order, yticklabels=display_order,
+                cmap="YlOrRd", linewidths=0.5, linecolor="#333",
+                annot_kws={"size": 12, "weight": "bold"},
+                cbar_kws={"shrink": 0.8})
+
+    ax_cm.set_title("③ Matrice de Confusion normalisée (recall)", fontsize=11, pad=10)
+    ax_cm.set_xlabel("Prédit")
+    ax_cm.set_ylabel("Réel")
+    # Colorier en orange la ligne Draw pour attirer l'œil
+    ax_cm.get_yticklabels()[1].set_color(colors["D"])
+    ax_cm.get_yticklabels()[1].set_fontweight("bold")
+    _style_ax(ax_cm)
+    ax_cm.tick_params(colors="white")
+
+    # ── 4. Violin — distributions P(H), P(D), P(A) ───────────────────────────
+    df_vio = pd.DataFrame({
+        "prob":  np.concatenate([proba_cal[:, idx[c]] for c in ["H", "D", "A"]]),
+        "classe": np.repeat(["P(H)", "P(D)", "P(A)"], len(y_true_enc)),
+    })
+    palette = {"P(H)": colors["H"], "P(D)": colors["D"], "P(A)": colors["A"]}
+    sns.violinplot(data=df_vio, x="classe", y="prob", ax=ax_vio,
+                   palette=palette, inner="quartile",
+                   linewidth=1.2, cut=0)
+
+    ax_vio.axhline(draw_threshold, color="white", lw=1.2, ls="--",
+                   label=f"Seuil={draw_threshold}")
+    ax_vio.axhline(1/3, color="#aaa", lw=0.8, ls=":",
+                   label="Prior uniforme (1/3)")
+    ax_vio.set_title("④ Distribution des probabilités prédites", fontsize=11, pad=10)
+    ax_vio.set_xlabel("Classe")
+    ax_vio.set_ylabel("Probabilité prédite")
+    ax_vio.legend(fontsize=8, facecolor="#1A1D27", labelcolor="white",
+                  edgecolor="#444")
+    ax_vio.set_ylim(0, 1)
+    _style_ax(ax_vio)
+
+    # ── Titre global ──────────────────────────────────────────────────────────
+    n_draw_true  = (y_true_dec == "D").sum()
+    n_draw_pred  = (le.inverse_transform(y_pred) == "D").sum()
+    recall_draw  = cm[1, 1]   # ligne D, colonne D dans l'ordre H/D/A
+
+    fig.suptitle(
+        f"Diagnostic Modèle [{label}]  —  "
+        f"Draws réels : {n_draw_true}  |  "
+        f"Draws prédits : {n_draw_pred}  |  "
+        f"Recall Draw : {recall_draw:.1%}",
+        fontsize=13, color="white", y=0.98, fontweight="bold"
+    )
+
+    # ── Sauvegarde ────────────────────────────────────────────────────────────
+    out_path = DIAG_DIR / f"diagnostic_{label}.png"
+    fig.savefig(out_path, dpi=150, bbox_inches="tight",
+                facecolor=fig.get_facecolor())
+    plt.close(fig)
+
+    logger.success(f"  Diagnostic sauvegardé : {out_path}")
+    logger.info(f"  Draws réels={n_draw_true} | Draws prédits={n_draw_pred} "
+                f"| Recall Draw={recall_draw:.1%}")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # POINT D'ENTRÉE
 # ══════════════════════════════════════════════════════════════════════════════
 
 def main(step: int = 2, use_shap: bool = True, n_trials: int = 50):
     logger.info("=== Démarrage train Two-Stage Stacking ===")
 
-    # ── Données ───────────────────────────────────────────────────────────────
-    df      = load_data()
+    df       = load_data()
     df_match = pivot_to_match(df)
 
-    df_train, df_val = split_data(df_match)
+    # ── Split Train / Val / Test ──────────────────────────────────────────────
+    df_train, df_val, df_test = split_data(df_match)
 
-    # Winsorisation — caps sur train uniquement
+    # Winsorisation — caps calculés sur train uniquement, appliqués sur val et test
     df_train, caps = winsorize(df_train, fit=True)
-    df_val,   _    = winsorize(df_val,   caps=caps, fit=False)
+    df_val,   _    = winsorize(df_val,  caps=caps, fit=False)
+    df_test,  _    = winsorize(df_test, caps=caps, fit=False)
 
     # ── Préparation features ──────────────────────────────────────────────────
+    X_h_tr,   y_h_tr   = prepare_perspective(df_train, "home")
+    X_h_val,  y_h_val  = prepare_perspective(df_val,   "home")
 
-    # Perspective Home
-    X_h_tr, y_h_tr = prepare_perspective(df_train, "home")
-    X_h_val, y_h_val = prepare_perspective(df_val, "home")
+    X_a_tr,   y_a_tr   = prepare_perspective(df_train, "away")
+    X_a_val,  y_a_val  = prepare_perspective(df_val,   "away")
 
-    # Perspective Away
-    X_a_tr, y_a_tr = prepare_perspective(df_train, "away")
-    X_a_val, y_a_val = prepare_perspective(df_val, "away")
-
-    # Combined (pour LR baseline + Stage 2)
-    X_c_tr, y_c_tr = prepare_combined(df_train)
-    X_c_val, y_c_val = prepare_combined(df_val)
+    X_c_tr,   y_c_tr   = prepare_combined(df_train)
+    X_c_val,  y_c_val  = prepare_combined(df_val)
 
     # ── Encodage cible ────────────────────────────────────────────────────────
+    # Le LabelEncoder est fitté sur train, le val est transformé — le test aussi
     y_h_tr_enc, y_h_val_enc, le_home     = encode_labels(y_h_tr, y_h_val)
     y_a_tr_enc, y_a_val_enc, le_away     = encode_labels(y_a_tr, y_a_val)
     y_c_tr_enc, y_c_val_enc, le_combined = encode_labels(y_c_tr, y_c_val)
+
+    # Test labels — encodés avec le LabelEncoder fitté, jamais utilisés pendant le train
+    _, y_c_test_raw = prepare_combined(df_test)
+    y_c_test_enc    = encode_test_labels(y_c_test_raw, le_combined)
 
     # ── Preprocessing ─────────────────────────────────────────────────────────
     pp_home = build_preprocessor()
@@ -721,7 +1029,8 @@ def main(step: int = 2, use_shap: bool = True, n_trials: int = 50):
     with mlflow.start_run(run_name="TwoStage_Stacking_v1"):
         mlflow.log_params({
             "train_seasons": str(TRAIN_SEASONS),
-            "val_season":    VAL_SEASON,
+            "val_season":    VAL_SEASONS,
+            "test_season":   TEST_SEASON,
             "train_matches": len(df_train),
             "val_matches":   len(df_val),
         })
@@ -770,27 +1079,34 @@ def main(step: int = 2, use_shap: bool = True, n_trials: int = 50):
         )
 
         # ── Calibration ───────────────────────────────────────────────────────
-        predict_cal, calibrators = calibrate(
+        predict_cal, calibrators, X_meta_eval, y_eval_enc, eval_idx = calibrate(
             meta_model, X_meta_val, y_c_val_enc, le_combined
         )
+        df_eval = df_val.iloc[eval_idx].copy()
 
-        # ── Évaluation finale ─────────────────────────────────────────────────
-        proba_cal = predict_cal(X_meta_val)
+        draw_threshold = optimize_draw_threshold(
+            calibrators, meta_model,
+            X_meta_eval, y_eval_enc, le_combined
+        )
+
+        # ── Évaluation finale sur eval split uniquement ───────────────────────
+        proba_cal = predict_cal(X_meta_eval)
         metrics   = evaluate_full(
-            y_c_val_enc, proba_cal, le_combined, "Stage 2 Calibré"
+            y_eval_enc, proba_cal, le_combined, "Stage 2 Calibré (eval split)",draw_threshold=draw_threshold
         )
         mlflow.log_metrics(metrics)
+        mlflow.log_param("draw_threshold", draw_threshold)
 
-        # Évaluation Stage 1 seul pour comparaison
-        proba_meta_raw = meta_model.predict_proba(X_meta_val)
+        # Évaluation non calibrée pour comparaison
+        proba_meta_raw = meta_model.predict_proba(X_meta_eval)
         metrics_raw    = evaluate_full(
-            y_c_val_enc, proba_meta_raw, le_combined, "Stage 2 Non-calibré"
+            y_eval_enc, proba_meta_raw, le_combined, "Stage 2 Non-calibré (eval split)",draw_threshold=draw_threshold
         )
         mlflow.log_metrics({f"raw_{k}": v for k, v in metrics_raw.items()})
 
         # ── Analyse upsets ────────────────────────────────────────────────────
         df_results = analyze_upsets(
-            proba_cal, y_c_val_enc, le_combined, df_val
+            proba_cal, y_eval_enc, le_combined, df_eval,draw_threshold=draw_threshold
         )
 
         # Export résultats
@@ -798,6 +1114,44 @@ def main(step: int = 2, use_shap: bool = True, n_trials: int = 50):
         df_results.to_csv(results_path, index=False)
         mlflow.log_artifact(str(results_path))
         logger.info(f"  Prédictions sauvegardées : {results_path}")
+
+        # ── Diagnostic visuel — Val set ───────────────────────────────────────
+        plot_diagnostics(
+            y_eval_enc, proba_cal, le_combined,
+            label=f"v1_val",
+            draw_threshold=draw_threshold,
+        )
+        mlflow.log_artifact(str(DIAG_DIR / "diagnostic_v1_val.png"))
+
+        # ── Évaluation sur Test set (OOS pur — 2024-2025) ────────────────────
+        if len(df_test) > 0:
+            X_meta_test = build_meta_features(
+                models, preprocessors, df_test,
+                le_home, le_away, le_combined
+            )
+            proba_test_cal = predict_cal(X_meta_test)
+            metrics_test   = evaluate_full(
+                y_c_test_enc, proba_test_cal, le_combined, "Stage 2 Calibré TEST (OOS)",
+                draw_threshold=draw_threshold
+            )
+            mlflow.log_metrics({f"test_{k}": v for k, v in metrics_test.items()})
+
+            # Export prédictions test — utilisées par 06_backtest.py
+            df_test_results = analyze_upsets(
+                proba_test_cal, y_c_test_enc, le_combined, df_test, draw_threshold=draw_threshold
+            )
+            test_path = MODELS_DIR / "predictions_test.csv"
+            df_test_results.to_csv(test_path, index=False)
+            mlflow.log_artifact(str(test_path))
+            logger.info(f"  Prédictions test sauvegardées : {test_path}")
+
+            # ── Diagnostic visuel — Test OOS ──────────────────────────────────
+            plot_diagnostics(
+                y_c_test_enc, proba_test_cal, le_combined,
+                label=f"v1_test_oos",
+                draw_threshold=draw_threshold,
+            )
+            mlflow.log_artifact(str(DIAG_DIR / "diagnostic_v1_test_oos.png"))
 
         # ── SHAP ──────────────────────────────────────────────────────────────
         if use_shap:
@@ -827,6 +1181,7 @@ def main(step: int = 2, use_shap: bool = True, n_trials: int = 50):
                 "away":     list(X_a_tr.columns),
                 "combined": list(X_c_tr.columns),
             },
+            "draw_threshold": draw_threshold,
         }
         model_path = MODELS_DIR / "football_stacking_v1.joblib"
         joblib.dump(artifacts, model_path)

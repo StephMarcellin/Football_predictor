@@ -48,15 +48,22 @@ logger.add(
 
 # ── Paramètres stratégie ──────────────────────────────────────────────────────
 
-BANKROLL_INIT  = 1000.0   # bankroll initiale en unités
-EDGE_MIN       = 0.04     # edge minimum pour parier (prob_model - prob_implied)
-CONFIDENCE_MIN = 0.45     # confiance minimum du modèle
-KELLY_FRACTION = 0.5      # Half Kelly
-MAX_MISE_PCT   = 0.05     # mise max = 5% de la bankroll (protection)
-MIN_MISE       = 1.0      # mise minimale en unités
+BANKROLL_INIT  = CFG["backtest"]["BANKROLL_INIT"]  # bankroll initiale en unités
+EDGE_MIN       = CFG["backtest"]["EDGE_MIN"]       # edge minimum pour parier (prob_model - prob_implied)
+CONFIDENCE_MIN = CFG["backtest"]["CONFIDENCE_MIN"] # confiance minimum du modèle
+KELLY_FRACTION = CFG["backtest"]["KELLY_FRACTION"] # Half Kelly
+MAX_MISE_PCT   = CFG["backtest"]["MAX_MISE_PCT"]   # mise max = 5% de la bankroll (protection)
+MIN_MISE       = CFG["backtest"]["MIN_MISE"]       # mise minimale en unités
+
+# BANKROLL_INIT  = 1000.0   # bankroll initiale en unités
+# EDGE_MIN       = 0.04     # edge minimum pour parier (prob_model - prob_implied)
+# CONFIDENCE_MIN = 0.45     # confiance minimum du modèle
+# KELLY_FRACTION = 0.5      # Half Kelly
+# MAX_MISE_PCT   = 0.05     # mise max = 5% de la bankroll (protection)
+# MIN_MISE       = 1.0      # mise minimale en unités
 
 # Saisons propres pour le backtest (hors train set)
-BACKTEST_SEASONS_DEFAULT = ["2023-2024", "2024-2025"]
+BACKTEST_SEASONS_DEFAULT = CFG["backtest"]["BACKTEST_SEASONS_DEFAULT"]
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -65,9 +72,8 @@ BACKTEST_SEASONS_DEFAULT = ["2023-2024", "2024-2025"]
 
 def load_predictions(seasons: list[str]) -> pd.DataFrame:
     season_to_file = {
-        "2023-2024": OUTPUT_DIR / "predictions_val.csv",
-        "2024-2025": OUTPUT_DIR / "predictions_2425.csv",
-    }
+    "2024-2025": OUTPUT_DIR / "predictions_test.csv",
+}
 
     conn = duckdb.connect(str(DB_PATH), read_only=True)
     seasons_df = conn.execute("""
@@ -211,9 +217,9 @@ def select_bets(df_pred: pd.DataFrame,
       2. prob_model > confidence_min           (confiance suffisante)
     """
     # Jointure prédictions × cotes
-    odds_cols = ["final_match_id", "actual_result",
-                 "odd_H", "odd_D", "odd_A",
-                 "implied_prob_H", "implied_prob_D", "implied_prob_A"]
+    odds_cols = ["final_match_id", "actual_result", "season", "league_source",
+                "odd_H", "odd_D", "odd_A",
+                "implied_prob_H", "implied_prob_D", "implied_prob_A"]
     
     df = df_pred.merge(
         df_odds[odds_cols],
@@ -312,10 +318,10 @@ def simulate_bankroll(df_bets: pd.DataFrame,
 
         rows.append({
             "date":         row["date"],
-            "season":       row.get("season", row.get("season_x", "")),
-            "league":       row.get("league_source", row.get("league_source_x", "")),
-            "home_team":    row.get("home_team", row.get("home_team_x", "")),
-            "away_team":    row.get("away_team", row.get("away_team_x", "")),
+            "season":       row.get("season_y", row.get("season_x", row.get("season", ""))),
+            "league":       row.get("league_source_y", row.get("league_source_x", row.get("league_source", row.get("league", "")))),
+            "home_team":    row.get("home_team_x", row.get("home_team", "")),
+            "away_team":    row.get("away_team_x", row.get("away_team", "")),
             "bet_outcome":  row["bet_outcome"],
             "prob_model":   round(row["prob_model"], 4),
             "implied_prob": round(row["implied_prob"], 4),
@@ -434,7 +440,8 @@ def analyze_breakdown(df_sim: pd.DataFrame):
         if sub.empty:
             continue
         roi = sub["profit"].sum() / sub["mise"].sum() if sub["mise"].sum() > 0 else 0
-        logger.info(f"  Edge {label:<8} : {len(sub):3d} paris | WR {sub['won'].mean():.2%} | ROI {roi:+.2%}")
+        won = sub["won"].sum()
+        logger.info(f"  Edge {label:<8} : {len(sub):3d} paris ({won:3d}W/{len(sub)-won:3d}L) | WR {sub['won'].mean():.2%} | ROI {roi:+.2%}")
 
     # Par saison
     logger.info("\n── ROI par saison ───────────────────────────────────────")

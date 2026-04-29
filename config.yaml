@@ -20,8 +20,12 @@ prediction:
   - H
   - D
   - A
+  upset_confidence_threshold: 0.55   # seuil P(Away) pour valider un upset
+  draw_threshold: 0.28
+  value_edge: 0.05
 features:
-  form_window: 5
+  form_window: 5           # référence inchangée
+  form_windows: [3, 5, 10] # nouvelle clé P1
   h2h_window: 10
 model:
   default: lightgbm
@@ -35,10 +39,27 @@ train:
   use_autoencoder: false
   use_stacking: false
   test_season: 2024-2025
+  TRAIN_SEASONS : [
+    "2017-2018",
+    "2018-2019", 
+    "2019-2020",
+    "2020-2021", 
+    "2021-2022",
+  ]
+  VAL_SEASONS : ["2022-2023", "2023-2024"]   # deux saisons pour plus de robustesse
+  TEST_SEASON : "2024-2025"
   val_split_pct: 0.5
   bottleneck_dim: 32
   bayes_n_iter: 50
   target: result_1n2
+backtest:
+  BANKROLL_INIT  : 1000.0   # bankroll initiale en unités
+  EDGE_MIN       : 0.04     # edge minimum pour parier (prob_model - prob_implied)
+  CONFIDENCE_MIN : 0.45     # confiance minimum du modèle
+  KELLY_FRACTION : 0.5      # Half Kelly
+  MAX_MISE_PCT   : 0.05     # mise max = 5% de la bankroll (protection)
+  MIN_MISE       : 1.0      # mise minimale en unités
+  BACKTEST_SEASONS_DEFAULT : ["2023-2024", "2024-2025"]
 
 competition_mapping:
   Ligue 1:
@@ -534,6 +555,7 @@ team_mapping:
   RB Leipzig: RB Leipzig
   RasenBallsport Leipzig: RB Leipzig
   RB-Leipzig: RB Leipzig
+  RBL: RB Leipzig
   Rostock: Hansa Rostock
   Hansa Rostock: Hansa Rostock
   Sandhausen: SV Sandhausen
