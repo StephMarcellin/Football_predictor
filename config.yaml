@@ -14,6 +14,20 @@ paths:
   models: models/
   db: db/football.duckdb
   duckdb: db/football.duckdb
+pipeline:
+  cron: "0 12 * * 1"          # lundi à 12h
+  deployment_name: "pipeline-lundi-midi"
+  retries: 2
+  retry_delay_seconds: 30
+
+# ── Agent Gemini ──────────────────────────────────────────────────────────────
+agent:
+  model: "gemini-3.1-flash-lite-preview"   # ou gemini-1.5-flash selon ta clé
+  model_fallback: "gemini-2.0-flash-lite"
+  max_turns: 10                # sécurité anti-boucle infinie
+  verbose: true                # affiche le raisonnement intermédiaire
+  log_file: "logs/agent.log"
+
 prediction:
   target: result_1n2
   classes:
