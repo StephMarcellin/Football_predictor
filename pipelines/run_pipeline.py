@@ -1,0 +1,415 @@
+"""
+run_pipeline.py — Orchestrateur Pipeline Projet 3-Étoiles
+==========================================================
+Enchaîne les étapes Gold → Modélisation → Prédiction → Backtest
+en important directement les fonctions main() de chaque script.
+
+Usage :
+    python run_pipeline.py                        # pipeline complet
+    python run_pipeline.py --step features        # étape unique
+    python run_pipeline.py --from train           # reprend depuis train
+    python run_pipeline.py --dry-run              # simule sans exécuter
+    python run_pipeline.py --list                 # liste les étapes disponibles
+
+Scheduling Windows (Task Scheduler) :
+    Programme  : python
+    Arguments  : C:\\chemin\\projet\\run_pipeline.py
+    Démarrer dans : C:\\chemin\\projet
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import sys
+import time
+from datetime import datetime
+from pathlib import Path
+
+from prefect import flow, task
+from prefect.cache_policies import NO_CACHE
+
+import yaml
+from loguru import logger
+
+# ── Résolution de la racine du projet ────────────────────────────────────────
+# ROOT_DIR = le dossier qui contient run_pipeline.py, config.yaml, pipelines/, etc.
+ROOT_DIR = Path(__file__).resolve().parent.parent
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SECTION 1 — Configuration
+# Lit config.yaml une seule fois. Tous les paramètres passent par ici.
+# ══════════════════════════════════════════════════════════════════════════════
+
+def load_config() -> dict:
+    """Charge config.yaml depuis la racine du projet."""
+    config_path = ROOT_DIR / "config.yaml"
+    if not config_path.exists():
+        raise FileNotFoundError(f"config.yaml introuvable : {config_path}")
+    with open(config_path, encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+# ── Logger orchestrateur ──────────────────────────────────────────────────────
+# Un log dédié à l'orchestrateur, séparé des logs des scripts individuels.
+Path("logs").mkdir(exist_ok=True)
+logger.add(
+    "logs/pipeline.log",
+    level="INFO",
+    encoding="utf-8",
+    rotation="5 MB",
+    retention=10,
+    format="{time:YYYY-MM-DD HH:mm:ss} | {level:<8} | [PIPELINE] {message}",
+)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SECTION 2 — Exécution protégée d'une étape
+#
+# Pourquoi cette protection ?
+# 03_features.py appelle os.chdir() au niveau module (à l'import).
+# Si on importe les scripts dans le même processus sans protection,
+# le répertoire courant change et les chemins relatifs de 05_predict.py
+# (qui utilise "db/football.duckdb" en chemin relatif) cessent de fonctionner.
+#
+# La solution : on sauvegarde cwd + sys.path avant chaque import,
+# on force cwd = ROOT_DIR, et on restaure après.
+# ══════════════════════════════════════════════════════════════════════════════
+@task(log_prints=True, cache_policy=NO_CACHE)
+def _run_step(step_name: str, fn: callable, **kwargs) -> dict:
+    """
+    Exécute une fonction de pipeline dans un contexte protégé.
+
+    - Sauvegarde et restaure os.getcwd() et sys.path
+    - Force le répertoire courant à ROOT_DIR avant l'appel
+    - Mesure la durée d'exécution
+    - Capture toute exception sans faire crasher l'orchestrateur
+
+    Retourne un dict :
+        {
+            "name":     str,          # nom de l'étape
+            "status":   "OK" | "FAILED",
+            "duration": float,        # secondes
+            "error":    str | None,   # message d'erreur si échec
+        }
+    """
+    logger.info(f"▶ Démarrage : {step_name}")
+    start = time.perf_counter()
+
+    # Sauvegarde du contexte
+    saved_cwd = os.getcwd()
+    saved_path = sys.path.copy()
+
+    # On s'assure d'être à la racine du projet (nécessaire pour 05_predict.py
+    # qui utilise des chemins relatifs comme "db/football.duckdb")
+    os.chdir(ROOT_DIR)
+
+    try:
+        fn(**kwargs)
+        duration = time.perf_counter() - start
+        logger.success(f"✓ {step_name} terminé en {duration:.1f}s")
+        return {"name": step_name, "status": "OK", "duration": duration, "error": None}
+
+    except Exception as e:
+        duration = time.perf_counter() - start
+        logger.error(f"✗ {step_name} a échoué après {duration:.1f}s : {e}")
+        return {"name": step_name, "status": "FAILED", "duration": duration, "error": str(e)}
+
+    finally:
+        # Restauration du contexte — toujours exécuté, même si exception
+        os.chdir(saved_cwd)
+        sys.path = saved_path
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SECTION 3 — Définition des étapes
+#
+# Chaque étape est un dict avec :
+#   fn       : la fonction à appeler (importée depuis le script)
+#   kwargs   : les arguments à passer, lus depuis config.yaml
+#   critical : si True, un échec stoppe tout le pipeline (fail-fast)
+#
+# Note sur les imports : on importe les modules ici, au niveau fonction,
+# pour éviter que os.chdir() de 03_features s'exécute au démarrage
+# de l'orchestrateur. L'import est différé au moment de l'appel.
+# ══════════════════════════════════════════════════════════════════════════════
+
+def build_steps(cfg: dict) -> dict:
+    """
+    Construit le dictionnaire ordonné des étapes du pipeline.
+    Les imports sont réalisés ici pour les différer au maximum.
+
+    Retourne un dict ordonné (Python 3.7+ garantit l'ordre d'insertion) :
+        { step_name: {"fn": callable, "kwargs": dict, "critical": bool} }
+    """
+
+    # ── Import différé des modules ────────────────────────────────────────────
+    # On ajoute pipelines/ au sys.path pour que les imports fonctionnent
+    # quelle que soit la position de run_pipeline.py dans le projet.
+    pipelines_dir = ROOT_DIR / "pipelines"
+    if pipelines_dir.exists() and str(pipelines_dir) not in sys.path:
+        sys.path.insert(0, str(pipelines_dir))
+
+    # Import de chaque script comme module Python
+    # Si un script est introuvable, on lève une erreur claire
+    try:
+        import importlib
+
+        mod_03 = importlib.import_module("03_features") if (ROOT_DIR / "pipelines" / "03_features.py").exists() \
+                 else importlib.import_module("pipelines.03_features") if False \
+                 else _import_from_path("features_03", ROOT_DIR / "pipelines" / "03_features.py")
+
+        mod_04 = _import_from_path("train_04",    ROOT_DIR / "pipelines" / "04_train.py")
+        mod_05 = _import_from_path("predict_05",  ROOT_DIR / "pipelines" / "05_predict.py")
+        mod_06 = _import_from_path("backtest_06", ROOT_DIR / "pipelines" / "06_backtest.py")
+
+    except FileNotFoundError as e:
+        logger.error(f"Script introuvable : {e}")
+        logger.error("Vérifiez que run_pipeline.py est à la racine du projet")
+        raise
+
+    # ── Paramètres lus depuis config.yaml ────────────────────────────────────
+    train_cfg    = cfg.get("train", {})
+    backtest_cfg = cfg.get("backtest", {})
+
+    return {
+        "features": {
+            "fn":       mod_03.run_full_pipeline,
+            "kwargs":   {},   # valeurs par défaut de run_full_pipeline suffisent
+            "critical": True,
+        },
+        "train": {
+            "fn":     mod_04.main,
+            "kwargs": {
+                "step":     2,      # Stage 1 + Stage 2 (complet)
+                "use_shap": True,
+                "n_trials": train_cfg.get("bayes_n_iter", 50),
+            },
+            "critical": True,
+        },
+        "predict": {
+            "fn":       mod_05.main,
+            "kwargs":   {"upcoming": True},   # main() de 05 parse ses propres args — pas de kwargs ici
+            "critical": True,
+        },
+        "backtest": {
+            "fn":     mod_06.main,
+            "kwargs": {
+                "seasons":        None,   # None = utilise BACKTEST_SEASONS_DEFAULT du script
+                "edge_min":       backtest_cfg.get("EDGE_MIN",       0.04),
+                "confidence_min": backtest_cfg.get("CONFIDENCE_MIN", 0.45),
+                "bankroll_init":  backtest_cfg.get("BANKROLL_INIT",  1000.0),
+            },
+            "critical": False,  # Un backtest qui plante ne bloque pas les prédictions du jour
+        },
+    }
+
+
+def _import_from_path(module_name: str, path: Path):
+    """
+    Importe un module Python depuis un chemin absolu.
+    Nécessaire car les scripts sont nommés avec des chiffres (03_, 04_...)
+    ce qui les rend non-importables via import standard.
+    """
+    import importlib.util
+
+    if not path.exists():
+        raise FileNotFoundError(path)
+
+    spec   = importlib.util.spec_from_file_location(module_name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SECTION 4 — Exécution du pipeline
+# ══════════════════════════════════════════════════════════════════════════════
+@flow(name="Pipeline 3-Étoiles", log_prints=True)
+def run_pipeline(steps: dict, dry_run: bool = False) -> list[dict]:
+    """
+    Exécute les étapes dans l'ordre, avec fail-fast sur les étapes critiques.
+
+    Args:
+        steps:   Sous-ensemble ordonné des étapes à exécuter (depuis build_steps).
+        dry_run: Si True, liste les étapes sans les exécuter.
+
+    Retourne la liste des résultats d'exécution.
+    """
+    results = []
+
+    logger.info("=" * 60)
+    logger.info(f"  PIPELINE 3-ÉTOILES — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    logger.info(f"  Étapes : {' → '.join(steps.keys())}")
+    if dry_run:
+        logger.info("  MODE DRY-RUN — aucune exécution réelle")
+    logger.info("=" * 60)
+
+    for step_name, step_cfg in steps.items():
+
+        if dry_run:
+            logger.info(f"  [DRY-RUN] {step_name} | critical={step_cfg['critical']} | kwargs={step_cfg['kwargs']}")
+            results.append({"name": step_name, "status": "DRY-RUN", "duration": 0.0, "error": None})
+            continue
+
+        result = _run_step(step_name, step_cfg["fn"], **step_cfg["kwargs"])
+        results.append(result)
+
+        # Fail-fast : on stoppe si l'étape est critique et a échoué
+        if result["status"] == "FAILED" and step_cfg["critical"]:
+            logger.error(f"Étape critique '{step_name}' en échec — pipeline arrêté.")
+            logger.error(f"Erreur : {result['error']}")
+            # On marque les étapes non-exécutées comme SKIPPED
+            executed_names = {r["name"] for r in results}
+            for remaining_name in steps:
+                if remaining_name not in executed_names:
+                    results.append({
+                        "name":     remaining_name,
+                        "status":   "SKIPPED",
+                        "duration": 0.0,
+                        "error":    f"Pipeline arrêté après échec de '{step_name}'",
+                    })
+            break
+
+    return results
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SECTION 5 — Résumé d'exécution
+# ══════════════════════════════════════════════════════════════════════════════
+
+def print_summary(results: list[dict]) -> None:
+    """Affiche un tableau récapitulatif de l'exécution du pipeline."""
+
+    total_duration = sum(r["duration"] for r in results)
+
+    # Icônes de statut
+    icons = {"OK": "✓", "FAILED": "✗", "SKIPPED": "⊘", "DRY-RUN": "○"}
+
+    print("\n" + "=" * 60)
+    print("  RÉSUMÉ D'EXÉCUTION")
+    print("=" * 60)
+    print(f"  {'Étape':<12} {'Statut':<10} {'Durée':>8}")
+    print("-" * 60)
+
+    for r in results:
+        icon     = icons.get(r["status"], "?")
+        duration = f"{r['duration']:.1f}s" if r["duration"] > 0 else "—"
+        print(f"  {icon} {r['name']:<10} {r['status']:<10} {duration:>8}")
+
+        if r["error"] and r["status"] == "FAILED":
+            # Tronquer le message d'erreur pour la lisibilité console
+            err_short = r["error"][:80] + "..." if len(r["error"]) > 80 else r["error"]
+            print(f"    └─ {err_short}")
+
+    print("-" * 60)
+    print(f"  {'TOTAL':<12} {'':<10} {total_duration:.1f}s")
+    print("=" * 60)
+
+    # Statut global
+    failed = [r for r in results if r["status"] == "FAILED"]
+    if failed:
+        print(f"\n  ✗ Pipeline terminé avec {len(failed)} erreur(s)\n")
+    elif all(r["status"] in ("OK", "DRY-RUN") for r in results):
+        print("\n  ✓ Pipeline terminé avec succès\n")
+    else:
+        print("\n  ⊘ Pipeline interrompu (étapes ignorées)\n")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SECTION 6 — Point d'entrée CLI
+# ══════════════════════════════════════════════════════════════════════════════
+
+STEP_NAMES = ["features", "train", "predict", "backtest"]
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Orchestrateur Pipeline 3-Étoiles",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Exemples :
+  python run_pipeline.py                        # pipeline complet
+  python run_pipeline.py --step features        # feature engineering seul
+  python run_pipeline.py --from train           # reprend depuis train
+  python run_pipeline.py --dry-run              # simule sans exécuter
+  python run_pipeline.py --list                 # liste les étapes
+        """,
+    )
+
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--step",
+        choices=STEP_NAMES,
+        help="Exécute une seule étape",
+    )
+    group.add_argument(
+        "--from",
+        dest="from_step",
+        choices=STEP_NAMES,
+        metavar="STEP",
+        help="Exécute depuis cette étape jusqu'à la fin",
+    )
+
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Liste les étapes et leurs paramètres sans les exécuter",
+    )
+    parser.add_argument(
+        "--list",
+        action="store_true",
+        help="Affiche les étapes disponibles et quitte",
+    )
+
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+
+    # --list : affiche les étapes et quitte
+    if args.list:
+        print("\nÉtapes disponibles (dans l'ordre d'exécution) :")
+        for i, name in enumerate(STEP_NAMES, 1):
+            print(f"  {i}. {name}")
+        print()
+        return
+
+    # Chargement de la configuration
+    cfg = load_config()
+
+    # Construction des étapes (imports différés)
+    all_steps = build_steps(cfg)
+
+    # Filtrage selon les arguments CLI
+    if args.step:
+        # --step : une seule étape
+        steps_to_run = {args.step: all_steps[args.step]}
+
+    elif args.from_step:
+        # --from : depuis une étape jusqu'à la fin
+        idx_start = STEP_NAMES.index(args.from_step)
+        steps_to_run = {
+            name: all_steps[name]
+            for name in STEP_NAMES[idx_start:]
+        }
+
+    else:
+        # Défaut : pipeline complet
+        steps_to_run = all_steps
+
+    # Exécution
+    results = run_pipeline(steps_to_run, dry_run=args.dry_run)
+
+    # Résumé
+    print_summary(results)
+
+    # Code de sortie : 1 si au moins une étape a échoué (utile pour Task Scheduler)
+    failed = [r for r in results if r["status"] == "FAILED"]
+    sys.exit(1 if failed else 0)
+
+
+if __name__ == "__main__":
+    main()
