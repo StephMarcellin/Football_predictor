@@ -508,9 +508,6 @@ def build_meta_features(models: dict,
         draw_feats = np.column_stack(draw_feats_list)
         parts.append(draw_feats)
 
-    if draw_feats.size > 0:
-        parts.append(draw_feats)
-
     return np.hstack(parts)  # shape (n, 12+)
 
 
@@ -1040,11 +1037,11 @@ def main(step: int = 2, use_shap: bool = True, n_trials: int = 50):
 
         lgbm_home = tune_lgbm_perspective(
             X_h_tr_s, y_h_tr_enc, X_h_val_s, y_h_val_enc,
-            le_home, "LGBM Home", n_trials=args.n_trials
+            le_home, "LGBM Home", n_trials=n_trials
         )
         lgbm_away = tune_lgbm_perspective(
             X_a_tr_s, y_a_tr_enc, X_a_val_s, y_a_val_enc,
-            le_away, "LGBM Away", n_trials=args.n_trials
+            le_away, "LGBM Away", n_trials=n_trials
         )
         lr_base = train_lr_baseline(
             X_c_tr_s, y_c_tr_enc, X_c_val_s, y_c_val_enc, le_combined

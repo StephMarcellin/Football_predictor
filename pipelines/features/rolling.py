@@ -3,17 +3,18 @@ features/rolling.py — Rolling Feature Engineering (FBref / Understat / WhoScor
 ==================================================================================
 Ex-03_features.py, déplacé dans le package features/.
 
-Transforme les tables silver.* en features gold.* via 3 blocs :
-  Bloc 1 — Staging       : jointures multi-sources, casting, corrections Home/Away
-  Bloc 2 — Rolling       : fenêtres glissantes [3, 5, 10] matchs
-  Bloc 3 — Match-up      : fusion team × opponent, différentiels, H2H, Giant Killer
+ARCHITECTURE INCRÉMENTALE :
+  Les tables Gold sont persistantes. Seuls les nouveaux match_id sont insérés.
+  Les UPDATEs post-Bloc2 sont conditionnés sur IS NULL (idempotents).
+  Utiliser --reset pour forcer une reconstruction complète.
 
 ANTI-LEAKAGE :
   Toutes les window functions utilisent ROWS BETWEEN W PRECEDING AND 1 PRECEDING.
-  Les ratings de saison sont LAG(1) sur la saison précédente.
+  Les window functions sont calculées sur TOUTE la table stg_backbone pour garantir
+  le contexte historique correct, mais seules les nouvelles lignes sont insérées.
 
 Appelable :
-  python -m features.rolling            # run complet
+  python -m features.rolling            # run incrémental (défaut)
   python -m features.rolling --reset    # supprime et recrée le schéma gold
 """
 
@@ -27,7 +28,7 @@ from pathlib import Path
 import duckdb
 
 # ── Config ────────────────────────────────────────────────────────────────────
-os.chdir(Path(__file__).resolve().parent.parent.parent)  # racine du projet
+os.chdir(Path(__file__).resolve().parent.parent.parent)
 
 with open("config.yaml", encoding="utf-8") as f:
     CFG = yaml.safe_load(f)
@@ -44,15 +45,14 @@ logger.add(
     format="{time:YYYY-MM-DD HH:mm:ss} | {level:<8} | [rolling] {message}",
 )
 
-# Fenêtres rolling
 WINDOWS = [3, 5, 10]
-WINDOW  = 5   # fenêtre de référence pour rétrocompatibilité Bloc 3
+WINDOW  = 5
 
 FRA_end_covid_date = "2020-03-08"
 FRA_covid_Season   = "2019-2020"
 
 
-# ── Générateurs de colonnes rolling (internes) ───────────────────────────────
+# ── Générateurs de colonnes rolling ──────────────────────────────────────────
 
 def _frames(w: int) -> tuple[str, str]:
     fg = (f"PARTITION BY team, season, league_source "
@@ -229,197 +229,151 @@ def _diff_cols(w: int) -> str:
 """
 
 
-# ── Pipeline principal ────────────────────────────────────────────────────────
+# ── SQL Silver → stg_backbone (réutilisé pour CREATE IF NOT EXISTS et INSERT) ─
 
-def run_rolling_features(reset: bool = False) -> None:
-    """
-    Pipeline complet : Staging → Rolling → Match-up → H2H → League Draw Rate
-    → Giant Killer.
-    """
-    logger.info("═══ Pipeline rolling — Silver → Gold (FBref/Understat/WhoScored) ═══")
-    conn = duckdb.connect(DB_PATH)
-
-    if reset:
-        logger.info("Reset Gold Layer...")
-        conn.execute("DROP SCHEMA IF EXISTS gold CASCADE")
-
-    conn.execute("CREATE SCHEMA IF NOT EXISTS gold")
-
-    # ── BLOC 1 : Staging ──────────────────────────────────────────────────────
-    logger.info("Bloc 1 : Staging — jointures et corrections Home/Away...")
-
-    conn.execute(f"""
-    CREATE OR REPLACE TABLE gold.stg_backbone AS
-    WITH
-    fbref_base AS (
+def _sql_backbone_select() -> str:
+    """Retourne le SELECT complet Silver → stg_backbone (sans WITH ni INSERT)."""
+    return """
+        WITH
+        fbref_base AS (
+            SELECT date, team, opponent, raw_team, raw_opponent, venue, season,
+                league_source, result_1n2, comp_category, formation,
+                CAST(gf AS INTEGER) AS gf, CAST(ga AS INTEGER) AS ga,
+                CAST(NULLIF(TRIM(CAST(poss AS VARCHAR)), '') AS DOUBLE) AS possession
+            FROM silver.fbref_schedule
+        ),
+        fbref_keeper_cte AS (
+            SELECT date, team, opponent, league_source,
+                sota AS shots_on_target_faced, saves, save_pct,
+                cs AS clean_sheet, pk_att AS pk_faced, pk_allowed AS pk_conceded
+            FROM silver.fbref_keeper
+        ),
+        fbref_shooting_cte AS (
+            SELECT date, team, opponent, league_source,
+                standard_sh AS shots_total, standard_sot AS shots_on_target,
+                standard_sot_pct AS shots_on_target_pct, standard_g_sh AS goals_per_shot,
+                standard_pk AS pk_goals, standard_pkatt AS pk_attempts
+            FROM silver.fbref_shooting
+        ),
+        fbref_misc_cte AS (
+            SELECT date, team, opponent, league_source,
+                crdy AS yellow_cards, crdr AS red_cards, crdy2 AS second_yellow_cards,
+                fls AS fouls_committed, fld AS fouls_drawn, off AS offsides, crosses,
+                int AS interceptions, tklw AS tackles_won,
+                pkwon AS pk_won, pkcon AS pk_conceded_misc, og AS own_goals
+            FROM silver.fbref_misc
+        ),
+        understat_base AS (
+            SELECT u.season, u.home_team, u.away_team, u.match_id, u.league_source,
+                CAST(NULLIF(TRIM(CAST(us.home_np_xg      AS VARCHAR)), '') AS DOUBLE) AS home_np_xg,
+                CAST(NULLIF(TRIM(CAST(us.away_np_xg      AS VARCHAR)), '') AS DOUBLE) AS away_np_xg,
+                CAST(NULLIF(TRIM(CAST(us.home_ppda       AS VARCHAR)), '') AS DOUBLE) AS home_ppda,
+                CAST(NULLIF(TRIM(CAST(us.away_ppda       AS VARCHAR)), '') AS DOUBLE) AS away_ppda,
+                CAST(NULLIF(TRIM(CAST(us.home_np_xg_diff AS VARCHAR)), '') AS DOUBLE) AS home_np_xg_diff,
+                CAST(NULLIF(TRIM(CAST(us.away_np_xg_diff AS VARCHAR)), '') AS DOUBLE) AS away_np_xg_diff
+            FROM silver.understat_schedule u
+            LEFT JOIN silver.understat_stats us ON u.match_id = us.match_id
+        ),
+        fbref_merged AS (
+            SELECT b.date, b.team, b.opponent, b.raw_team, b.raw_opponent,
+                b.venue, b.season, b.league_source, b.result_1n2, b.comp_category, b.formation,
+                b.gf, b.ga, b.possession,
+                k.shots_on_target_faced, k.saves, k.save_pct, k.clean_sheet,
+                k.pk_faced, k.pk_conceded,
+                s.shots_total, s.shots_on_target, s.shots_on_target_pct,
+                s.goals_per_shot, s.pk_goals, s.pk_attempts,
+                m.yellow_cards, m.red_cards, m.second_yellow_cards,
+                m.fouls_committed, m.fouls_drawn, m.offsides, m.crosses,
+                m.interceptions, m.tackles_won, m.pk_won, m.pk_conceded_misc, m.own_goals
+            FROM fbref_base b
+            LEFT JOIN fbref_keeper_cte   k ON b.date=k.date AND b.team=k.team AND b.opponent=k.opponent AND b.league_source=k.league_source
+            LEFT JOIN fbref_shooting_cte s ON b.date=s.date AND b.team=s.team AND b.opponent=s.opponent AND b.league_source=s.league_source
+            LEFT JOIN fbref_misc_cte     m ON b.date=m.date AND b.team=m.team AND b.opponent=m.opponent AND b.league_source=m.league_source
+        ),
+        fbref_understat AS (
+            SELECT f.league_source, f.season, f.venue, u.match_id,
+                f.team, f.opponent, f.raw_team, f.raw_opponent, f.date,
+                f.result_1n2, f.comp_category, f.formation,
+                f.gf, f.ga, f.possession,
+                f.shots_on_target_faced, f.saves, f.save_pct, f.clean_sheet,
+                f.shots_total, f.shots_on_target, f.shots_on_target_pct,
+                f.goals_per_shot, f.yellow_cards, f.second_yellow_cards,
+                f.red_cards, f.fouls_committed, f.fouls_drawn, f.interceptions, f.tackles_won,
+                CASE WHEN f.venue='Home' THEN u.home_np_xg      ELSE u.away_np_xg      END AS np_xg,
+                CASE WHEN f.venue='Home' THEN u.away_np_xg      ELSE u.home_np_xg      END AS np_xg_conceded,
+                CASE WHEN f.venue='Home' THEN u.home_ppda       ELSE u.away_ppda       END AS ppda,
+                CASE WHEN f.venue='Home' THEN u.away_ppda       ELSE u.home_ppda       END AS ppda_allowed,
+                CASE WHEN f.venue='Home' THEN u.home_np_xg_diff ELSE u.away_np_xg_diff END AS np_xg_diff_match
+            FROM fbref_merged f
+            LEFT JOIN understat_base u
+                ON f.season=u.season AND f.league_source=u.league_source
+                AND f.team     = (CASE WHEN f.venue='Home' THEN u.home_team ELSE u.away_team END)
+                AND f.opponent = (CASE WHEN f.venue='Home' THEN u.away_team ELSE u.home_team END)
+        ),
+        whoscored_base AS (
+            SELECT team, season, league_source,
+                ws_home_att_rating, ws_away_att_rating, ws_home_def_rating, ws_away_def_rating,
+                ws_home_dribbles_pg, ws_away_dribbles_pg, ws_home_fouled_pg, ws_away_fouled_pg,
+                ws_home_shots_ot_pg, ws_away_shots_ot_pg
+            FROM silver.whoscored_team_season
+        ),
+        whoscored_features AS (
+            SELECT b.date, b.team, b.season, b.league_source,
+                CASE WHEN b.venue='Home' THEN ws.ws_home_att_rating  ELSE ws.ws_away_att_rating  END AS season_att_rating,
+                CASE WHEN b.venue='Home' THEN ws.ws_home_def_rating  ELSE ws.ws_away_def_rating  END AS season_def_rating,
+                CASE WHEN b.venue='Home' THEN ws.ws_home_dribbles_pg ELSE ws.ws_away_dribbles_pg END AS ws_dribbles_pg,
+                CASE WHEN b.venue='Home' THEN ws.ws_home_fouled_pg   ELSE ws.ws_away_fouled_pg   END AS ws_fouled_pg,
+                CASE WHEN b.venue='Home' THEN ws.ws_home_shots_ot_pg ELSE ws.ws_away_shots_ot_pg END AS ws_shots_ot_pg
+            FROM fbref_understat b
+            LEFT JOIN whoscored_base ws ON b.team=ws.team AND b.season=ws.season AND b.league_source=ws.league_source
+        ),
+        odds_base AS (
+            SELECT date::DATE AS date, season, league_source, home_team, away_team,
+                odds_pinnacle_h, odds_pinnacle_d, odds_pinnacle_a,
+                odds_avg_h, odds_avg_d, odds_avg_a,
+                pinnacle_prob_h, pinnacle_prob_d, pinnacle_prob_a,
+                market_prob_h, market_prob_d, market_prob_a
+            FROM silver.odds WHERE pinnacle_prob_h IS NOT NULL
+        )
         SELECT
-            date, team, opponent, raw_team, raw_opponent, venue, season,
-            league_source, result_1n2, comp_category,
-            CAST(gf AS INTEGER)                                        AS gf,
-            CAST(ga AS INTEGER)                                        AS ga,
-            CAST(NULLIF(TRIM(CAST(poss AS VARCHAR)), '') AS DOUBLE)    AS possession
-        FROM silver.fbref_schedule
-    ),
-    fbref_keeper_cte AS (
-        SELECT date, team, opponent, league_source,
-            sota AS shots_on_target_faced, saves, save_pct,
-            cs   AS clean_sheet, pk_att AS pk_faced, pk_allowed AS pk_conceded
-        FROM silver.fbref_keeper
-    ),
-    fbref_shooting_cte AS (
-        SELECT date, team, opponent, league_source,
-            standard_sh      AS shots_total,
-            standard_sot     AS shots_on_target,
-            standard_sot_pct AS shots_on_target_pct,
-            standard_g_sh    AS goals_per_shot,
-            standard_pk      AS pk_goals,
-            standard_pkatt   AS pk_attempts
-        FROM silver.fbref_shooting
-    ),
-    fbref_misc_cte AS (
-        SELECT date, team, opponent, league_source,
-            crdy  AS yellow_cards, crdr  AS red_cards,
-            crdy2 AS second_yellow_cards,
-            fls   AS fouls_committed, fld AS fouls_drawn,
-            off   AS offsides, crosses,
-            int   AS interceptions, tklw AS tackles_won,
-            pkwon AS pk_won, pkcon AS pk_conceded_misc, og AS own_goals
-        FROM silver.fbref_misc
-    ),
-    understat_base AS (
-        SELECT
-            u.season, u.home_team, u.away_team, u.match_id, u.league_source,
-            CAST(NULLIF(TRIM(CAST(us.home_np_xg      AS VARCHAR)), '') AS DOUBLE) AS home_np_xg,
-            CAST(NULLIF(TRIM(CAST(us.away_np_xg      AS VARCHAR)), '') AS DOUBLE) AS away_np_xg,
-            CAST(NULLIF(TRIM(CAST(us.home_ppda       AS VARCHAR)), '') AS DOUBLE) AS home_ppda,
-            CAST(NULLIF(TRIM(CAST(us.away_ppda       AS VARCHAR)), '') AS DOUBLE) AS away_ppda,
-            CAST(NULLIF(TRIM(CAST(us.home_np_xg_diff AS VARCHAR)), '') AS DOUBLE) AS home_np_xg_diff,
-            CAST(NULLIF(TRIM(CAST(us.away_np_xg_diff AS VARCHAR)), '') AS DOUBLE) AS away_np_xg_diff
-        FROM silver.understat_schedule u
-        LEFT JOIN silver.understat_stats us ON u.match_id = us.match_id
-    ),
-    fbref_merged AS (
-        SELECT
-            b.date, b.team, b.opponent, b.raw_team, b.raw_opponent,
-            b.venue, b.season, b.league_source, b.result_1n2, b.comp_category,
-            b.gf, b.ga, b.possession,
-            k.shots_on_target_faced, k.saves, k.save_pct, k.clean_sheet,
-            k.pk_faced, k.pk_conceded,
-            s.shots_total, s.shots_on_target, s.shots_on_target_pct,
-            s.goals_per_shot, s.pk_goals, s.pk_attempts,
-            m.yellow_cards, m.red_cards, m.second_yellow_cards,
-            m.fouls_committed, m.fouls_drawn, m.offsides, m.crosses,
-            m.interceptions, m.tackles_won, m.pk_won,
-            m.pk_conceded_misc, m.own_goals
-        FROM fbref_base b
-        LEFT JOIN fbref_keeper_cte   k ON b.date=k.date AND b.team=k.team AND b.opponent=k.opponent AND b.league_source=k.league_source
-        LEFT JOIN fbref_shooting_cte s ON b.date=s.date AND b.team=s.team AND b.opponent=s.opponent AND b.league_source=s.league_source
-        LEFT JOIN fbref_misc_cte     m ON b.date=m.date AND b.team=m.team AND b.opponent=m.opponent AND b.league_source=m.league_source
-    ),
-    fbref_understat AS (
-        SELECT
-            f.league_source, f.season, f.venue, u.match_id,
-            f.team, f.opponent, f.raw_team, f.raw_opponent, f.date,
-            f.result_1n2, f.comp_category, f.gf, f.ga, f.possession,
+            f.date, f.team, f.opponent, f.raw_team, f.raw_opponent,
+            f.venue, f.season, f.league_source, f.comp_category, f.result_1n2, f.match_id,
+            f.formation, f.gf, f.ga, f.possession,
             f.shots_on_target_faced, f.saves, f.save_pct, f.clean_sheet,
-            f.shots_total, f.shots_on_target, f.shots_on_target_pct,
-            f.goals_per_shot, f.yellow_cards, f.second_yellow_cards,
-            f.red_cards, f.fouls_committed, f.fouls_drawn,
-            f.interceptions, f.tackles_won,
-            CASE WHEN f.venue='Home' THEN u.home_np_xg      ELSE u.away_np_xg      END AS np_xg,
-            CASE WHEN f.venue='Home' THEN u.away_np_xg      ELSE u.home_np_xg      END AS np_xg_conceded,
-            CASE WHEN f.venue='Home' THEN u.home_ppda       ELSE u.away_ppda       END AS ppda,
-            CASE WHEN f.venue='Home' THEN u.away_ppda       ELSE u.home_ppda       END AS ppda_allowed,
-            CASE WHEN f.venue='Home' THEN u.home_np_xg_diff ELSE u.away_np_xg_diff END AS np_xg_diff_match
-        FROM fbref_merged f
-        LEFT JOIN understat_base u
-            ON  f.season=u.season AND f.league_source=u.league_source
-            AND f.team     = (CASE WHEN f.venue='Home' THEN u.home_team ELSE u.away_team END)
-            AND f.opponent = (CASE WHEN f.venue='Home' THEN u.away_team ELSE u.home_team END)
-    ),
-    whoscored_base AS (
-        SELECT team, season, league_source,
-            ws_home_att_rating, ws_away_att_rating,
-            ws_home_def_rating, ws_away_def_rating,
-            ws_home_dribbles_pg, ws_away_dribbles_pg,
-            ws_home_fouled_pg, ws_away_fouled_pg,
-            ws_home_shots_ot_pg, ws_away_shots_ot_pg
-        FROM silver.whoscored_team_season
-    ),
-    whoscored_features AS (
-        SELECT
-            b.date, b.team, b.season, b.league_source,
-            CASE WHEN b.venue='Home' THEN ws.ws_home_att_rating  ELSE ws.ws_away_att_rating  END AS season_att_rating,
-            CASE WHEN b.venue='Home' THEN ws.ws_home_def_rating  ELSE ws.ws_away_def_rating  END AS season_def_rating,
-            CASE WHEN b.venue='Home' THEN ws.ws_home_dribbles_pg ELSE ws.ws_away_dribbles_pg END AS ws_dribbles_pg,
-            CASE WHEN b.venue='Home' THEN ws.ws_home_fouled_pg   ELSE ws.ws_away_fouled_pg   END AS ws_fouled_pg,
-            CASE WHEN b.venue='Home' THEN ws.ws_home_shots_ot_pg ELSE ws.ws_away_shots_ot_pg END AS ws_shots_ot_pg
-        FROM fbref_understat b
-        LEFT JOIN whoscored_base ws
-            ON b.team=ws.team AND b.season=ws.season AND b.league_source=ws.league_source
-    ),
-    odds_base AS (
-        SELECT
-            date::DATE AS date, season, league_source, home_team, away_team,
-            odds_pinnacle_h, odds_pinnacle_d, odds_pinnacle_a,
-            odds_avg_h, odds_avg_d, odds_avg_a,
-            pinnacle_prob_h, pinnacle_prob_d, pinnacle_prob_a,
-            market_prob_h, market_prob_d, market_prob_a
-        FROM silver.odds
-        WHERE pinnacle_prob_h IS NOT NULL
-    )
-    SELECT
-        f.date, f.team, f.opponent, f.raw_team, f.raw_opponent,
-        f.venue, f.season, f.league_source, f.comp_category, f.result_1n2, f.match_id,
-        f.gf, f.ga, f.possession,
-        f.shots_on_target_faced, f.saves, f.save_pct, f.clean_sheet,
-        f.shots_total, f.shots_on_target, f.goals_per_shot,
-        f.yellow_cards, f.second_yellow_cards, f.red_cards,
-        f.fouls_committed, f.interceptions, f.tackles_won,
-        f.np_xg, f.np_xg_conceded, f.ppda, f.ppda_allowed, f.np_xg_diff_match,
-        wf.season_att_rating, wf.season_def_rating,
-        wf.ws_dribbles_pg, wf.ws_fouled_pg, wf.ws_shots_ot_pg,
-        CASE WHEN f.venue='Home' THEN o.odds_pinnacle_h ELSE o.odds_pinnacle_a END AS odds_pinnacle_team,
-        o.odds_pinnacle_d AS odds_pinnacle_draw,
-        CASE WHEN f.venue='Home' THEN o.odds_pinnacle_a ELSE o.odds_pinnacle_h END AS odds_pinnacle_opp,
-        CASE WHEN f.venue='Home' THEN o.odds_avg_h      ELSE o.odds_avg_a      END AS odds_avg_team,
-        o.odds_avg_d AS odds_avg_draw,
-        CASE WHEN f.venue='Home' THEN o.odds_avg_a      ELSE o.odds_avg_h      END AS odds_avg_opp,
-        CASE WHEN f.venue='Home' THEN o.pinnacle_prob_h ELSE o.pinnacle_prob_a END AS pinnacle_prob_team,
-        o.pinnacle_prob_d AS pinnacle_prob_draw,
-        CASE WHEN f.venue='Home' THEN o.pinnacle_prob_a ELSE o.pinnacle_prob_h END AS pinnacle_prob_opp,
-        CASE WHEN f.venue='Home' THEN o.market_prob_h   ELSE o.market_prob_a   END AS market_prob_team,
-        o.market_prob_d AS market_prob_draw,
-        CASE WHEN f.venue='Home' THEN o.market_prob_a   ELSE o.market_prob_h   END AS market_prob_opp
-    FROM fbref_understat f
-    LEFT JOIN whoscored_features wf
-        ON f.date=wf.date AND f.team=wf.team AND f.season=wf.season AND f.league_source=wf.league_source
-    LEFT JOIN odds_base o
-        ON  f.date::DATE=o.date AND f.season=o.season AND f.league_source=o.league_source
-        AND (CASE WHEN f.venue='Home' THEN f.team     ELSE f.opponent END = o.home_team)
-        AND (CASE WHEN f.venue='Home' THEN f.opponent ELSE f.team     END = o.away_team)
-    """)
+            f.shots_total, f.shots_on_target, f.goals_per_shot,
+            f.yellow_cards, f.second_yellow_cards, f.red_cards,
+            f.fouls_committed, f.interceptions, f.tackles_won,
+            f.np_xg, f.np_xg_conceded, f.ppda, f.ppda_allowed, f.np_xg_diff_match,
+            wf.season_att_rating, wf.season_def_rating,
+            wf.ws_dribbles_pg, wf.ws_fouled_pg, wf.ws_shots_ot_pg,
+            CASE WHEN f.venue='Home' THEN o.odds_pinnacle_h ELSE o.odds_pinnacle_a END AS odds_pinnacle_team,
+            o.odds_pinnacle_d AS odds_pinnacle_draw,
+            CASE WHEN f.venue='Home' THEN o.odds_pinnacle_a ELSE o.odds_pinnacle_h END AS odds_pinnacle_opp,
+            CASE WHEN f.venue='Home' THEN o.odds_avg_h      ELSE o.odds_avg_a      END AS odds_avg_team,
+            o.odds_avg_d AS odds_avg_draw,
+            CASE WHEN f.venue='Home' THEN o.odds_avg_a      ELSE o.odds_avg_h      END AS odds_avg_opp,
+            CASE WHEN f.venue='Home' THEN o.pinnacle_prob_h ELSE o.pinnacle_prob_a END AS pinnacle_prob_team,
+            o.pinnacle_prob_d AS pinnacle_prob_draw,
+            CASE WHEN f.venue='Home' THEN o.pinnacle_prob_a ELSE o.pinnacle_prob_h END AS pinnacle_prob_opp,
+            CASE WHEN f.venue='Home' THEN o.market_prob_h   ELSE o.market_prob_a   END AS market_prob_team,
+            o.market_prob_d AS market_prob_draw,
+            CASE WHEN f.venue='Home' THEN o.market_prob_a   ELSE o.market_prob_h   END AS market_prob_opp
+        FROM fbref_understat f
+        LEFT JOIN whoscored_features wf ON f.date=wf.date AND f.team=wf.team AND f.season=wf.season AND f.league_source=wf.league_source
+        LEFT JOIN odds_base o
+            ON f.date::DATE=o.date AND f.season=o.season AND f.league_source=o.league_source
+            AND (CASE WHEN f.venue='Home' THEN f.team     ELSE f.opponent END = o.home_team)
+            AND (CASE WHEN f.venue='Home' THEN f.opponent ELSE f.team     END = o.away_team)
+    """
 
-    # Suppression données COVID Ligue 1
-    conn.execute(f"""
-        DELETE FROM gold.stg_backbone
-        WHERE season='{FRA_covid_Season}' AND league_source='Ligue 1' AND date>='{FRA_end_covid_date}'
-    """)
 
-    n_backbone = conn.execute("SELECT COUNT(*) FROM gold.stg_backbone").fetchone()[0]
-    logger.info(f"  stg_backbone : {n_backbone:,} lignes")
-
-    # ── BLOC 2 : Rolling ──────────────────────────────────────────────────────
-    logger.info("Bloc 2 : Rolling features (multi-window)...")
-
-    all_rolling_cols = "\n".join(_rolling_cols(w) for w in WINDOWS)
-
-    conn.execute(f"""
-        CREATE OR REPLACE TABLE gold.features_training AS
-        WITH base_with_gap AS (
+def _sql_features_training_select(all_rolling_cols: str, fg5: str, fg_hist: str, fg_form: str) -> str:
+    """Retourne le SELECT complet stg_backbone → features_training."""
+    return f"""
+        WITH
+        base_with_gap AS (
             SELECT *,
-                CAST(date AS DATE)
-                    - LAG(CAST(date AS DATE))
+                CAST(date AS DATE) - LAG(CAST(date AS DATE))
                     OVER (PARTITION BY team ORDER BY date) AS days_since_last_match
             FROM gold.stg_backbone
         ),
@@ -427,8 +381,7 @@ def run_rolling_features(reset: bool = False) -> None:
             SELECT team, league_source, season,
                 MAX(season_att_rating) AS season_att_rating_raw,
                 MAX(season_def_rating) AS season_def_rating_raw
-            FROM gold.stg_backbone
-            GROUP BY team, league_source, season
+            FROM gold.stg_backbone GROUP BY team, league_source, season
         ),
         season_ratings_prev AS (
             SELECT team, league_source, season,
@@ -443,12 +396,39 @@ def run_rolling_features(reset: bool = False) -> None:
         features_raw AS (
             SELECT
                 date, team, opponent, venue, season, league_source,
-                comp_category, match_id, result_1n2,
+                comp_category, match_id, result_1n2, formation,
                 CASE WHEN venue='Home' THEN 1 ELSE 0 END AS is_home,
                 days_since_last_match,
                 CASE WHEN days_since_last_match > 20 THEN 1 ELSE 0 END AS is_return_from_break,
                 CASE WHEN days_since_last_match < 4  THEN 1 ELSE 0 END AS is_short_rest,
                 {all_rolling_cols}
+                AVG(CASE WHEN result_1n2='D' THEN 1.0 ELSE 0.0 END) OVER ({fg5}) AS draw_rate_5,
+                AVG(CASE WHEN venue='Home' AND result_1n2='W' THEN 1.0
+                         WHEN venue='Home' THEN 0.0 ELSE NULL END)
+                    OVER ({fg_hist}) AS home_win_rate_hist,
+                TRY_CAST(split_part(formation, '-', 1) AS INTEGER) AS form_n_defenders,
+                CASE
+                    WHEN len(string_split(formation, '-')) = 3
+                    THEN TRY_CAST(split_part(formation, '-', 2) AS INTEGER)
+                    WHEN len(string_split(formation, '-')) = 4
+                    THEN TRY_CAST(split_part(formation, '-', 2) AS INTEGER)
+                       + TRY_CAST(split_part(formation, '-', 3) AS INTEGER)
+                    ELSE NULL
+                END AS form_n_midfielders,
+                TRY_CAST(split_part(formation, '-', len(string_split(formation, '-'))) AS INTEGER) AS form_n_attackers,
+                (
+                    CASE WHEN LAG(formation,1) OVER ({fg_form}) = formation THEN 1.0 ELSE 0.0 END
+                  + CASE WHEN LAG(formation,2) OVER ({fg_form}) = formation THEN 1.0 ELSE 0.0 END
+                  + CASE WHEN LAG(formation,3) OVER ({fg_form}) = formation THEN 1.0 ELSE 0.0 END
+                  + CASE WHEN LAG(formation,4) OVER ({fg_form}) = formation THEN 1.0 ELSE 0.0 END
+                  + CASE WHEN LAG(formation,5) OVER ({fg_form}) = formation THEN 1.0 ELSE 0.0 END
+                ) / 5.0 AS form_familiarity_5,
+                CASE
+                    WHEN formation IS NULL THEN NULL
+                    WHEN LAG(formation,1) OVER ({fg_form}) IS NULL THEN NULL
+                    WHEN formation = LAG(formation,1) OVER ({fg_form}) THEN 0
+                    ELSE 1
+                END AS form_change_flag,
                 ws_dribbles_pg, ws_fouled_pg, ws_shots_ot_pg,
                 odds_pinnacle_team, odds_pinnacle_draw, odds_pinnacle_opp,
                 odds_avg_team, odds_avg_draw, odds_avg_opp,
@@ -460,31 +440,27 @@ def run_rolling_features(reset: bool = False) -> None:
         FROM features_raw f
         LEFT JOIN season_ratings_prev sr
             ON f.team=sr.team AND f.league_source=sr.league_source AND f.season=sr.season
-    """)
+    """
 
-    n_training = conn.execute("SELECT COUNT(*) FROM gold.features_training").fetchone()[0]
-    logger.info(f"  features_training : {n_training:,} lignes")
 
-    # ── BLOC 3 : Match-up + différentiels ─────────────────────────────────────
-    logger.info("Bloc 3 : Match-up final + différentiels (multi-window)...")
-
-    all_opp_cols  = "\n".join(_opp_cols(w)  for w in WINDOWS)
-    all_team_cols = "\n".join(_team_cols(w) for w in WINDOWS)
-    all_diff_cols = "\n".join(_diff_cols(w) for w in WINDOWS)
-
-    conn.execute(f"""
-        CREATE OR REPLACE TABLE gold.features_final AS
+def _sql_features_final_select(all_opp_cols: str, all_team_cols: str, all_diff_cols: str) -> str:
+    """Retourne le SELECT complet features_training → features_final."""
+    return f"""
         WITH opponent_stats AS (
-            SELECT
-                date, team AS opp_team,
+            SELECT date, team AS opp_team,
                 season_att_rating AS opp_season_att_rating,
                 season_def_rating AS opp_season_def_rating,
                 ws_dribbles_pg    AS opp_ws_dribbles_pg,
                 ws_fouled_pg      AS opp_ws_fouled_pg,
                 ws_shots_ot_pg    AS opp_ws_shots_ot_pg,
+                days_since_last_match AS opp_rest_days,
                 odds_pinnacle_team  AS opp_odds_pinnacle,
                 pinnacle_prob_team  AS opp_pinnacle_prob,
                 market_prob_team    AS opp_market_prob,
+                draw_rate_5         AS opp_draw_rate_5,
+                form_n_defenders    AS opp_form_n_defenders,
+                form_n_midfielders  AS opp_form_n_midfielders,
+                form_n_attackers    AS opp_form_n_attackers,
                 {all_opp_cols}
                 1 AS _dummy
             FROM gold.features_training
@@ -500,7 +476,6 @@ def run_rolling_features(reset: bool = False) -> None:
             o.opp_odds_pinnacle, o.opp_pinnacle_prob, o.opp_market_prob,
             {all_team_cols}
             {all_diff_cols}
-            -- Rétrocompatibilité W=5
             (t.xg_net_roll_{WINDOW}            - o.opp_xg_net_{WINDOW})            AS xg_net_diff,
             (t.season_att_rating               - o.opp_season_def_rating)          AS tactical_advantage,
             (t.ws_dribbles_pg                  - o.opp_ws_dribbles_pg)             AS ws_dribble_style_diff,
@@ -516,7 +491,11 @@ def run_rolling_features(reset: bool = False) -> None:
             (o.opp_sterility_index_{WINDOW}    - t.sterility_index_{WINDOW})       AS sterility_diff,
             (t.press_resistance_{WINDOW}       - o.opp_press_resistance_{WINDOW})  AS press_resistance_diff,
             (t.shield_efficiency_{WINDOW}      - o.opp_shield_efficiency_{WINDOW}) AS shield_efficiency_diff,
-            -- Cotes
+            (t.days_since_last_match           - o.opp_rest_days)                  AS rest_days_diff,
+            (t.draw_rate_5  - o.opp_draw_rate_5)                                   AS draw_rate_diff,
+            (t.draw_rate_5  * o.opp_draw_rate_5)                                   AS draw_affinity,
+            (CAST(t.form_n_attackers   AS DOUBLE) - CAST(o.opp_form_n_defenders   AS DOUBLE)) AS form_att_vs_def_gap,
+            (CAST(t.form_n_midfielders AS DOUBLE) - CAST(o.opp_form_n_midfielders AS DOUBLE)) AS form_mid_dominance,
             t.odds_pinnacle_team, t.odds_pinnacle_draw, t.odds_pinnacle_opp,
             t.odds_avg_team, t.odds_avg_draw, t.odds_avg_opp,
             t.pinnacle_prob_team, t.pinnacle_prob_draw, t.pinnacle_prob_opp,
@@ -525,11 +504,137 @@ def run_rolling_features(reset: bool = False) -> None:
             (t.market_prob_team   - t.market_prob_opp)   AS market_edge
         FROM gold.features_training t
         LEFT JOIN opponent_stats o ON t.date=o.date AND t.opponent=o.opp_team
+    """
+
+
+# ── Pipeline principal ────────────────────────────────────────────────────────
+
+def run_rolling_features(reset: bool = False) -> None:
+    """Pipeline incrémental : Staging → Rolling → Match-up → H2H → Giant Killer."""
+    logger.info("═══ Pipeline rolling — Silver → Gold (incrémental) ═══")
+    conn = duckdb.connect(DB_PATH)
+
+    if reset:
+        logger.info("Reset Gold Layer...")
+        conn.execute("DROP SCHEMA IF EXISTS gold CASCADE")
+
+    conn.execute("CREATE SCHEMA IF NOT EXISTS gold")
+
+    # ── BLOC 1 : stg_backbone incrémental ────────────────────────────────────
+    logger.info("Bloc 1 : stg_backbone incrémental...")
+
+    backbone_select = _sql_backbone_select()
+    conn.execute(f"CREATE TABLE IF NOT EXISTS gold.stg_backbone AS {backbone_select} WHERE 1=0")
+
+    n_new_bb = conn.execute("""
+        SELECT COUNT(*) FROM silver.fbref_schedule f
+        WHERE NOT EXISTS (
+            SELECT 1 FROM gold.stg_backbone b
+            WHERE b.date=f.date AND b.team=f.team
+            AND b.opponent=f.opponent AND b.league_source=f.league_source
+        )
+    """).fetchone()[0]
+    logger.info(f"  {n_new_bb:,} nouveaux matchs à insérer dans stg_backbone")
+
+    if n_new_bb > 0:
+        conn.execute(f"""
+            INSERT INTO gold.stg_backbone
+            {backbone_select}
+            WHERE NOT EXISTS (
+                SELECT 1 FROM gold.stg_backbone b
+                WHERE b.date=f.date AND b.team=f.team
+                AND b.opponent=f.opponent AND b.league_source=f.league_source
+            )
+        """)
+        # Suppression données COVID Ligue 1
+        conn.execute(f"""
+            DELETE FROM gold.stg_backbone
+            WHERE season='{FRA_covid_Season}' AND league_source='Ligue 1'
+              AND date>='{FRA_end_covid_date}'
+        """)
+
+    n_backbone = conn.execute("SELECT COUNT(*) FROM gold.stg_backbone").fetchone()[0]
+    logger.info(f"  stg_backbone total : {n_backbone:,} lignes")
+
+    # ── BLOC 2 : features_training incrémental ────────────────────────────────
+    logger.info("Bloc 2 : features_training incrémental...")
+
+    all_rolling_cols = "\n".join(_rolling_cols(w) for w in WINDOWS)
+    fg5     = "PARTITION BY team, season, league_source ORDER BY date ROWS BETWEEN 5 PRECEDING AND 1 PRECEDING"
+    fg_hist = "PARTITION BY team, league_source ORDER BY date ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING"
+    fg_form = "PARTITION BY team, season, league_source ORDER BY date"
+
+    training_select = _sql_features_training_select(all_rolling_cols, fg5, fg_hist, fg_form)
+    conn.execute(f"CREATE TABLE IF NOT EXISTS gold.features_training AS {training_select} WHERE 1=0")
+
+    n_new_tr = conn.execute("""
+        SELECT COUNT(*) FROM gold.stg_backbone
+        WHERE match_id NOT IN (
+            SELECT DISTINCT match_id FROM gold.features_training WHERE match_id IS NOT NULL
+        ) AND match_id IS NOT NULL
+    """).fetchone()[0]
+    logger.info(f"  {n_new_tr:,} nouveaux matchs à insérer dans features_training")
+
+    if n_new_tr > 0:
+        # Les window functions nécessitent TOUT l'historique pour être correctes.
+        # On calcule sur gold.stg_backbone entier mais on n'insère que les nouvelles lignes.
+        conn.execute(f"""
+            INSERT INTO gold.features_training
+            {training_select}
+            WHERE match_id NOT IN (
+                SELECT DISTINCT match_id FROM gold.features_training WHERE match_id IS NOT NULL
+            ) AND match_id IS NOT NULL
+        """)
+
+    # Congestion 14d — idempotent (WHERE IS NULL)
+    logger.info("  Congestion 14d (idempotent)...")
+    conn.execute("ALTER TABLE gold.features_training ADD COLUMN IF NOT EXISTS congestion_14d INTEGER")
+    conn.execute("""
+        UPDATE gold.features_training AS ft
+        SET congestion_14d = (
+            SELECT COUNT(*) FROM gold.features_training hist
+            WHERE hist.team=ft.team AND hist.league_source=ft.league_source
+              AND hist.date < ft.date AND hist.date >= ft.date - INTERVAL '14 days'
+        )
+        WHERE ft.congestion_14d IS NULL
     """)
 
-    # ── BLOC 3.5 : H2H ────────────────────────────────────────────────────────
-    logger.info("Bloc 3.5 : Head-to-Head features...")
+    n_training = conn.execute("SELECT COUNT(*) FROM gold.features_training").fetchone()[0]
+    n_cong = conn.execute(
+        "SELECT COUNT(*) FROM gold.features_training WHERE congestion_14d IS NOT NULL"
+    ).fetchone()[0]
+    logger.info(f"  features_training total : {n_training:,} lignes")
+    logger.info(f"  congestion_14d : {n_cong:,}/{n_training:,}")
 
+    # ── BLOC 3 : features_final incrémental ───────────────────────────────────
+    logger.info("Bloc 3 : features_final incrémental...")
+
+    all_opp_cols  = "\n".join(_opp_cols(w)  for w in WINDOWS)
+    all_team_cols = "\n".join(_team_cols(w) for w in WINDOWS)
+    all_diff_cols = "\n".join(_diff_cols(w) for w in WINDOWS)
+
+    final_select = _sql_features_final_select(all_opp_cols, all_team_cols, all_diff_cols)
+    conn.execute(f"CREATE TABLE IF NOT EXISTS gold.features_final AS {final_select} WHERE 1=0")
+
+    n_new_ff = conn.execute("""
+        SELECT COUNT(*) FROM gold.features_training
+        WHERE match_id NOT IN (
+            SELECT DISTINCT match_id FROM gold.features_final WHERE match_id IS NOT NULL
+        ) AND match_id IS NOT NULL
+    """).fetchone()[0]
+    logger.info(f"  {n_new_ff:,} nouveaux matchs à insérer dans features_final")
+
+    if n_new_ff > 0:
+        conn.execute(f"""
+            INSERT INTO gold.features_final
+            {final_select}
+            WHERE t.match_id NOT IN (
+                SELECT DISTINCT match_id FROM gold.features_final WHERE match_id IS NOT NULL
+            ) AND t.match_id IS NOT NULL
+        """)
+
+    # ── BLOC 3.5 : H2H — idempotent (WHERE h2h_n_matches IS NULL) ────────────
+    logger.info("Bloc 3.5 : H2H idempotent...")
     H2H_WINDOW = CFG.get("features", {}).get("h2h_window", 10)
 
     conn.execute("""
@@ -553,7 +658,10 @@ def run_rolling_features(reset: bool = False) -> None:
             AVG(COALESCE(h.np_xg - h.np_xg_conceded,
                 CAST(h.gf AS DOUBLE) - CAST(h.ga AS DOUBLE)))       AS xg_diff,
             COUNT(*)                                                 AS n_matches
-        FROM (SELECT DISTINCT date, team, opponent, league_source FROM gold.stg_backbone) t
+        FROM (
+            SELECT DISTINCT date, team, opponent, league_source
+            FROM gold.features_final WHERE h2h_n_matches IS NULL
+        ) t
         JOIN (
             SELECT h1.*,
                 ROW_NUMBER() OVER (
@@ -561,28 +669,20 @@ def run_rolling_features(reset: bool = False) -> None:
                     ORDER BY h1.date DESC
                 ) AS rn
             FROM gold.stg_backbone h1
-        ) h
-            ON  h.team          = t.team
-            AND h.opponent      = t.opponent
-            AND h.league_source = t.league_source
-            AND h.date          < t.date
-            AND h.rn            <= {H2H_WINDOW}
+        ) h ON h.team=t.team AND h.opponent=t.opponent
+            AND h.league_source=t.league_source
+            AND h.date < t.date AND h.rn <= {H2H_WINDOW}
         GROUP BY t.date, t.team, t.opponent, t.league_source
     """)
 
     conn.execute("""
-        UPDATE gold.features_final AS ff
-        SET
-            h2h_win_rate       = h.win_rate,
-            h2h_draw_rate      = h.draw_rate,
-            h2h_goals_scored   = h.goals_scored,
-            h2h_goals_conceded = h.goals_conceded,
-            h2h_xg_diff        = h.xg_diff,
-            h2h_n_matches      = h.n_matches
+        UPDATE gold.features_final AS ff SET
+            h2h_win_rate=h.win_rate, h2h_draw_rate=h.draw_rate,
+            h2h_goals_scored=h.goals_scored, h2h_goals_conceded=h.goals_conceded,
+            h2h_xg_diff=h.xg_diff, h2h_n_matches=h.n_matches
         FROM tmp_h2h h
-        WHERE CAST(ff.date AS DATE)=h.ft_date
-          AND ff.team=h.ft_team AND ff.opponent=h.ft_opponent
-          AND ff.league_source=h.ft_league
+        WHERE CAST(ff.date AS DATE)=h.ft_date AND ff.team=h.ft_team
+          AND ff.opponent=h.ft_opponent AND ff.league_source=h.ft_league
     """)
 
     n_h2h = conn.execute(
@@ -590,7 +690,7 @@ def run_rolling_features(reset: bool = False) -> None:
     ).fetchone()[0]
     logger.info(f"  H2H renseigné : {n_h2h:,} lignes")
 
-    # ── League Draw Rate ───────────────────────────────────────────────────────
+    # ── League Draw Rate — idempotent ─────────────────────────────────────────
     conn.execute("ALTER TABLE gold.features_final ADD COLUMN IF NOT EXISTS league_draw_rate DOUBLE;")
     conn.execute("""
         UPDATE gold.features_final AS ff
@@ -601,17 +701,17 @@ def run_rolling_features(reset: bool = False) -> None:
                     AVG(CASE WHEN result_1n2='D' THEN 1.0 ELSE 0.0 END) AS season_draw_rate
                 FROM gold.features_final GROUP BY league_source, season
             )
-            SELECT s1.league_source, s1.season,
-                AVG(s2.season_draw_rate) AS draw_rate
+            SELECT s1.league_source, s1.season, AVG(s2.season_draw_rate) AS draw_rate
             FROM season_rates s1
             JOIN season_rates s2 ON s2.league_source=s1.league_source AND s2.season < s1.season
             GROUP BY s1.league_source, s1.season
         ) ldr
         WHERE ff.league_source=ldr.league_source AND ff.season=ldr.season
+          AND ff.league_draw_rate IS NULL
     """)
 
-    # ── BLOC 3.7 : Giant Killer ───────────────────────────────────────────────
-    logger.info("Bloc 3.7 : Giant Killer features...")
+    # ── BLOC 3.7 : Giant Killer — idempotent ──────────────────────────────────
+    logger.info("Bloc 3.7 : Giant Killer idempotent...")
     conn.execute("""
         ALTER TABLE gold.features_final ADD COLUMN IF NOT EXISTS rating_ratio_att DOUBLE;
         ALTER TABLE gold.features_final ADD COLUMN IF NOT EXISTS rating_ratio_def DOUBLE;
@@ -632,9 +732,10 @@ def run_rolling_features(reset: bool = False) -> None:
                     season_att_rating / opp_season_att_rating,
                     season_def_rating / opp_season_def_rating
                 ) * is_home ELSE NULL END
+        WHERE rating_ratio_att IS NULL
     """)
 
-    # ── final_match_id ────────────────────────────────────────────────────────
+    # ── final_match_id — idempotent ───────────────────────────────────────────
     conn.execute("""
         ALTER TABLE gold.features_final ADD COLUMN IF NOT EXISTS final_match_id VARCHAR;
         UPDATE gold.features_final SET
@@ -642,7 +743,8 @@ def run_rolling_features(reset: bool = False) -> None:
                 CAST(date AS VARCHAR) || '|' ||
                 LEAST(team, opponent) || '|' ||
                 GREATEST(team, opponent) || '|' || league_source
-            ), 10);
+            ), 10)
+        WHERE final_match_id IS NULL
     """)
 
     # ── Rapport final ─────────────────────────────────────────────────────────
@@ -651,15 +753,23 @@ def run_rolling_features(reset: bool = False) -> None:
     for w in WINDOWS:
         checks += [f"sqr_diff_{w}", f"ppda_diff_{w}", f"xg_net_diff_{w}",
                    f"win_rate_diff_{w}", f"points_pg_diff_{w}"]
-    checks += ["sqr_diff", "ppda_diff", "xg_net_diff", "save_rate_diff",
-               "defensive_actions_diff", "h2h_win_rate", "h2h_xg_diff",
-               "rating_ratio_att", "upset_risk_index"]
+    checks += [
+        "sqr_diff", "ppda_diff", "xg_net_diff", "save_rate_diff",
+        "defensive_actions_diff", "h2h_win_rate", "h2h_xg_diff",
+        "rating_ratio_att", "upset_risk_index",
+        "rest_days_diff", "draw_rate_diff", "draw_affinity",
+        "form_att_vs_def_gap", "form_mid_dominance",
+    ]
     for col in checks:
-        n_ok = conn.execute(
-            f"SELECT COUNT(*) FROM gold.features_final WHERE {col} IS NOT NULL"
-        ).fetchone()[0]
-        pct = n_ok / count * 100 if count else 0
-        logger.info(f"    {col:<40} : {n_ok:,}/{count:,} ({pct:.1f}%)")
+        try:
+            n_ok = conn.execute(
+                f"SELECT COUNT(*) FROM gold.features_final WHERE {col} IS NOT NULL"
+            ).fetchone()[0]
+            pct = n_ok / count * 100 if count else 0
+            status = "✅" if pct > 50 else "⚠️ " if pct > 10 else "❌"
+            logger.info(f"  {status} {col:<45} : {n_ok:,}/{count:,} ({pct:.1f}%)")
+        except Exception as e:
+            logger.warning(f"  {col} : erreur coverage ({e})")
 
     logger.success(f"═══ Pipeline rolling terminé — {count:,} lignes gold.features_final ═══")
     conn.close()

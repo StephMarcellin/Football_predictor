@@ -4,6 +4,7 @@ Projet_3étoiles/
     README.md
     requirements.txt
     scraping_config.yaml
+    snapshot_before.json
     structure_projet.txt
     app/
         streamlit_app.py
@@ -12,19 +13,27 @@ Projet_3étoiles/
     db/
         football.duckdb
     docs/
+        Event_Opta_definition.txt
         Features_names.txt
         Liste_promu.txt
         Notes diverses.txt
     downloaded_files/
         driver_fixing.lock
     logs/
+        agent_manager.log
+        auditor.log
         audit_unmapped.log
         backtest.log
         features.log
+        features_draw.log
+        features_draw_behavior.log
         features_match_details.log
+        features_pipeline.log
+        features_sandbox.log
         ingest.log
         odds.log
         process.log
+        ref_tables.log
         scrape_fbref.log
         scrape_whoscored.log
         scrape_whoscored_details.log
@@ -35,27 +44,43 @@ Projet_3étoiles/
     models/
         backtest_results.csv
         football_stacking_v1.joblib
-        predictions_2425.csv
+        predictions_test.csv
         predictions_upcoming.csv
         predictions_val.csv
+        diagnostics/
+            diagnostic_v1_test_oos.png
+            diagnostic_v1_val.png
+            draw_residuals_top50.csv
     notebooks/
     pipelines/
         01b_odds.py
         01_ingest.py
         02_process.py
-        03b_features_match_details.py
         03_features.py
         04_train.py
         05_predict.py
         06_backtest.py
+        agent_manager.py
+        audit_draw_residuals.py
+        check_values.py
+        compare_snapshot.py
         config_columns.py
-        debug_bronze.py
-        debug_predictions.py
+        diagnostic_model_signal.py
         generer_tree.py
-        Features_SQL/
-            Différentials.txt
-            Rolling features.txt
-            Staging.txt
+        snapshot_before.py
+        features/
+            columns.py
+            draw.py
+            rolling.py
+            sandbox.py
+            whoscored.py
+            __init__.py
+        old/
+            03b_features_match_details.py
+            03c_features_draw_behavior.py
+            03c_features_draw_signals.py
+            03c_suggested_features.py
+            03_features.py
         scrapping/
             diagnostic_ws.py
             scrape_fbref.py
@@ -63,3 +88,12 @@ Projet_3étoiles/
             scrape_whoscored.py
             scrape_whoscored_details.py
             scrape_whoscored_match.py
+    pipeline_agents/
+        auditor.py
+        strategy_auditor.py
+        __init__.py
+    ref/
+        build_ref_tables.py
+    reports/
+        agent_insights.md
+        strategy_audit_report.md

@@ -217,7 +217,23 @@ def run_inference(df_match: pd.DataFrame, art: dict) -> pd.DataFrame:
     else:
         p_market = np.full((len(df_match), 3), 1/3)
 
-    X_meta = np.hstack([proba_home, proba_away_dom, proba_lr, p_market])
+    # Stage 1E — Features contextuelles Draw (alignement avec build_meta_features)
+    draw_cols = ["h_h2h_draw_rate", "h_h2h_n_matches", "h_market_prob_draw",
+             "h_league_draw_rate", "h_sterility_weighted_10",
+             "h_shots_faced_per_goal_conceded_5"]
+    draw_feats_list = []
+    for c in draw_cols:
+        if c in df_match.columns:
+            arr = df_match[c].to_numpy(dtype=float)
+            arr = np.nan_to_num(arr, nan=0.0)
+            draw_feats_list.append(arr)
+
+    if draw_feats_list:
+        draw_feats = np.column_stack(draw_feats_list)
+        X_meta = np.hstack([proba_home, proba_away_dom, proba_lr, p_market, draw_feats])
+    else:
+        X_meta = np.hstack([proba_home, proba_away_dom, proba_lr, p_market])
+
 
     # Debug
     logger.debug(f"  Classes le_home     : {list(le_home.classes_)}")
@@ -345,15 +361,19 @@ def parse_args():
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
-def main():
-    args = parse_args()
-
-    art = load_artefacts(args.model)
+def main(
+    upcoming:  bool = True,
+    date_from: str  = None,
+    date_to:   str  = None,
+    output:    str  = OUTPUT_PATH,
+    model:     str  = MODEL_PATH,
+):
+    art = load_artefacts(model)
 
     df = load_data(
-        upcoming_only=args.upcoming,
-        date_from=args.date_from,
-        date_to=args.date_to,
+        upcoming_only=upcoming,
+        date_from=date_from,
+        date_to=date_to,
     )
 
     if df.empty:
@@ -366,14 +386,10 @@ def main():
     df_pred = run_inference(df_match, art)
 
     # Value bets
-    # odds = None
-    # if args.odds_csv:
-    #     odds = pd.read_csv(args.odds_csv)
-    #     logger.info(f"Cotes chargées : {len(odds)} matchs")
     df_pred = compute_value_bets(df_pred, df_match)
 
     # Export
-    out_path = Path(args.output)
+    out_path = Path(output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     df_pred.to_csv(out_path, index=False)
     logger.success(f"Prédictions sauvegardées : {out_path}  ({len(df_pred)} matchs)")
@@ -389,4 +405,11 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    args = parse_args()
+    main(
+        upcoming=args.upcoming,
+        date_from=args.date_from,
+        date_to=args.date_to,
+        output=args.output,
+        model=args.model,
+    )

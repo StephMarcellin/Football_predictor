@@ -61,11 +61,6 @@ NEW_COLS_WS: list[tuple[str, str]] = [
 
     # ── Qualité de données (v2) ───────────────────────────────────────────────
     ("has_ws_events",             "INTEGER"),  # 0 / 1 — couverture WhoScored events
-
-    ("ws_counter_attack_dna",    "DOUBLE"),
-    ("ws_midfield_control_idx",  "DOUBLE"),
-    ("ws_defensive_line_height", "DOUBLE"),
-    ("ws_flank_exposure_asymm",  "DOUBLE"),
 ]
 
 # Colonnes différentielles ajoutées à gold.features_final
@@ -82,14 +77,19 @@ DIFF_COLS_WS: list[tuple[str, str]] = [
     ("ws_conversion_diff",     "DOUBLE"),  # conversion_rate diff
     ("ws_cross_diff",          "DOUBLE"),  # cross_rate diff
     ("ws_long_ball_diff",      "DOUBLE"),  # long_ball_rate diff
-    # Matchup advantages (v2)
+    # Matchup advantages — soustraction (v2)
     ("ws_left_matchup_adv",    "DOUBLE"),  # team.attack_left  - opp.def_exposed_right
     ("ws_right_matchup_adv",   "DOUBLE"),  # team.attack_right - opp.def_exposed_left
     ("ws_center_matchup_adv",  "DOUBLE"),  # team.attack_center - opp.def_exposed_center
-
-    ("ws_counter_attack_diff",  "DOUBLE"),
-    ("ws_def_line_diff",        "DOUBLE"),
-    ("ws_flank_asymm_diff",     "DOUBLE"),
+    # Matchup structurel — produit (exploitation réelle) — Groupe 3
+    ("ws_structural_matchup",    "DOUBLE"),  # dot product att_team · def_opp normalisé
+    ("ws_left_exploit_score",    "DOUBLE"),  # attack_left_team  × def_exposed_left_opp
+    ("ws_center_exploit_score",  "DOUBLE"),  # attack_center_team × def_exposed_center_opp
+    ("ws_right_exploit_score",   "DOUBLE"),  # attack_right_team × def_exposed_right_opp
+    # Comportementaux avancés diffs (v3)
+    ("ws_counter_attack_diff",   "DOUBLE"),  # ws_counter_attack_dna team - opp
+    ("ws_def_line_diff",         "DOUBLE"),  # ws_defensive_line_height team - opp
+    ("ws_flank_asymm_diff",      "DOUBLE"),  # ws_flank_exposure_asymm team - opp
 ]
 
 
@@ -160,6 +160,70 @@ DIFF_COLS_DRAW: list[tuple[str, str]] = [
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# MODULE : Fatigue / Contexte (features/rolling.py — Blocs 2 et 3) — Groupe 5
+# ══════════════════════════════════════════════════════════════════════════════
+
+NEW_COLS_FATIGUE: list[tuple[str, str]] = [
+    ("congestion_14d",  "INTEGER"),  # nb matchs dans les 14 jours précédents (anti-leakage : date < ft.date)
+]
+
+DIFF_COLS_FATIGUE: list[tuple[str, str]] = [
+    ("rest_days_diff",  "DOUBLE"),   # days_since_last_match_team - days_since_last_match_opp
+]
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MODULE : Draw Rate & Home Strength (features/rolling.py — Blocs 2 et 3) — Groupe 4
+# ══════════════════════════════════════════════════════════════════════════════════════
+
+NEW_COLS_DRAW_RATE: list[tuple[str, str]] = [
+    ("draw_rate_5",        "DOUBLE"),  # taux de nuls sur les 5 derniers matchs (rolling)
+    ("home_win_rate_hist", "DOUBLE"),  # taux de victoires à domicile (historique complet, LAG strict)
+]
+
+DIFF_COLS_DRAW_RATE: list[tuple[str, str]] = [
+    ("draw_rate_diff",  "DOUBLE"),   # draw_rate_5_team - draw_rate_5_opp
+    ("draw_affinity",   "DOUBLE"),   # draw_rate_5_team × draw_rate_5_opp (compatibilité nul)
+]
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MODULE : Formation tactique (features/rolling.py — Blocs 2 et 3) — Groupe 2
+# ══════════════════════════════════════════════════════════════════════════════
+
+NEW_COLS_FORMATION: list[tuple[str, str]] = [
+    ("form_n_defenders",    "INTEGER"),  # 1er chiffre de la formation (ex: 4 dans "4-3-3")
+    ("form_n_midfielders",  "INTEGER"),  # chiffre(s) central/aux (somme si 4 blocs, ex: 4-2-3-1 → 5)
+    ("form_n_attackers",    "INTEGER"),  # dernier chiffre de la formation
+    ("form_familiarity_5",  "DOUBLE"),   # % des 5 derniers matchs joués avec cette même formation
+    ("form_change_flag",    "INTEGER"),  # 1 si formation différente du match précédent, sinon 0
+]
+
+DIFF_COLS_FORMATION: list[tuple[str, str]] = [
+    ("form_att_vs_def_gap",  "DOUBLE"),   # n_attackers_team - n_defenders_opp
+    ("form_mid_dominance",   "DOUBLE"),   # n_midfielders_team - n_midfielders_opp
+]
+
+
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MODULE : Squad / Joueurs (features/whoscored.py — Passe 0 + Passe 3) — Groupe 1
+# ══════════════════════════════════════════════════════════════════════════════
+
+NEW_COLS_SQUAD: list[tuple[str, str]] = [
+    ("squad_avg_form_5",   "DOUBLE"),  # AVG(n_actions rolling 5) des joueurs du squad
+    ("squad_xg_quality_5", "DOUBLE"),  # AVG(xg_contribution rolling 5) des joueurs du squad
+    ("squad_regularity",   "DOUBLE"),  # % joueurs présents dans M qui étaient dans M-1
+    ("squad_top3_share",   "DOUBLE"),  # part actions 3 meilleurs contributors / total squad
+]
+
+DIFF_COLS_SQUAD: list[tuple[str, str]] = [
+    ("squad_quality_gap",  "DOUBLE"),  # squad_avg_form_5_team - squad_avg_form_5_opp
+    ("squad_xg_matchup",   "DOUBLE"),  # squad_xg_quality_5_team / squad_xg_quality_5_opp
+]
+
+# ══════════════════════════════════════════════════════════════════════════════
 # VUE CONSOLIDÉE — toutes les colonnes WhoScored dans features_training
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -167,6 +231,13 @@ ALL_WS_COLS_TRAINING: list[str] = (
     [c for c, _ in NEW_COLS_WS]
     + [c for c, _ in NEW_COLS_DRAW_BEHAVIOR]
     + [c for c, _ in NEW_COLS_DRAW_SIGNALS]
+    + [c for c, _ in NEW_COLS_SQUAD]
+)
+
+ALL_WS_COLS_FINAL: list[str] = (
+    [c for c, _ in DIFF_COLS_WS]
+    + [c for c, _ in DIFF_COLS_DRAW]
+    + [c for c, _ in DIFF_COLS_SQUAD]
 )
 
 ALL_WS_COLS_FINAL: list[str] = (
