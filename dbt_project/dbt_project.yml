@@ -26,19 +26,4 @@ clean-targets:         # directories to be removed by `dbt clean`
 # Configuring models
 # Full documentation: https://docs.getdbt.com/docs/configuring-models
 
-models:
-  football_prediction:
-    gold:
-      +materialized: table
-      +schema: gold
-
-data_tests:
-  +severity: warn
-  football_prediction:
-    assert_no_future_dates:
-      +severity: warn
-    assert_join_coverage:
-      +severity: error
-    assert_np_xg_range:
-      +severity: error
 
