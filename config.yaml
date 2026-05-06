@@ -27,6 +27,11 @@ agent:
   max_turns: 10                # sécurité anti-boucle infinie
   verbose: true                # affiche le raisonnement intermédiaire
   log_file: "logs/agent.log"
+  prefect_api: "http://127.0.0.1:4200/api"   # ← ligne 129 du code
+  tools_defaults:
+    read_logs_n_lines: 100
+    get_pipeline_status_n_runs: 10
+    read_backtest_n_recent: 100
 
 prediction:
   target: result_1n2
