@@ -1,0 +1,260 @@
+version: 2
+
+models:
+  - name: features_rolling
+    description: >
+      Rolling windows W=3/5/10 depuis intermediate.backbone.
+      1 ligne par équipe par match — consommée par features_draw et features_whoscored.
+    config:
+      alias: features_rolling
+
+    columns:
+      - name: date
+        description: "Date du match"
+        tests:
+          - not_null
+      - name: team
+        description: "Nom de l'équipe"
+        tests:
+          - not_null
+      - name: opponent
+        description: "Nom de l'adversaire"
+        tests:
+          - not_null
+      - name: match_id
+        description: "ID unique du match provenant du backbone"
+      - name: days_since_last_match
+        description: "Nombre de jours depuis le dernier match"
+      - name: is_short_rest
+        description: "Flag (1/0) si le repos est inférieur à 4 jours"
+      - name: is_return_from_break
+        description: "Flag (1/0) si le dernier match remonte à plus de 20 jours"
+      - name: formation
+        description: "Système de jeu annoncé (ex: 4-3-3)"
+      - name: form_n_defenders
+        description: "Nombre de défenseurs extrait de la formation"
+      - name: form_familiarity_5
+        description: "Stabilité du système sur les 5 derniers matchs (0 à 1)"
+      - name: form_change_flag
+        description: "1 si l'équipe a changé de système par rapport au match précédent"
+      - name: pinnacle_prob_team
+        description: "Probabilité implicite de victoire de l'équipe (Pinnacle)"
+      - name: market_prob_team
+        description: "Probabilité moyenne du marché pour la victoire de l'équipe"
+      - name: season_att_rating
+        description: "Rating offensif de la saison précédente"
+      - name: season_def_rating
+        description: "Rating défensif de la saison précédente"
+      - name: np_xg_roll_3
+        description: "Moyenne npxG sur les 3 derniers matchs"
+      - name: np_xg_roll_5
+        description: "Moyenne npxG sur les 5 derniers matchs"
+      - name: np_xg_roll_10
+        description: "Moyenne npxG sur les 10 derniers matchs"
+      - name: xg_net_roll_5
+        description: "Différentiel xG moyen sur 5 matchs (produit - concédé)"
+      - name: shot_quality_ratio_5
+        description: "Qualité moyenne des tirs (npxG / shots_total) sur 5 matchs"
+      - name: ppda_ratio_roll_5
+        description: "Ratio pressing (PPDA / PPDA allowed) sur 5 matchs"
+      - name: sterility_index_5
+        description: "Indice de possession stérile sur 5 matchs"
+      - name: shield_efficiency_5
+        description: "Efficacité défensive pondérée par les xG concédés sur 5 matchs"
+      - name: win_rate_roll_5
+        description: "Taux de victoire sur les 5 derniers matchs"
+      - name: points_pg_roll_5
+        description: "Points par match sur les 5 derniers matchs"
+      - name: draw_rate_5
+        description: "Taux de nul sur les 5 derniers matchs"
+      - name: home_win_rate_hist
+        description: "Taux de victoire à domicile sur toute l'histoire du club"
+
+  - name: features_draw
+    description: >
+      20 features (F1-F20) de détection de match nul + features comparatives équipe vs adversaire.
+      Calculées depuis intermediate.backbone et gold.features_rolling.
+      Certaines features WhoScored (F6, F13, F14) sont NULL en attente de migration whoscored.py.
+
+    columns:
+      - name: date
+        description: "Date du match"
+        tests:
+          - not_null
+      - name: team
+        description: "Nom de l'équipe"
+        tests:
+          - not_null
+      - name: league_source
+        description: "Compétition source"
+        tests:
+          - not_null
+
+      # ── AXE 1 — Détecteurs de match bloqué ──────────────────────────────────
+      - name: f1_mutual_cancel_idx
+        description: "Index d'annulation mutuelle — stérilité × stérilité adverse / (save_rate + save_rate adverse)"
+      - name: f2_defensive_mirror
+        description: "Symétrie défensive — 1 - |zone_att_pct - zone_att_pct adverse|"
+      - name: f3_draw_market_dev
+        description: "Déviation cote nul vs taux de nul historique de la ligue"
+      - name: f4_momentum_convergence
+        description: "Convergence de momentum — 1 - |ws_momentum_delta - ws_momentum_delta adverse|"
+      - name: f5_cs_mutual_rate
+        description: "Taux de clean sheet mutuel — cs_rate × cs_rate adverse"
+      - name: f6_ht_draw_tendency
+        description: "Tendance au nul à la mi-temps (WhoScored) — NULL en attente migration whoscored.py"
+
+      # ── AXE 2 — Domination relative ─────────────────────────────────────────
+      - name: f7_off_def_mismatch
+        description: "Écart rating offensif équipe vs rating défensif adverse"
+      - name: f7_def_off_mismatch
+        description: "Écart rating offensif adverse vs rating défensif équipe"
+      - name: f8_press_dominance_ratio
+        description: "Ratio de domination du pressing (ln(PPDA adverse / PPDA équipe))"
+      - name: f9_chance_quality_gap
+        description: "Écart de qualité des occasions (sqr équipe - sqr adverse)"
+      - name: f10_venue_power_adj
+        description: "Ajustement de puissance venue (xg_venue_5 - xg_global_5)"
+
+      # ── AXE 3 — Résilience & psychologie ────────────────────────────────────
+      - name: f11_comeback_rate
+        description: "Taux de remontée au score sur les 5 derniers matchs"
+      - name: f12_red_card_resilience
+        description: "Points par match quand l'équipe a reçu un carton rouge"
+      - name: f13_late_goal_tendency
+        description: "Tendance aux buts tardifs (WhoScored) — NULL en attente migration"
+      - name: f14_goal_timing_variance
+        description: "Variance du timing des buts (WhoScored) — NULL en attente migration"
+
+      # ── AXE 4 — Efficacité / yield ───────────────────────────────────────────
+      - name: f15_xg_yield_ratio
+        description: "Ratio buts / xG (surperformance offensive)"
+      - name: f16_def_yield_ratio
+        description: "Ratio buts concédés / xG concédé (surperformance défensive)"
+      - name: f17_shots_to_goal_eff
+        description: "Efficacité tirs → buts (gf / shots_total)"
+      - name: f18_sot_conversion
+        description: "Conversion tirs cadrés → buts (gf / sot)"
+
+      # ── AXE 5 — Composites signatures ───────────────────────────────────────
+      - name: f19_tactical_lock_idx
+        description: "Index de verrouillage tactique — stérilité mutuelle × équilibre pressing × symétrie zone"
+      - name: f20_upset_composite
+        description: "Index d'upset — (1/prob_victoire) × surperformance adverse × comeback_rate adverse"
+
+  - name: features_whoscored
+    description: >
+      Features WhoScored par équipe par match — anti-leakage LAG(1).
+      Jointure de intermediate.team_features_ws × intermediate.backbone
+      via referentiel.team_mapping. Inclut les squad features rolling 5 matchs.
+
+    columns:
+      - name: date
+        description: "Date du match"
+        tests:
+          - not_null
+      - name: team
+        description: "Nom normalisé de l'équipe"
+        tests:
+          - not_null
+      - name: league_source
+        description: "Compétition source"
+        tests:
+          - not_null
+      - name: has_ws_events
+        description: "1 si des données WhoScored sont disponibles pour ce match, 0 sinon"
+      - name: ws_field_tilt_actions
+        description: "Tilt de terrain — proportion de touches en zone offensive (dernier match connu)"
+      - name: ws_momentum_delta
+        description: "Delta de momentum après avoir encaissé un but"
+      - name: ws_zone_att_pct
+        description: "Pourcentage de touches en zone offensive"
+      - name: ws_counter_attack_dna
+        description: "ADN contre-attaque — proportion de tirs issus d'une récupération rapide"
+      - name: ws_midfield_control_idx
+        description: "Contrôle du milieu de terrain"
+      - name: squad_avg_form_5
+        description: "Forme moyenne des joueurs du squad sur les 5 derniers matchs"
+      - name: squad_xg_quality_5
+        description: "Qualité xG moyenne du squad sur les 5 derniers matchs"
+      - name: squad_regularity
+        description: "Stabilité du squad — proportion de joueurs présents au match précédent"
+      - name: squad_top3_share
+        description: "Part des actions portées par les 3 meilleurs joueurs (concentration)"
+
+  - name: features_final
+    description: >
+      Table finale ML — 1 ligne par équipe par match.
+      Jointure de features_rolling × features_whoscored × features_draw.
+      Inclut les différentiels équipe vs adversaire, H2H, Giant Killer,
+      league_draw_rate et final_match_id.
+
+    columns:
+      - name: date
+        description: "Date du match"
+        tests:
+          - not_null
+      - name: team
+        description: "Nom normalisé de l'équipe"
+        tests:
+          - not_null
+      - name: opponent
+        description: "Nom normalisé de l'adversaire"
+        tests:
+          - not_null
+      - name: league_source
+        description: "Compétition source"
+        tests:
+          - not_null
+      - name: match_id
+        description: "Identifiant Understat du match"
+      - name: final_match_id
+        description: "Identifiant unique canonique — hash md5 sur date|team|opponent|league"
+        tests:
+          - not_null
+      - name: result_1n2
+        description: "Résultat du point de vue de l'équipe : H, D, A"
+        tests:
+          - accepted_values:
+              config:
+                severity: warn
+              arguments:
+                values: ['H', 'D', 'A']
+      - name: is_home
+        description: "1 si l'équipe joue à domicile, 0 sinon"
+      - name: xg_net_diff
+        description: "Différentiel xg_net W=5 équipe vs adversaire"
+      - name: tactical_advantage
+        description: "Écart rating offensif équipe vs rating défensif adversaire"
+      - name: h2h_win_rate
+        description: "Taux de victoire H2H sur les 10 derniers matchs"
+      - name: h2h_draw_rate
+        description: "Taux de nul H2H sur les 10 derniers matchs"
+      - name: h2h_xg_diff
+        description: "Différentiel xG moyen en H2H"
+      - name: h2h_n_matches
+        description: "Nombre de matchs H2H disponibles"
+      - name: league_draw_rate
+        description: "Taux de nul historique de la ligue (saisons précédentes)"
+      - name: rating_ratio_att
+        description: "Ratio rating offensif équipe / rating offensif adversaire (Giant Killer)"
+      - name: rating_ratio_def
+        description: "Ratio rating défensif équipe / rating défensif adversaire"
+      - name: upset_risk_index
+        description: "Index de surprise — GREATEST(ratio_att, ratio_def) × is_home"
+      - name: pinnacle_edge
+        description: "Edge Pinnacle — prob_victoire - prob_défaite"
+      - name: market_edge
+        description: "Edge marché moyen"
+      - name: has_ws_events
+        description: "1 si données WhoScored disponibles pour ce match"
+      - name: squad_avg_form_5
+        description: "Forme moyenne du squad sur 5 matchs"
+      - name: squad_regularity
+        description: "Stabilité du squad"
+      - name: f1_mutual_cancel_idx
+        description: "Index d'annulation mutuelle (draw signal)"
+      - name: f19_tactical_lock_idx
+        description: "Index de verrouillage tactique (draw signal composite)"
+      - name: f20_upset_composite
+        description: "Index d'upset composite (draw signal)"

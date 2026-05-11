@@ -36,6 +36,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
+import subprocess
 
 from prefect import flow, task
 from prefect.cache_policies import NO_CACHE
@@ -65,6 +66,31 @@ def load_config() -> dict:
     with open(config_path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
+# ══════════════════════════════════════════════════════════════════════════════
+# SECTION 1b — Validation dbt
+# ══════════════════════════════════════════════════════════════════════════════
+
+def run_dbt_test() -> None:
+    """
+    Lance dbt test depuis dbt_project/.
+    Valide la qualité de stg_backbone avant le feature engineering.
+    Lève une exception si un test ERROR échoue (warnings ignorés).
+    """
+
+    dbt_dir = ROOT_DIR / "dbt_project"
+    if not dbt_dir.exists():
+        raise FileNotFoundError(f"dbt_project/ introuvable : {dbt_dir}")
+
+    result = subprocess.run(
+        ["dbt", "test", "--profiles-dir", str(Path.home() / ".dbt")],
+        cwd=dbt_dir,
+        capture_output=True,
+        text=True,
+    )
+    logger.info(result.stdout[-2000:])   # dernières lignes du log dbt
+    if result.returncode != 0:
+        raise RuntimeError(f"dbt test a échoué :\n{result.stderr[-1000:]}")
+    
 
 # ── Logger orchestrateur ──────────────────────────────────────────────────────
 # Un log dédié à l'orchestrateur, séparé des logs des scripts individuels.
@@ -93,7 +119,7 @@ logger.add(
 # ══════════════════════════════════════════════════════════════════════════════
 def make_run_step_task(retries: int, retry_delay_seconds: int):
     """
-    Fabrique la tâche Prefect _run_step avec les paramètres de résilience
+    Fabrique la tâche Prefect run_step avec les paramètres de résilience
     lus depuis config.yaml (pipeline.retries / pipeline.retry_delay_seconds).
 
     Pourquoi une factory ?
@@ -107,7 +133,7 @@ def make_run_step_task(retries: int, retry_delay_seconds: int):
         retries=retries,
         retry_delay_seconds=retry_delay_seconds,
     )
-    def _run_step(step_name: str, fn: callable, **kwargs) -> dict:
+    def run_step(step_name: str, fn: callable, **kwargs) -> dict:
         """
         Exécute une fonction de pipeline dans un contexte protégé.
 
@@ -152,7 +178,7 @@ def make_run_step_task(retries: int, retry_delay_seconds: int):
             os.chdir(saved_cwd)
             sys.path = saved_path
 
-    return _run_step
+    return run_step
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -207,6 +233,12 @@ def build_steps(cfg: dict) -> dict:
     backtest_cfg = cfg.get("backtest", {})
 
     return {
+        "dbt_test": {
+            "fn":       run_dbt_test,
+            "kwargs":   {},
+            "critical": True,
+        },
+
         "features": {
             "fn":       mod_03.run_full_pipeline,
             "kwargs":   {},   # valeurs par défaut de run_full_pipeline suffisent
@@ -260,14 +292,14 @@ def _import_from_path(module_name: str, path: Path):
 # SECTION 4 — Exécution du pipeline
 # ══════════════════════════════════════════════════════════════════════════════
 @flow(name="Pipeline 3-Étoiles", log_prints=True)
-def run_pipeline(steps: dict, dry_run: bool = False, _run_step_task=None) -> list[dict]:
+def run_pipeline(steps: dict, dry_run: bool = False, run_step_task=None) -> list[dict]:
     """
     Exécute les étapes dans l'ordre, avec fail-fast sur les étapes critiques.
 
     Args:
         steps:          Sous-ensemble ordonné des étapes à exécuter (depuis build_steps).
         dry_run:        Si True, liste les étapes sans les exécuter.
-        _run_step_task: La tâche Prefect à utiliser (issue de make_run_step_task).
+        run_step_task:  La tâche Prefect à utiliser (issue de make_run_step_task).
                         Permet d'injecter les paramètres retries/retry_delay depuis config.
 
     Retourne la liste des résultats d'exécution.
@@ -288,7 +320,7 @@ def run_pipeline(steps: dict, dry_run: bool = False, _run_step_task=None) -> lis
             results.append({"name": step_name, "status": "DRY-RUN", "duration": 0.0, "error": None})
             continue
 
-        result = _run_step_task(step_name, step_cfg["fn"], **step_cfg["kwargs"])
+        result = run_step_task(step_name, step_cfg["fn"], **step_cfg["kwargs"])
         results.append(result)
 
         # Fail-fast : on stoppe si l'étape est critique et a échoué
@@ -356,7 +388,7 @@ def print_summary(results: list[dict]) -> None:
 # SECTION 6 — Point d'entrée CLI
 # ══════════════════════════════════════════════════════════════════════════════
 
-STEP_NAMES = ["features", "train", "predict", "backtest"]
+STEP_NAMES = ["dbt_test","features", "train", "predict", "backtest"]
 
 
 def parse_args() -> argparse.Namespace:
@@ -454,7 +486,7 @@ def main() -> None:
         def scheduled_pipeline():
             """Version sans arguments du pipeline, pour le scheduling Prefect."""
             all_steps = build_steps(cfg)
-            return run_pipeline(all_steps, dry_run=False, _run_step_task=run_step_task)
+            return run_pipeline(all_steps, dry_run=False, run_step_task=run_step_task)
 
         # .serve() bloque le processus et attend les déclenchements cron.
         # Prefect server doit tourner sur localhost:4200.
@@ -481,7 +513,7 @@ def main() -> None:
         steps_to_run = all_steps
 
     # Exécution
-    results = run_pipeline(steps_to_run, dry_run=args.dry_run, _run_step_task=run_step_task)
+    results = run_pipeline(steps_to_run, dry_run=args.dry_run, run_step_task=run_step_task)
 
     # Résumé
     print_summary(results)
