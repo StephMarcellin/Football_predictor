@@ -1,0 +1,924 @@
+version: 2
+
+sources:
+  - name: silver
+    description: >
+      Tables produites par 02_process.py après normalisation Python complète.
+      Non gérées par dbt — dbt les lit uniquement.
+    schema: silver
+
+    tables:
+
+      - name: fbref_schedule
+        description: "Table centrale FBref — 1 ligne par équipe par match. Point de départ de toute la chaîne features."
+        columns:
+          - name: date
+            description: "Date du match"
+            tests:
+              - not_null
+          - name: time
+            description: "Heure du match"
+          - name: league_source
+            description: "Nom de la compétition source (ex: Premier League, Ligue 1)"
+            tests:
+              - not_null
+          - name: day
+            description: "Jour de la semaine"
+          - name: venue
+            description: "Lieu du match du point de vue de l'équipe : Home ou Away"
+            tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: ['Home', 'Away', 'Neutral']
+          - name: result
+            description: "Résultat brut FBref : W (victoire), D (nul), L (défaite)"
+            tests:
+              - accepted_values:
+                  arguments:
+                    values: ['W', 'D', 'L']
+                  config:
+                    severity: warn
+          - name: gf
+            description: "Buts marqués par l'équipe"
+            tests:
+              - not_null
+              - is_positive
+          - name: ga
+            description: "Buts encaissés par l'équipe"
+            tests:
+              - not_null
+              - is_positive
+          - name: opponent
+            description: "Nom normalisé de l'adversaire"
+            tests:
+              - not_null
+          - name: poss
+            description: "Possession en pourcentage (VARCHAR — castée en DOUBLE dans gold)"
+          - name: formation
+            description: "Formation tactique de l'équipe (ex: 4-3-3)"
+          - name: opp_formation
+            description: "Formation tactique de l'adversaire"
+          - name: team
+            description: "Nom normalisé de l'équipe"
+            tests:
+              - not_null
+          - name: season
+            description: "Saison au format YYYY-YYYY"
+            tests:
+              - not_null
+          - name: source
+            description: "Source de la donnée (fbref)"
+            tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: ['fbref']
+          - name: scraped_at
+            description: "Timestamp du scraping"
+          - name: comp_category
+            description: "Catégorie de compétition : Big5, Cup, Europe"
+            tests:
+              - not_null
+          - name: raw_team
+            description: "Nom brut de l'équipe avant normalisation"
+            tests:
+              - not_null
+          - name: clean_team
+            description: "Nom nettoyé de l'équipe (slugifié)"
+            tests:
+              - not_null
+          - name: raw_opponent
+            description: "Nom brut de l'adversaire avant normalisation"
+            tests:
+              - not_null
+          - name: clean_opponent
+            description: "Nom nettoyé de l'adversaire (slugifié)"
+            tests:
+              - not_null
+          - name: result_1n2
+            description: "Résultat encodé du point de vue de l'équipe : H (victoire domicile), D (nul), A (victoire extérieur)"
+            tests:
+              - accepted_values:
+                  arguments:
+                    values: ['H', 'D', 'A']
+
+      - name: fbref_keeper
+        description: "Statistiques de gardien FBref — 1 ligne par équipe par match"
+        columns:
+          - name: date
+            description: "Date du match"
+            tests:
+              - not_null
+          - name: time
+            description: "Heure du match"
+          - name: league_source
+            description: "Nom de la compétition source"
+            tests:
+              - not_null
+          - name: day
+            description: "Jour de la semaine"
+          - name: venue
+            description: "Lieu du match : Home ou Away"
+            tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: ['Home', 'Away', 'Neutral']
+          - name: result
+            description: "Résultat brut FBref : W, D, L"
+            tests:
+              - accepted_values:
+                  arguments:
+                    values: ['W', 'D', 'L']
+          - name: gf
+            description: "Buts marqués"
+            tests:
+              - not_null
+              - is_positive
+          - name: ga
+            description: "Buts encaissés"
+            tests:
+              - not_null
+              - is_positive
+          - name: opponent
+            description: "Nom normalisé de l'adversaire"
+            tests:
+              - not_null
+          - name: sota
+            description: "Shots on target against — tirs cadrés subis par le gardien"
+            tests:
+              - not_null
+              - is_positive
+          - name: ga_keeper
+            description: "Buts encaissés par le gardien (hors CSC)"
+            tests:
+              - not_null
+              - is_positive
+          - name: saves
+            description: "Arrêts du gardien"
+            tests:
+              - not_null
+              - is_positive
+          - name: save_pct
+            description: "Pourcentage d'arrêts (saves / sota)"
+          - name: cs
+            description: "Clean sheet — 1 si aucun but encaissé, 0 sinon"
+            tests:
+              - not_null
+              - is_positive
+          - name: pk_att
+            description: "Penaltys tentés contre le gardien"
+            tests:
+              - not_null
+              - is_positive
+          - name: pk_allowed
+            description: "Penaltys accordés (transformés contre)"
+            tests:
+              - not_null
+              - is_positive
+          - name: pk_saved
+            description: "Penaltys arrêtés"
+            tests:
+              - not_null
+              - is_positive
+          - name: pk_missed
+            description: "Penaltys manqués par l'attaquant adverse"
+            tests:
+              - not_null
+              - is_positive
+          - name: team
+            description: "Nom normalisé de l'équipe"
+            tests:
+              - not_null
+          - name: season
+            description: "Saison au format YYYY-YYYY"
+            tests:
+              - not_null
+          - name: source
+            description: "Source de la donnée (fbref)"
+            tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: ['fbref']
+          - name: scraped_at
+            description: "Timestamp du scraping"
+          - name: comp_category
+            description: "Catégorie de compétition : Big5, Cup, Europe"
+            tests:
+              - not_null
+          - name: raw_team
+            description: "Nom brut de l'équipe avant normalisation"
+            tests:
+              - not_null
+          - name: clean_team
+            description: "Nom nettoyé de l'équipe"
+            tests:
+              - not_null
+          - name: raw_opponent
+            description: "Nom brut de l'adversaire"
+            tests:
+              - not_null
+          - name: clean_opponent
+            description: "Nom nettoyé de l'adversaire"
+            tests:
+              - not_null
+          - name: result_1n2
+            description: "Résultat encodé : H, D, A"
+            tests:
+              - accepted_values:
+                  arguments:
+                    values: ['H', 'D', 'A']
+
+      - name: fbref_shooting
+        description: "Statistiques de tir FBref — 1 ligne par équipe par match"
+        columns:
+          - name: date
+            description: "Date du match"
+            tests:
+              - not_null
+          - name: time
+            description: "Heure du match"
+          - name: league_source
+            description: "Nom de la compétition source"
+            tests:
+              - not_null
+          - name: day
+            description: "Jour de la semaine"
+          - name: venue
+            description: "Lieu du match : Home ou Away"
+            tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: ['Home', 'Away', 'Neutral']
+          - name: result
+            description: "Résultat brut FBref : W, D, L"
+            tests:
+              - accepted_values:
+                  arguments:
+                    values: ['W', 'D', 'L']
+          - name: gf
+            description: "Buts marqués"
+            tests:
+              - not_null
+              - is_positive
+          - name: ga
+            description: "Buts encaissés"
+            tests:
+              - not_null
+              - is_positive
+          - name: opponent
+            description: "Nom normalisé de l'adversaire"
+            tests:
+              - not_null
+          - name: standard_gls
+            description: "Buts marqués (hors pénaltys)"
+            tests:
+              - not_null
+              - is_positive
+          - name: standard_sh
+            description: "Total de tirs tentés"
+            tests:
+              - not_null
+              - is_positive
+          - name: standard_sot
+            description: "Tirs cadrés"
+            tests:
+              - not_null
+              - is_positive
+          - name: standard_sot_pct
+            description: "Pourcentage de tirs cadrés (standard_sot / standard_sh)"
+          - name: standard_g_sh
+            description: "Buts par tir (efficacité offensive brute)"
+          - name: standard_g_sot
+            description: "Buts par tir cadré (efficacité offensive sur les tirs dangereux)"
+          - name: standard_pk
+            description: "Buts sur penalty"
+            tests:
+              - not_null
+              - is_positive
+          - name: standard_pkatt
+            description: "Penaltys tentés"
+            tests:
+              - not_null
+              - is_positive
+          - name: team
+            description: "Nom normalisé de l'équipe"
+            tests:
+              - not_null
+          - name: season
+            description: "Saison au format YYYY-YYYY"
+            tests:
+              - not_null
+          - name: source
+            description: "Source de la donnée (fbref)"
+            tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: ['fbref']
+          - name: scraped_at
+            description: "Timestamp du scraping"
+          - name: comp_category
+            description: "Catégorie de compétition : Big5, Cup, Europe"
+            tests:
+              - not_null
+          - name: raw_team
+            description: "Nom brut de l'équipe"
+            tests:
+              - not_null
+          - name: clean_team
+            description: "Nom nettoyé de l'équipe"
+            tests:
+              - not_null
+          - name: raw_opponent
+            description: "Nom brut de l'adversaire"
+            tests:
+              - not_null
+          - name: clean_opponent
+            description: "Nom nettoyé de l'adversaire"
+            tests:
+              - not_null
+          - name: result_1n2
+            description: "Résultat encodé : H, D, A"
+            tests:
+              - accepted_values:
+                  arguments:
+                    values: ['H', 'D', 'A']
+
+      - name: fbref_misc
+        description: "Statistiques diverses FBref — cartons, fautes, corners, penaltys — 1 ligne par équipe par match"
+        columns:
+          - name: date
+            description: "Date du match"
+            tests:
+              - not_null
+          - name: time
+            description: "Heure du match"
+          - name: league_source
+            description: "Nom de la compétition source"
+            tests:
+              - not_null
+          - name: day
+            description: "Jour de la semaine"
+          - name: venue
+            description: "Lieu du match : Home ou Away"
+            tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: ['Home', 'Away', 'Neutral']
+          - name: result
+            description: "Résultat brut FBref : W, D, L"
+            tests:
+              - accepted_values:
+                  arguments:
+                    values: ['W', 'D', 'L']
+          - name: gf
+            description: "Buts marqués"
+            tests:
+              - not_null
+              - is_positive
+          - name: ga
+            description: "Buts encaissés"
+            tests:
+              - not_null
+              - is_positive
+          - name: opponent
+            description: "Nom normalisé de l'adversaire"
+            tests:
+              - not_null
+          - name: crdy
+            description: "Cartons jaunes reçus"
+            tests:
+              - not_null
+              - is_positive
+          - name: crdr
+            description: "Cartons rouges directs reçus"
+            tests:
+              - not_null
+              - is_positive
+          - name: crdy2
+            description: "Deuxièmes cartons jaunes (expulsion indirecte)"
+            tests:
+              - not_null
+              - is_positive
+          - name: fls
+            description: "Fautes commises"
+            tests:
+              - not_null
+              - is_positive
+          - name: fld
+            description: "Fautes subies"
+            tests:
+              - not_null
+              - is_positive
+          - name: "off"
+            description: "Hors-jeux"
+            tests:
+              - not_null
+              - is_positive
+          - name: crosses
+            description: "Centres tentés"
+            tests:
+              - not_null
+              - is_positive
+          - name: int
+            description: "Interceptions"
+            tests:
+              - not_null
+              - is_positive
+          - name: tklw
+            description: "Tacles remportés"
+            tests:
+              - not_null
+              - is_positive
+          - name: pkwon
+            description: "Penaltys obtenus"
+            tests:
+              - not_null
+              - is_positive
+          - name: pkcon
+            description: "Penaltys concédés"
+            tests:
+              - not_null
+              - is_positive
+          - name: og
+            description: "Buts contre son camp"
+            tests:
+              - not_null
+              - is_positive
+          - name: team
+            description: "Nom normalisé de l'équipe"
+            tests:
+              - not_null
+          - name: season
+            description: "Saison au format YYYY-YYYY"
+            tests:
+              - not_null
+          - name: source
+            description: "Source de la donnée (fbref)"
+            tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: ['fbref']
+          - name: scraped_at
+            description: "Timestamp du scraping"
+          - name: comp_category
+            description: "Catégorie de compétition : Big5, Cup, Europe"
+            tests:
+              - not_null
+          - name: raw_team
+            description: "Nom brut de l'équipe"
+            tests:
+              - not_null
+          - name: clean_team
+            description: "Nom nettoyé de l'équipe"
+            tests:
+              - not_null
+          - name: raw_opponent
+            description: "Nom brut de l'adversaire"
+            tests:
+              - not_null
+          - name: clean_opponent
+            description: "Nom nettoyé de l'adversaire"
+            tests:
+              - not_null
+          - name: result_1n2
+            description: "Résultat encodé : H, D, A"
+            tests:
+              - accepted_values:
+                  arguments:
+                    values: ['H', 'D', 'A']
+
+      - name: understat_schedule
+        description: "Calendrier des matchs Understat — 1 ligne par match (pas par équipe). Contient les identifiants pour jointure avec understat_stats."
+        columns:
+          - name: match_id
+            description: "Identifiant unique Understat du match — clé de jointure avec understat_stats"
+            tests:
+              - not_null
+              - unique
+          - name: league_source
+            description: "Nom de la compétition source"
+            tests:
+              - not_null
+          - name: home_team
+            description: "Nom normalisé de l'équipe domicile"
+            tests:
+              - not_null
+          - name: away_team
+            description: "Nom normalisé de l'équipe extérieur"
+            tests:
+              - not_null
+          - name: home_goals
+            description: "Buts marqués par l'équipe domicile"
+            tests:
+              - is_positive
+          - name: away_goals
+            description: "Buts marqués par l'équipe extérieur"
+            tests:
+              - is_positive
+          - name: home_xg
+            description: "Expected goals équipe domicile"
+            tests:
+              - is_positive
+          - name: away_xg
+            description: "Expected goals équipe extérieur"
+            tests:
+              - is_positive
+          - name: is_result
+            description: "Indique si le match a un résultat définitif (1) ou est à venir (0)"
+          - name: match_url
+            description: "URL Understat du match"
+          - name: season
+            description: "Saison au format YYYY-YYYY"
+            tests:
+              - not_null
+          - name: comp_category
+            description: "Catégorie de compétition : Big5, Cup, Europe"
+            tests:
+              - not_null
+          - name: raw_home_team
+            description: "Nom brut de l'équipe domicile avant normalisation"
+            tests:
+              - not_null
+          - name: clean_home_team
+            description: "Nom nettoyé de l'équipe domicile"
+            tests:
+              - not_null
+          - name: raw_away_team
+            description: "Nom brut de l'équipe extérieur avant normalisation"
+            tests:
+              - not_null
+          - name: clean_away_team
+            description: "Nom nettoyé de l'équipe extérieur"
+            tests:
+              - not_null
+
+      - name: understat_stats
+        description: "Statistiques xG détaillées par match (Understat) — 1 ligne par match. Jointure avec understat_schedule sur match_id."
+        columns:
+          - name: match_id
+            description: "Identifiant Understat du match — clé de jointure avec understat_schedule"
+            tests:
+              - not_null
+              - unique
+          - name: home_xpts
+            description: "Expected points domicile — points attendus selon les xG du match"
+            tests:
+              - not_null
+              - is_positive
+          - name: away_xpts
+            description: "Expected points extérieur"
+            tests:
+              - not_null
+              - is_positive
+          - name: home_np_xg
+            description: "Expected goals sans pénalties — équipe domicile"
+            tests:
+              - not_null
+              - is_positive
+          - name: away_np_xg
+            description: "Expected goals sans pénalties — équipe extérieur"
+            tests:
+              - not_null
+              - is_positive
+          - name: home_np_xg_diff
+            description: "Différentiel npxG domicile (home_np_xg - away_np_xg)"
+            tests:
+              - not_null
+          - name: away_np_xg_diff
+            description: "Différentiel npxG extérieur (away_np_xg - home_np_xg)"
+            tests:
+              - not_null
+          - name: home_ppda
+            description: "PPDA domicile — passes adverses autorisées par action défensive (mesure l'intensité du pressing)"
+            tests:
+              - not_null:
+                  config:
+                    severity: warn
+              - is_positive
+          - name: away_ppda
+            description: "PPDA extérieur"
+            tests:
+              - not_null:
+                  config:
+                    severity: warn
+              - is_positive
+          - name: home_deep
+            description: "Passes complétées dans les 18 derniers mètres adverses — domicile (mesure la pression offensive)"
+            tests:
+              - not_null
+              - is_positive
+          - name: away_deep
+            description: "Passes complétées dans les 18 derniers mètres adverses — extérieur"
+            tests:
+              - not_null
+              - is_positive
+          - name: season
+            description: "Saison au format YYYY-YYYY"
+            tests:
+              - not_null
+          - name: league_source
+            description: "Nom de la compétition source"
+            tests:
+              - not_null
+          - name: comp_category
+            description: "Catégorie de compétition : Big5, Cup, Europe"
+            tests:
+              - not_null
+
+      - name: odds
+        description: "Cotes de paris — 1 ligne par match. Source principale : Pinnacle (bookmaker de référence pour la valeur attendue)."
+        columns:
+          - name: date
+            description: "Date du match"
+            tests:
+              - not_null
+          - name: season
+            description: "Saison au format YYYY-YYYY"
+            tests:
+              - not_null
+          - name: league_source
+            description: "Nom de la compétition source"
+            tests:
+              - not_null
+          - name: home_team
+            description: "Nom normalisé de l'équipe domicile"
+            tests:
+              - not_null
+          - name: away_team
+            description: "Nom normalisé de l'équipe extérieur"
+            tests:
+              - not_null
+          - name: result_fdc
+            description: "Résultat réel du match (H/D/A) — utilisé pour calculer l'edge en backtest"
+            tests:
+              - accepted_values:
+                  arguments:
+                    values: ['H', 'D', 'A']
+          - name: odds_pinnacle_h
+            description: "Cote Pinnacle victoire domicile"
+            tests:
+              - not_null:
+                  config:
+                    severity: warn
+              - is_valid_odds:
+                  config:
+                    severity: warn
+          - name: odds_pinnacle_d
+            description: "Cote Pinnacle match nul"
+            tests:
+              - not_null:
+                  config:
+                    severity: warn
+              - is_valid_odds:
+                  config:
+                    severity: warn
+          - name: odds_pinnacle_a
+            description: "Cote Pinnacle victoire extérieur"
+            tests:
+              - not_null:
+                  config:
+                    severity: warn
+              - is_valid_odds:
+                  config:
+                    severity: warn
+          - name: odds_avg_h
+            description: "Cote moyenne du marché victoire domicile"
+            tests:
+              - not_null:
+                  config:
+                    severity: warn
+              - is_valid_odds:
+                  config:
+                    severity: warn
+          - name: odds_avg_d
+            description: "Cote moyenne du marché match nul"
+            tests:
+              - not_null:
+                  config:
+                    severity: warn
+              - is_valid_odds:
+                  config:
+                    severity: warn
+          - name: odds_avg_a
+            description: "Cote moyenne du marché victoire extérieur"
+            tests:
+              - not_null:
+                  config:
+                    severity: warn
+              - is_valid_odds:
+                  config:
+                    severity: warn
+          - name: odds_max_h
+            description: "Meilleure cote disponible sur le marché victoire domicile"
+            tests:
+              - not_null:
+                  config:
+                    severity: warn
+              - is_valid_odds:
+                  config:
+                    severity: warn
+          - name: odds_max_d
+            description: "Meilleure cote disponible match nul"
+            tests:
+              - not_null:
+                  config:
+                    severity: warn
+              - is_valid_odds:
+                  config:
+                    severity: warn
+          - name: odds_max_a
+            description: "Meilleure cote disponible victoire extérieur"
+            tests:
+              - not_null:
+                  config:
+                    severity: warn
+              - is_valid_odds:
+                  config:
+                    severity: warn
+          - name: pinnacle_prob_h
+            description: "Probabilité implicite Pinnacle victoire domicile (1/cote, marginée)"
+            tests:
+              - not_null:
+                  config:
+                    severity: warn
+              - is_valid_probability:
+                  config:
+                    severity: warn
+          - name: pinnacle_prob_d
+            description: "Probabilité implicite Pinnacle match nul"
+            tests:
+              - not_null:
+                  config:
+                    severity: warn
+              - is_valid_probability:
+                  config:
+                    severity: warn
+          - name: pinnacle_prob_a
+            description: "Probabilité implicite Pinnacle victoire extérieur"
+            tests:
+              - not_null:
+                  config:
+                    severity: warn
+              - is_valid_probability:
+                  config:
+                    severity: warn
+          - name: market_prob_h
+            description: "Probabilité implicite marché moyen victoire domicile"
+            tests:
+              - not_null:
+                  config:
+                    severity: warn
+              - is_valid_probability:
+                  config:
+                    severity: warn
+          - name: market_prob_d
+            description: "Probabilité implicite marché moyen match nul"
+            tests:
+              - not_null:
+                  config:
+                    severity: warn
+              - is_valid_probability:
+                  config:
+                    severity: warn
+          - name: market_prob_a
+            description: "Probabilité implicite marché moyen victoire extérieur"
+            tests:
+              - not_null:
+                  config:
+                    severity: warn
+              - is_valid_probability:
+                  config:
+                    severity: warn
+
+      - name: whoscored_team_season
+        description: "Métriques WhoScored agrégées par équipe par saison — ratings et statistiques de jeu moyennes."
+        columns:
+          - name: team
+            description: "Nom normalisé de l'équipe"
+            tests:
+              - not_null
+          - name: season
+            description: "Saison au format YYYY-YYYY"
+            tests:
+              - not_null
+          - name: league_source
+            description: "Nom de la compétition source"
+            tests:
+              - not_null
+          - name: ws_home_att_rating
+            description: "Rating offensif WhoScored à domicile (échelle 0-10)"
+            tests:
+              - not_null
+              - is_positive
+          - name: ws_away_att_rating
+            description: "Rating offensif WhoScored à l'extérieur"
+            tests:
+              - not_null
+              - is_positive
+          - name: ws_home_def_rating
+            description: "Rating défensif WhoScored à domicile"
+            tests:
+              - not_null
+              - is_positive
+          - name: ws_away_def_rating
+            description: "Rating défensif WhoScored à l'extérieur"
+            tests:
+              - not_null
+              - is_positive
+          - name: ws_home_dribbles_pg
+            description: "Dribbles réussis par match à domicile"
+            tests:
+              - not_null
+              - is_positive
+          - name: ws_away_dribbles_pg
+            description: "Dribbles réussis par match à l'extérieur"
+            tests:
+              - not_null
+              - is_positive
+          - name: ws_home_fouled_pg
+            description: "Fautes subies par match à domicile"
+            tests:
+              - not_null
+              - is_positive
+          - name: ws_away_fouled_pg
+            description: "Fautes subies par match à l'extérieur"
+            tests:
+              - not_null
+              - is_positive
+          - name: ws_home_shots_ot_pg
+            description: "Tirs cadrés par match à domicile"
+            tests:
+              - not_null
+              - is_positive
+          - name: ws_away_shots_ot_pg
+            description: "Tirs cadrés par match à l'extérieur"
+            tests:
+              - not_null
+              - is_positive
+
+
+      - name: stg_whoscored_events
+        description: >
+          Events WhoScored par match — 1 ligne par action de jeu.
+          Contient les qualifiers JSON à exploser via intermediate.events_qual.
+        columns:
+          - name: ws_match_id
+            description: "Identifiant WhoScored du match"
+            tests:
+              - not_null
+          - name: team_id
+            description: "Identifiant WhoScored de l'équipe"
+            tests:
+              - not_null
+          - name: player_id
+            description: "Identifiant WhoScored du joueur"
+          - name: type_id
+            description: "Type d'action (16=tir, 1=passe...)"
+            tests:
+              - not_null
+          - name: is_shot
+            description: "Booléen — l'action est-elle un tir ?"
+          - name: qualifiers_json
+            description: "JSON des qualifiers de l'action — explosé dans intermediate.events_qual"
+
+      - name: stg_whoscored_match_index
+        description: >
+          Index des matchs WhoScored — 1 ligne par match.
+          Contient les identifiants équipes et la date pour jointure avec fbref.
+        columns:
+          - name: ws_match_id
+            description: "Identifiant unique WhoScored du match"
+            tests:
+              - not_null
+              - unique
+          - name: match_date
+            description: "Date du match"
+            tests:
+              - not_null
+          - name: home_team_id
+            description: "Identifiant WhoScored équipe domicile"
+            tests:
+              - not_null
+          - name: away_team_id
+            description: "Identifiant WhoScored équipe extérieur"
+            tests:
+              - not_null
+          - name: home_team_name
+            description: "Nom brut équipe domicile (avant normalisation via team_mapping)"
+          - name: away_team_name
+            description: "Nom brut équipe extérieur"
+          - name: season
+            description: "Saison au format YYYY-YYYY"
+            tests:
+              - not_null
+          - name: league_source
+            description: "Compétition source"
+            tests:
+              - not_null

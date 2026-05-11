@@ -1,0 +1,431 @@
+version: 2
+
+models:
+  - name: backbone
+    description: >
+      Table pivot centrale — 1 ligne par équipe par match.
+      Jointure de 7 tables silver.* produite par dbt en mode incremental.
+      Schéma intermediate — consommée par les modèles gold.features_*.
+    config:
+      alias: backbone
+
+    columns:
+
+      # ── Identifiants ────────────────────────────────────────────────────────
+      - name: date
+        description: "Date du match"
+        tests:
+          - not_null
+
+      - name: team
+        description: "Nom normalisé de l'équipe"
+        tests:
+          - not_null
+
+      - name: opponent
+        description: "Nom normalisé de l'adversaire"
+        tests:
+          - not_null
+
+      - name: raw_team
+        description: "Nom brut de l'équipe avant normalisation"
+        tests:
+          - not_null
+
+      - name: raw_opponent
+        description: "Nom brut de l'adversaire avant normalisation"
+        tests:
+          - not_null
+
+      - name: venue
+        description: "Lieu du match du point de vue de l'équipe : Home ou Away"
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Home', 'Away', 'Neutral']
+
+      - name: season
+        description: "Saison au format YYYY-YYYY"
+        tests:
+          - not_null
+
+      - name: league_source
+        description: "Nom de la compétition source (ex: Premier League, Ligue 1)"
+        tests:
+          - not_null
+
+      - name: comp_category
+        description: "Catégorie de compétition : Big5, Cup, Europe"
+        tests:
+          - not_null
+
+      - name: result_1n2
+        description: "Résultat du point de vue de l'équipe : H (victoire), D (nul), A (défaite)"
+        tests:
+          - not_null:
+              config:
+                severity: warn
+          - accepted_values:
+              config:
+                severity: error
+              arguments:
+                values: ['H', 'D', 'A']
+
+      - name: match_id
+        description: "Identifiant Understat du match — NULL si le match n'existe pas dans Understat"
+        tests:
+          - unique:
+              config:
+                severity: warn
+          - not_null:
+              config:
+                severity: warn
+
+      - name: formation
+        description: "Formation tactique de l'équipe (ex: 4-3-3)"
+
+      # ── Résultats bruts ──────────────────────────────────────────────────────
+      - name: gf
+        description: "Buts marqués par l'équipe"
+        tests:
+          - not_null
+          - is_positive
+
+      - name: ga
+        description: "Buts encaissés par l'équipe"
+        tests:
+          - not_null
+          - is_positive
+
+      - name: possession
+        description: "Possession en pourcentage (castée depuis VARCHAR fbref_schedule)"
+        tests:
+          - is_positive
+
+      # ── Gardien (fbref_keeper) ───────────────────────────────────────────────
+      - name: shots_on_target_faced
+        description: "Tirs cadrés subis par le gardien (sota)"
+        tests:
+          - is_positive
+
+      - name: saves
+        description: "Arrêts du gardien"
+        tests:
+          - is_positive
+
+      - name: save_pct
+        description: "Pourcentage d'arrêts (saves / shots_on_target_faced)"
+
+      - name: clean_sheet
+        description: "1 si aucun but encaissé, 0 sinon"
+        tests:
+          - is_positive
+
+      # ── Tirs (fbref_shooting) ────────────────────────────────────────────────
+      - name: shots_total
+        description: "Total de tirs tentés"
+        tests:
+          - is_positive
+
+      - name: shots_on_target
+        description: "Tirs cadrés"
+        tests:
+          - is_positive
+
+      - name: goals_per_shot
+        description: "Buts par tir (efficacité offensive brute)"
+
+      # ── Disciplinaire (fbref_misc) ───────────────────────────────────────────
+      - name: yellow_cards
+        description: "Cartons jaunes reçus"
+        tests:
+          - is_positive
+
+      - name: second_yellow_cards
+        description: "Deuxièmes cartons jaunes (expulsion indirecte)"
+        tests:
+          - is_positive
+
+      - name: red_cards
+        description: "Cartons rouges directs reçus"
+        tests:
+          - is_positive
+
+      - name: fouls_committed
+        description: "Fautes commises"
+        tests:
+          - is_positive
+
+      - name: interceptions
+        description: "Interceptions"
+        tests:
+          - is_positive
+
+      - name: tackles_won
+        description: "Tacles remportés"
+        tests:
+          - is_positive
+
+      # ── xG et pressing (understat_stats) ────────────────────────────────────
+      - name: np_xg
+        description: "Expected goals sans pénalties du point de vue de l'équipe (Understat) — NULL si match hors Understat"
+        tests:
+          - is_positive
+
+      - name: np_xg_conceded
+        description: "Expected goals sans pénalties concédés — NULL si match hors Understat"
+        tests:
+          - is_positive
+
+      - name: ppda
+        description: "PPDA de l'équipe — passes adverses autorisées par action défensive (mesure le pressing)"
+        tests:
+          - is_positive
+
+      - name: ppda_allowed
+        description: "PPDA autorisé à l'adversaire — pressing subi"
+        tests:
+          - is_positive
+
+      - name: np_xg_diff_match
+        description: "Différentiel npxG du match (np_xg - np_xg_conceded) — peut être négatif"
+
+      # ── WhoScored saison (whoscored_team_season) ─────────────────────────────
+      - name: season_att_rating
+        description: "Rating offensif WhoScored de la saison selon le venue (Home ou Away)"
+        tests:
+          - is_positive
+
+      - name: season_def_rating
+        description: "Rating défensif WhoScored de la saison selon le venue"
+        tests:
+          - is_positive
+
+      - name: ws_dribbles_pg
+        description: "Dribbles réussis par match selon le venue"
+        tests:
+          - is_positive
+
+      - name: ws_fouled_pg
+        description: "Fautes subies par match selon le venue"
+        tests:
+          - is_positive
+
+      - name: ws_shots_ot_pg
+        description: "Tirs cadrés par match selon le venue"
+        tests:
+          - is_positive
+
+      # ── Cotes Pinnacle (odds) ────────────────────────────────────────────────
+      - name: odds_pinnacle_team
+        description: "Cote Pinnacle victoire de l'équipe (H si Home, A si Away)"
+        tests:
+          - is_valid_odds:
+              config:
+                severity: warn
+
+      - name: odds_pinnacle_draw
+        description: "Cote Pinnacle match nul"
+        tests:
+          - is_valid_odds:
+              config:
+                severity: warn
+
+      - name: odds_pinnacle_opp
+        description: "Cote Pinnacle victoire de l'adversaire"
+        tests:
+          - is_valid_odds:
+              config:
+                severity: warn
+
+      - name: odds_avg_team
+        description: "Cote moyenne marché victoire de l'équipe"
+        tests:
+          - is_valid_odds:
+              config:
+                severity: warn
+
+      - name: odds_avg_draw
+        description: "Cote moyenne marché match nul"
+        tests:
+          - is_valid_odds:
+              config:
+                severity: warn
+
+      - name: odds_avg_opp
+        description: "Cote moyenne marché victoire adversaire"
+        tests:
+          - is_valid_odds:
+              config:
+                severity: warn
+
+      # ── Probabilités implicites ──────────────────────────────────────────────
+      - name: pinnacle_prob_team
+        description: "Probabilité implicite Pinnacle victoire de l'équipe"
+        tests:
+          - is_valid_probability:
+              config:
+                severity: warn
+
+      - name: pinnacle_prob_draw
+        description: "Probabilité implicite Pinnacle match nul"
+        tests:
+          - is_valid_probability:
+              config:
+                severity: warn
+
+      - name: pinnacle_prob_opp
+        description: "Probabilité implicite Pinnacle victoire adversaire"
+        tests:
+          - is_valid_probability:
+              config:
+                severity: warn
+
+      - name: market_prob_team
+        description: "Probabilité implicite marché moyen victoire de l'équipe"
+        tests:
+          - is_valid_probability:
+              config:
+                severity: warn
+
+      - name: market_prob_draw
+        description: "Probabilité implicite marché moyen match nul"
+        tests:
+          - is_valid_probability:
+              config:
+                severity: warn
+
+      - name: market_prob_opp
+        description: "Probabilité implicite marché moyen victoire adversaire"
+        tests:
+          - is_valid_probability:
+              config:
+                severity: warn
+
+  - name: events_qual
+    description: >
+      Explosion des qualifiers JSON de stg_whoscored_events.
+      1 ligne par action par qualifier — base de tous les modèles WhoScored.
+      Produit par dbt en mode incremental depuis silver.stg_whoscored_events.
+
+    columns:
+      - name: ws_match_id
+        description: "Identifiant WhoScored du match"
+        tests:
+          - not_null
+
+      - name: team_id
+        description: "Identifiant WhoScored de l'équipe"
+        tests:
+          - not_null
+
+      - name: player_id
+        description: "Identifiant WhoScored du joueur (NULL si anonyme)"
+
+      - name: row_num
+        description: "Numéro de ligne de l'action dans le match"
+        tests:
+          - not_null
+
+      - name: qual_type_id
+        description: "Identifiant du qualifier (ex: 210 = key pass)"
+
+      - name: qual_type_name
+        description: "Nom lisible du qualifier"
+
+      - name: qual_value
+        description: "Valeur du qualifier"
+
+      - name: type_id
+        description: "Type d'action WhoScored (16=tir, 1=passe...)"
+        tests:
+          - not_null
+
+      - name: is_shot
+        description: "Booléen — l'action est-elle un tir ?"
+
+      - name: x
+        description: "Coordonnée X de l'action sur le terrain (0-100)"
+
+      - name: y
+        description: "Coordonnée Y de l'action sur le terrain (0-100)"
+
+      - name: minute
+        description: "Minute de l'action"
+        tests:
+          - not_null
+
+  - name: player_match_stats
+    description: >
+      Agrégats WhoScored par joueur par match.
+      Calculé depuis silver.stg_whoscored_events.
+      Utilisé pour les squad features dans gold.features_whoscored.
+
+    columns:
+      - name: ws_match_id
+        description: "Identifiant WhoScored du match"
+        tests:
+          - not_null
+      - name: team_id
+        description: "Identifiant WhoScored de l'équipe"
+        tests:
+          - not_null
+      - name: player_id
+        description: "Identifiant WhoScored du joueur"
+        tests:
+          - not_null
+      - name: date
+        description: "Date du match"
+        tests:
+          - not_null
+      - name: n_actions
+        description: "Nombre total d'actions du joueur"
+        tests:
+          - is_positive
+      - name: n_shots
+        description: "Nombre de tirs"
+        tests:
+          - is_positive
+      - name: n_key_passes
+        description: "Nombre de passes décisives (qualifier type_id=210)"
+        tests:
+          - is_positive
+      - name: xg_contribution
+        description: "Contribution xG estimée — nombre de tirs pondéré par la distance au but"
+        tests:
+          - is_positive
+      - name: zone_dominance
+        description: "Position moyenne X des touches — mesure la zone de jeu du joueur (0=défense, 100=attaque)"
+
+  - name: team_features_ws
+    description: >
+      Features tactiques WhoScored par équipe par match.
+      Calculées depuis silver.stg_whoscored_events et intermediate.events_qual.
+      32 métriques couvrant le pressing, les zones d'attaque, la structure défensive.
+
+    config:
+      alias: team_features_ws
+    columns:
+      - name: ws_match_id
+        description: "Identifiant WhoScored du match"
+        tests:
+          - not_null
+      - name: team_id
+        description: "Identifiant WhoScored de l'équipe"
+        tests:
+          - not_null
+      - name: ws_field_tilt_actions
+        description: "Tilt de terrain — proportion de touches en zone offensive"
+      - name: ws_momentum_delta
+        description: "Delta de momentum après avoir encaissé un but (actions post / actions pre)"
+      - name: ws_zone_att_pct
+        description: "Pourcentage de touches en zone offensive (x > 66.6)"
+      - name: ws_counter_attack_dna
+        description: "ADN contre-attaque — proportion de tirs issus d'une récupération < 15 secondes"
+      - name: ws_midfield_control_idx
+        description: "Contrôle du milieu — part des actions réussies en zone centrale"
+      - name: ws_defensive_line_height
+        description: "Hauteur moyenne de la ligne défensive (position X)"
+      - name: ws_flank_exposure_asymm
+        description: "Asymétrie d'exposition sur les flancs — différentiel gauche/droite"

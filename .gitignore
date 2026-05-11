@@ -3,7 +3,7 @@ db/football.duckdb
 docs/
 logs/
 mlruns/
-models/
+/models/
 *.html
 *_files/
 .ipynb_checkpoints/
