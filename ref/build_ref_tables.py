@@ -3,11 +3,11 @@ ref/build_ref_tables.py — Tables de référence WhoScored (event types & quali
 ====================================================================================
 Crée et maintient deux tables de référence dans le schéma `ref` de DuckDB :
 
-  ref.ws_event_types     — type_id / type_name des events WhoScored
+  referentiel.ws_event_types     — type_id / type_name des events WhoScored
                            Source : silver.stg_whoscored_events.type_id + type_name
                            Grain  : 1 ligne = 1 type d'event unique
 
-  ref.ws_qualifier_types — qual_type_id / qual_display_name des qualifiers JSON
+  referentiel.ws_qualifier_types — qual_type_id / qual_display_name des qualifiers JSON
                            Source : silver.stg_whoscored_events.qualifiers_json
                            Grain  : 1 ligne = 1 type de qualifier unique
                            Méthode: json_extract par index fixe (0→N) — sans UNNEST
@@ -72,7 +72,7 @@ MAX_QUALIFIER_POSITIONS = 20
 SQL_CREATE_SCHEMA = "CREATE SCHEMA IF NOT EXISTS ref"
 
 SQL_CREATE_EVENT_TYPES = """
-CREATE TABLE IF NOT EXISTS ref.ws_event_types (
+CREATE TABLE IF NOT EXISTS referentiel.ws_event_types (
     type_id        INTEGER PRIMARY KEY,
     type_name      VARCHAR NOT NULL,
     description    VARCHAR,          -- annotation manuelle optionnelle
@@ -85,7 +85,7 @@ CREATE TABLE IF NOT EXISTS ref.ws_event_types (
 """
 
 SQL_CREATE_QUALIFIER_TYPES = """
-CREATE TABLE IF NOT EXISTS ref.ws_qualifier_types (
+CREATE TABLE IF NOT EXISTS referentiel.ws_qualifier_types (
     qual_type_id     INTEGER PRIMARY KEY,
     qual_display_name VARCHAR NOT NULL,
     description       VARCHAR,         -- annotation manuelle optionnelle
@@ -123,7 +123,7 @@ def build_event_types(conn: duckdb.DuckDBPyConnection) -> int:
         return 0
 
     # Récupérer les IDs déjà connus
-    existing = conn.execute("SELECT type_id FROM ref.ws_event_types").df()
+    existing = conn.execute("SELECT type_id FROM referentiel.ws_event_types").df()
     existing_ids = set(existing["type_id"].tolist()) if not existing.empty else set()
 
     df_insert = df_new[~df_new["type_id"].isin(existing_ids)]
@@ -134,7 +134,7 @@ def build_event_types(conn: duckdb.DuckDBPyConnection) -> int:
 
     conn.register("_df_event_insert", df_insert)
     conn.execute("""
-        INSERT INTO ref.ws_event_types (type_id, type_name)
+        INSERT INTO referentiel.ws_event_types (type_id, type_name)
         SELECT type_id, type_name FROM _df_event_insert
     """)
     conn.unregister("_df_event_insert")
@@ -201,7 +201,7 @@ def build_qualifier_types(conn: duckdb.DuckDBPyConnection,
     logger.info(f"  [qualifier_types] {len(df_new)} types distincts trouvés dans les données")
 
     # Récupérer les IDs déjà connus
-    existing = conn.execute("SELECT qual_type_id FROM ref.ws_qualifier_types").df()
+    existing = conn.execute("SELECT qual_type_id FROM referentiel.ws_qualifier_types").df()
     existing_ids = set(existing["qual_type_id"].tolist()) if not existing.empty else set()
 
     df_insert = df_new[~df_new["qual_type_id"].isin(existing_ids)]
@@ -215,7 +215,7 @@ def build_qualifier_types(conn: duckdb.DuckDBPyConnection,
 
     conn.register("_df_qual_insert", df_insert)
     conn.execute("""
-        INSERT INTO ref.ws_qualifier_types (qual_type_id, qual_display_name)
+        INSERT INTO referentiel.ws_qualifier_types (qual_type_id, qual_display_name)
         SELECT qual_type_id, qual_display_name FROM _df_qual_insert
     """)
     conn.unregister("_df_qual_insert")
@@ -231,10 +231,10 @@ def build_qualifier_types(conn: duckdb.DuckDBPyConnection,
 def show_tables(conn: duckdb.DuckDBPyConnection) -> None:
     """Affiche le contenu des deux tables de référence."""
 
-    logger.info("\n══════ ref.ws_event_types ══════")
+    logger.info("\n══════ referentiel.ws_event_types ══════")
     df_evt = conn.execute("""
         SELECT type_id, type_name, is_offensive, is_defensive, is_shot, description
-        FROM ref.ws_event_types
+        FROM referentiel.ws_event_types
         ORDER BY type_id
     """).df()
     if df_evt.empty:
@@ -242,10 +242,10 @@ def show_tables(conn: duckdb.DuckDBPyConnection) -> None:
     else:
         logger.info(f"  {len(df_evt)} types d'events :\n{df_evt.to_string(index=False)}")
 
-    logger.info("\n══════ ref.ws_qualifier_types ══════")
+    logger.info("\n══════ referentiel.ws_qualifier_types ══════")
     df_qual = conn.execute("""
         SELECT qual_type_id, qual_display_name, category, description
-        FROM ref.ws_qualifier_types
+        FROM referentiel.ws_qualifier_types
         ORDER BY qual_type_id
     """).df()
     if df_qual.empty:
@@ -257,7 +257,7 @@ def show_tables(conn: duckdb.DuckDBPyConnection) -> None:
 def lookup_qualifier(conn: duckdb.DuckDBPyConnection, qual_id: int) -> None:
     """Cherche un qualifier par son ID et affiche toutes ses infos."""
     df = conn.execute("""
-        SELECT * FROM ref.ws_qualifier_types WHERE qual_type_id = ?
+        SELECT * FROM referentiel.ws_qualifier_types WHERE qual_type_id = ?
     """, [qual_id]).df()
 
     if df.empty:
@@ -292,8 +292,8 @@ def lookup_qualifier(conn: duckdb.DuckDBPyConnection, qual_id: int) -> None:
 def reset_tables(conn: duckdb.DuckDBPyConnection) -> None:
     """Supprime et recrée les tables de référence depuis zéro."""
     logger.warning("  Reset des tables ref.ws_* — toutes les annotations manuelles seront perdues")
-    conn.execute("DROP TABLE IF EXISTS ref.ws_event_types")
-    conn.execute("DROP TABLE IF EXISTS ref.ws_qualifier_types")
+    conn.execute("DROP TABLE IF EXISTS referentiel.ws_event_types")
+    conn.execute("DROP TABLE IF EXISTS referentiel.ws_qualifier_types")
     conn.execute(SQL_CREATE_EVENT_TYPES)
     conn.execute(SQL_CREATE_QUALIFIER_TYPES)
     logger.info("  Tables recréées vides")
@@ -342,15 +342,15 @@ def run(reset: bool = False, show: bool = False, lookup: int | None = None) -> N
         n_qual = build_qualifier_types(conn)
 
         # Rapport final
-        total_evt  = conn.execute("SELECT COUNT(*) FROM ref.ws_event_types").fetchone()[0]
-        total_qual = conn.execute("SELECT COUNT(*) FROM ref.ws_qualifier_types").fetchone()[0]
+        total_evt  = conn.execute("SELECT COUNT(*) FROM referentiel.ws_event_types").fetchone()[0]
+        total_qual = conn.execute("SELECT COUNT(*) FROM referentiel.ws_qualifier_types").fetchone()[0]
 
         logger.success(
-            f"  ref.ws_event_types     : {total_evt} types "
+            f"  referentiel.ws_event_types     : {total_evt} types "
             f"({n_evt} nouveaux)"
         )
         logger.success(
-            f"  ref.ws_qualifier_types : {total_qual} qualifiers "
+            f"  referentiel.ws_qualifier_types : {total_qual} qualifiers "
             f"({n_qual} nouveaux)"
         )
 
@@ -359,8 +359,8 @@ def run(reset: bool = False, show: bool = False, lookup: int | None = None) -> N
         else:
             logger.info(
                 "  ℹ️  Pour annoter manuellement (description, flags) :\n"
-                "     UPDATE ref.ws_event_types SET is_offensive=TRUE WHERE type_id IN (1,3,...);\n"
-                "     UPDATE ref.ws_qualifier_types SET category='situation' WHERE qual_type_id=23;"
+                "     UPDATE referentiel.ws_event_types SET is_offensive=TRUE WHERE type_id IN (1,3,...);\n"
+                "     UPDATE referentiel.ws_qualifier_types SET category='situation' WHERE qual_type_id=23;"
             )
 
     finally:

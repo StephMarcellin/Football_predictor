@@ -92,7 +92,7 @@ def _init_team_mapping(con: duckdb.DuckDBPyConnection) -> None:
     global TEAM_MAPPING
     try:
         rows = con.execute(
-            "SELECT raw_name, canonical_name FROM referentiel.team_mapping"
+            "SELECT club_name, alias FROM referentiel.team_mapping"
         ).fetchall()
         TEAM_MAPPING = {raw: canonical for raw, canonical in rows}
         logger.info(f"  team_mapping chargé : {len(TEAM_MAPPING)} entrées")
@@ -100,20 +100,32 @@ def _init_team_mapping(con: duckdb.DuckDBPyConnection) -> None:
         logger.error(f"  Impossible de charger referentiel.team_mapping : {e}")
         TEAM_MAPPING = {}
 
-# competition_mapping : {nom_source: {canonical: str, category: str}}
-# category = Big5 | D2 | Cup | Europe | Other
-_RAW_COMP_MAP: dict = CFG.get("competition_mapping", {})
+# competition_mapping : chargé depuis referentiel.competition_mapping dans DuckDB.
+# Deux vues plates pré-calculées pour un accès O(1) dans la hot path de normalisation.
+# Initialisées à vide — remplies par _init_competition_mapping(con) dans main().
+COMP_TO_CANONICAL: dict[str, str] = {}
+COMP_TO_CATEGORY:  dict[str, str] = {}
 
-# Pré-calculer deux vues plates pour un accès O(1) dans la hot path
-COMP_TO_CANONICAL: dict[str, str] = {
-    k: v["canonical"] for k, v in _RAW_COMP_MAP.items()
-    if isinstance(v, dict) and "canonical" in v
-}
-
-COMP_TO_CATEGORY: dict[str, str] = {
-    k: v["category"] for k, v in _RAW_COMP_MAP.items()
-    if isinstance(v, dict) and "category" in v
-}
+def _init_competition_mapping(con: duckdb.DuckDBPyConnection) -> None:
+    """
+    Charge referentiel.competition_mapping dans les variables globales
+    COMP_TO_CANONICAL et COMP_TO_CATEGORY.
+    Appelé une seule fois dans main() après ouverture de la connexion,
+    au même endroit que _init_team_mapping().
+    """
+    global COMP_TO_CANONICAL, COMP_TO_CATEGORY
+    try:
+        rows = con.execute("""
+            SELECT name, canonical, category
+            FROM referentiel.competition_mapping
+        """).fetchall()
+        COMP_TO_CANONICAL = {raw: canonical for raw, canonical, _ in rows}
+        COMP_TO_CATEGORY  = {raw: category  for raw, _, category  in rows}
+        logger.info(f"  competition_mapping chargé : {len(COMP_TO_CANONICAL)} entrées")
+    except Exception as e:
+        logger.error(f"  Impossible de charger referentiel.competition_mapping : {e}")
+        COMP_TO_CANONICAL = {}
+        COMP_TO_CATEGORY  = {}
 
 # ── Logs ──────────────────────────────────────────────────────────────────────
 Path("logs").mkdir(exist_ok=True)
@@ -286,7 +298,7 @@ def normalize_competition_col(df: pl.DataFrame, col: str, source: str) -> pl.Dat
             # Si même après simplification on ne trouve pas, ALORS on logue
             logger.warning(
                 f"AUDIT [{source}] Compétition non mappée : '{comp}' (slug: '{comp_slug}') "
-                f"— ajouter dans competition_mapping dans config.yaml"
+                f"— ajouter dans referentiel.competition_mapping dans DuckDB"
             )
             _UNMAPPED_REGISTRY[f"{source}__competitions"].add(comp)
             canonical_map[comp] = comp 
@@ -1059,7 +1071,9 @@ def main() -> None:
     con = duckdb.connect(str(DB_PATH))
     con.execute("CREATE SCHEMA IF NOT EXISTS silver")
 
+    # Initialisation des mappings (chargement en mémoire + log des entités manquantes)
     _init_team_mapping(con)
+    _init_competition_mapping(con)
 
     if args.audit_only:
         run_quality_check(con)
