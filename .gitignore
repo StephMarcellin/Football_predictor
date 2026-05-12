@@ -8,6 +8,8 @@ mlruns/
 *_files/
 .ipynb_checkpoints/
 secrets.yaml
+old/
+pipelines/structure_projet.txt
 
 # Python (fichiers compilés)
 __pycache__/

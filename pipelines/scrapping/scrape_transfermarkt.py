@@ -51,7 +51,7 @@ with open(CFG_PATH, encoding="utf-8") as f:
 with open(MAIN_CFG, encoding="utf-8") as f:
     MAIN_CFG_DATA = yaml.safe_load(f)
 
-OUT_DIR = Path(MAIN_CFG_DATA["paths"]["raw_data"]) / "transfermarkt" / "csv"
+OUT_DIR = ROOT_DIR / MAIN_CFG_DATA["paths"]["raw_data"] / "transfermarkt" / "csv"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # ── Mapping ligue → URL Transfermarkt ────────────────────────────────────────
