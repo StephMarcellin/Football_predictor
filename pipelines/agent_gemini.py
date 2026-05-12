@@ -84,20 +84,39 @@ SYSTEM_PROMPT = """
 Tu es un agent spécialisé dans le pilotage du Pipeline 3-Étoiles,
 un pipeline de prédiction de matchs de football.
 
-Le pipeline comporte 4 étapes dans cet ordre :
-  1. features  — Feature Engineering (03_features.py)
-  2. train     — Entraînement modèle LightGBM (04_train.py)
-  3. predict   — Prédictions matchs à venir (05_predict.py)
-  4. backtest  — Backtest stratégie de paris (06_backtest.py)
+Le pipeline comporte 6 étapes dans cet ordre :
+  1. dbt_seed  — Charge les référentiels (team_mapping, transfermarkt_clubs)
+  2. dbt_run   — Construit toute la chaîne Gold via dbt (backbone, features_rolling,
+                 features_whoscored, features_draw, features_final)
+  3. dbt_test  — Exécute les 235 tests qualité automatiques sur les données Gold
+  4. train     — Entraînement du modèle LightGBM two-stage (04_train.py)
+  5. predict   — Prédictions sur les matchs à venir (05_predict.py)
+  6. backtest  — Backtest de la stratégie de paris (06_backtest.py)
+
+Les étapes dbt_seed → dbt_run → dbt_test sont critiques : un échec stoppe le pipeline.
+L'étape backtest est non-critique : un échec ne bloque pas les prédictions.
+
+Tes outils disponibles :
+  - read_logs()             — lit pipeline.log ou agent.log
+  - get_pipeline_status()   — historique des runs Prefect
+  - read_backtest_results() — métriques ROI/win rate de la stratégie
+  - run_pipeline_step()     — relance une étape (confirmation gérée par le système)
+  - read_dbt_logs()         — sortie complète du dernier dbt seed/run/test
+  - get_dbt_test_results()  — résumé structuré PASS/WARN/FAIL/ERROR des tests dbt
+
+Stratégie de diagnostic recommandée :
+  - Pour un échec dbt_test → appelle d'abord get_dbt_test_results() pour les compteurs,
+    puis read_dbt_logs(command="test") si tu as besoin du détail d'un test spécifique.
+  - Pour un échec dbt_run  → appelle read_dbt_logs(command="run") pour voir quel modèle a planté.
+  - Pour évaluer si un retraining est nécessaire → appelle read_backtest_results().
 
 Tes responsabilités :
   - Diagnostiquer l'état du pipeline à partir des logs et de l'historique
   - Identifier les erreurs, les anomalies, les dégradations de performance
   - Recommander des actions (relance d'étapes, investigation)
   - Quand l'utilisateur te demande explicitement de relancer une étape,
-  appelle IMMÉDIATEMENT l'outil run_pipeline_step sans demander
-  de confirmation supplémentaire. La confirmation est gérée par le système,
-  pas par toi.
+    appelle IMMÉDIATEMENT run_pipeline_step sans demander de confirmation
+    supplémentaire. La confirmation est gérée par le système, pas par toi.
 
 Ton comportement :
   - Sois précis et factuel. Appuie-toi sur les données des outils.
@@ -335,7 +354,7 @@ Par type de pari :
 
 # ── Outil 4 : run_pipeline_step() ────────────────────────────────────────────
 
-VALID_STEPS = ["features", "train", "predict", "backtest"]
+VALID_STEPS = ["dbt_seed", "dbt_run", "dbt_test", "train", "predict", "backtest"]
 
 def run_pipeline_step(step: str) -> str:
     """
@@ -345,7 +364,7 @@ def run_pipeline_step(step: str) -> str:
     L'étape est lancée via run_pipeline.py --step <step> en sous-processus.
 
     Args:
-        step : nom de l'étape (features / train / predict / backtest)
+        step : nom de l'étape (dbt_seed / dbt_run / dbt_test / train / predict / backtest)
 
     Returns:
         Message décrivant l'issue : confirmé+résultat, annulé, ou erreur.
@@ -407,6 +426,118 @@ def run_pipeline_step(step: str) -> str:
         return f"Erreur : run_pipeline.py introuvable à {pipeline_script}"
     except Exception as e:
         return f"Erreur lors du lancement de '{step}' : {e}"
+
+# ── Outil 5 : read_dbt_logs() ─────────────────────────────────────────────────
+
+def read_dbt_logs(command: str = "test", n_lines: int = 100) -> str:
+    """
+    Lit les dernières lignes du log du dernier run dbt (seed / run / test).
+
+    Args:
+        command : commande dbt concernée — "seed", "run", ou "test"
+        n_lines : nombre de lignes à retourner depuis la fin (défaut 100)
+
+    Returns:
+        Contenu du fichier dbt_<command>_last.log, ou message d'erreur.
+    """
+    valid_commands = ("seed", "run", "test")
+    if command not in valid_commands:
+        return (
+            f"Commande invalide : '{command}'. "
+            f"Valeurs possibles : {', '.join(valid_commands)}"
+        )
+
+    log_path = ROOT_DIR / "logs" / f"dbt_{command}_last.log"
+
+    if not log_path.exists():
+        return (
+            f"Fichier introuvable : {log_path}. "
+            f"Le pipeline dbt {command} n'a peut-être pas encore tourné."
+        )
+
+    with open(log_path, encoding="utf-8", errors="replace") as f:
+        lines = f.readlines()
+
+    excerpt = lines[-n_lines:]
+    logger.debug(f"read_dbt_logs({command}, {n_lines}) → {len(excerpt)} lignes lues")
+    return "".join(excerpt) or "(fichier vide)"
+
+# ── Outil 6 : get_dbt_test_results() ──────────────────────────────────────────
+
+def get_dbt_test_results() -> str:
+    """
+    Parse dbt_test_last.log et retourne un résumé structuré des tests.
+
+    Extrait :
+      - Compteurs globaux : PASS / WARN / ERROR / FAIL
+      - Liste des tests en échec avec leur message
+      - Ligne de résumé finale de dbt
+
+    Returns:
+        Résumé lisible, prêt à être interprété par l'agent.
+    """
+    log_path = ROOT_DIR / "logs" / "dbt_test_last.log"
+
+    if not log_path.exists():
+        return (
+            "Fichier dbt_test_last.log introuvable. "
+            "Lance d'abord l'étape dbt_test via le pipeline."
+        )
+
+    content = log_path.read_text(encoding="utf-8", errors="replace")
+    lines   = content.splitlines()
+
+    if not lines:
+        return "dbt_test_last.log est vide."
+
+    # ── Compteurs ─────────────────────────────────────────────────────────────
+    # dbt écrit des lignes du type :
+    #   "PASS test_name"  /  "FAIL test_name"  /  "WARN test_name"  /  "ERROR test_name"
+    counts = {"PASS": 0, "WARN": 0, "FAIL": 0, "ERROR": 0}
+    failures = []   # lignes FAIL ou ERROR avec contexte
+
+    for line in lines:
+        stripped = line.strip()
+        for status in counts:
+            if stripped.startswith(status + " "):
+                counts[status] += 1
+                if status in ("FAIL", "ERROR"):
+                    # On garde le nom du test (après le statut)
+                    test_name = stripped[len(status):].strip()
+                    failures.append(f"  {status} — {test_name}")
+                break
+
+    # ── Ligne de résumé finale dbt ────────────────────────────────────────────
+    # dbt termine toujours par une ligne comme :
+    #   "Done. PASS=230 WARN=0 ERROR=5 SKIP=0 TOTAL=235"
+    summary_line = ""
+    for line in reversed(lines):
+        if "PASS=" in line and "TOTAL=" in line:
+            summary_line = line.strip()
+            break
+
+    # ── Formatage ─────────────────────────────────────────────────────────────
+    total = sum(counts.values())
+    status_global = "✓ Tous les tests passent" if counts["FAIL"] == 0 and counts["ERROR"] == 0 else "✗ Des tests ont échoué"
+
+    result = f"=== Résultats dbt test ===\n\n"
+    result += f"Statut global : {status_global}\n"
+    result += f"  PASS  : {counts['PASS']}\n"
+    result += f"  WARN  : {counts['WARN']}\n"
+    result += f"  FAIL  : {counts['FAIL']}\n"
+    result += f"  ERROR : {counts['ERROR']}\n"
+
+    if summary_line:
+        result += f"\nRésumé dbt : {summary_line}\n"
+
+    if failures:
+        result += f"\nTests en échec ({len(failures)}) :\n"
+        result += "\n".join(failures)
+    else:
+        result += "\nAucun test en échec.\n"
+
+    logger.debug(f"get_dbt_test_results() → {total} tests parsés, {len(failures)} échecs")
+    return result
 
 
 # ── Déclarations des outils (ce que Gemini voit) ─────────────────────────────
@@ -488,8 +619,8 @@ TOOL_DECLARATIONS = [
                 "appelle cet outil DIRECTEMENT sans demander de confirmation textuelle. "
                 "La confirmation utilisateur est gérée automatiquement par le système "
                 "avant toute exécution réelle — tu n'as pas à la gérer toi-même. "
-                "Étapes disponibles : features, train, predict, backtest. "
-                "Ordre naturel : features → train → predict → backtest."
+                "Étapes disponibles : dbt_seed, dbt_run, dbt_test, train, predict, backtest. "
+                "Ordre naturel : dbt_seed → dbt_run → dbt_test → train → predict → backtest."
             ),
             parameters=types.Schema(
                 type=types.Type.OBJECT,
@@ -498,13 +629,54 @@ TOOL_DECLARATIONS = [
                         type=types.Type.STRING,
                         description=(
                             "Nom de l'étape à relancer. "
-                            "Valeurs possibles : features, train, predict, backtest."
+                            "Valeurs possibles : dbt_seed, dbt_run, dbt_test, train, predict, backtest."
                         ),
                     ),
                 },
                 required=["step"],
             ),
         ),
+
+        types.FunctionDeclaration(
+            name="read_dbt_logs",
+            description=(
+                "Lit la sortie complète du dernier run d'une commande dbt. "
+                "Utilise cet outil pour diagnostiquer pourquoi dbt seed, dbt run "
+                "ou dbt test a échoué, ou pour voir le détail de l'exécution. "
+                "Commandes disponibles : seed, run, test."
+            ),
+            parameters=types.Schema(
+                type=types.Type.OBJECT,
+                properties={
+                    "command": types.Schema(
+                        type=types.Type.STRING,
+                        description="Commande dbt concernée : 'seed', 'run', ou 'test'. Défaut : 'test'.",
+                    ),
+                    "n_lines": types.Schema(
+                        type=types.Type.INTEGER,
+                        description="Nombre de lignes à lire depuis la fin. Défaut : 100.",
+                    ),
+                },
+                required=[],
+            ),
+        ),
+
+        types.FunctionDeclaration(
+            name="get_dbt_test_results",
+            description=(
+                "Parse le dernier rapport dbt test et retourne un résumé structuré : "
+                "compteurs PASS/WARN/FAIL/ERROR et liste des tests en échec. "
+                "Préfère cet outil à read_dbt_logs quand tu veux évaluer la qualité "
+                "des données — il te donne directement les chiffres clés sans lire "
+                "des centaines de lignes brutes."
+            ),
+            parameters=types.Schema(
+                type=types.Type.OBJECT,
+                properties={},
+                required=[],
+            ),
+        ),
+        
 
 
     ])
@@ -516,6 +688,8 @@ TOOL_REGISTRY: dict[str, callable] = {
     "get_pipeline_status": get_pipeline_status,
     "read_backtest_results":   read_backtest_results,
     "run_pipeline_step":     run_pipeline_step,
+    "read_dbt_logs":   read_dbt_logs,
+    "get_dbt_test_results": get_dbt_test_results,
 }
 
 

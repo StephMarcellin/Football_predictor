@@ -77,7 +77,8 @@ def run_dbt_test() -> None:
     Lève une exception si un test ERROR échoue (warnings ignorés).
     """
 
-    dbt_dir = ROOT_DIR / "dbt_project"
+    dbt_dir  = ROOT_DIR / "dbt_project"
+    log_path = ROOT_DIR / "logs" / "dbt_test_last.log"
     if not dbt_dir.exists():
         raise FileNotFoundError(f"dbt_project/ introuvable : {dbt_dir}")
 
@@ -86,12 +87,66 @@ def run_dbt_test() -> None:
         cwd=dbt_dir,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
-    logger.info(result.stdout[-2000:])   # dernières lignes du log dbt
+    log_path.write_text(result.stdout + result.stderr, encoding="utf-8")
+    logger.info(result.stdout[-2000:])
     if result.returncode != 0:
         raise RuntimeError(f"dbt test a échoué :\n{result.stderr[-1000:]}")
     
+def run_dbt_seed() -> None:
+    """
+    Lance dbt seed depuis dbt_project/.
+    Initialise les tables de données.
+    Lève une exception si l'initialisation échoue.
+    """
 
+    dbt_dir  = ROOT_DIR / "dbt_project"
+    log_path = ROOT_DIR / "logs" / "dbt_seed_last.log"
+    if not dbt_dir.exists():
+        raise FileNotFoundError(f"dbt_project/ introuvable : {dbt_dir}")
+
+    result = subprocess.run(
+        ["dbt", "seed", "--profiles-dir", str(Path.home() / ".dbt")],
+        cwd=dbt_dir,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    log_path.write_text(result.stdout + result.stderr, encoding="utf-8")
+    logger.info(result.stdout[-2000:])
+    if result.returncode != 0:
+        raise RuntimeError(f"dbt seed a échoué :\n{result.stderr[-1000:]}")
+
+def run_dbt_run(select: str = None) -> None:
+    """
+    Lance dbt run depuis dbt_project/.
+    Exécute les modèles dbt.
+    Lève une exception si l'exécution échoue.
+    """
+    dbt_dir  = ROOT_DIR / "dbt_project"
+    log_path = ROOT_DIR / "logs" / "dbt_run_last.log"
+    if not dbt_dir.exists():
+        raise FileNotFoundError(f"dbt_project/ introuvable : {dbt_dir}")
+
+    cmd = ["dbt", "run", "--profiles-dir", str(Path.home() / ".dbt")]
+    if select:
+        cmd += ["--select", select]
+    result = subprocess.run(
+        cmd,
+        cwd=dbt_dir,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    log_path.write_text(result.stdout + result.stderr, encoding="utf-8")
+    logger.info(result.stdout[-2000:])
+    if result.returncode != 0:
+        raise RuntimeError(f"dbt run a échoué :\n{result.stderr[-1000:]}")
+        
 # ── Logger orchestrateur ──────────────────────────────────────────────────────
 # Un log dédié à l'orchestrateur, séparé des logs des scripts individuels.
 Path("logs").mkdir(exist_ok=True)
@@ -213,12 +268,6 @@ def build_steps(cfg: dict) -> dict:
     # Import de chaque script comme module Python
     # Si un script est introuvable, on lève une erreur claire
     try:
-        import importlib
-
-        mod_03 = importlib.import_module("03_features") if (ROOT_DIR / "pipelines" / "03_features.py").exists() \
-                 else importlib.import_module("pipelines.03_features") if False \
-                 else _import_from_path("features_03", ROOT_DIR / "pipelines" / "03_features.py")
-
         mod_04 = _import_from_path("train_04",    ROOT_DIR / "pipelines" / "04_train.py")
         mod_05 = _import_from_path("predict_05",  ROOT_DIR / "pipelines" / "05_predict.py")
         mod_06 = _import_from_path("backtest_06", ROOT_DIR / "pipelines" / "06_backtest.py")
@@ -233,17 +282,23 @@ def build_steps(cfg: dict) -> dict:
     backtest_cfg = cfg.get("backtest", {})
 
     return {
+        "dbt_seed": {
+            "fn":       run_dbt_seed,
+            "kwargs":   {},
+            "critical": True,
+        },
+        "dbt_run": {
+            "fn":       run_dbt_run,
+            "kwargs":   {"select": "backbone features_rolling features_whoscored features_draw features_final"},
+            "critical": True,
+        },
+
         "dbt_test": {
             "fn":       run_dbt_test,
             "kwargs":   {},
             "critical": True,
         },
 
-        "features": {
-            "fn":       mod_03.run_full_pipeline,
-            "kwargs":   {},   # valeurs par défaut de run_full_pipeline suffisent
-            "critical": True,
-        },
         "train": {
             "fn":     mod_04.main,
             "kwargs": {
@@ -388,7 +443,7 @@ def print_summary(results: list[dict]) -> None:
 # SECTION 6 — Point d'entrée CLI
 # ══════════════════════════════════════════════════════════════════════════════
 
-STEP_NAMES = ["dbt_test","features", "train", "predict", "backtest"]
+STEP_NAMES = ["dbt_seed","dbt_run","dbt_test", "train", "predict", "backtest"]
 
 
 def parse_args() -> argparse.Namespace:
@@ -398,7 +453,9 @@ def parse_args() -> argparse.Namespace:
         epilog="""
 Exemples :
   python run_pipeline.py                        # pipeline complet
-  python run_pipeline.py --step features        # feature engineering seul
+  python run_pipeline.py --step dbt_seed        # seed les données
+  python run_pipeline.py --step dbt_run         # exécute les modèles dbt
+  python run_pipeline.py --step dbt_test        # exécute les tests dbt
   python run_pipeline.py --from train           # reprend depuis train
   python run_pipeline.py --dry-run              # simule sans exécuter
   python run_pipeline.py --list                 # liste les étapes

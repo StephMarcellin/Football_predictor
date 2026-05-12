@@ -863,7 +863,6 @@ sources:
               - not_null
               - is_positive
 
-
       - name: stg_whoscored_events
         description: >
           Events WhoScored par match — 1 ligne par action de jeu.
