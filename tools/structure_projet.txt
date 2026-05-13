@@ -1114,3 +1114,4 @@ Projet_3étoiles/
         strategy_audit_report.md
     tools/
         generer_tree.py
+        structure_projet.txt
