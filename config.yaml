@@ -1,13 +1,40 @@
 project:
   name: football-prediction
   version: 0.1.0
-  
-competitions:
-- ligue_1
-- premier_league
-- liga
-- bundesliga
-- serie_a
+
+# Scrapping configuration
+# Format : "YYYY-YYYY"
+seasons:
+  - "2017-2018"
+  - "2018-2019"
+  - "2019-2020"
+  - "2020-2021"
+  - "2021-2022"
+  - "2022-2023"
+  - "2023-2024"
+  - "2024-2025"
+
+# Types de stats FBref à scraper
+stat_types:
+  - "schedule"
+  - "shooting"
+  - "keeper"
+  - "misc"
+
+# Ligues à scraper — commenter pour exclure
+leagues:
+  - "Premier League"
+  - "Ligue 1"
+  - "Bundesliga"
+  - "Serie A"
+  - "La Liga"
+  - "Championship"
+  - "Ligue 2"
+  - "2. Bundesliga"
+  - "Serie B"
+  - "La Liga 2"
+
+#  Path configuration
 paths:
   raw_data: data/raw/
   processed: data/processed/
@@ -15,6 +42,16 @@ paths:
   models: models/
   db: db/football.duckdb
   duckdb: db/football.duckdb
+
+# Compétitions
+competitions:
+- ligue_1
+- premier_league
+- liga
+- bundesliga
+- serie_a
+
+# Pipeline configuration
 pipeline:
   cron: "0 12 * * 1"          # lundi à 12h
   deployment_name: "pipeline-lundi-midi"
@@ -34,6 +71,7 @@ agent:
     get_pipeline_status_n_runs: 10
     read_backtest_n_recent: 100
 
+# Modèle configuration
 prediction:
   target: result_1n2
   classes:
@@ -43,18 +81,22 @@ prediction:
   upset_confidence_threshold: 0.55   # seuil P(Away) pour valider un upset
   draw_threshold: 0.28
   value_edge: 0.05
+
 features:
   form_window: 5           # référence inchangée
   form_windows: [3, 5, 10] # nouvelle clé P1
   h2h_window: 10
+
 model:
   default: lightgbm
   test_size: 0.2
   random_state: 42
   cv_folds: 5
+
 mlflow:
   experiment_name: football_1n2
   tracking_uri: mlruns/
+
 train:
   use_autoencoder: false
   use_stacking: false
@@ -72,6 +114,7 @@ train:
   bottleneck_dim: 32
   bayes_n_iter: 50
   target: result_1n2
+
 backtest:
   BANKROLL_INIT  : 1000.0   # bankroll initiale en unités
   EDGE_MIN       : 0.04     # edge minimum pour parier (prob_model - prob_implied)
@@ -82,6 +125,7 @@ backtest:
   BACKTEST_SEASONS_DEFAULT : ["2023-2024", "2024-2025"]
 
 season_format: YYYY-YYYY
+
 venue_mapping:
   Home: Home
   Away: Away
