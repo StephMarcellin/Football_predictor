@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 # Dossiers à ignorer absolument pour la clarté
 EXCLUDE_DIRS = {'.venv', 'venv', 'etc', 'share', 'include', 'Lib', 'Scripts', 'data',
@@ -20,7 +21,10 @@ def generate_tree(startpath):
     return "\n".join(output)
 
 if __name__ == "__main__":
-    tree_text = generate_tree(os.getcwd())
-    with open("structure_projet.txt", "w", encoding="utf-8") as f:
+    cwd = os.getcwd()
+    ROOT_DIR = Path(__file__).resolve().parent.parent
+    print(f"Génération de la structure du projet à partir de : {cwd}")
+    tree_text = generate_tree(cwd)
+    with open(ROOT_DIR / "tools/structure_projet.txt", "w", encoding="utf-8") as f:
         f.write(tree_text)
     print("Fichier structure_projet.txt généré avec succès !")

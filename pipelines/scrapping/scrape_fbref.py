@@ -5,7 +5,7 @@ Utilise le référentiel DuckDB pour garantir la complétude :
 chaque club × saison × ligue du référentiel est visité.
 
 Usage :
-# Tout scraper selon scraping_config.yaml
+# Tout scraper selon config.yaml
 python pipelines/scrape_fbref.py
 
 # Tester sans télécharger
@@ -35,7 +35,7 @@ from seleniumbase import Driver
 # ── Config ────────────────────────────────────────────────────────────────────
 
 ROOT_DIR   = Path(__file__).resolve().parent.parent
-CFG_PATH   = ROOT_DIR / "scraping_config.yaml"
+CFG_PATH   = ROOT_DIR / "config.yaml"
 MAIN_CFG   = ROOT_DIR / "config.yaml"
 LOG_DIR    = ROOT_DIR / "logs"
 LOG_DIR.mkdir(exist_ok=True)
@@ -367,7 +367,7 @@ def main():
     """).df()
     conn.close()
 
-    # Filtres depuis scraping_config.yaml
+    # Filtres depuis config.yaml
     seasons_cfg = set(SCRAP_CFG.get("seasons", []))
     leagues_cfg = set(SCRAP_CFG.get("leagues", []))
     stat_types  = SCRAP_CFG.get("stat_types", ["schedule", "shooting", "keeper", "misc"])

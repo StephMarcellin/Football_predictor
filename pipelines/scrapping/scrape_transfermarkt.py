@@ -31,7 +31,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 # ── Config ────────────────────────────────────────────────────────────────────
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
-CFG_PATH = ROOT_DIR / "scraping_config.yaml"
+CFG_PATH = ROOT_DIR / "config.yaml"
 MAIN_CFG = ROOT_DIR / "config.yaml"
 LOG_DIR  = ROOT_DIR / "logs"
 LOG_DIR.mkdir(exist_ok=True)
@@ -383,7 +383,7 @@ def main():
     if not leagues_cfg:
         logger.warning(
             "  Aucune ligue compatible avec Transfermarkt. "
-            "Vérifie scraping_config.yaml ou --league."
+            "Vérifie config.yaml ou --league."
         )
         return
 

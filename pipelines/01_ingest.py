@@ -68,6 +68,7 @@ import pyarrow.parquet as pq
 import yaml
 from bs4 import BeautifulSoup
 from loguru import logger
+import duckdb as _duckdb
 
 # ── Config ────────────────────────────────────────────────────────────────────
 with open("config.yaml", encoding="utf-8") as f:
@@ -87,7 +88,24 @@ DIRS = {
 # Mapping de normalisation des noms d'équipes (chargé depuis config.yaml)
 # Clé = nom brut tel qu'il apparaît dans les fichiers sources
 # Valeur = nom canonique utilisé dans tout le pipeline
-TEAM_MAPPING: dict[str, str] = CFG.get("team_mapping", CFG.get("club_normalize", {}))
+def _load_team_mapping() -> dict[str, str]:
+    """
+    Charge le team_mapping depuis referentiel.team_mapping dans DuckDB.
+    Retourne un dict vide (avec WARNING) si la table est absente,
+    pour ne pas bloquer l'ingestion si DuckDB n'est pas encore initialisé.
+    """
+    try:
+        con = _duckdb.connect(str(Path(CFG["paths"]["db"])), read_only=True)
+        rows = con.execute(
+            "SELECT raw_name, canonical_name FROM referentiel.team_mapping"
+        ).fetchall()
+        con.close()
+        return {raw: canonical for raw, canonical in rows}
+    except Exception as e:
+        logger.warning(f"[ingest] Impossible de charger referentiel.team_mapping : {e}")
+        return {}
+
+TEAM_MAPPING: dict[str, str] = _load_team_mapping()
 
 # ── Logs ──────────────────────────────────────────────────────────────────────
 Path("logs").mkdir(exist_ok=True)
@@ -115,47 +133,37 @@ def normalize_team(name: str, source: str) -> str:
         return name
 
     clean_name = name.strip()
-    config_path = Path("config.yaml")
 
-    # 1. Recherche exacte dans le mapping chargé en mémoire
+    # 1. Lookup exact en mémoire
     if clean_name in TEAM_MAPPING:
         return TEAM_MAPPING[clean_name]
 
-    # 2. Tentative de Fuzzy Matching (Seuil de sécurité à 90%)
-    # On cherche si ce nom ressemble à une CLÉ déjà existante dans ton mapping
+    # 2. Fuzzy matching sur les clés existantes (seuil 90%)
     known_keys = list(TEAM_MAPPING.keys())
     if known_keys:
         match, score = process.extractOne(clean_name, known_keys, scorer=fuzz.token_sort_ratio)
-        
         if score >= 90:
-            logger.info(f"[{source}] Correspondance Fuzzy : '{clean_name}' -> '{match}' ({score}%)")
+            logger.info(f"[{source}] Fuzzy match : '{clean_name}' → '{match}' ({score}%)")
             return TEAM_MAPPING[match]
 
-    # 3. Si on arrive ici, c'est une VRAIE nouvelle équipe
-    # On l'ajoute au YAML pour que tu puisses la voir, mais avec son NOM PROPRE
-    logger.warning(f"[{source}] Nouvelle équipe détectée : '{clean_name}'. Ajout au config.yaml...")
-    
+    # 3. Nouvelle équipe — INSERT dans referentiel.team_mapping
+    logger.warning(
+        f"[{source}] Nouvelle équipe détectée : '{clean_name}'. "
+        f"Ajout dans referentiel.team_mapping (raw=canonical par défaut)."
+    )
     try:
-        with open(config_path, 'r', encoding='utf-8') as f:
-            full_config = yaml.safe_load(f)
-        
-        if 'team_mapping' not in full_config:
-            full_config['team_mapping'] = {}
-        
-        # AJOUT PROPRE : Nom: Nom (plus de TO_DEFINE)
-        full_config['team_mapping'][clean_name] = clean_name
-        
-        with open(config_path, 'w', encoding='utf-8') as f:
-            yaml.dump(full_config, f, allow_unicode=True, sort_keys=False)
-        
-        # Mise à jour en mémoire pour la session actuelle
-        TEAM_MAPPING[clean_name] = clean_name
-        return clean_name
-
+        con = _duckdb.connect(str(Path(CFG["paths"]["db"])))
+        con.execute("""
+            INSERT INTO referentiel.team_mapping (raw_name, canonical_name, source, created_at)
+            VALUES (?, ?, ?, NOW())
+            ON CONFLICT (raw_name) DO NOTHING
+        """, [clean_name, clean_name, source])
+        con.close()
+        TEAM_MAPPING[clean_name] = clean_name  # sync mémoire pour la session
     except Exception as e:
-        logger.error(f"Impossible d'écrire dans le config.yaml : {e}")
-        return clean_name
+        logger.error(f"[{source}] Impossible d'écrire dans referentiel.team_mapping : {e}")
 
+    return clean_name
 
 def scraped_at(path: Path) -> str:
     """

@@ -76,23 +76,56 @@ DB_PATH  = Path(CFG["paths"]["db"])
 RAW_DIR  = Path(CFG["paths"]["raw_data"])
 
 # Chargement dynamique depuis config.yaml
-TEAM_MAPPING: dict[str, str] = CFG.get("team_mapping", CFG.get("club_normalize", {}))
 SEASON_FORMAT: str = CFG.get("season_format", "YYYY-YYYY")
 
-# competition_mapping : {nom_source: {canonical: str, category: str}}
-# category = Big5 | D2 | Cup | Europe | Other
-_RAW_COMP_MAP: dict = CFG.get("competition_mapping", {})
+# Le TEAM_MAPPING est chargé depuis DuckDB dans main(), une fois la connexion établie,
+# puis injecté dans les fonctions de normalisation via une variable module-level.
+# On initialise à vide — sera rempli par _init_team_mapping(con) dans main().
+TEAM_MAPPING: dict[str, str] = {}
 
-# Pré-calculer deux vues plates pour un accès O(1) dans la hot path
-COMP_TO_CANONICAL: dict[str, str] = {
-    k: v["canonical"] for k, v in _RAW_COMP_MAP.items()
-    if isinstance(v, dict) and "canonical" in v
-}
+def _init_team_mapping(con: duckdb.DuckDBPyConnection) -> None:
+    """
+    Charge referentiel.team_mapping dans la variable globale TEAM_MAPPING.
+    Appelé une seule fois au démarrage de main() après ouverture de la connexion.
+    Centraliser ici évite N connexions DuckDB dans les fonctions de normalisation.
+    """
+    global TEAM_MAPPING
+    try:
+        rows = con.execute(
+            "SELECT club_name, alias FROM referentiel.team_mapping"
+        ).fetchall()
+        TEAM_MAPPING = {raw: canonical for raw, canonical in rows}
+        logger.info(f"  team_mapping chargé : {len(TEAM_MAPPING)} entrées")
+    except Exception as e:
+        logger.error(f"  Impossible de charger referentiel.team_mapping : {e}")
+        TEAM_MAPPING = {}
 
-COMP_TO_CATEGORY: dict[str, str] = {
-    k: v["category"] for k, v in _RAW_COMP_MAP.items()
-    if isinstance(v, dict) and "category" in v
-}
+# competition_mapping : chargé depuis referentiel.competition_mapping dans DuckDB.
+# Deux vues plates pré-calculées pour un accès O(1) dans la hot path de normalisation.
+# Initialisées à vide — remplies par _init_competition_mapping(con) dans main().
+COMP_TO_CANONICAL: dict[str, str] = {}
+COMP_TO_CATEGORY:  dict[str, str] = {}
+
+def _init_competition_mapping(con: duckdb.DuckDBPyConnection) -> None:
+    """
+    Charge referentiel.competition_mapping dans les variables globales
+    COMP_TO_CANONICAL et COMP_TO_CATEGORY.
+    Appelé une seule fois dans main() après ouverture de la connexion,
+    au même endroit que _init_team_mapping().
+    """
+    global COMP_TO_CANONICAL, COMP_TO_CATEGORY
+    try:
+        rows = con.execute("""
+            SELECT name, canonical, category
+            FROM referentiel.competition_mapping
+        """).fetchall()
+        COMP_TO_CANONICAL = {raw: canonical for raw, canonical, _ in rows}
+        COMP_TO_CATEGORY  = {raw: category  for raw, _, category  in rows}
+        logger.info(f"  competition_mapping chargé : {len(COMP_TO_CANONICAL)} entrées")
+    except Exception as e:
+        logger.error(f"  Impossible de charger referentiel.competition_mapping : {e}")
+        COMP_TO_CANONICAL = {}
+        COMP_TO_CATEGORY  = {}
 
 # ── Logs ──────────────────────────────────────────────────────────────────────
 Path("logs").mkdir(exist_ok=True)
@@ -265,7 +298,7 @@ def normalize_competition_col(df: pl.DataFrame, col: str, source: str) -> pl.Dat
             # Si même après simplification on ne trouve pas, ALORS on logue
             logger.warning(
                 f"AUDIT [{source}] Compétition non mappée : '{comp}' (slug: '{comp_slug}') "
-                f"— ajouter dans competition_mapping dans config.yaml"
+                f"— ajouter dans referentiel.competition_mapping dans DuckDB"
             )
             _UNMAPPED_REGISTRY[f"{source}__competitions"].add(comp)
             canonical_map[comp] = comp 
@@ -355,16 +388,13 @@ def normalize_team_col(
                 # Charger le référentiel depuis DuckDB
                 try:
                     ref = conn.execute("""
-                        SELECT team, season, league
-                        FROM referentiel.club_D1
-                        UNION ALL
-                        SELECT team, season, league
-                        FROM referentiel.club_D2
-                    """).pl()
+                                            SELECT club_name, season, league
+                                            FROM referentiel.transfermarkt_clubs
+                                        """).pl()
 
                     # Joindre sur le nom canonique potentiel
                     # On utilise raw_team slugifié vs référentiel slugifié
-                    ref_set = set(zip(ref["team"], ref["season"], ref["league"]))
+                    ref_set = set(zip(ref["club_name"], ref["season"], ref["league"]))
 
                     # Pour chaque suspect, vérifier si son nom nettoyé
                     # correspond à un club du référentiel
@@ -396,7 +426,7 @@ def normalize_team_col(
                         alerts_df = pl.DataFrame(alerts)
                         logger.warning(
                             f"[{source}][{col}] {len(alerts)} clubs du référentiel "
-                            f"mappés en 'Minor Club' — variantes manquantes dans config.yaml :\n"
+                            f"mappés en 'Minor Club' — variantes manquantes dans la table Transfermarkt :\n"
                             f"{str(alerts_df)}"
                         )
                         # Log aussi dans audit_unmapped
@@ -421,7 +451,7 @@ def normalize_team_col(
 
 def validate_against_referentiel(
     df: pl.DataFrame,
-    ref: pl.DataFrame,  # referentiel.club_D1 + club_D2 chargé depuis DuckDB
+    ref: pl.DataFrame,
     source: str
 ) -> pl.DataFrame:
     """
@@ -433,7 +463,7 @@ def validate_against_referentiel(
         return df
 
     # Clubs du référentiel pour ce contexte
-    ref_teams = set(zip(ref["team"], ref["season"], ref["league"]))
+    ref_teams = set(zip(ref["club_name"], ref["season"], ref["league"]))
 
     # Lignes Minor Club qui devraient être mappées
     suspects = df.filter(
@@ -447,7 +477,7 @@ def validate_against_referentiel(
     if len(suspects) > 0:
         logger.warning(
             f"[{source}] {len(suspects)} clubs référentiel mappés en 'Minor Club' "
-            f"— variantes manquantes dans config.yaml :\n"
+            f"— variantes manquantes dans la table Transfermarkt :\n"
             f"{suspects.select(['raw_team','season','league_source']).unique().to_pandas().to_string()}"
         )
     return df
@@ -1040,6 +1070,10 @@ def main() -> None:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect(str(DB_PATH))
     con.execute("CREATE SCHEMA IF NOT EXISTS silver")
+
+    # Initialisation des mappings (chargement en mémoire + log des entités manquantes)
+    _init_team_mapping(con)
+    _init_competition_mapping(con)
 
     if args.audit_only:
         run_quality_check(con)

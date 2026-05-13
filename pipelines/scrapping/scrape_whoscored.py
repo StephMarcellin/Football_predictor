@@ -27,7 +27,7 @@ from selenium.webdriver.support import expected_conditions as EC
 # ── Config ────────────────────────────────────────────────────────────────────
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
-CFG_PATH = ROOT_DIR / "scraping_config.yaml"
+CFG_PATH = ROOT_DIR / "config.yaml"
 MAIN_CFG = ROOT_DIR / "config.yaml"
 LOG_DIR  = ROOT_DIR / "logs"
 LOG_DIR.mkdir(exist_ok=True)
