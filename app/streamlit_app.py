@@ -21,7 +21,7 @@ import yaml
 with open("config.yaml", encoding="utf-8") as f:
     CFG = yaml.safe_load(f)
 
-DB_PATH    = CFG["paths"]["db"]
+DB_PATH    = CFG["paths"]["duckdb"]
 MODELS_DIR = Path(CFG["paths"]["models"])
 
 st.set_page_config(

@@ -71,10 +71,12 @@ from loguru import logger
 import duckdb as _duckdb
 
 # ── Config ────────────────────────────────────────────────────────────────────
-with open("config.yaml", encoding="utf-8") as f:
+ROOT_DIR = Path(__file__).resolve().parent.parent
+with open(ROOT_DIR / "config.yaml", encoding="utf-8") as f:
     CFG = yaml.safe_load(f)
 
-RAW_DIR = Path(CFG["paths"]["raw_data"])
+RAW_DIR = ROOT_DIR / CFG["paths"]["raw_data"]
+DB_PATH = ROOT_DIR / CFG["paths"]["duckdb"]
 
 DIRS = {
     "fbref":     {"html":    RAW_DIR / "fbref"     / "html",
@@ -88,6 +90,7 @@ DIRS = {
 # Mapping de normalisation des noms d'équipes (chargé depuis config.yaml)
 # Clé = nom brut tel qu'il apparaît dans les fichiers sources
 # Valeur = nom canonique utilisé dans tout le pipeline
+
 def _load_team_mapping() -> dict[str, str]:
     """
     Charge le team_mapping depuis referentiel.team_mapping dans DuckDB.
@@ -95,12 +98,12 @@ def _load_team_mapping() -> dict[str, str]:
     pour ne pas bloquer l'ingestion si DuckDB n'est pas encore initialisé.
     """
     try:
-        con = _duckdb.connect(str(Path(CFG["paths"]["db"])), read_only=True)
+        con = _duckdb.connect(str(DB_PATH), read_only=True)
         rows = con.execute(
-            "SELECT raw_name, canonical_name FROM referentiel.team_mapping"
+            "SELECT club_name, alias FROM referentiel.team_mapping"
         ).fetchall()
         con.close()
-        return {raw: canonical for raw, canonical in rows}
+        return {alias: club_name  for club_name , alias in rows}
     except Exception as e:
         logger.warning(f"[ingest] Impossible de charger referentiel.team_mapping : {e}")
         return {}
@@ -152,12 +155,14 @@ def normalize_team(name: str, source: str) -> str:
         f"Ajout dans referentiel.team_mapping (raw=canonical par défaut)."
     )
     try:
-        con = _duckdb.connect(str(Path(CFG["paths"]["db"])))
+        con = _duckdb.connect(str(DB_PATH))
         con.execute("""
-            INSERT INTO referentiel.team_mapping (raw_name, canonical_name, source, created_at)
-            VALUES (?, ?, ?, NOW())
-            ON CONFLICT (raw_name) DO NOTHING
-        """, [clean_name, clean_name, source])
+            INSERT INTO referentiel.team_mapping (club_name, alias)
+            SELECT ?, ?
+            WHERE NOT EXISTS (
+                SELECT 1 FROM referentiel.team_mapping WHERE alias = ?
+            )
+        """, [clean_name, clean_name, clean_name])
         con.close()
         TEAM_MAPPING[clean_name] = clean_name  # sync mémoire pour la session
     except Exception as e:
@@ -727,28 +732,28 @@ def print_report():
 
 # ── Point d'entrée ────────────────────────────────────────────────────────────
 
-def main():
-    parser = argparse.ArgumentParser(description="Ingest multi-source → Parquet")
-    parser.add_argument("--reset",  action="store_true",
-                        help="Supprime tous les Parquets et recrée")
-    parser.add_argument("--source", default=None,
-                        choices=list(SOURCE_HANDLERS.keys()),
-                        help="Traiter une seule source")
-    parser.add_argument("--file",   default=None,
-                        help="Traiter un seul fichier")
-    args = parser.parse_args()
+def main(reset: bool = False, source: Optional[str] = None, file: Optional[str] = None):
+    # parser = argparse.ArgumentParser(description="Ingest multi-source → Parquet")
+    # parser.add_argument("--reset",  action="store_true",
+    #                     help="Supprime tous les Parquets et recrée")
+    # parser.add_argument("--source", default=None,
+    #                     choices=list(SOURCE_HANDLERS.keys()),
+    #                     help="Traiter une seule source")
+    # parser.add_argument("--file",   default=None,
+    #                     help="Traiter un seul fichier")
+    # args = parser.parse_args()
 
     logger.info("=== Démarrage ingest ===")
 
-    if args.reset:
+    if reset:
         for source, cfg in DIRS.items():
             prq = cfg["parquet"]
             if prq.exists():
                 shutil.rmtree(prq)
                 logger.info(f"  Parquets {source} supprimés")
 
-    if args.file:
-        path = Path(args.file)
+    if file:
+        path = Path(file)
         if _FBREF_RE.match(path.stem):       source = "fbref"
         elif _UNDERSTAT_RE.match(path.stem): source = "understat"
         elif _WHOSCORED_RE.match(path.stem): source = "whoscored"
@@ -759,7 +764,7 @@ def main():
         logger.info(f"  {source} — {stats}")
         return
 
-    sources = [args.source] if args.source else list(SOURCE_HANDLERS.keys())
+    sources = [source] if source else list(SOURCE_HANDLERS.keys())
     total_ok = total_err = 0
 
     for source in sources:
@@ -775,7 +780,7 @@ def main():
             continue
 
         logger.info(f"  {source} : {len(files)} fichier(s)")
-        stats = handler["ingest"](files, force=args.reset)
+        stats = handler["ingest"](files, force=reset)
         logger.info(
             f"  {source} → OK:{stats['ok']} "
             f"ERR:{stats['err']} SKIP:{stats['skip']}"
@@ -789,4 +794,13 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Ingest multi-source → Parquet")
+    parser.add_argument("--reset",  action="store_true",
+                        help="Supprime tous les Parquets et recrée")
+    parser.add_argument("--source", default=None,
+                        choices=list(SOURCE_HANDLERS.keys()),
+                        help="Traiter une seule source")
+    parser.add_argument("--file",   default=None,
+                        help="Traiter un seul fichier")
+    args = parser.parse_args()
+    main(reset=args.reset, source=args.source, file=args.file)

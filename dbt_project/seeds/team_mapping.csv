@@ -210,17 +210,20 @@ Sheffield Utd,Sheffield United
 Sheffield Wednesday,Sheffield Wednesday
 Southampton,Southampton
 Stoke City,Stoke
+Stoke-City,Stoke
 Stoke,Stoke
 Sunderland,Sunderland
 Sunderland AFC,Sunderland
 Swansea City,Swansea
+Swansea-City,Swansea
 Swansea,Swansea
 Tottenham Hotspur,Tottenham Hotspur
+Tottenham-Hotspur,Tottenham Hotspur
 Tottenham,Tottenham Hotspur
 Spurs,Tottenham Hotspur
-Tottenham-Hotspur,Tottenham Hotspur
 Watford,Watford
 West Bromwich Albion,West Brom
+West-Bromwich-Albion,West Brom
 West Brom,West Brom
 Albion,West Brom
 WBA,West Brom
@@ -234,6 +237,7 @@ Wolverhampton-Wanderers,Wolves
 Wycombe Wanderers,Wycombe
 Wycombe,Wycombe
 Arminia Bielefeld,Arminia Bielefeld
+Arminia-Bielefeld,Arminia Bielefeld
 Arminia,Arminia Bielefeld
 Bielefeld,Arminia Bielefeld
 Augsburg,Augsburg
@@ -267,12 +271,12 @@ Eintracht-Frankfurt,Eintracht Frankfurt
 Frankfurt,Eintracht Frankfurt
 Eintracht Braunschweig,Eintracht Braunschweig
 Braunschweig,Eintracht Braunschweig
-
 Erzgebirge Aue,Erzgebirge Aue
 Aue,Erzgebirge Aue
 FC Cologne,FC Cologne
 FC Köln,FC Cologne
 Köln,FC Cologne
+1.FC Köln,FC Cologne
 Koln,FC Cologne
 FC Koln,FC Cologne
 Fortuna Duesseldorf,Fortuna Duesseldorf
@@ -334,11 +338,9 @@ RB-Leipzig,RB Leipzig
 RBL,RB Leipzig
 Rostock,Hansa Rostock
 Hansa Rostock,Hansa Rostock
-Sandhausen,SV Sandhausen
 Schalke 04,Schalke 04
 Schalke,Schalke 04
-SSV Ulm,SSV Ulm 1846
-Ulm,SSV Ulm 1846
+SSV Ulm,Ulm
 St. Pauli,St. Pauli
 FC St. Pauli,St. Pauli
 St-Pauli,St. Pauli
@@ -637,22 +639,10 @@ Sporting CP,Sporting CP
 ptSporting CP,Sporting CP
 AZ Alkmaar,AZ Alkmaar
 nlAZ Alkmaar,AZ Alkmaar
-Ajax,Ajax
-nlAjax,Ajax
-Feyenoord,Feyenoord
-nlFeyenoord,Feyenoord
-PSV,PSV
-nlPSV,PSV
 Twente,Twente
 nlTwente,Twente
 Utrecht,Utrecht
 nlUtrecht,Utrecht
-Benfica,Benfica
-ptBenfica,Benfica
-Porto,Porto
-ptPorto,Porto
-Sporting CP,Sporting CP
-ptSporting CP,Sporting CP
 Braga,Braga
 ptBraga,Braga
 Vitória Guimarães,Vitória Guimarães
@@ -701,7 +691,6 @@ Malmö FF,Malmö FF
 seMalmö FF,Malmö FF
 FC Copenhagen,FC Copenhagen
 dkFC Copenhagen,FC Copenhagen
-Red Star,Red Star
 rsRed Star,Red Star
 Partizan,Partizan
 rsPartizan,Partizan
@@ -848,71 +837,115 @@ sctHibernian,Hibernian
 amFC Noah,FC Noah
 amPyunik,Pyunik Yerevan
 FC Südtirol,FC Südtirol
-Karlsruher,Karlsruher SC
+Karlsruher,Karlsruhe
 Sheffield Weds,Sheffield Wednesday
-Stade Laval,Stade Lavallois
-Le Mans,Le Mans FC
+Stade Laval,Laval
 Grenoble Foot,Grenoble
-Celta,             Celta Vigo
-Ath Bilbao,        Athletic Club
-Ath Madrid,        Atlético Madrid
-Betis,             Real Betis
-Sociedad,          Real Sociedad
-Espanol,           Espanyol
-La Coruna,         Deportivo de La Coruña
-Vallecano,         Rayo Vallecano
-Alaves,            Deportivo Alavés
-Leganes,           Leganés
-Leganés,           Leganés
-Las Palmas,        Las Palmas
-Levante,           Levante
-Malaga,            Málaga
-Girona,            Girona
-Villarreal,        Villarreal
-Osasuna,           Osasuna
-Cadiz,             Cádiz
-Valladolid,        Real Valladolid
-Almeria,           Almería
-Mallorca,          Mallorca
-Getafe,            Getafe
-Elche,             Elche
-Huesca,            SD Huesca
-Granada,           Granada
-Ein Frankfurt,     Eintracht Frankfurt
-Hamburg,           Hamburger SV
-Dusseldorf,        Fortuna Duesseldorf
-Paderborn,         SC Paderborn
-Nurnberg,          1. FC Nürnberg
-Hannover,          Hannover 96
-Ingolstadt,        FC Ingolstadt 04
-Braunschweig,      Eintracht Braunschweig
-Darmstadt,         Darmstadt 98
-Greuther Furth,    Greuther Fürth
-Mainz,             Mainz 05
-Hertha,            Hertha Berlin
-Stuttgart,         VfB Stuttgart
-Wolfsburg,         Wolfsburg
-Schalke,           Schalke 04
-Hoffenheim,        Hoffenheim
-Leipzig,           RB Leipzig
-Werder Bremen,     Werder Bremen
-Union Berlin,      Union Berlin
-Paris SG,          Paris Saint-Germain
-St Etienne,        Saint-Étienne
-Marseille,         Olympique de Marseille
-Inter,             Internazionale
-Lazio,             Lazio
-Chievo,            Chievo
-Spal,              SPAL 2013
-Crotone,           Crotone
-Benevento,         Benevento
-Deportivo de La Coruña,  Deportivo de La Coruña
-La Coruna,               Deportivo de La Coruña
-Deportivo La Coruna,     Deportivo de La Coruña
-Malaga,                  Málaga
-Málaga,                  Málaga
-SC Paderborn,            SC Paderborn
-Paderborn,               SC Paderborn
-1. FC Nürnberg,          1. FC Nürnberg
-Nurnberg,                1. FC Nürnberg
-1. FC Nurnberg,          1. FC Nürnberg
+Celta,Celta Vigo
+Ath Bilbao,Athletic Club
+Ath Madrid,Atlético Madrid
+Betis,Real Betis
+Sociedad,Real Sociedad
+Espanol,Espanyol
+La Coruna,Deportivo La Coruna
+Vallecano,Rayo Vallecano
+Almeria,Almería
+Ein Frankfurt,Eintracht Frankfurt
+Hamburg,Hamburger SV
+Dusseldorf,Fortuna Duesseldorf
+Greuther Furth,Greuther Fürth
+Leipzig,RB Leipzig
+St Etienne,Saint-Étienne
+Spal,SPAL 2013
+AC Chievo Verona,Chievo
+AC Perugia Calcio,Perugia
+AC Pisa 1909,Pisa
+AC Reggiana 1919,Reggiana
+Ascoli Picchio,Ascoli
+Brescia Calcio (- 2025),Brescia
+Calcio Lecco 1912,Lecco
+Carpi FC 1909,Carpi
+Carrarese Calcio 1908,Carrarese
+Cesena FC,Cesena
+Delfino Pescara 1936,Pescara
+FC Bari 1908,Bari
+FC Bologna,Bologna
+FC Empoli,Empoli
+FC Pro Vercelli 1892,Pro Vercelli
+Juventus Turin,Juventus
+Lazio Rome,Lazio
+Novara Calcio 1908,Novara
+Palerme FC,Palermo
+Pisa Sporting Club,Pisa
+Ternana Unicusano Calcio,Ternana
+US Alessandria Calcio 1912,Alessandria
+US Avellino 1912,Avellino
+US Palermo,Palermo
+US Salernitana 1919,Salernitana
+AS Nancy-Lorraine,Nancy
+Chamois Niortais FC,Niort
+Clermont Foot 63,Clermont Foot
+FC Annecy,Annecy
+Football Bourg-en-Bresse Péronnas 01,Bourg-en-Bresse
+Le Mans FC,Le Mans
+Montpellier Hérault SC,Montpellier
+Quevilly - Rouen Métropole,Quevilly Rouen
+Quevilly Rouen Métropole,Quevilly Rouen
+RC Strasbourg Alsace,Strasbourg
+Stade Rennais FC,Rennes
+Atlético de Madrid,Atlético Madrid
+CE Sabadell FC,Sabadell
+CF Rayo Majadahonda,Rayo Majadahonda
+Espanyol Barcelona,Espanyol
+FC Barcelona B,Barcelona B
+FC Barcelone,Barcelona
+FC Córdoba,Córdoba
+FC Getafe,Getafe
+FC Granada,Granada
+FC Valencia,Valencia
+Racing de Ferrol,Racing Ferrol
+Real Betis Balompié,Real Betis
+Real Sociedad B,Real Sociedad B
+Sevilla Atlético,Sevilla B
+Séville FC,Sevilla
+UD Levante,Levante
+Villarreal CF B,Villarreal B
+AFC Sunderland,Sunderland
+Arsenal FC,Arsenal
+Barnsley FC,Barnsley
+Blackpool FC,Blackpool
+Burnley FC,Burnley
+Chelsea FC,Chelsea
+FC Brentford,Brentford
+FC Everton,Everton
+FC Fulham,Fulham
+FC Liverpool,Liverpool
+FC Millwall,Millwall
+FC Portsmouth,Portsmouth
+FC Reading,Reading
+FC Southampton,Southampton
+FC Watford,Watford
+Middlesbrough FC,Middlesbrough
+1.FC Heidenheim 1846,FC Heidenheim
+1.FC Kaiserslautern,Kaiserslautern
+1.FC Magdeburg,1. FC Magdeburg
+1.FC Nürnberg,Nuernberg
+1.FC Union Berlin,Union Berlin
+1.FSV Mainz 05,Mainz 05
+Bayer 04 Leverkusen,Bayer Leverkusen
+Eintracht Francfort,Eintracht Frankfurt
+FC Erzgebirge Aue,Erzgebirge Aue
+FC Hansa Rostock,Hansa Rostock
+FC Ingolstadt 04,Ingolstadt 04
+FC Schalke 04,Schalke 04
+SC Fribourg,Freiburg
+SC Paderborn 07,Paderborn
+SG Dynamo Dresden,Dynamo Dresden
+SSV Jahn Regensburg,Jahn Regensburg
+SSV Ulm 1846,Ulm
+SV 07 Elversberg,SV Elversberg
+SV Darmstadt 98,Darmstadt 98
+SV Sandhausen,Sandhausen
+SV Wehen Wiesbaden,Wehen Wiesbaden
+SV Werder Bremen,Werder Bremen
+SpVgg Greuther Fürth,Greuther Fürth

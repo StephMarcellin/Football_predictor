@@ -95,7 +95,7 @@ def run_dbt_test() -> None:
     if result.returncode != 0:
         raise RuntimeError(f"dbt test a échoué :\n{result.stderr[-1000:]}")
     
-def run_dbt_seed() -> None:
+def run_dbt_seed(refresh: bool = False) -> None:
     """
     Lance dbt seed depuis dbt_project/.
     Initialise les tables de données.
@@ -107,8 +107,11 @@ def run_dbt_seed() -> None:
     if not dbt_dir.exists():
         raise FileNotFoundError(f"dbt_project/ introuvable : {dbt_dir}")
 
+    cmd = ["dbt", "seed"]
+    if refresh:
+        cmd += ["--full-refresh"]
     result = subprocess.run(
-        ["dbt", "seed", "--profiles-dir", str(Path.home() / ".dbt")],
+        cmd,
         cwd=dbt_dir,
         capture_output=True,
         text=True,
@@ -163,14 +166,6 @@ logger.add(
 # ══════════════════════════════════════════════════════════════════════════════
 # SECTION 2 — Exécution protégée d'une étape
 #
-# Pourquoi cette protection ?
-# 03_features.py appelle os.chdir() au niveau module (à l'import).
-# Si on importe les scripts dans le même processus sans protection,
-# le répertoire courant change et les chemins relatifs de 05_predict.py
-# (qui utilise "db/football.duckdb" en chemin relatif) cessent de fonctionner.
-#
-# La solution : on sauvegarde cwd + sys.path avant chaque import,
-# on force cwd = ROOT_DIR, et on restaure après.
 # ══════════════════════════════════════════════════════════════════════════════
 def make_run_step_task(retries: int, retry_delay_seconds: int):
     """
@@ -243,13 +238,9 @@ def make_run_step_task(retries: int, retry_delay_seconds: int):
 #   fn       : la fonction à appeler (importée depuis le script)
 #   kwargs   : les arguments à passer, lus depuis config.yaml
 #   critical : si True, un échec stoppe tout le pipeline (fail-fast)
-#
-# Note sur les imports : on importe les modules ici, au niveau fonction,
-# pour éviter que os.chdir() de 03_features s'exécute au démarrage
-# de l'orchestrateur. L'import est différé au moment de l'appel.
 # ══════════════════════════════════════════════════════════════════════════════
 
-def build_steps(cfg: dict) -> dict:
+def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
     """
     Construit le dictionnaire ordonné des étapes du pipeline.
     Les imports sont réalisés ici pour les différer au maximum.
@@ -268,6 +259,10 @@ def build_steps(cfg: dict) -> dict:
     # Import de chaque script comme module Python
     # Si un script est introuvable, on lève une erreur claire
     try:
+        mod_01 = _import_from_path("ingest_01",   ROOT_DIR / "pipelines" / "01_ingest.py")
+        mod_01b = _import_from_path("odds_01b",   ROOT_DIR / "pipelines" / "01b_odds.py")
+        mod_02 = _import_from_path("process_02",  ROOT_DIR / "pipelines" / "02_process.py")
+        mod_04 = _import_from_path("",    ROOT_DIR / "pipelines" / "04_train.py")
         mod_04 = _import_from_path("train_04",    ROOT_DIR / "pipelines" / "04_train.py")
         mod_05 = _import_from_path("predict_05",  ROOT_DIR / "pipelines" / "05_predict.py")
         mod_06 = _import_from_path("backtest_06", ROOT_DIR / "pipelines" / "06_backtest.py")
@@ -282,9 +277,24 @@ def build_steps(cfg: dict) -> dict:
     backtest_cfg = cfg.get("backtest", {})
 
     return {
+        "ingest": {
+            "fn":       mod_01.main,
+            "kwargs":   {},
+            "critical": True,
+        },
+        "odds": {
+            "fn":       mod_01b.main,
+            "kwargs":   {},
+            "critical": True,
+        },
+        "process": {
+            "fn":       mod_02.main,
+            "kwargs":   {},
+            "critical": True,
+        },
         "dbt_seed": {
             "fn":       run_dbt_seed,
-            "kwargs":   {},
+            "kwargs":   {"refresh": full_refresh}   ,  # Par défaut, dbt seed ne fait pas de full-refresh. Passer refresh=True pour forcer. 
             "critical": True,
         },
         "dbt_run": {
@@ -443,7 +453,7 @@ def print_summary(results: list[dict]) -> None:
 # SECTION 6 — Point d'entrée CLI
 # ══════════════════════════════════════════════════════════════════════════════
 
-STEP_NAMES = ["dbt_seed","dbt_run","dbt_test", "train", "predict", "backtest"]
+STEP_NAMES = ["dbt_seed","ingest","odds","process","dbt_run","dbt_test", "train", "predict", "backtest"]
 
 
 def parse_args() -> argparse.Namespace:
@@ -453,10 +463,15 @@ def parse_args() -> argparse.Namespace:
         epilog="""
 Exemples :
   python run_pipeline.py                        # pipeline complet
+  python run_pipeline.py --step ingest          # exécute l'étape d'ingestion
+  python run_pipeline.py --step odds            # exécute l'étape de calcul des cotes
+  python run_pipeline.py --step process         # exécute l'étape de traitement des données
   python run_pipeline.py --step dbt_seed        # seed les données
   python run_pipeline.py --step dbt_run         # exécute les modèles dbt
   python run_pipeline.py --step dbt_test        # exécute les tests dbt
   python run_pipeline.py --from train           # reprend depuis train
+  python run_pipeline.py --from predict         # reprend depuis predict
+  python run_pipeline.py --from backtest        # reprend depuis backtest
   python run_pipeline.py --dry-run              # simule sans exécuter
   python run_pipeline.py --list                 # liste les étapes
         """,
@@ -494,6 +509,11 @@ Exemples :
             "Le pipeline se déclenchera selon pipeline.cron dans config.yaml. "
             "Prérequis : prefect server start dans un terminal séparé."
         ),
+    )
+    parser.add_argument(
+    "--full-refresh",
+    action="store_true",
+    help="Force dbt seed --full-refresh (recrée les tables depuis zéro)",
     )
 
     return parser.parse_args()
@@ -555,7 +575,7 @@ def main() -> None:
 
     # ── Mode normal : exécution immédiate ─────────────────────────────────────
     # Construction des étapes (imports différés)
-    all_steps = build_steps(cfg)
+    all_steps = build_steps(cfg,full_refresh=args.full_refresh)
 
     # Filtrage selon les arguments CLI
     if args.step:
