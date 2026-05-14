@@ -1,0 +1,46 @@
+alias,competition_name,category
+Ligue 1,Ligue 1,Big5
+Premier League,Premier League,Big5
+La Liga,La Liga,Big5
+Bundesliga,Bundesliga,Big5
+Serie A,Serie A,Big5
+Ligue 2,Ligue 2,D2
+EFL Championship,Championship,D2
+Championship,Championship,D2
+La Liga 2,La Liga 2,D2
+Segunda División,La Liga 2,D2
+2. Bundesliga,2. Bundesliga,D2
+Serie B,Serie B,D2
+Coupe de France,Coupe de France,Cup
+Coupe de la Ligue,Coupe de la Ligue,Cup
+FA Cup,FA Cup,Cup
+EFL Cup,EFL Cup,Cup
+Carabao Cup,EFL Cup,Cup
+DFB-Pokal,DFB-Pokal,Cup
+Coppa Italia,Coppa Italia,Cup
+Copa del Rey,Copa del Rey,Cup
+Supercoupe de France,Supercoupe de France,Cup
+Community Shield,Community Shield,Cup
+DFL-Supercup,DFL-Supercup,Cup
+Supercoppa Italiana,Supercoppa Italiana,Cup
+Supercopa de España,Supercopa de España,Cup
+Trophée des Champions,Trophée des Champions,Cup
+UEFA Champions League,Champions League,Europe
+UEFA Europa League,Europa League,Europe
+UEFA Conference League,Conference League,Europe
+UEFA Super Cup,UEFA Super Cup,Europe
+ENG-Premier League,Premier League,Big5
+ESP-La Liga,La Liga,Big5
+FRA-Ligue 1,Ligue 1,Big5
+GER-Bundesliga,Bundesliga,Big5
+ITA-Serie A,Serie A,Big5
+Champions Lg,Champions League,Europe
+Europa Lg,Europa League,Europe
+Conf Lg,Conference League,Europe
+Super Cup,UEFA Super Cup,Europe
+Supercoppa,Supercoppa Italiana,Cup
+FA Community Shield,Community Shield,Cup
+FRA-Ligue 2,Ligue 2,D2
+ENG-Championship,Championship,D2
+League One,League One,Other
+Rel/Pro play-offs,Play-offs,Other
