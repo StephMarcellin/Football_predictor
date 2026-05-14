@@ -1,27 +1,93 @@
-﻿data/
-db/football.duckdb
-docs/
-logs/
-mlruns/
-/models/
-*.html
-*_files/
-.ipynb_checkpoints/
-secrets.yaml
-old/
-pipelines/structure_projet.txt
+﻿# ============================================================
+#  .gitignore — Projet 3-Étoiles
+# ============================================================
 
-# Python (fichiers compilés)
+# ── Secrets & credentials ─────────────────────────────────
+.env
+config/gcp-service-account.json
+config/whoscored_cookies.json
+old/secrets.yaml
+secrets.yaml
+
+# ── Python ────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
-# Environnement virtuel (très important pour ne pas envoyer 200 Mo de libs)
+# ── Environnements virtuels ───────────────────────────────
 .venv/
 venv/
 env/
 
-# Configuration IDE (si tu utilises VS Code)
+# ── Données (trop lourdes pour git) ───────────────────────
+data/raw/
+data/processed/
+data/features/
+data/
+db/
+downloaded_files/
+
+docs/
+
+# ── Modèles ML entraînés ──────────────────────────────────
+models/*.joblib
+models/*.pkl
+models/diagnostics/
+models/backtest_results.csv
+models/predictions_*.csv
+
+# ── MLflow ────────────────────────────────────────────────
+mlruns/
+
+# ── Logs ──────────────────────────────────────────────────
+logs/
+pipelines/logs/
+ref/logs/
+dbt_project/logs/
+
+# ── dbt artefacts compilés ────────────────────────────────
+dbt_project/target/
+dbt_project/dbt_packages/
+dbt_project/models/
+
+# ── Pipelines ───────────────────────────────────────────────
+pipelines/structure_projet.txt
+pipelines/old/
+
+# ── Prefect ───────────────────────────────────────────────
+.prefect/
+
+# ── Docker ────────────────────────────────────────────────
+.docker/
+
+# ── Terraform ─────────────────────────────────────────────
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+!terraform.tfvars.example
+
+# ── Notebooks ─────────────────────────────────────────────
+notebooks/.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ── OS ────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── IDE ───────────────────────────────────────────────────
 .vscode/
-*.json 
- 
+.idea/
+*.code-workspace
+*.json
  
