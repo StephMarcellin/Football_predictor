@@ -41,8 +41,13 @@ import subprocess
 from prefect import flow, task
 from prefect.cache_policies import NO_CACHE
 
+import mlflow
+from prefect.artifacts import create_markdown_artifact
+
 import yaml
 from loguru import logger
+
+from agent_gemini import run_post_pipeline_analysis
 
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -149,8 +154,9 @@ def run_dbt_run(select: str = None) -> None:
     logger.info(result.stdout[-2000:])
     if result.returncode != 0:
         raise RuntimeError(f"dbt run a échoué :\n{result.stderr[-1000:]}")
-        
-# ── Logger orchestrateur ──────────────────────────────────────────────────────
+
+
+#  ── Logger orchestrateur ──────────────────────────────────────────────────────
 # Un log dédié à l'orchestrateur, séparé des logs des scripts individuels.
 Path("logs").mkdir(exist_ok=True)
 logger.add(
@@ -178,6 +184,7 @@ def make_run_step_task(retries: int, retry_delay_seconds: int):
     on peut passer retries et retry_delay_seconds issus du YAML.
     """
     @task(
+        task_run_name="{step_name}",
         log_prints=True,
         cache_policy=NO_CACHE,
         retries=retries,
@@ -266,6 +273,7 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
         mod_04 = _import_from_path("train_04",    ROOT_DIR / "pipelines" / "04_train.py")
         mod_05 = _import_from_path("predict_05",  ROOT_DIR / "pipelines" / "05_predict.py")
         mod_06 = _import_from_path("backtest_06", ROOT_DIR / "pipelines" / "06_backtest.py")
+        mod_07 = _import_from_path("agent_analysis", ROOT_DIR / "pipelines" / "agent_gemini.py")
 
     except FileNotFoundError as e:
         logger.error(f"Script introuvable : {e}")
@@ -333,8 +341,14 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
             },
             "critical": False,  # Un backtest qui plante ne bloque pas les prédictions du jour
         },
+        "agent_analysis": {
+            "fn":     run_post_pipeline_analysis,
+            "kwargs": {
+                "cfg": cfg
+            },
+            "critical": False,
+        }
     }
-
 
 def _import_from_path(module_name: str, path: Path):
     """
@@ -404,7 +418,14 @@ def run_pipeline(steps: dict, dry_run: bool = False, run_step_task=None) -> list
                     })
             break
 
-    return results
+    # ── Prefect Artifacts ─────────────────────────────────────────────────────
+    if not dry_run:
+        try:
+            create_prefect_artifacts(load_config())
+        except Exception as e:
+            logger.warning(f"Artifact non créé (non bloquant) : {e}")
+
+        return results
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -448,13 +469,78 @@ def print_summary(results: list[dict]) -> None:
     else:
         print("\n  ⊘ Pipeline interrompu (étapes ignorées)\n")
 
+def _get_latest_mlflow_metrics(experiment_name: str, run_name_prefix: str) -> dict:
+    """
+    Elle va chercher dans MLflow les métriques du dernier run qui correspond à un nom donné, 
+    et les retourne sous forme de dictionnaire
+    """
+    try:
+        client = mlflow.MlflowClient()
+        experiment = client.get_experiment_by_name(experiment_name)
+        if experiment is None:
+            return {}
+        runs = client.search_runs(
+            experiment_ids=[experiment.experiment_id],
+            filter_string=f"tags.`mlflow.runName` LIKE '{run_name_prefix}%'",
+            order_by=["start_time DESC"],
+            max_results=1,
+        )
+        return runs[0].data.metrics if runs else {}
+    except Exception as e:
+        logger.warning(f"Impossible de lire MLflow ({run_name_prefix}) : {e}")
+        return {}
+
+def create_prefect_artifacts(cfg: dict) -> None:
+    """Lit MLflow et publie un tableau de métriques dans l'UI Prefect."""
+    mlflow_uri = "file:///" + str(ROOT_DIR / cfg.get("mlflow", {}).get("tracking_uri", "mlruns"))
+    mlflow.set_tracking_uri(mlflow_uri)
+    print(f"MLflow Tracking URI : {mlflow_uri}")
+
+    train_m   = _get_latest_mlflow_metrics("football_1N2_stacking", "TwoStage")
+    backtest_m = _get_latest_mlflow_metrics("football_1N2_stacking", "backtest")
+
+    lines = ["# 📊 Métriques Pipeline 3-Étoiles\n"]
+
+    if train_m:
+        ll  = f"{train_m.get('log_loss', train_m.get('logloss', '—')):.4f}" if isinstance(train_m.get('log_loss', train_m.get('logloss')), float) else "—"
+        tll = f"{train_m.get('test_log_loss', train_m.get('test_logloss', '—')):.4f}" if isinstance(train_m.get('test_log_loss', train_m.get('test_logloss')), float) else "—"
+        acc = f"{train_m.get('accuracy', 0):.2%}" if train_m.get('accuracy') else "—"
+        lines += [
+            "## 🎯 Modèle\n",
+            "| Métrique | Val | Test OOS |",
+            "|---|---|---|",
+            f"| Log Loss | {ll} | {tll} |",
+            f"| Accuracy | {acc} | — |",
+            "",
+        ]
+
+    if backtest_m:
+        roi = backtest_m.get("roi", 0)
+        lines += [
+            "## 💰 Stratégie\n",
+            "| Métrique | Valeur |",
+            "|---|---|",
+            f"| ROI | **{roi:+.2%}** |" if isinstance(roi, float) else f"| ROI | {roi} |",
+            f"| Paris | {int(backtest_m.get('total_bets', 0))} |",
+            f"| Win Rate | {backtest_m.get('win_rate', 0):.2%} |" if backtest_m.get('win_rate') else "| Win Rate | — |",
+            f"| Max Drawdown | {backtest_m.get('max_drawdown', 0):.2%} |" if backtest_m.get('max_drawdown') else "| Max Drawdown | — |",
+            "",
+        ]
+
+    create_markdown_artifact(
+        key="pipeline-metrics",
+        markdown="\n".join(lines),
+        description="Métriques du dernier run complet",
+    )
+    logger.success("Prefect Artifact 'pipeline-metrics' publié")
+
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SECTION 6 — Point d'entrée CLI
 # ══════════════════════════════════════════════════════════════════════════════
 
-STEP_NAMES = ["dbt_seed","ingest","odds","process","dbt_run","dbt_test", "train", "predict", "backtest"]
-
+STEP_NAMES = ["dbt_seed","ingest","odds","process","dbt_run","dbt_test", "train", "predict", "backtest","agent_analysis"]
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -517,7 +603,6 @@ Exemples :
     )
 
     return parser.parse_args()
-
 
 def main() -> None:
     args = parse_args()
