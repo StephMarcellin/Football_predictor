@@ -61,6 +61,8 @@ help:
 #  PIPELINE COMPLET
 # ============================================================
 pipeline: check-env
+	start /B prefect server start
+	powershell -File tools\wait_for_prefect.ps1
 	$(PYTHON) $(PIPELINE)
 
 pipeline-dry: check-env
