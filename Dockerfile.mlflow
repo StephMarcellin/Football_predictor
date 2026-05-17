@@ -1,0 +1,14 @@
+FROM python:3.11-slim
+
+RUN apt-get update && apt-get install -y curl --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir mlflow==3.10.1
+
+EXPOSE 5000
+
+CMD ["mlflow", "server", \
+     "--host", "0.0.0.0", \
+     "--port", "5000", \
+     "--backend-store-uri", "/mlruns", \
+     "--default-artifact-root", "/mlruns", \
+     "--allowed-hosts", "*"]

@@ -1,26 +1,44 @@
 # ── Stockage & traitement ──────────────────────────────────────────────────
-duckdb>=0.10.0
-polars>=0.20.0
-pandas>=2.0.0          # compatibilité certaines libs ML
+duckdb==1.5.1
+polars==1.39.3
+pandas==2.3.3
+pyarrow==23.0.1
 
 # ── Machine Learning ───────────────────────────────────────────────────────
-scikit-learn>=1.4.0
-xgboost>=2.0.0
-lightgbm>=4.0.0
-imbalanced-learn>=0.12.0   # gestion déséquilibre 1N2
+scikit-learn==1.8.0
+lightgbm==4.6.0
+imbalanced-learn==0.14.1
+optuna==4.8.0
+shap==0.51.0
+joblib==1.5.3
 
 # ── Tracking expériences ───────────────────────────────────────────────────
-mlflow>=2.10.0
+mlflow==3.10.1
 
-# ── Dashboard ─────────────────────────────────────────────────────────────
-streamlit>=1.32.0
-plotly>=5.20.0
+# ── Orchestration ─────────────────────────────────────────────────────────
+prefect==3.6.29
+
+# ── Agent IA ──────────────────────────────────────────────────────────────
+google-genai==1.75.0
+httpx==0.28.1
+
+# ── dbt ───────────────────────────────────────────────────────────────────
+dbt-core==1.11.8
+dbt-duckdb==1.10.1
+
+# ── Scraping ──────────────────────────────────────────────────────────────
+requests==2.33.1
+beautifulsoup4==4.14.3
+lxml==6.0.2
+selenium==4.43.0
 
 # ── Utilitaires ───────────────────────────────────────────────────────────
-python-dotenv>=1.0.0
-loguru>=0.7.0
-pyyaml>=6.0
-tqdm>=4.66.0
+python-dotenv==1.2.2
+loguru==0.7.3
+PyYAML==6.0.3
+tqdm==4.67.3
+numpy==2.4.4
+scipy==1.17.1
 
-lxml
-optuna
+# ── Cloud ─────────────────────────────────────────────────────────────────
+# google-cloud-storage  ← à ajouter pour le bloc GCS
