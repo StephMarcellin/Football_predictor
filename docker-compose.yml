@@ -1,0 +1,77 @@
+# ============================================================
+#  docker-compose.yml — Projet 3-Étoiles
+#  Trois services : pipeline + prefect + mlflow
+#
+#  Usage :
+#    docker-compose up -d prefect mlflow   ← démarre les serveurs
+#    docker-compose run pipeline make train ← lance une étape
+#    docker-compose down                    ← arrête tout
+# ============================================================
+
+services:
+
+  # ── Service 1 : Pipeline ──────────────────────────────────────────────────
+  # Le pipeline Python principal.
+  # Contrairement à prefect et mlflow, il ne tourne pas en continu —
+  # on le lance à la demande avec "docker-compose run pipeline <commande>"
+  pipeline:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: projet3etoiles-pipeline
+    env_file:
+      - .env                          # charge GOOGLE_API_KEY, GCS_BUCKET_NAME, etc.
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000        # pointe vers le service mlflow
+      - PREFECT_API_URL=http://prefect:4200/api       # pointe vers le service prefect
+    volumes:
+      - ./data:/app/data              # données Bronze/Silver persistées sur l'hôte
+      - ./models:/app/models          # modèles entraînés persistés sur l'hôte
+      - ./logs:/app/logs              # logs persistés sur l'hôte
+      - ./mlruns:/app/mlruns          # métriques MLflow persistées sur l'hôte
+      - ./db:/app/db                  # DuckDB persisté sur l'hôte
+    depends_on:
+      - prefect
+      - mlflow
+    # Pas de "command" ici — on surcharge au runtime avec docker-compose run
+
+  # ── Service 2 : Prefect ───────────────────────────────────────────────────
+  # Serveur Prefect — UI sur http://localhost:4200
+  # Tourne en continu en arrière-plan
+  prefect:
+    image: prefecthq/prefect:3-latest   # image officielle Prefect
+    container_name: projet3etoiles-prefect
+    command: prefect server start --host 0.0.0.0
+    ports:
+      - "4200:4200"                   # accessible sur localhost:4200
+    volumes:
+      - prefect_data:/root/.prefect   # persiste la base de données Prefect
+    environment:
+      - PREFECT_UI_API_URL=http://localhost:4200/api
+    healthcheck:
+      disable: True
+
+  # ── Service 3 : MLflow ────────────────────────────────────────────────────
+  # Serveur MLflow — UI sur http://localhost:5000
+  # Tourne en continu en arrière-plan
+  mlflow:
+    build:
+      context: .
+      dockerfile: Dockerfile.mlflow
+    container_name: projet3etoiles-mlflow
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./mlruns:/mlruns
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+# ── Volumes nommés ────────────────────────────────────────────────────────
+# prefect_data est un volume Docker géré par Docker (pas un dossier hôte)
+# car la base SQLite de Prefect n'a pas besoin d'être accessible directement
+volumes:
+  prefect_data:

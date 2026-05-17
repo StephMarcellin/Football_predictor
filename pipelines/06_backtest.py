@@ -24,6 +24,7 @@ import numpy as np
 import pandas as pd
 import yaml
 from loguru import logger
+import mlflow
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
@@ -35,6 +36,7 @@ with open(ROOT_DIR / "config.yaml", encoding="utf-8") as f:
 DB_PATH    = ROOT_DIR / CFG["paths"]["duckdb"]
 MODEL_PATH = ROOT_DIR / "models" / "football_stacking_v1.joblib"
 OUTPUT_DIR = ROOT_DIR / "models"
+MLFLOW_URI = ROOT_DIR / CFG["mlflow"]["tracking_uri"]
 
 Path("logs").mkdir(exist_ok=True)
 logger.add(
@@ -503,6 +505,33 @@ def main(seasons: list[str]       = None,
     out_path = OUTPUT_DIR / "backtest_results.csv"
     df_sim.to_csv(out_path, index=False)
     logger.success(f"  Résultats sauvegardés : {out_path} ({len(df_sim)} paris)")
+
+    # ── Logging MLflow ────────────────────────────────────────────────────────
+    mlflow.set_tracking_uri(MLFLOW_URI)
+    mlflow.set_experiment("football_1N2_stacking")
+    print(f"MLflow Tracking URI : {MLFLOW_URI}")
+
+    with mlflow.start_run(run_name=f"backtest_{'_'.join(seasons)}"):
+        mlflow.log_params({
+            "seasons":        str(seasons),
+            "edge_min":       edge_min,
+            "confidence_min": confidence_min,
+            "kelly_fraction": KELLY_FRACTION,
+            "bankroll_init":  bankroll_init,
+        })
+        mlflow.log_metrics({
+            "total_bets":         float(metrics["total_bets"]),
+            "win_rate":           metrics["win_rate"],
+            "roi":                metrics["roi"],
+            "bankroll_final":     metrics["bankroll_final"],
+            "bankroll_growth":    metrics["bankroll_growth"],
+            "max_drawdown":       metrics["max_drawdown"],
+            "max_losing_streak":  float(metrics["max_losing_streak"]),
+            "avg_edge":           metrics["avg_edge"],
+            "total_profit":       metrics["total_profit"],
+        })
+        mlflow.log_artifact(str(out_path))
+        logger.success(f"MLflow loggé : ROI {metrics['roi']:+.2%} | {metrics['total_bets']} paris")
 
     # Résumé rapide console
     print(f"\n{'='*50}")

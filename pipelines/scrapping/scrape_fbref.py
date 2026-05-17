@@ -58,7 +58,7 @@ with open(MAIN_CFG, encoding="utf-8") as f:
 DATA_DIR = Path(MAIN_CFG_DATA["paths"]["raw_data"]) / "fbref" / "html"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-DB_PATH = Path(MAIN_CFG_DATA["paths"]["db"])
+DB_PATH = Path(MAIN_CFG_DATA["paths"]["duckdb"])
 
 LEAGUE_CONFIG = {
     "Premier League": {"fbref_id": "9",  "fbref_slug": "ENG-Premier-League"},

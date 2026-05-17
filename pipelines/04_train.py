@@ -59,11 +59,13 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 with open(ROOT_DIR / "config.yaml", encoding="utf-8") as f:
     CFG = yaml.safe_load(f)
 
-DB_PATH    = CFG["paths"]["duckdb"]
-MODELS_DIR = Path(CFG["paths"].get("models", "models"))
+DB_PATH    = ROOT_DIR / CFG["paths"]["duckdb"]
+MODELS_DIR = ROOT_DIR / CFG["paths"].get("models", "models")
 MODELS_DIR.mkdir(exist_ok=True)
+
 DIAG_DIR   = MODELS_DIR / "diagnostics"
 DIAG_DIR.mkdir(exist_ok=True)
+
 MLFLOW_URI = CFG.get("mlflow", {}).get("tracking_uri", "mlruns")
 TARGET     = "result_1n2"
 

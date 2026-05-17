@@ -33,3 +33,12 @@ seeds:
         club_tm_id: INTEGER
         market_value_m: DOUBLE
         season: VARCHAR
+    team_mapping:
+      +column_types:
+        alias: VARCHAR
+        club_name: VARCHAR
+    competition_mapping:
+      +column_types:
+        alias: VARCHAR
+        competition_name: VARCHAR
+        category: VARCHAR

@@ -37,6 +37,7 @@ Projet_3étoiles/
                 schema.yml
                 team_features_ws.sql
         seeds/
+            competition_mapping.csv
             team_mapping.csv
             transfermarkt_clubs.csv
         snapshots/
@@ -1001,6 +1002,7 @@ Projet_3étoiles/
                             player_match_stats.sql
                             team_features_ws.sql
                     seeds/
+                        competition_mapping.csv
                         team_mapping.csv
                         transfermarkt_clubs.csv
         tests/
@@ -1019,18 +1021,29 @@ Projet_3étoiles/
     logs/
         agent_manager.log
         auditor.log
+        audit_unmapped.2026-04-14_10-51-17_504867.log
+        audit_unmapped.2026-05-13_12-44-58_013266.log
         audit_unmapped.log
+        backtest.2026-04-15_15-18-02_689885.log
         backtest.log
         dbt.log
+        dbt_run_last.log
+        dbt_seed_last.log
+        enrich_team_mapping.log
         features.log
         features_draw.log
         features_draw_behavior.log
         features_match_details.log
         features_pipeline.log
         features_sandbox.log
+        ingest.2026-04-10_09-07-49_432366.log
+        ingest.2026-05-13_12-44-51_974939.log
         ingest.log
+        odds.2026-04-15_13-55-26_670403.log
         odds.log
+        pipeline.2026-04-29_18-01-29_908457.log
         pipeline.log
+        process.2026-04-14_10-50-51_943944.log
         process.log
         ref_tables.log
         scrape_fbref.log
@@ -1038,6 +1051,9 @@ Projet_3étoiles/
         scrape_whoscored.log
         scrape_whoscored_details.log
         scrape_whoscored_match.log
+        train.2026-04-14_18-04-53_517149.log
+        train.2026-05-13_12-44-54_777827.log
+        train.2026-05-13_14-35-11_526274.log
         train.log
         whoscored_details_tracking.csv
         whoscored_indexing_tracking.csv
@@ -1069,8 +1085,14 @@ Projet_3étoiles/
         run_pipeline.py
         logs/
             agent.log
+            audit_unmapped.log
+            backtest.log
+            ingest.log
+            odds.log
             pipeline.log
+            process.log
             scrape_transfermarkt.log
+            train.log
         old/
             03b_features_match_details.py
             03c_features_draw_behavior.py
@@ -1113,5 +1135,7 @@ Projet_3étoiles/
         agent_insights.md
         strategy_audit_report.md
     tools/
+        dbt_to_obsidian.py
+        enrich_team_mapping.py
         generer_tree.py
         structure_projet.txt

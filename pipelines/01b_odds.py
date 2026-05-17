@@ -1,5 +1,5 @@
 """
-Pipeline 05 — Odds
+Pipeline 01b — Odds
 ==================
 Charge les fichiers CSV football-data.co.uk depuis data/raw/bets/,
 normalise les noms d'équipes via team_mapping du config.yaml,
@@ -10,15 +10,16 @@ Pattern fichiers : {LEAGUE_SLUG}_{SEASON_CODE}.csv
 Ex : ENG-Premier League_1718.csv
 
 Usage :
-    python pipelines/05_odds.py
-    python pipelines/05_odds.py --reset
+    python pipelines/01b_odds.py
+    python pipelines/01b_odds.py --reset
 """
 
 import argparse
 import re
 from pathlib import Path
+from thefuzz import process, fuzz
 
-import duckdb
+import duckdb as _duckdb  # pour éviter conflit avec le paramètre duckdb dans les fonctions
 import pandas as pd
 import yaml
 from loguru import logger
@@ -31,9 +32,10 @@ with open(ROOT_DIR / "config.yaml", encoding="utf-8") as f:
     CFG = yaml.safe_load(f)
 
 DB_PATH      = ROOT_DIR / CFG["paths"]["duckdb"]
-BETS_DIR     = ROOT_DIR / "data" / "raw" / "bets"
-TEAM_MAPPING = CFG.get("team_mapping", {})
+BETS_DIR     = ROOT_DIR / CFG["paths"]["raw_data"]/ "bets"
 
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
 Path("logs").mkdir(exist_ok=True)
 logger.add(
     "logs/odds.log",
@@ -46,6 +48,28 @@ logger.add(
 
 # ── Mapping fichier → league_source canonical ─────────────────────────────────
 
+# Mapping de normalisation des noms d'équipes (chargé depuis config.yaml)
+# Clé = nom brut tel qu'il apparaît dans les fichiers sources
+# Valeur = nom canonique utilisé dans tout le pipeline
+def _load_team_mapping() -> dict[str, str]:
+    """
+    Charge le team_mapping depuis referentiel.team_mapping dans DuckDB.
+    Retourne un dict vide (avec WARNING) si la table est absente,
+    pour ne pas bloquer l'ingestion si DuckDB n'est pas encore initialisé.
+    """
+    try:
+        con = _duckdb.connect(str(DB_PATH), read_only=True)
+        rows = con.execute(
+            "SELECT club_name, alias FROM referentiel.team_mapping"
+        ).fetchall()
+        con.close()
+        return {alias: club_name  for club_name , alias in rows}
+    except Exception as e:
+        logger.warning(f"[ingest] Impossible de charger referentiel.team_mapping : {e}")
+        return {}
+
+TEAM_MAPPING: dict[str, str] = _load_team_mapping()
+
 # Clé = préfixe du fichier (avant le _XXXX.csv)
 # Valeur = league_source tel qu'il existe dans gold.features_final
 FILE_SLUG_TO_LEAGUE = {
@@ -57,62 +81,52 @@ FILE_SLUG_TO_LEAGUE = {
 }
 
 # Mapping code saison fichier → format YYYY-YYYY
-def parse_season_code(code: str) -> str:
-    """
-    '1718' → '2017-2018'
-    '2526' → '2025-2026'
-    """
-    y1 = int(code[:2])
-    y2 = int(code[2:])
-    # Pivot sur 17 : 17+ = 2017+, sinon 2000+
-    full_y1 = 2000 + y1
-    full_y2 = 2000 + y2
-    return f"{full_y1}-{full_y2}"
+def parse_season(code: str) -> str:
+    """'2122' → '2021-2022'"""
+    if len(code) == 4 and code.isdigit():
+        return f"20{code[:2]}-20{code[2:]}"
+    return code
 
 
 # ── Normalisation équipes ─────────────────────────────────────────────────────
+def normalize_team(name: str, source: str) -> str:
+    if not name or not isinstance(name, str):
+        return name
 
-def _slugify(text: str) -> str:
-    if not text:
-        return ""
-    text = text.lower()
-    text = re.sub(r"[^a-z0-9]", " ", text)
-    return " ".join(text.split())
+    clean_name = name.strip()
 
+    # 1. Lookup exact en mémoire
+    if clean_name in TEAM_MAPPING:
+        return TEAM_MAPPING[clean_name]
 
-# Pré-calcul slug mapping pour perf O(1)
-_SLUG_TEAM_MAPPING = {_slugify(k): v for k, v in TEAM_MAPPING.items()}
+    # 2. Fuzzy matching sur les clés existantes (seuil 90%)
+    known_keys = list(TEAM_MAPPING.keys())
+    if known_keys:
+        match, score = process.extractOne(clean_name, known_keys, scorer=fuzz.token_sort_ratio)
+        if score >= 90:
+            logger.info(f"[{source}] Fuzzy match : '{clean_name}' → '{match}' ({score}%)")
+            return TEAM_MAPPING[match]
 
+    # 3. Nouvelle équipe — INSERT dans referentiel.team_mapping
+    logger.warning(
+        f"[{source}] Nouvelle équipe détectée : '{clean_name}'. "
+        f"Ajout dans referentiel.team_mapping (raw=canonical par défaut)."
+    )
+    try:
+        con = _duckdb.connect(str(DB_PATH))
+        con.execute("""
+            INSERT INTO referentiel.team_mapping (club_name, alias)
+            SELECT ?, ?
+            WHERE NOT EXISTS (
+                SELECT 1 FROM referentiel.team_mapping WHERE alias = ?
+            )
+        """, [clean_name, clean_name, clean_name])
+        con.close()
+        TEAM_MAPPING[clean_name] = clean_name  # sync mémoire pour la session
+    except Exception as e:
+        logger.error(f"[{source}] Impossible d'écrire dans referentiel.team_mapping : {e}")
 
-def normalize_team(name: str) -> str:
-    """
-    Normalise un nom d'équipe football-data.co.uk vers le canonical
-    du team_mapping config.yaml.
-    Même logique que normalize_team_col dans 02_process.py.
-    """
-    if not name or pd.isna(name):
-        return "Unknown"
-
-    name = str(name).strip()
-
-    # Étape 1 : lookup direct
-    canonical = TEAM_MAPPING.get(name)
-    if canonical:
-        return canonical
-
-    # Étape 2 : lookup slug
-    canonical = _SLUG_TEAM_MAPPING.get(_slugify(name))
-    if canonical:
-        return canonical
-
-    # Étape 3 : nettoyage préfixe langue (frPSG → PSG) puis retry
-    clean = re.sub(r'^[a-z]+(?=[A-Z])', '', name)
-    canonical = TEAM_MAPPING.get(clean) or _SLUG_TEAM_MAPPING.get(_slugify(clean))
-    if canonical:
-        return canonical
-
-    logger.warning(f"  AUDIT équipe non mappée : '{name}' → garder brut")
-    return name
+    return clean_name
 
 
 # ── Probabilités implicites ───────────────────────────────────────────────────
@@ -159,8 +173,8 @@ def parse_odds_file(filepath: Path, league_source: str, season: str) -> pd.DataF
     df = df.dropna(subset=["Date", "HomeTeam", "AwayTeam"])
 
     # Normalisation équipes
-    df["home_team"] = df["HomeTeam"].apply(normalize_team)
-    df["away_team"] = df["AwayTeam"].apply(normalize_team)
+    df["home_team"] = df["HomeTeam"].apply(normalize_team, source = 'odds')
+    df["away_team"] = df["AwayTeam"].apply(normalize_team, source = 'odds')
 
     # Résultat réel (vérification cohérence)
     df["result_fdc"] = df["FTR"].map({"H": "H", "D": "D", "A": "A"})
@@ -264,7 +278,7 @@ def load_all_odds() -> pd.DataFrame:
             stats["skip"] += 1
             continue
 
-        season = parse_season_code(season_code)
+        season = parse_season(season_code)
 
         logger.debug(f"  Chargement : {filepath.name} → {league_source} {season}")
 
@@ -290,7 +304,7 @@ def load_all_odds() -> pd.DataFrame:
 
 # ── Écriture dans DuckDB ──────────────────────────────────────────────────────
 
-def write_to_duckdb(df: pd.DataFrame, conn: duckdb.DuckDBPyConnection, reset: bool = False):
+def write_to_duckdb(df: pd.DataFrame, conn: _duckdb.DuckDBPyConnection, reset: bool = False):
     """Crée silver.odds et insère les données."""
     conn.execute("CREATE SCHEMA IF NOT EXISTS silver")
 
@@ -334,7 +348,7 @@ def write_to_duckdb(df: pd.DataFrame, conn: duckdb.DuckDBPyConnection, reset: bo
 
 # ── Audit jointure ────────────────────────────────────────────────────────────
 
-def audit_join(conn: duckdb.DuckDBPyConnection):
+def audit_join(conn: _duckdb.DuckDBPyConnection):
     """
     Vérifie le taux de jointure entre silver.odds et gold.features_final.
     On joint sur (date, home_team = team WHERE venue = Home, league_source, season).
@@ -415,7 +429,7 @@ def main(reset: bool = False):
 
     df = load_all_odds()
 
-    conn = duckdb.connect(str(DB_PATH))
+    conn = _duckdb.connect(str(DB_PATH))
     write_to_duckdb(df, conn, reset=reset)
     audit_join(conn)
     conn.close()

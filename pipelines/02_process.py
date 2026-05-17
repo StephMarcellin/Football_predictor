@@ -69,10 +69,11 @@ import hashlib
 from loguru import logger
 
 # ── Config ────────────────────────────────────────────────────────────────────
-with open("config.yaml", encoding="utf-8") as f:
+ROOT_DIR = Path(__file__).resolve().parent.parent
+with open(ROOT_DIR / "config.yaml", encoding="utf-8") as f:
     CFG = yaml.safe_load(f)
 
-DB_PATH  = Path(CFG["paths"]["db"])
+DB_PATH  = Path(CFG["paths"]["duckdb"])
 RAW_DIR  = Path(CFG["paths"]["raw_data"])
 
 # Chargement dynamique depuis config.yaml
@@ -94,7 +95,7 @@ def _init_team_mapping(con: duckdb.DuckDBPyConnection) -> None:
         rows = con.execute(
             "SELECT club_name, alias FROM referentiel.team_mapping"
         ).fetchall()
-        TEAM_MAPPING = {raw: canonical for raw, canonical in rows}
+        TEAM_MAPPING = {alias: club_name  for club_name , alias in rows}
         logger.info(f"  team_mapping chargé : {len(TEAM_MAPPING)} entrées")
     except Exception as e:
         logger.error(f"  Impossible de charger referentiel.team_mapping : {e}")
@@ -116,16 +117,43 @@ def _init_competition_mapping(con: duckdb.DuckDBPyConnection) -> None:
     global COMP_TO_CANONICAL, COMP_TO_CATEGORY
     try:
         rows = con.execute("""
-            SELECT name, canonical, category
+            SELECT alias, competition_name, category
             FROM referentiel.competition_mapping
         """).fetchall()
-        COMP_TO_CANONICAL = {raw: canonical for raw, canonical, _ in rows}
-        COMP_TO_CATEGORY  = {raw: category  for raw, _, category  in rows}
+        COMP_TO_CANONICAL = {alias: competition_name for alias, competition_name, _ in rows}
+        COMP_TO_CATEGORY  = {alias: category  for alias, _, category  in rows}
         logger.info(f"  competition_mapping chargé : {len(COMP_TO_CANONICAL)} entrées")
     except Exception as e:
         logger.error(f"  Impossible de charger referentiel.competition_mapping : {e}")
         COMP_TO_CANONICAL = {}
         COMP_TO_CATEGORY  = {}
+
+# TM_CLUBS : set de (club_name, season, league) depuis referentiel.transfermarkt_clubs.
+# Couvre toutes les équipes D1/D2 Big5 sur les saisons du projet.
+# Permet de distinguer "variante manquante dans team_mapping" (présente ici)
+# de "équipe réellement mineure" (absente).
+# Initialisé à vide — rempli par _init_transfermarkt(con) dans main().
+TM_CLUBS: set[tuple[str, str, str]] = set()
+
+def _init_transfermarkt(con: duckdb.DuckDBPyConnection) -> None:
+    """
+    Charge referentiel.transfermarkt_clubs dans TM_CLUBS.
+    Chaque entrée est un triplet (club_name, season, league).
+    Les club_name correspondent aux alias de team_mapping après
+    enrichissement par enrich_team_mapping.py.
+    Appelé une seule fois dans main() après _init_competition_mapping().
+    """
+    global TM_CLUBS
+    try:
+        rows = con.execute("""
+            SELECT club_name, season, league
+            FROM referentiel.transfermarkt_clubs
+        """).fetchall()
+        TM_CLUBS = {(club, season, league) for club, season, league in rows}
+        logger.info(f"  transfermarkt_clubs chargé : {len(TM_CLUBS)} entrées")
+    except Exception as e:
+        logger.error(f"  Impossible de charger referentiel.transfermarkt_clubs : {e}")
+        TM_CLUBS = set()
 
 # ── Logs ──────────────────────────────────────────────────────────────────────
 Path("logs").mkdir(exist_ok=True)
@@ -320,166 +348,110 @@ def normalize_competition_col(df: pl.DataFrame, col: str, source: str) -> pl.Dat
 # NORMALISATION — ÉQUIPES
 # ══════════════════════════════════════════════════════════════════════════════
 
+def _check_transfermarkt(canonical: str, season_raw: str, league: str) -> bool:
+    """
+    Vérifie si un nom est présent dans TM_CLUBS pour une saison/ligue données.
+
+    La saison peut être dans n'importe quel format brut à ce stade du pipeline
+    (ex: "2021", "2122", "2021-22") — on normalise via _parse_season_str()
+    avant la comparaison, sans modifier le DataFrame.
+
+    Retourne True si le triplet (canonical, season_norm, league) est trouvé.
+    """
+    season_norm = _parse_season_str(str(season_raw))
+    return (canonical, season_norm, league) in TM_CLUBS
+
+
 def normalize_team_col(
     df: pl.DataFrame,
     col: str,
     source: str,
-    conn: duckdb.DuckDBPyConnection | None = None
+    conn: duckdb.DuckDBPyConnection | None = None,
 ) -> pl.DataFrame:
+    """
+    Normalise une colonne de noms d'équipes en deux niveaux.
+
+    Niveau 1 — team_mapping (exact puis slug)
+        Lookup exact dans TEAM_MAPPING[raw_name].
+        Si échec → slugification et lookup dans slug_team_mapping.
+        Si trouvé → nom canonique.
+
+    Niveau 2 — vérification Transfermarkt
+        Appelé uniquement si le Niveau 1 a échoué ET que season +
+        league_source sont disponibles dans le DataFrame.
+
+        On cherche (raw_name, season, league_source) dans TM_CLUBS.
+
+        Trouvé  → équipe D1/D2 connue mais variante absente de team_mapping
+                  → WARNING fort + _UNMAPPED_REGISTRY
+                  → nom brut conservé (pas "Minor Club")
+        Absent  → équipe réellement mineure (Nationale 1, Coupe, etc.)
+                  → "Minor Club" silencieux
+
+    Colonne ajoutée : raw_{col} (nom brut original, traçabilité)
+    """
     if col not in df.columns:
         return df
 
-    # --- Sauvegarde du nom initial brut ---
-    df = df.with_columns(
-        pl.col(col).alias(f"raw_{col}")
-    )
+    # Sauvegarde du nom brut pour la traçabilité
+    df = df.with_columns(pl.col(col).alias(f"raw_{col}"))
 
-    # 1. Préparation des mappings
-    slug_team_mapping = {_slugify(k): v for k, v in TEAM_MAPPING.items()}
+    # Pré-calcul du slug_mapping pour le Niveau 1
+    slug_team_mapping: dict[str, str] = {
+        _slugify(k): v for k, v in TEAM_MAPPING.items()
+    }
+
+    has_season = "season" in df.columns
+    has_league = "league_source" in df.columns
+
     unique_names = df.select(col).unique().drop_nulls()[col].to_list()
-
     local_map: dict[str, str] = {}
-    clean_map: dict[str, str] = {}
 
     for name in unique_names:
         raw_name = name.strip()
 
-        # --- ÉTAPE 1 : Nettoyage Suffixes & Préfixes ---
-        clean = re.sub(r'^[a-z]+(?=[A-Z])', '', raw_name)
-        # clean = re.sub(r' (Foot|FC|AS|Club|CF|)$', '', clean, flags=re.IGNORECASE).strip()
-        clean_map[name] = clean
-
-        # --- ÉTAPE 2 & 3 : Direct & Slug ---
+        # ── Niveau 1 : team_mapping (exact puis slug) ─────────────────────────
         canonical = TEAM_MAPPING.get(raw_name)
-
         if canonical is None:
-            name_slug = _slugify(raw_name)
-            canonical = slug_team_mapping.get(name_slug)
+            canonical = slug_team_mapping.get(_slugify(raw_name))
 
-        if canonical is None:
-            canonical = TEAM_MAPPING.get(clean) or slug_team_mapping.get(_slugify(clean))
-
-        # --- ÉTAPE 4 : Attribution ---
-        if canonical:
+        if canonical is not None:
             local_map[name] = canonical
-        else:
-            if name not in ["Minor Club", "None", ""]:
-                _UNMAPPED_REGISTRY[f"{source}__teams"].add(name)
-            local_map[name] = "Minor Club"
+            continue
 
-    # --- ÉTAPE 5 : Validation contre le référentiel ---
-    if conn is not None:
-        # Clubs qui vont être mappés en Minor Club
-        minor_club_names = {
-            name for name, canonical in local_map.items()
-            if canonical == "Minor Club"
-            and name not in ["Minor Club", "None", ""]
-        }
-
-        if minor_club_names and "season" in df.columns and "league_source" in df.columns:
-            # Récupérer les triplets (raw_name, season, league) des lignes concernées
-            suspects_df = (
-                df.filter(pl.col(col).is_in(list(minor_club_names)))
-                .select([col, "season", "league_source"])
+        # ── Niveau 2 : vérification Transfermarkt ─────────────────────────────
+        if has_season and has_league and TM_CLUBS:
+            rows_for_name = (
+                df.filter(pl.col(col) == name)
+                .select(["season", "league_source"])
                 .unique()
+                .iter_rows(named=True)
+            )
+            found_in_tm = any(
+                _check_transfermarkt(raw_name, row["season"], row["league_source"])
+                for row in rows_for_name
             )
 
-            if len(suspects_df) > 0:
-                # Charger le référentiel depuis DuckDB
-                try:
-                    ref = conn.execute("""
-                                            SELECT club_name, season, league
-                                            FROM referentiel.transfermarkt_clubs
-                                        """).pl()
+            if found_in_tm:
+                # Équipe D1/D2 connue mais variante manquante dans team_mapping
+                logger.warning(
+                    f"AUDIT [{source}][{col}] Variante manquante dans team_mapping : "
+                    f"'{raw_name}' trouvé dans transfermarkt_clubs "
+                    f"— ajouter dans la seed team_mapping"
+                )
+                _UNMAPPED_REGISTRY[f"{source}__missing_variants"].add(raw_name)
+                # Nom brut conservé : la ligne reste exploitable
+                local_map[name] = raw_name
+                continue
 
-                    # Joindre sur le nom canonique potentiel
-                    # On utilise raw_team slugifié vs référentiel slugifié
-                    ref_set = set(zip(ref["club_name"], ref["season"], ref["league"]))
+        # Ni dans team_mapping ni dans Transfermarkt → vraiment mineure
+        local_map[name] = "Minor Club"
 
-                    # Pour chaque suspect, vérifier si son nom nettoyé
-                    # correspond à un club du référentiel
-                    alerts = []
-                    for row in suspects_df.iter_rows(named=True):
-                        raw   = row[col]
-                        season = row["season"]
-                        league = row["league_source"]
-                        # Vérification directe et slugifiée vs référentiel
-                        for ref_team, ref_season, ref_league in ref_set:
-                            if (
-                                ref_season == season
-                                and ref_league == league
-                                and (
-                                    _slugify(raw) == _slugify(ref_team)
-                                    or _slugify(clean_map.get(raw, raw)) == _slugify(ref_team)
-                                )
-                            ):
-                                alerts.append({
-                                    "raw_name"    : raw,
-                                    "ref_team"    : ref_team,
-                                    "season"      : season,
-                                    "league"      : league,
-                                    "suggestion"  : f"Ajouter '{raw}': '{ref_team}' dans team_mapping"
-                                })
-                                break
-
-                    if alerts:
-                        alerts_df = pl.DataFrame(alerts)
-                        logger.warning(
-                            f"[{source}][{col}] {len(alerts)} clubs du référentiel "
-                            f"mappés en 'Minor Club' — variantes manquantes dans la table Transfermarkt :\n"
-                            f"{str(alerts_df)}"
-                        )
-                        # Log aussi dans audit_unmapped
-                        for a in alerts:
-                            _UNMAPPED_REGISTRY[f"{source}__referentiel_suspects"].add(
-                                f"{a['raw_name']} → {a['ref_team']} ({a['season']}, {a['league']})"
-                            )
-
-                except Exception as e:
-                    logger.warning(
-                        f"[{source}][{col}] Validation référentiel impossible : {e}"
-                    )
-
-    # --- ÉTAPE 6 : Application des transformations ---
-    if local_map:
-        df = df.with_columns([
-            pl.col(col).replace_strict(clean_map, default=pl.col(col)).alias(f"clean_{col}"),
-            pl.col(col).replace_strict(local_map, default=pl.col(col)).alias(col)
-        ])
-
-    return df
-
-def validate_against_referentiel(
-    df: pl.DataFrame,
-    ref: pl.DataFrame,
-    source: str
-) -> pl.DataFrame:
-    """
-    Détecte les clubs normalisés en 'Minor Club' alors qu'ils sont
-    dans le référentiel — signe d'une variante manquante dans config.yaml
-    ou d'un bug dans normalize_team_col().
-    """
-    if "team" not in df.columns or "season" not in df.columns:
-        return df
-
-    # Clubs du référentiel pour ce contexte
-    ref_teams = set(zip(ref["club_name"], ref["season"], ref["league"]))
-
-    # Lignes Minor Club qui devraient être mappées
-    suspects = df.filter(
-        (pl.col("team") == "Minor Club") &
-        pl.struct(["raw_team", "season", "league_source"]).map_elements(
-            lambda s: (s["raw_team"], s["season"], s["league_source"]) in ref_teams,
-            return_dtype=pl.Boolean
-        )
+    # Application du mapping sur le DataFrame
+    df = df.with_columns(
+        pl.col(col).replace_strict(local_map, default=pl.col(col)).alias(col)
     )
 
-    if len(suspects) > 0:
-        logger.warning(
-            f"[{source}] {len(suspects)} clubs référentiel mappés en 'Minor Club' "
-            f"— variantes manquantes dans la table Transfermarkt :\n"
-            f"{suspects.select(['raw_team','season','league_source']).unique().to_pandas().to_string()}"
-        )
     return df
 
 
@@ -1055,15 +1027,8 @@ SOURCE_PROCESSORS = {
 }
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Process Bronze Parquet → Silver DuckDB silver.*"
-    )
-    parser.add_argument("--source", default=None, choices=list(SOURCE_PROCESSORS.keys()))
-    parser.add_argument("--reset", action="store_true")
-    parser.add_argument("--audit-only", action="store_true",
-                        help="Quality check uniquement, sans retraiter les données")
-    args = parser.parse_args()
+def main(source: str = None, reset: bool = False, audit_only: bool = False) -> None:
+    
 
     logger.info("=== Démarrage process Bronze → Silver ===")
 
@@ -1074,13 +1039,14 @@ def main() -> None:
     # Initialisation des mappings (chargement en mémoire + log des entités manquantes)
     _init_team_mapping(con)
     _init_competition_mapping(con)
+    _init_transfermarkt(con)
 
-    if args.audit_only:
+    if audit_only:
         run_quality_check(con)
         con.close()
         return
 
-    if args.reset:
+    if reset:
         tables = [r[0] for r in con.execute(
             "SELECT table_name FROM information_schema.tables "
             "WHERE table_schema='silver'"
@@ -1089,7 +1055,7 @@ def main() -> None:
             con.execute(f"DROP TABLE IF EXISTS silver.{t}")
         logger.info(f"  {len(tables)} table(s) supprimée(s) (--reset)")
 
-    sources = [args.source] if args.source else list(SOURCE_PROCESSORS.keys())
+    sources = [source] if source else list(SOURCE_PROCESSORS.keys())
 
     for source in sources:
         logger.info(f"── Source : {source} ───────────────────────────────────")
@@ -1105,4 +1071,12 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(
+        description="Process Bronze Parquet → Silver DuckDB silver.*"
+    )
+    parser.add_argument("--source", default=None, choices=list(SOURCE_PROCESSORS.keys()))
+    parser.add_argument("--reset", action="store_true")
+    parser.add_argument("--audit-only", action="store_true",
+                        help="Quality check uniquement, sans retraiter les données")
+    args = parser.parse_args()
+    main(source = args.source, reset=args.reset, audit_only=args.audit_only)

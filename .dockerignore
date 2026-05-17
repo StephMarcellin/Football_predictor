@@ -1,0 +1,50 @@
+# ============================================================
+#  .dockerignore — Projet 3-Étoiles
+#  Fichiers exclus du contexte de build Docker.
+#  Même logique que .gitignore mais pour Docker.
+#  Réduire le contexte = build plus rapide + image plus légère.
+# ============================================================
+
+# ── Secrets ───────────────────────────────────────────────
+.env
+config/gcp-service-account.json
+
+# ── Données (trop lourdes) ────────────────────────────────
+data/
+db/
+downloaded_files/
+
+# ── Modèles entraînés ─────────────────────────────────────
+models/
+
+# ── MLflow ────────────────────────────────────────────────
+mlruns/
+
+# ── Logs ──────────────────────────────────────────────────
+logs/
+
+# ── Python ────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# ── Environnement virtuel ─────────────────────────────────
+.venv/
+venv/
+
+# ── dbt artefacts compilés ────────────────────────────────
+dbt_project/target/
+dbt_project/dbt_packages/
+
+# ── Terraform ─────────────────────────────────────────────
+.terraform/
+*.tfstate
+
+# ── OS / IDE ──────────────────────────────────────────────
+.DS_Store
+.vscode/
+Thumbs.db
+
+# ── Git ───────────────────────────────────────────────────
+.git/

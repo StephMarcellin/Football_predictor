@@ -27,7 +27,7 @@ from loguru import logger
 with open("config.yaml", encoding="utf-8") as f:
     CFG = yaml.safe_load(f)
 
-DB_PATH    = CFG["paths"]["db"]
+DB_PATH    = CFG["paths"]["duckdb"]
 MODEL_PATH = Path("models/football_stacking_v1.joblib")
 OUT_DIR    = Path("models/diagnostics")
 OUT_DIR.mkdir(parents=True, exist_ok=True)

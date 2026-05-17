@@ -38,9 +38,12 @@ from loguru import logger
 import httpx
 import subprocess
 
+from prefect.artifacts import create_markdown_artifact
+
 load_dotenv()
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
+PREFECT_API: str = "http://127.0.0.1:4200/api"
 
 # Force UTF-8 sur stdout/stderr Windows
 if sys.platform == "win32":
@@ -161,7 +164,8 @@ def read_logs(n_lines: int = 100, log_file: str = "pipeline.log") -> str:
 # ── Outil 2 : get_pipeline_status() ──────────────────────────────────────────
 
 
-PREFECT_API: str = "http://127.0.0.1:4200/api"
+
+
 def get_pipeline_status(n_runs: int = 10) -> str:
     """
     Interroge l'API Prefect locale pour récupérer l'historique des runs.
@@ -856,6 +860,49 @@ def run_agent_turn(
 
     return "⚠️ L'agent n'a pas pu produire de réponse dans la limite de tours autorisés."
 
+def run_post_pipeline_analysis(cfg: dict) -> str:
+    """
+    Analyse automatique post-pipeline, conçue pour être appelée
+    depuis run_pipeline.py comme task Prefect finale.
+
+    Pas d'interaction humaine — l'agent travaille en autonomie
+    et retourne une synthèse textuelle.
+    """
+    client, model_name = init_client(cfg)
+    model_fallback = cfg.get("agent", {}).get("model_fallback", "gemini-2.0-flash-lite")
+    max_turns = cfg.get("agent", {}).get("max_turns", 10)
+
+    question = """
+    Le pipeline 3-Étoiles vient de terminer son exécution.
+    
+    Effectue une analyse complète en suivant ces étapes :
+    1. Consulte l'historique Prefect pour voir le statut du dernier run
+    2. Lis les logs pipeline pour identifier erreurs ou anomalies
+    3. Consulte les résultats du backtest pour évaluer la performance
+    
+    Puis produis une synthèse structurée avec :
+    - Statut global du run (succès / échec partiel / échec)
+    - Points d'attention identifiés
+    - Performance de la stratégie (ROI, paris)
+    - Recommandation : faut-il relancer une étape ? Laquelle et pourquoi ?
+    
+    Termine par une conclusion en une phrase.
+    """
+
+    contents: list = []
+    synthese = run_agent_turn(
+            client, model_name, contents,
+            question, max_turns, verbose=False,
+            model_fallback=model_fallback,
+        )
+    try:
+        create_markdown_artifact(
+            key="agent-synthese",
+            markdown=f"# 🤖 Synthèse Agent Gemini\n\n{synthese}",
+            description="Synthèse de l'analyse post-pipeline",
+        )
+    except Exception:
+        pass
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SECTION 5 — Initialisation
@@ -934,6 +981,7 @@ def main() -> None:
         answer = run_agent_turn(client, model_name, contents, user_input, max_turns, verbose, model_fallback)
         print(answer)
         print()
+
 
 
 if __name__ == "__main__":
