@@ -137,6 +137,21 @@ list-steps:
 install:
 	pip install -r requirements.txt
 
+# Docker
+docker-build:
+	docker-compose build
+
+docker-up:
+	docker-compose up -d prefect mlflow
+
+docker-down:
+	docker-compose down
+
+docker-train:
+	docker-compose run pipeline python pipelines\run_pipeline.py --step train
+
+docker-pipeline:
+	docker-compose run pipeline python pipelines\run_pipeline.py
 # ============================================================
 #  VERIFICATION
 # ============================================================

@@ -53,6 +53,7 @@ Usage :
     python pipelines/01_ingest.py --file path/to/file
 """
 
+import os
 import re
 import sys
 import argparse
@@ -69,6 +70,9 @@ import yaml
 from bs4 import BeautifulSoup
 from loguru import logger
 import duckdb as _duckdb
+import dotenv
+
+from gcs_utils import upload_to_gcs
 
 # ── Config ────────────────────────────────────────────────────────────────────
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -86,6 +90,8 @@ DIRS = {
     "whoscored": {"html":    RAW_DIR / "whoscored" / "html",
                   "parquet": RAW_DIR / "whoscored" / "parquet"},
 }
+
+dotenv.load_dotenv()
 
 # Mapping de normalisation des noms d'équipes (chargé depuis config.yaml)
 # Clé = nom brut tel qu'il apparaît dans les fichiers sources
@@ -292,6 +298,10 @@ def ingest_fbref(files: list[Path], force: bool) -> dict:
 
         out.parent.mkdir(parents=True, exist_ok=True)
         df.write_parquet(out, compression="snappy")
+        # Upload GCS — non bloquant si GCS indisponible
+        bucket_name = os.getenv("GCS_BUCKET_NAME")
+        if bucket_name:
+            upload_to_gcs(out, bucket_name)
         logger.debug(f"  Écrit FBref : {out.name} ({out.stat().st_size // 1024} Ko)")
         ok += 1
 
@@ -410,6 +420,10 @@ def ingest_understat(files: list[Path], force: bool) -> dict:
 
         out.parent.mkdir(parents=True, exist_ok=True)
         df.write_parquet(out, compression="snappy")
+        # Upload GCS — non bloquant si GCS indisponible
+        bucket_name = os.getenv("GCS_BUCKET_NAME")
+        if bucket_name:
+            upload_to_gcs(out, bucket_name)
         logger.debug(f"  Écrit Understat : {out.name}")
         ok += 1
 
@@ -680,6 +694,10 @@ def ingest_whoscored(files: list[Path], force: bool) -> dict:
 
         out.parent.mkdir(parents=True, exist_ok=True)
         result.write_parquet(out, compression="snappy")
+        # Upload GCS — non bloquant si GCS indisponible
+        bucket_name = os.getenv("GCS_BUCKET_NAME")
+        if bucket_name:
+            upload_to_gcs(out, bucket_name)
         logger.success(
             f"  WhoScored {league} {season} : {len(result)} équipes, "
             f"{len(result.columns)} colonnes → {out.name}"
