@@ -51,6 +51,7 @@ import yaml
 from loguru import logger
 
 from agent_gemini import run_post_pipeline_analysis
+from validation.run_validation import run_validate_silver, run_validate_gold
 
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -267,16 +268,16 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
         sys.path.insert(0, str(pipelines_dir))
 
     # Import de chaque script comme module Python
+    # On est obligé de passer par cette méthode car les noms des scripts commencent par un chiffre
     # Si un script est introuvable, on lève une erreur claire
     try:
-        mod_01 = _import_from_path("ingest_01",   ROOT_DIR / "pipelines" / "01_ingest.py")
-        mod_01b = _import_from_path("odds_01b",   ROOT_DIR / "pipelines" / "01b_odds.py")
-        mod_02 = _import_from_path("process_02",  ROOT_DIR / "pipelines" / "02_process.py")
-        mod_04 = _import_from_path("",    ROOT_DIR / "pipelines" / "04_train.py")
-        mod_04 = _import_from_path("train_04",    ROOT_DIR / "pipelines" / "04_train.py")
-        mod_05 = _import_from_path("predict_05",  ROOT_DIR / "pipelines" / "05_predict.py")
-        mod_06 = _import_from_path("backtest_06", ROOT_DIR / "pipelines" / "06_backtest.py")
-        mod_07 = _import_from_path("agent_analysis", ROOT_DIR / "pipelines" / "agent_gemini.py")
+        mod_01  = _import_from_path("ingest_01",    ROOT_DIR / "pipelines" / "01_ingest.py")
+        mod_01b = _import_from_path("odds_01b",     ROOT_DIR / "pipelines" / "01b_odds.py")
+        mod_02  = _import_from_path("process_02",   ROOT_DIR / "pipelines" / "02_process.py")
+        mod_04  = _import_from_path("",             ROOT_DIR / "pipelines" / "04_train.py")
+        mod_04  = _import_from_path("train_04",     ROOT_DIR / "pipelines" / "04_train.py")
+        mod_05  = _import_from_path("predict_05",   ROOT_DIR / "pipelines" / "05_predict.py")
+        mod_06  = _import_from_path("backtest_06",  ROOT_DIR / "pipelines" / "06_backtest.py")
 
     except FileNotFoundError as e:
         logger.error(f"Script introuvable : {e}")
@@ -288,6 +289,11 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
     backtest_cfg = cfg.get("backtest", {})
 
     return {
+        "dbt_seed": {
+            "fn":       run_dbt_seed,
+            "kwargs":   {"refresh": full_refresh}   ,  # Par défaut, dbt seed ne fait pas de full-refresh. Passer refresh=True pour forcer. 
+            "critical": True,
+        },
         "ingest": {
             "fn":       mod_01.main,
             "kwargs":   {},
@@ -303,9 +309,9 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
             "kwargs":   {},
             "critical": True,
         },
-        "dbt_seed": {
-            "fn":       run_dbt_seed,
-            "kwargs":   {"refresh": full_refresh}   ,  # Par défaut, dbt seed ne fait pas de full-refresh. Passer refresh=True pour forcer. 
+        "validate_silver": {
+            "fn":       run_validate_silver,
+            "kwargs":   {},
             "critical": True,
         },
         "dbt_run": {
@@ -319,7 +325,11 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
             "kwargs":   {},
             "critical": True,
         },
-
+        "validate_gold": {
+            "fn":       run_validate_gold,
+            "kwargs":   {},
+            "critical": True,
+        },
         "train": {
             "fn":     mod_04.main,
             "kwargs": {
@@ -350,7 +360,7 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
                 "cfg": cfg
             },
             "critical": False,
-        }
+        },
     }
 
 def _import_from_path(module_name: str, path: Path):
@@ -428,7 +438,7 @@ def run_pipeline(steps: dict, dry_run: bool = False, run_step_task=None) -> list
         except Exception as e:
             logger.warning(f"Artifact non créé (non bloquant) : {e}")
 
-        return results
+    return results
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -543,27 +553,38 @@ def create_prefect_artifacts(cfg: dict) -> None:
 # SECTION 6 — Point d'entrée CLI
 # ══════════════════════════════════════════════════════════════════════════════
 
-STEP_NAMES = ["dbt_seed","ingest","odds","process","dbt_run","dbt_test", "train", "predict", "backtest","agent_analysis"]
+STEP_NAMES = ["dbt_seed",
+              "ingest",
+              "odds",
+              "process",
+              "validate_silver",
+              "dbt_run",
+              "dbt_test",
+              "validate_gold",
+              "train", 
+              "predict", 
+              "backtest",
+              "agent_analysis"]
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Orchestrateur Pipeline 3-Étoiles",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Exemples :
-  python run_pipeline.py                        # pipeline complet
-  python run_pipeline.py --step ingest          # exécute l'étape d'ingestion
-  python run_pipeline.py --step odds            # exécute l'étape de calcul des cotes
-  python run_pipeline.py --step process         # exécute l'étape de traitement des données
-  python run_pipeline.py --step dbt_seed        # seed les données
-  python run_pipeline.py --step dbt_run         # exécute les modèles dbt
-  python run_pipeline.py --step dbt_test        # exécute les tests dbt
-  python run_pipeline.py --from train           # reprend depuis train
-  python run_pipeline.py --from predict         # reprend depuis predict
-  python run_pipeline.py --from backtest        # reprend depuis backtest
-  python run_pipeline.py --dry-run              # simule sans exécuter
-  python run_pipeline.py --list                 # liste les étapes
-        """,
+        Exemples :
+        python run_pipeline.py                        # pipeline complet
+        python run_pipeline.py --step ingest          # exécute l'étape d'ingestion
+        python run_pipeline.py --step odds            # exécute l'étape de calcul des cotes
+        python run_pipeline.py --step process         # exécute l'étape de traitement des données
+        python run_pipeline.py --step dbt_seed        # seed les données
+        python run_pipeline.py --step dbt_run         # exécute les modèles dbt
+        python run_pipeline.py --step dbt_test        # exécute les tests dbt
+        python run_pipeline.py --from train           # reprend depuis train
+        python run_pipeline.py --from predict         # reprend depuis predict
+        python run_pipeline.py --from backtest        # reprend depuis backtest
+        python run_pipeline.py --dry-run              # simule sans exécuter
+        python run_pipeline.py --list                 # liste les étapes
+                """,
     )
 
     group = parser.add_mutually_exclusive_group()
