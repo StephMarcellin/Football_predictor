@@ -19,6 +19,7 @@ Usage :
 import argparse
 import warnings
 import joblib
+import os
 from pathlib import Path
 
 import matplotlib
@@ -66,7 +67,7 @@ MODELS_DIR.mkdir(exist_ok=True)
 DIAG_DIR   = MODELS_DIR / "diagnostics"
 DIAG_DIR.mkdir(exist_ok=True)
 
-MLFLOW_URI = CFG.get("mlflow", {}).get("tracking_uri", "mlruns")
+MLFLOW_URI = CFG["mlflow"]["tracking_uri"]
 TARGET     = "result_1n2"
 
 Path("logs").mkdir(exist_ok=True)
@@ -1023,6 +1024,9 @@ def main(step: int = 2, use_shap: bool = True, n_trials: int = 50):
 
     # ── MLflow ────────────────────────────────────────────────────────────────
     mlflow.set_tracking_uri(MLFLOW_URI)
+    if "dagshub" in str(MLFLOW_URI):
+        os.environ["MLFLOW_TRACKING_USERNAME"] = os.getenv("DAGSHUB_USERNAME", "")
+        os.environ["MLFLOW_TRACKING_PASSWORD"] = os.getenv("DAGSHUB_TOKEN", "")
     mlflow.set_experiment("football_1N2_stacking")
 
     with mlflow.start_run(run_name="TwoStage_Stacking_v1"):

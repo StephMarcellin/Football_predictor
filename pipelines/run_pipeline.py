@@ -505,9 +505,13 @@ def _get_latest_mlflow_metrics(experiment_name: str, run_name_prefix: str) -> di
 
 def create_prefect_artifacts(cfg: dict) -> None:
     """Lit MLflow et publie un tableau de métriques dans l'UI Prefect."""
-    mlflow_uri = "file:///" + str(ROOT_DIR / cfg.get("mlflow", {}).get("tracking_uri", "mlruns"))
+    mlflow_uri = os.getenv("MLFLOW_TRACKING_URI") or  "file:///" + str(ROOT_DIR / cfg.get("mlflow", {}).get("tracking_uri", "mlruns"))
     mlflow.set_tracking_uri(mlflow_uri)
     print(f"MLflow Tracking URI : {mlflow_uri}")
+
+    if "dagshub" in mlflow_uri:
+        os.environ["MLFLOW_TRACKING_USERNAME"] = os.getenv("DAGSHUB_USERNAME", "")
+        os.environ["MLFLOW_TRACKING_PASSWORD"] = os.getenv("DAGSHUB_TOKEN", "")
 
     train_m   = _get_latest_mlflow_metrics("football_1N2_stacking", "TwoStage")
     backtest_m = _get_latest_mlflow_metrics("football_1N2_stacking", "backtest")

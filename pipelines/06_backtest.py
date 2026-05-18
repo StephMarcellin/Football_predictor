@@ -25,6 +25,7 @@ import pandas as pd
 import yaml
 from loguru import logger
 import mlflow
+import os
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
@@ -36,7 +37,8 @@ with open(ROOT_DIR / "config.yaml", encoding="utf-8") as f:
 DB_PATH    = ROOT_DIR / CFG["paths"]["duckdb"]
 MODEL_PATH = ROOT_DIR / "models" / "football_stacking_v1.joblib"
 OUTPUT_DIR = ROOT_DIR / "models"
-MLFLOW_URI = ROOT_DIR / CFG["mlflow"]["tracking_uri"]
+# MLFLOW_URI = ROOT_DIR / CFG["mlflow"]["tracking_uri"]
+MLFLOW_URI = CFG["mlflow"]["tracking_uri"]
 
 Path("logs").mkdir(exist_ok=True)
 logger.add(
@@ -508,6 +510,9 @@ def main(seasons: list[str]       = None,
 
     # ── Logging MLflow ────────────────────────────────────────────────────────
     mlflow.set_tracking_uri(MLFLOW_URI)
+    if "dagshub" in str(MLFLOW_URI):
+        os.environ["MLFLOW_TRACKING_USERNAME"] = os.getenv("DAGSHUB_USERNAME", "")
+        os.environ["MLFLOW_TRACKING_PASSWORD"] = os.getenv("DAGSHUB_TOKEN", "")
     mlflow.set_experiment("football_1N2_stacking")
     print(f"MLflow Tracking URI : {MLFLOW_URI}")
 
