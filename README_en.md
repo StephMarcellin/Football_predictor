@@ -22,6 +22,13 @@ Projet 3-Étoiles is a production-grade data/ML pipeline that:
 5. **Backtests** the betting strategy and evaluates performance
 6. **Orchestrates** everything with Prefect, tracks experiments with MLflow, and runs a Gemini agent for post-run analysis
 
+### Interfaces
+
+| Interface | URL | Commande |
+|---|---|---|
+| Prefect UI (local) | http://localhost:4200 | `make prefect-ui` |
+| Prefect Cloud | [Dashboard](https://app.prefect.cloud) | `make pipeline` |
+| MLflow UI | http://localhost:5000 | `make mlflow-ui` |
 ---
 
 ## Architecture
@@ -83,6 +90,8 @@ flowchart TD
 | **Containerization** | Docker + docker-compose | Pipeline + Prefect + MLflow |
 | **Infrastructure** | Terraform + GCS | Bronze bucket on Google Cloud |
 | **Logging** | Loguru | Centralized logging |
+| **Validation** | Great Expectations 1.17 | Data contracts Silver → Gold |
+| **Observability** | Prefect Cloud | Pipeline observable everywhere |
 
 ---
 
