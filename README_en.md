@@ -83,6 +83,7 @@ flowchart TD
 | **Containerization** | Docker + docker-compose | Pipeline + Prefect + MLflow |
 | **Infrastructure** | Terraform + GCS | Bronze bucket on Google Cloud |
 | **Logging** | Loguru | Centralized logging |
+| **Validation** | Great Expectations 1.17 | Data contracts Silver → Gold |
 
 ---
 
