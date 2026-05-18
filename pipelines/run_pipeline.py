@@ -29,6 +29,8 @@ Scheduling Prefect :
 """
 
 from __future__ import annotations
+from dotenv import load_dotenv
+load_dotenv()
 
 import argparse
 import os
@@ -37,6 +39,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 import subprocess
+
 
 from prefect import flow, task
 from prefect.cache_policies import NO_CACHE

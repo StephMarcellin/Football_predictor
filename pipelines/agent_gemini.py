@@ -31,7 +31,6 @@ import time
 import re
 
 import yaml
-from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from loguru import logger
@@ -40,7 +39,6 @@ import subprocess
 
 from prefect.artifacts import create_markdown_artifact
 
-load_dotenv()
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 PREFECT_API: str = "http://127.0.0.1:4200/api"
