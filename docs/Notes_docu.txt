@@ -1,0 +1,31 @@
+Carte mentale du pipeline features
+03_features.py — Le chef d'orchestre
+C'est le point d'entrée unique. Il ne fait rien lui-même — il appelle les 4 modules dans l'ordre et expose les options CLI (--step, --reset, etc.).
+
+rolling.py — La fondation (Étape 1)
+Ce qu'il fait :
+
+Crée gold.stg_backbone — la jointure des 7 tables silver (1 ligne par équipe par match)
+Crée gold.features_training — ajoute les rolling windows (moyennes glissantes sur 3/5/10 matchs) : np_xg, ppda, possession, tirs, saves, etc.
+Crée gold.features_final — matchups H2H, différentiels équipe vs adversaire
+
+Architecture : incrémentale — seuls les nouveaux match_id sont insérés, les anciens ne sont pas recalculés.
+Anti-leakage : toutes les window functions utilisent ROWS BETWEEN W PRECEDING AND 1 PRECEDING — jamais le match en cours.
+
+whoscored.py — Les features spatiales (Étape 2)
+Ce qu'il fait : enrichit features_training avec des features issues des events WhoScored (données très granulaires) en 7 blocs :
+
+Tilt de terrain, momentum, contre-attaques, contrôle de milieu, ligne défensive, asymétrie de flanc, stats d'équipe
+
+Architecture : UPDATE idempotent — ne recalcule que les lignes où les colonnes ws_* sont NULL.
+
+draw.py — Les features spécifiques au nul (Étape 3)
+Ce qu'il fait : enrichit features_training avec 23 features dédiées à détecter les matchs nuls :
+
+Bloc H (3 features) : comportements tardifs — égalisateurs après 70min, fragilité après carton, résilience en infériorité
+F1–F20 (20 features) : signaux de match bloqué, domination relative, résilience psychologique, efficacité, composites
+
+Architecture : UPDATE idempotent — ne recalcule que les lignes NULL.
+
+sandbox.py — Le laboratoire (Read-Only)
+Ce qu'il fait : valide des features candidates avant intégration. Ne touche jamais à la DB. C'est un espace d'expérimentation — les features validées ici migrent ensuite dans rolling.py ou whoscored.py.

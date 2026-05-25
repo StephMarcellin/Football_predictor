@@ -274,7 +274,7 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
         mod_01  = _import_from_path("ingest_01",    ROOT_DIR / "pipelines" / "01_ingest.py")
         mod_01b = _import_from_path("odds_01b",     ROOT_DIR / "pipelines" / "01b_odds.py")
         mod_02  = _import_from_path("process_02",   ROOT_DIR / "pipelines" / "02_process.py")
-        mod_04  = _import_from_path("",             ROOT_DIR / "pipelines" / "04_train.py")
+        # mod_04  = _import_from_path("",             ROOT_DIR / "pipelines" / "04_train.py")
         mod_04  = _import_from_path("train_04",     ROOT_DIR / "pipelines" / "04_train.py")
         mod_05  = _import_from_path("predict_05",   ROOT_DIR / "pipelines" / "05_predict.py")
         mod_06  = _import_from_path("backtest_06",  ROOT_DIR / "pipelines" / "06_backtest.py")
@@ -505,9 +505,13 @@ def _get_latest_mlflow_metrics(experiment_name: str, run_name_prefix: str) -> di
 
 def create_prefect_artifacts(cfg: dict) -> None:
     """Lit MLflow et publie un tableau de métriques dans l'UI Prefect."""
-    mlflow_uri = "file:///" + str(ROOT_DIR / cfg.get("mlflow", {}).get("tracking_uri", "mlruns"))
+    mlflow_uri = os.getenv("MLFLOW_TRACKING_URI") or  "file:///" + str(ROOT_DIR / cfg.get("mlflow", {}).get("tracking_uri", "mlruns"))
     mlflow.set_tracking_uri(mlflow_uri)
     print(f"MLflow Tracking URI : {mlflow_uri}")
+
+    if "dagshub" in mlflow_uri:
+        os.environ["MLFLOW_TRACKING_USERNAME"] = os.getenv("DAGSHUB_USERNAME", "")
+        os.environ["MLFLOW_TRACKING_PASSWORD"] = os.getenv("DAGSHUB_TOKEN", "")
 
     train_m   = _get_latest_mlflow_metrics("football_1N2_stacking", "TwoStage")
     backtest_m = _get_latest_mlflow_metrics("football_1N2_stacking", "backtest")

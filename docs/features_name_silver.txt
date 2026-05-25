@@ -1,0 +1,290 @@
+|table_schema|table_name                 |column_name         |ordinal_position|data_type|
+|------------|---------------------------|--------------------|----------------|---------|
+|silver      |fbref_keeper               |date                |1               |DATE     |
+|silver      |fbref_keeper               |time                |2               |VARCHAR  |
+|silver      |fbref_keeper               |league_source       |3               |VARCHAR  |
+|silver      |fbref_keeper               |day                 |4               |VARCHAR  |
+|silver      |fbref_keeper               |venue               |5               |VARCHAR  |
+|silver      |fbref_keeper               |result              |6               |VARCHAR  |
+|silver      |fbref_keeper               |gf                  |7               |INTEGER  |
+|silver      |fbref_keeper               |ga                  |8               |INTEGER  |
+|silver      |fbref_keeper               |opponent            |9               |VARCHAR  |
+|silver      |fbref_keeper               |sota                |10              |INTEGER  |
+|silver      |fbref_keeper               |ga_keeper           |11              |INTEGER  |
+|silver      |fbref_keeper               |saves               |12              |INTEGER  |
+|silver      |fbref_keeper               |save_pct            |13              |DOUBLE   |
+|silver      |fbref_keeper               |cs                  |14              |INTEGER  |
+|silver      |fbref_keeper               |pk_att              |15              |INTEGER  |
+|silver      |fbref_keeper               |pk_allowed          |16              |INTEGER  |
+|silver      |fbref_keeper               |pk_saved            |17              |INTEGER  |
+|silver      |fbref_keeper               |pk_missed           |18              |INTEGER  |
+|silver      |fbref_keeper               |team                |19              |VARCHAR  |
+|silver      |fbref_keeper               |season              |20              |VARCHAR  |
+|silver      |fbref_keeper               |source              |21              |VARCHAR  |
+|silver      |fbref_keeper               |scraped_at          |22              |VARCHAR  |
+|silver      |fbref_keeper               |comp_category       |23              |VARCHAR  |
+|silver      |fbref_keeper               |raw_team            |24              |VARCHAR  |
+|silver      |fbref_keeper               |raw_opponent        |25              |VARCHAR  |
+|silver      |fbref_keeper               |result_1n2          |26              |VARCHAR  |
+|silver      |fbref_misc                 |date                |1               |DATE     |
+|silver      |fbref_misc                 |time                |2               |VARCHAR  |
+|silver      |fbref_misc                 |league_source       |3               |VARCHAR  |
+|silver      |fbref_misc                 |day                 |4               |VARCHAR  |
+|silver      |fbref_misc                 |venue               |5               |VARCHAR  |
+|silver      |fbref_misc                 |result              |6               |VARCHAR  |
+|silver      |fbref_misc                 |gf                  |7               |INTEGER  |
+|silver      |fbref_misc                 |ga                  |8               |INTEGER  |
+|silver      |fbref_misc                 |opponent            |9               |VARCHAR  |
+|silver      |fbref_misc                 |crdy                |10              |INTEGER  |
+|silver      |fbref_misc                 |crdr                |11              |INTEGER  |
+|silver      |fbref_misc                 |crdy2               |12              |INTEGER  |
+|silver      |fbref_misc                 |fls                 |13              |INTEGER  |
+|silver      |fbref_misc                 |fld                 |14              |INTEGER  |
+|silver      |fbref_misc                 |off                 |15              |INTEGER  |
+|silver      |fbref_misc                 |crosses             |16              |INTEGER  |
+|silver      |fbref_misc                 |int                 |17              |INTEGER  |
+|silver      |fbref_misc                 |tklw                |18              |INTEGER  |
+|silver      |fbref_misc                 |pkwon               |19              |INTEGER  |
+|silver      |fbref_misc                 |pkcon               |20              |INTEGER  |
+|silver      |fbref_misc                 |og                  |21              |INTEGER  |
+|silver      |fbref_misc                 |team                |22              |VARCHAR  |
+|silver      |fbref_misc                 |season              |23              |VARCHAR  |
+|silver      |fbref_misc                 |source              |24              |VARCHAR  |
+|silver      |fbref_misc                 |scraped_at          |25              |VARCHAR  |
+|silver      |fbref_misc                 |comp_category       |26              |VARCHAR  |
+|silver      |fbref_misc                 |raw_team            |27              |VARCHAR  |
+|silver      |fbref_misc                 |raw_opponent        |28              |VARCHAR  |
+|silver      |fbref_misc                 |result_1n2          |29              |VARCHAR  |
+|silver      |fbref_schedule             |date                |1               |DATE     |
+|silver      |fbref_schedule             |time                |2               |VARCHAR  |
+|silver      |fbref_schedule             |league_source       |3               |VARCHAR  |
+|silver      |fbref_schedule             |day                 |4               |VARCHAR  |
+|silver      |fbref_schedule             |venue               |5               |VARCHAR  |
+|silver      |fbref_schedule             |result              |6               |VARCHAR  |
+|silver      |fbref_schedule             |gf                  |7               |INTEGER  |
+|silver      |fbref_schedule             |ga                  |8               |INTEGER  |
+|silver      |fbref_schedule             |opponent            |9               |VARCHAR  |
+|silver      |fbref_schedule             |poss                |10              |VARCHAR  |
+|silver      |fbref_schedule             |formation           |11              |VARCHAR  |
+|silver      |fbref_schedule             |opp_formation       |12              |VARCHAR  |
+|silver      |fbref_schedule             |team                |13              |VARCHAR  |
+|silver      |fbref_schedule             |season              |14              |VARCHAR  |
+|silver      |fbref_schedule             |source              |15              |VARCHAR  |
+|silver      |fbref_schedule             |scraped_at          |16              |VARCHAR  |
+|silver      |fbref_schedule             |comp_category       |17              |VARCHAR  |
+|silver      |fbref_schedule             |raw_team            |18              |VARCHAR  |
+|silver      |fbref_schedule             |raw_opponent        |19              |VARCHAR  |
+|silver      |fbref_schedule             |result_1n2          |20              |VARCHAR  |
+|silver      |fbref_shooting             |date                |1               |DATE     |
+|silver      |fbref_shooting             |time                |2               |VARCHAR  |
+|silver      |fbref_shooting             |league_source       |3               |VARCHAR  |
+|silver      |fbref_shooting             |day                 |4               |VARCHAR  |
+|silver      |fbref_shooting             |venue               |5               |VARCHAR  |
+|silver      |fbref_shooting             |result              |6               |VARCHAR  |
+|silver      |fbref_shooting             |gf                  |7               |INTEGER  |
+|silver      |fbref_shooting             |ga                  |8               |INTEGER  |
+|silver      |fbref_shooting             |opponent            |9               |VARCHAR  |
+|silver      |fbref_shooting             |standard_gls        |10              |INTEGER  |
+|silver      |fbref_shooting             |standard_sh         |11              |INTEGER  |
+|silver      |fbref_shooting             |standard_sot        |12              |INTEGER  |
+|silver      |fbref_shooting             |standard_sot_pct    |13              |DOUBLE   |
+|silver      |fbref_shooting             |standard_g_sh       |14              |DOUBLE   |
+|silver      |fbref_shooting             |standard_g_sot      |15              |DOUBLE   |
+|silver      |fbref_shooting             |standard_pk         |16              |INTEGER  |
+|silver      |fbref_shooting             |standard_pkatt      |17              |INTEGER  |
+|silver      |fbref_shooting             |team                |18              |VARCHAR  |
+|silver      |fbref_shooting             |season              |19              |VARCHAR  |
+|silver      |fbref_shooting             |source              |20              |VARCHAR  |
+|silver      |fbref_shooting             |scraped_at          |21              |VARCHAR  |
+|silver      |fbref_shooting             |comp_category       |22              |VARCHAR  |
+|silver      |fbref_shooting             |raw_team            |23              |VARCHAR  |
+|silver      |fbref_shooting             |raw_opponent        |24              |VARCHAR  |
+|silver      |fbref_shooting             |result_1n2          |25              |VARCHAR  |
+|silver      |odds                       |date                |1               |DATE     |
+|silver      |odds                       |season              |2               |VARCHAR  |
+|silver      |odds                       |league_source       |3               |VARCHAR  |
+|silver      |odds                       |home_team           |4               |VARCHAR  |
+|silver      |odds                       |away_team           |5               |VARCHAR  |
+|silver      |odds                       |result_fdc          |6               |VARCHAR  |
+|silver      |odds                       |odds_pinnacle_h     |7               |DOUBLE   |
+|silver      |odds                       |odds_pinnacle_d     |8               |DOUBLE   |
+|silver      |odds                       |odds_pinnacle_a     |9               |DOUBLE   |
+|silver      |odds                       |odds_avg_h          |10              |DOUBLE   |
+|silver      |odds                       |odds_avg_d          |11              |DOUBLE   |
+|silver      |odds                       |odds_avg_a          |12              |DOUBLE   |
+|silver      |odds                       |odds_max_h          |13              |DOUBLE   |
+|silver      |odds                       |odds_max_d          |14              |DOUBLE   |
+|silver      |odds                       |odds_max_a          |15              |DOUBLE   |
+|silver      |odds                       |pinnacle_prob_h     |16              |DOUBLE   |
+|silver      |odds                       |pinnacle_prob_d     |17              |DOUBLE   |
+|silver      |odds                       |pinnacle_prob_a     |18              |DOUBLE   |
+|silver      |odds                       |market_prob_h       |19              |DOUBLE   |
+|silver      |odds                       |market_prob_d       |20              |DOUBLE   |
+|silver      |odds                       |market_prob_a       |21              |DOUBLE   |
+|silver      |stg_whoscored_events       |ws_match_id         |1               |VARCHAR  |
+|silver      |stg_whoscored_events       |event_id            |2               |INTEGER  |
+|silver      |stg_whoscored_events       |league_source       |3               |VARCHAR  |
+|silver      |stg_whoscored_events       |season              |4               |VARCHAR  |
+|silver      |stg_whoscored_events       |minute              |5               |INTEGER  |
+|silver      |stg_whoscored_events       |second              |6               |INTEGER  |
+|silver      |stg_whoscored_events       |expanded_minute     |7               |INTEGER  |
+|silver      |stg_whoscored_events       |period              |8               |INTEGER  |
+|silver      |stg_whoscored_events       |team_id             |9               |INTEGER  |
+|silver      |stg_whoscored_events       |player_id           |10              |INTEGER  |
+|silver      |stg_whoscored_events       |x                   |11              |DOUBLE   |
+|silver      |stg_whoscored_events       |y                   |12              |DOUBLE   |
+|silver      |stg_whoscored_events       |end_x               |13              |DOUBLE   |
+|silver      |stg_whoscored_events       |end_y               |14              |DOUBLE   |
+|silver      |stg_whoscored_events       |type_id             |15              |INTEGER  |
+|silver      |stg_whoscored_events       |type_name           |16              |VARCHAR  |
+|silver      |stg_whoscored_events       |outcome_id          |17              |INTEGER  |
+|silver      |stg_whoscored_events       |outcome_name        |18              |VARCHAR  |
+|silver      |stg_whoscored_events       |is_touch            |19              |BOOLEAN  |
+|silver      |stg_whoscored_events       |is_shot             |20              |BOOLEAN  |
+|silver      |stg_whoscored_events       |qualifiers_json     |21              |VARCHAR  |
+|silver      |stg_whoscored_events       |scraped_at          |22              |VARCHAR  |
+|silver      |stg_whoscored_events       |row_num             |23              |INTEGER  |
+|silver      |stg_whoscored_match_details|ws_match_id         |1               |VARCHAR  |
+|silver      |stg_whoscored_match_details|league_source       |2               |VARCHAR  |
+|silver      |stg_whoscored_match_details|season              |3               |VARCHAR  |
+|silver      |stg_whoscored_match_details|scraped_at          |4               |VARCHAR  |
+|silver      |stg_whoscored_match_details|home_shots_total    |5               |INTEGER  |
+|silver      |stg_whoscored_match_details|away_shots_total    |6               |INTEGER  |
+|silver      |stg_whoscored_match_details|home_shots_on_target|7               |INTEGER  |
+|silver      |stg_whoscored_match_details|away_shots_on_target|8               |INTEGER  |
+|silver      |stg_whoscored_match_details|home_shot_open_play |9               |INTEGER  |
+|silver      |stg_whoscored_match_details|away_shot_open_play |10              |INTEGER  |
+|silver      |stg_whoscored_match_details|home_shot_set_piece |11              |INTEGER  |
+|silver      |stg_whoscored_match_details|away_shot_set_piece |12              |INTEGER  |
+|silver      |stg_whoscored_match_details|home_shot_counter   |13              |INTEGER  |
+|silver      |stg_whoscored_match_details|away_shot_counter   |14              |INTEGER  |
+|silver      |stg_whoscored_match_details|home_key_passes     |15              |INTEGER  |
+|silver      |stg_whoscored_match_details|away_key_passes     |16              |INTEGER  |
+|silver      |stg_whoscored_match_details|home_through_balls  |17              |INTEGER  |
+|silver      |stg_whoscored_match_details|away_through_balls  |18              |INTEGER  |
+|silver      |stg_whoscored_match_details|home_long_balls     |19              |INTEGER  |
+|silver      |stg_whoscored_match_details|away_long_balls     |20              |INTEGER  |
+|silver      |stg_whoscored_match_details|home_yellow_cards   |21              |INTEGER  |
+|silver      |stg_whoscored_match_details|away_yellow_cards   |22              |INTEGER  |
+|silver      |stg_whoscored_match_details|home_red_cards      |23              |INTEGER  |
+|silver      |stg_whoscored_match_details|away_red_cards      |24              |INTEGER  |
+|silver      |stg_whoscored_match_details|home_attack_left    |25              |DOUBLE   |
+|silver      |stg_whoscored_match_details|home_attack_center  |26              |DOUBLE   |
+|silver      |stg_whoscored_match_details|home_attack_right   |27              |DOUBLE   |
+|silver      |stg_whoscored_match_details|away_attack_left    |28              |DOUBLE   |
+|silver      |stg_whoscored_match_details|away_attack_center  |29              |DOUBLE   |
+|silver      |stg_whoscored_match_details|away_attack_right   |30              |DOUBLE   |
+|silver      |stg_whoscored_match_details|home_zone_defensive |31              |DOUBLE   |
+|silver      |stg_whoscored_match_details|home_zone_middle    |32              |DOUBLE   |
+|silver      |stg_whoscored_match_details|home_zone_offensive |33              |DOUBLE   |
+|silver      |stg_whoscored_match_details|away_zone_defensive |34              |DOUBLE   |
+|silver      |stg_whoscored_match_details|away_zone_middle    |35              |DOUBLE   |
+|silver      |stg_whoscored_match_details|away_zone_offensive |36              |DOUBLE   |
+|silver      |stg_whoscored_match_details|ht_score_home       |37              |INTEGER  |
+|silver      |stg_whoscored_match_details|ht_score_away       |38              |INTEGER  |
+|silver      |stg_whoscored_match_details|referee             |39              |VARCHAR  |
+|silver      |stg_whoscored_match_details|extraction_method   |40              |VARCHAR  |
+|silver      |stg_whoscored_match_index  |ws_match_id         |1               |VARCHAR  |
+|silver      |stg_whoscored_match_index  |match_date          |2               |DATE     |
+|silver      |stg_whoscored_match_index  |home_team_id        |3               |INTEGER  |
+|silver      |stg_whoscored_match_index  |home_team_name      |4               |VARCHAR  |
+|silver      |stg_whoscored_match_index  |away_team_id        |5               |INTEGER  |
+|silver      |stg_whoscored_match_index  |away_team_name      |6               |VARCHAR  |
+|silver      |stg_whoscored_match_index  |league_source       |7               |VARCHAR  |
+|silver      |stg_whoscored_match_index  |season              |8               |VARCHAR  |
+|silver      |stg_whoscored_match_index  |scraped_at          |9               |VARCHAR  |
+|silver      |stg_whoscored_urls         |ws_match_id         |1               |VARCHAR  |
+|silver      |stg_whoscored_urls         |url                 |2               |VARCHAR  |
+|silver      |stg_whoscored_urls         |league_source       |3               |VARCHAR  |
+|silver      |stg_whoscored_urls         |season              |4               |VARCHAR  |
+|silver      |stg_whoscored_urls         |month_abbr          |5               |VARCHAR  |
+|silver      |stg_whoscored_urls         |match_year          |6               |INTEGER  |
+|silver      |stg_whoscored_urls         |is_scraped                 |7               |BOOLEAN  |
+|silver      |stg_whoscored_urls         |indexed_at                 |8               |VARCHAR  |
+|silver      |stg_whoscored_urls         |scraped_at                 |9               |VARCHAR  |
+|silver      |stg_whoscored_urls         |skip_reason                |10              |VARCHAR  |
+|silver      |understat_schedule         |league_source              |1               |VARCHAR  |
+|silver      |understat_schedule         |match_id                   |2               |BIGINT   |
+|silver      |understat_schedule         |home_team                  |3               |VARCHAR  |
+|silver      |understat_schedule         |away_team                  |4               |VARCHAR  |
+|silver      |understat_schedule         |home_goals                 |5               |BIGINT   |
+|silver      |understat_schedule         |away_goals                 |6               |BIGINT   |
+|silver      |understat_schedule         |home_xg                    |7               |DOUBLE   |
+|silver      |understat_schedule         |away_xg                    |8               |DOUBLE   |
+|silver      |understat_schedule         |is_result                  |9               |BOOLEAN  |
+|silver      |understat_schedule         |match_url                  |10              |VARCHAR  |
+|silver      |understat_schedule         |season                     |11              |VARCHAR  |
+|silver      |understat_schedule         |source                     |12              |VARCHAR  |
+|silver      |understat_schedule         |scraped_at                 |13              |VARCHAR  |
+|silver      |understat_schedule         |comp_category              |14              |VARCHAR  |
+|silver      |understat_schedule         |raw_home_team              |15              |VARCHAR  |
+|silver      |understat_schedule         |raw_away_team              |16              |VARCHAR  |
+|silver      |understat_stats            |match_id                   |1               |BIGINT   |
+|silver      |understat_stats            |home_xpts                  |2               |DOUBLE   |
+|silver      |understat_stats            |away_xpts                  |3               |DOUBLE   |
+|silver      |understat_stats            |home_np_xg                 |4               |DOUBLE   |
+|silver      |understat_stats            |away_np_xg                 |5               |DOUBLE   |
+|silver      |understat_stats            |home_np_xg_diff            |6               |DOUBLE   |
+|silver      |understat_stats            |away_np_xg_diff            |7               |DOUBLE   |
+|silver      |understat_stats            |home_ppda                  |8               |DOUBLE   |
+|silver      |understat_stats            |away_ppda                  |9               |DOUBLE   |
+|silver      |understat_stats            |home_deep                  |10              |BIGINT   |
+|silver      |understat_stats            |away_deep                  |11              |BIGINT   |
+|silver      |understat_stats            |season                     |12              |VARCHAR  |
+|silver      |understat_stats            |league_source              |13              |VARCHAR  |
+|silver      |understat_stats            |source                     |14              |VARCHAR  |
+|silver      |understat_stats            |scraped_at                 |15              |VARCHAR  |
+|silver      |understat_stats            |comp_category              |16              |VARCHAR  |
+|silver      |whoscored_team_season      |team                       |1               |VARCHAR  |
+|silver      |whoscored_team_season      |season                     |2               |VARCHAR  |
+|silver      |whoscored_team_season      |league_source              |3               |VARCHAR  |
+|silver      |whoscored_team_season      |ws_away_shots_conceded_pg  |4               |DOUBLE   |
+|silver      |whoscored_team_season      |ws_away_tackles_pg         |5               |DOUBLE   |
+|silver      |whoscored_team_season      |ws_away_interceptions_pg   |6               |DOUBLE   |
+|silver      |whoscored_team_season      |ws_away_fouls_pg           |7               |DOUBLE   |
+|silver      |whoscored_team_season      |ws_away_offsides_pg        |8               |DOUBLE   |
+|silver      |whoscored_team_season      |ws_away_def_rating         |9               |DOUBLE   |
+|silver      |whoscored_team_season      |ws_home_shots_conceded_pg  |10              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_home_tackles_pg         |11              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_home_interceptions_pg   |12              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_home_fouls_pg           |13              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_home_offsides_pg        |14              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_home_def_rating         |15              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_away_shots_pg           |16              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_away_shots_ot_pg        |17              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_away_dribbles_pg        |18              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_away_fouled_pg          |19              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_away_att_rating         |20              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_home_shots_pg           |21              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_home_shots_ot_pg        |22              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_home_dribbles_pg        |23              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_home_fouled_pg          |24              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_home_att_rating         |25              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_away_xg_against         |26              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_away_goals_against      |27              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_away_xg_diff_against    |28              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_away_shots_against      |29              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_away_xg_per_shot_against|30              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_away_xg_against_rating  |31              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_away_xg_for             |32              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_away_goals_for          |33              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_away_xg_diff_for        |34              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_away_shots_for          |35              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_away_xg_per_shot_for    |36              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_away_xg_for_rating      |37              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_home_xg_against         |38              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_home_goals_against      |39              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_home_xg_diff_against    |40              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_home_shots_against      |41              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_home_xg_per_shot_against|42              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_home_xg_against_rating  |43              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_home_xg_for             |44              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_home_goals_for          |45              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_home_xg_diff_for        |46              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_home_shots_for          |47              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_home_xg_per_shot_for    |48              |DOUBLE   |
+|silver      |whoscored_team_season      |ws_home_xg_for_rating      |49              |DOUBLE   |
+|silver      |whoscored_team_season      |source                     |50              |VARCHAR  |
+|silver      |whoscored_team_season      |scraped_at                 |51              |VARCHAR  |
+|silver      |whoscored_team_season      |comp_category              |52              |VARCHAR  |
+|silver      |whoscored_team_season      |raw_team                   |53              |VARCHAR  |

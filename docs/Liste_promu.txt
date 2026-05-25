@@ -1,0 +1,33 @@
+Championnat	Saison	Promus (promoted)	Relégués (relegated)
+Premier League	17-18	Newcastle, Brighton, Huddersfield	Swansea, Stoke, West Brom
+18-19	Wolves, Cardiff, Fulham	Cardiff, Fulham, Huddersfield
+19-20	Norwich, Sheffield Utd, Aston Villa	Bournemouth, Watford, Norwich
+20-21	Leeds, West Brom, Fulham	Fulham, West Brom, Sheffield Utd
+21-22	Norwich, Watford, Brentford	Burnley, Watford, Norwich
+22-23	Fulham, Bournemouth, Nott'm Forest	Leicester, Leeds, Southampton
+23-24	Burnley, Sheffield Utd, Luton	Luton, Burnley, Sheffield Utd
+24-25	Leicester, Ipswich, Southampton	(En cours)
+La Liga	17-18	Levante, Girona, Getafe	La Coruña, Las Palmas, Málaga
+18-19	Rayo Vallecano, Huesca, Valladolid	Girona, Huesca, Rayo Vallecano
+19-20	Osasuna, Granada, Mallorca	Leganés, Mallorca, Espanyol
+20-21	Cádiz, Huesca, Elche	Huesca, Valladolid, Eibar
+21-22	Espanyol, Mallorca, Rayo	Granada, Levante, Alavés
+22-23	Almería, Valladolid, Girona	Valladolid, Espanyol, Elche
+23-24	Granada, Las Palmas, Alavés	Granada, Almería, Cádiz
+24-25	Leganés, Valladolid, Espanyol	(En cours)
+Serie A	17-18	SPAL, Verona, Benevento	Crotone, Verona, Benevento
+18-19	Empoli, Parma, Frosinone	Empoli, Frosinone, Chievo
+19-20	Brescia, Lecce, Verona	Lecce, Brescia, SPAL
+20-21	Benevento, Crotone, Spezia	Benevento, Crotone, Parma
+21-22	Empoli, Salernitana, Venezia	Cagliari, Genoa, Venezia
+22-23	Lecce, Cremonese, Monza	Spezia, Cremonese, Sampdoria
+23-24	Frosinone, Genoa, Cagliari	Frosinone, Sassuolo, Salernitana
+24-25	Parma, Como, Venezia	(En cours)
+Ligue 1	17-18	Strasbourg, Amiens, Troyes	Troyes, Metz
+18-19	Reims, Nîmes	Guingamp, Caen
+19-20	Metz, Brest	Amiens, Toulouse
+20-21	Lorient, Lens	Nîmes, Dijon
+21-22	Troyes, Clermont	St-Étienne, Bordeaux, Metz
+22-23	Toulouse, Ajaccio, Auxerre	Auxerre, Ajaccio, Troyes, Angers
+23-24	Le Havre, Metz	Lorient, Clermont, Metz
+24-25	Auxerre, Angers, St-Étienne	(En cours)

@@ -1,0 +1,2 @@
+Note diverses au fur et à mesure
+Il manque les données de coupes dans stg_backstone (xG par exemple) car pas fourni par understat pour l'instant

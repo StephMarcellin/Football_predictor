@@ -95,7 +95,10 @@ model:
 
 mlflow:
   experiment_name: football_1n2
-  tracking_uri: mlruns/
+  # Local
+  # tracking_uri: mlruns/
+  # Remote
+  tracking_uri: https://dagshub.com/marcellin.stephane/Football_predictor.mlflow
 
 train:
   use_autoencoder: false

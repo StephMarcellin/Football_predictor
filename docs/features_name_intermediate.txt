@@ -1,0 +1,117 @@
+|table_schema|table_name        |column_name              |ordinal_position|data_type|
+|------------|------------------|-------------------------|----------------|---------|
+|intermediate|backbone          |date                     |1               |DATE     |
+|intermediate|backbone          |team                     |2               |VARCHAR  |
+|intermediate|backbone          |opponent                 |3               |VARCHAR  |
+|intermediate|backbone          |raw_team                 |4               |VARCHAR  |
+|intermediate|backbone          |raw_opponent             |5               |VARCHAR  |
+|intermediate|backbone          |venue                    |6               |VARCHAR  |
+|intermediate|backbone          |season                   |7               |VARCHAR  |
+|intermediate|backbone          |league_source            |8               |VARCHAR  |
+|intermediate|backbone          |comp_category            |9               |VARCHAR  |
+|intermediate|backbone          |result_1n2               |10              |VARCHAR  |
+|intermediate|backbone          |match_id                 |11              |BIGINT   |
+|intermediate|backbone          |formation                |12              |VARCHAR  |
+|intermediate|backbone          |gf                       |13              |INTEGER  |
+|intermediate|backbone          |ga                       |14              |INTEGER  |
+|intermediate|backbone          |possession               |15              |DOUBLE   |
+|intermediate|backbone          |shots_on_target_faced    |16              |INTEGER  |
+|intermediate|backbone          |saves                    |17              |INTEGER  |
+|intermediate|backbone          |save_pct                 |18              |DOUBLE   |
+|intermediate|backbone          |clean_sheet              |19              |INTEGER  |
+|intermediate|backbone          |shots_total              |20              |INTEGER  |
+|intermediate|backbone          |shots_on_target          |21              |INTEGER  |
+|intermediate|backbone          |goals_per_shot           |22              |DOUBLE   |
+|intermediate|backbone          |yellow_cards             |23              |INTEGER  |
+|intermediate|backbone          |second_yellow_cards      |24              |INTEGER  |
+|intermediate|backbone          |red_cards                |25              |INTEGER  |
+|intermediate|backbone          |fouls_committed          |26              |INTEGER  |
+|intermediate|backbone          |interceptions            |27              |INTEGER  |
+|intermediate|backbone          |tackles_won              |28              |INTEGER  |
+|intermediate|backbone          |np_xg                    |29              |DOUBLE   |
+|intermediate|backbone          |np_xg_conceded           |30              |DOUBLE   |
+|intermediate|backbone          |ppda                     |31              |DOUBLE   |
+|intermediate|backbone          |ppda_allowed             |32              |DOUBLE   |
+|intermediate|backbone          |np_xg_diff_match         |33              |DOUBLE   |
+|intermediate|backbone          |season_att_rating        |34              |DOUBLE   |
+|intermediate|backbone          |season_def_rating        |35              |DOUBLE   |
+|intermediate|backbone          |ws_dribbles_pg           |36              |DOUBLE   |
+|intermediate|backbone          |ws_fouled_pg             |37              |DOUBLE   |
+|intermediate|backbone          |ws_shots_ot_pg           |38              |DOUBLE   |
+|intermediate|backbone          |odds_pinnacle_team       |39              |DOUBLE   |
+|intermediate|backbone          |odds_pinnacle_draw       |40              |DOUBLE   |
+|intermediate|backbone          |odds_pinnacle_opp        |41              |DOUBLE   |
+|intermediate|backbone          |odds_avg_team            |42              |DOUBLE   |
+|intermediate|backbone          |odds_avg_draw            |43              |DOUBLE   |
+|intermediate|backbone          |odds_avg_opp             |44              |DOUBLE   |
+|intermediate|backbone          |pinnacle_prob_team       |45              |DOUBLE   |
+|intermediate|backbone          |pinnacle_prob_draw       |46              |DOUBLE   |
+|intermediate|backbone          |pinnacle_prob_opp        |47              |DOUBLE   |
+|intermediate|backbone          |market_prob_team         |48              |DOUBLE   |
+|intermediate|backbone          |market_prob_draw         |49              |DOUBLE   |
+|intermediate|backbone          |market_prob_opp          |50              |DOUBLE   |
+|intermediate|events_qual       |ws_match_id              |1               |VARCHAR  |
+|intermediate|events_qual       |team_id                  |2               |INTEGER  |
+|intermediate|events_qual       |player_id                |3               |INTEGER  |
+|intermediate|events_qual       |minute                   |4               |INTEGER  |
+|intermediate|events_qual       |second                   |5               |INTEGER  |
+|intermediate|events_qual       |expanded_minute          |6               |INTEGER  |
+|intermediate|events_qual       |period                   |7               |INTEGER  |
+|intermediate|events_qual       |x                        |8               |DOUBLE   |
+|intermediate|events_qual       |y                        |9               |DOUBLE   |
+|intermediate|events_qual       |end_x                    |10              |DOUBLE   |
+|intermediate|events_qual       |end_y                    |11              |DOUBLE   |
+|intermediate|events_qual       |type_id                  |12              |INTEGER  |
+|intermediate|events_qual       |type_name                |13              |VARCHAR  |
+|intermediate|events_qual       |outcome_id               |14              |INTEGER  |
+|intermediate|events_qual       |is_touch                 |15              |BOOLEAN  |
+|intermediate|events_qual       |is_shot                  |16              |BOOLEAN  |
+|intermediate|events_qual       |row_num                  |17              |INTEGER  |
+|intermediate|events_qual       |scraped_at               |18              |VARCHAR  |
+|intermediate|events_qual       |qual_type_id             |19              |INTEGER  |
+|intermediate|events_qual       |qual_type_name           |20              |VARCHAR  |
+|intermediate|events_qual       |qual_value               |21              |VARCHAR  |
+|intermediate|player_match_stats|ws_match_id              |1               |VARCHAR  |
+|intermediate|player_match_stats|team_id                  |2               |INTEGER  |
+|intermediate|player_match_stats|player_id                |3               |INTEGER  |
+|intermediate|player_match_stats|date                     |4               |DATE     |
+|intermediate|player_match_stats|season                   |5               |VARCHAR  |
+|intermediate|player_match_stats|league_source            |6               |VARCHAR  |
+|intermediate|player_match_stats|scraped_at               |7               |VARCHAR  |
+|intermediate|player_match_stats|n_actions                |8               |BIGINT   |
+|intermediate|player_match_stats|n_shots                  |9               |BIGINT   |
+|intermediate|player_match_stats|n_key_passes             |10              |BIGINT   |
+|intermediate|player_match_stats|xg_contribution          |11              |DOUBLE   |
+|intermediate|player_match_stats|zone_dominance           |12              |DOUBLE   |
+|intermediate|team_features_ws  |ws_match_id              |1               |VARCHAR  |
+|intermediate|team_features_ws  |team_id                  |2               |INTEGER  |
+|intermediate|team_features_ws  |ws_field_tilt_actions    |3               |DOUBLE   |
+|intermediate|team_features_ws  |ws_high_turnover_rate    |4               |DOUBLE   |
+|intermediate|team_features_ws  |ws_deep_completion_rt    |5               |DOUBLE   |
+|intermediate|team_features_ws  |ws_momentum_delta        |6               |DOUBLE   |
+|intermediate|team_features_ws  |ws_counter_shot_rate     |7               |DOUBLE   |
+|intermediate|team_features_ws  |ws_set_piece_pressure    |8               |DOUBLE   |
+|intermediate|team_features_ws  |ws_attack_left_pct       |9               |DOUBLE   |
+|intermediate|team_features_ws  |ws_attack_center_pct     |10              |DOUBLE   |
+|intermediate|team_features_ws  |ws_attack_right_pct      |11              |DOUBLE   |
+|intermediate|team_features_ws  |ws_zone_def_pct          |12              |DOUBLE   |
+|intermediate|team_features_ws  |ws_zone_mid_pct          |13              |DOUBLE   |
+|intermediate|team_features_ws  |ws_zone_att_pct          |14              |DOUBLE   |
+|intermediate|team_features_ws  |ws_shot_six_yard_pct     |15              |DOUBLE   |
+|intermediate|team_features_ws  |ws_shot_penalty_pct      |16              |DOUBLE   |
+|intermediate|team_features_ws  |ws_shot_oob_pct          |17              |DOUBLE   |
+|intermediate|team_features_ws  |ws_shot_open_play_pct    |18              |DOUBLE   |
+|intermediate|team_features_ws  |ws_shot_set_piece_pct    |19              |DOUBLE   |
+|intermediate|team_features_ws  |ws_shot_penalty_att_pct  |20              |DOUBLE   |
+|intermediate|team_features_ws  |ws_conversion_rate       |21              |DOUBLE   |
+|intermediate|team_features_ws  |ws_cross_rate            |22              |DOUBLE   |
+|intermediate|team_features_ws  |ws_through_ball_rate     |23              |DOUBLE   |
+|intermediate|team_features_ws  |ws_long_ball_rate        |24              |DOUBLE   |
+|intermediate|team_features_ws  |ws_short_pass_rate       |25              |DOUBLE   |
+|intermediate|team_features_ws  |ws_def_exposed_left_pct  |26              |DOUBLE   |
+|intermediate|team_features_ws  |ws_def_exposed_center_pct|27              |DOUBLE   |
+|intermediate|team_features_ws  |ws_def_exposed_right_pct |28              |DOUBLE   |
+|intermediate|team_features_ws  |ws_counter_attack_dna    |29              |DOUBLE   |
+|intermediate|team_features_ws  |ws_midfield_control_idx  |30              |DOUBLE   |
+|intermediate|team_features_ws  |ws_defensive_line_height |31              |DOUBLE   |
+|intermediate|team_features_ws  |ws_flank_exposure_asymm  |32              |DOUBLE   |
