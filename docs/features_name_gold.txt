@@ -1,0 +1,1155 @@
+|table_schema|table_name    |column_name                         |ordinal_position|data_type|
+|------------|--------------|------------------------------------|----------------|---------|
+|gold        |features_draw |date                                |1               |DATE     |
+|gold        |features_draw |team                                |2               |VARCHAR  |
+|gold        |features_draw |league_source                       |3               |VARCHAR  |
+|gold        |features_draw |f1_mutual_cancel_idx                |4               |DOUBLE   |
+|gold        |features_draw |f2_defensive_mirror                 |5               |DOUBLE   |
+|gold        |features_draw |f3_draw_market_dev                  |6               |DOUBLE   |
+|gold        |features_draw |f4_momentum_convergence             |7               |DOUBLE   |
+|gold        |features_draw |f5_cs_mutual_rate                   |8               |DOUBLE   |
+|gold        |features_draw |f6_ht_draw_tendency                 |9               |DOUBLE   |
+|gold        |features_draw |f7_off_def_mismatch                 |10              |DOUBLE   |
+|gold        |features_draw |f7_def_off_mismatch                 |11              |DOUBLE   |
+|gold        |features_draw |f8_press_dominance_ratio            |12              |DOUBLE   |
+|gold        |features_draw |f9_chance_quality_gap               |13              |DOUBLE   |
+|gold        |features_draw |f10_venue_power_adj                 |14              |DOUBLE   |
+|gold        |features_draw |f11_comeback_rate                   |15              |DOUBLE   |
+|gold        |features_draw |f12_red_card_resilience             |16              |DOUBLE   |
+|gold        |features_draw |f13_late_goal_tendency              |17              |DOUBLE   |
+|gold        |features_draw |f14_goal_timing_variance            |18              |DOUBLE   |
+|gold        |features_draw |f15_xg_yield_ratio                  |19              |DOUBLE   |
+|gold        |features_draw |f16_def_yield_ratio                 |20              |DOUBLE   |
+|gold        |features_draw |f17_shots_to_goal_eff               |21              |DOUBLE   |
+|gold        |features_draw |f18_sot_conversion                  |22              |DOUBLE   |
+|gold        |features_draw |f19_tactical_lock_idx               |23              |DOUBLE   |
+|gold        |features_draw |f20_upset_composite                 |24              |DOUBLE   |
+|gold        |features_draw |opponent                            |25              |VARCHAR  |
+|gold        |features_draw |venue                               |26              |VARCHAR  |
+|gold        |features_draw |season                              |27              |VARCHAR  |
+|gold        |features_final|date                                |1               |DATE     |
+|gold        |features_final|team                                |2               |VARCHAR  |
+|gold        |features_final|opponent                            |3               |VARCHAR  |
+|gold        |features_final|venue                               |4               |VARCHAR  |
+|gold        |features_final|is_home                             |5               |INTEGER  |
+|gold        |features_final|season                              |6               |VARCHAR  |
+|gold        |features_final|league_source                       |7               |VARCHAR  |
+|gold        |features_final|comp_category                       |8               |VARCHAR  |
+|gold        |features_final|match_id                            |9               |BIGINT   |
+|gold        |features_final|result_1n2                          |10              |VARCHAR  |
+|gold        |features_final|formation                           |11              |VARCHAR  |
+|gold        |features_final|days_since_last_match               |12              |BIGINT   |
+|gold        |features_final|is_return_from_break                |13              |INTEGER  |
+|gold        |features_final|is_short_rest                       |14              |INTEGER  |
+|gold        |features_final|season_att_rating                   |15              |DOUBLE   |
+|gold        |features_final|season_def_rating                   |16              |DOUBLE   |
+|gold        |features_final|ws_dribbles_pg                      |17              |DOUBLE   |
+|gold        |features_final|ws_fouled_pg                        |18              |DOUBLE   |
+|gold        |features_final|ws_shots_ot_pg                      |19              |DOUBLE   |
+|gold        |features_final|opp_season_att_rating               |20              |DOUBLE   |
+|gold        |features_final|opp_season_def_rating               |21              |DOUBLE   |
+|gold        |features_final|opp_ws_dribbles_pg                  |22              |DOUBLE   |
+|gold        |features_final|opp_ws_shots_ot_pg                  |23              |DOUBLE   |
+|gold        |features_final|opp_odds_pinnacle                   |24              |DOUBLE   |
+|gold        |features_final|opp_pinnacle_prob                   |25              |DOUBLE   |
+|gold        |features_final|opp_market_prob                     |26              |DOUBLE   |
+|gold        |features_final|np_xg_roll_3                        |27              |DOUBLE   |
+|gold        |features_final|np_xg_roll_venue_3                  |28              |DOUBLE   |
+|gold        |features_final|np_xg_conceded_roll_3               |29              |DOUBLE   |
+|gold        |features_final|xg_net_roll_3                       |30              |DOUBLE   |
+|gold        |features_final|shot_quality_ratio_3                |31              |DOUBLE   |
+|gold        |features_final|shot_quality_ratio_venue_3          |32              |DOUBLE   |
+|gold        |features_final|shot_accuracy_roll_3                |33              |DOUBLE   |
+|gold        |features_final|save_rate_roll_3                    |34              |DOUBLE   |
+|gold        |features_final|poss_roll_3                         |35              |DOUBLE   |
+|gold        |features_final|poss_roll_venue_3                   |36              |DOUBLE   |
+|gold        |features_final|ppda_roll_3                         |37              |DOUBLE   |
+|gold        |features_final|ppda_allowed_roll_3                 |38              |DOUBLE   |
+|gold        |features_final|ppda_ratio_roll_3                   |39              |DOUBLE   |
+|gold        |features_final|defensive_actions_roll_3            |40              |DOUBLE   |
+|gold        |features_final|fouls_per_tackle_roll_3             |41              |DOUBLE   |
+|gold        |features_final|xg_overperformance_3                |42              |DOUBLE   |
+|gold        |features_final|red_card_rate_roll_3                |43              |DOUBLE   |
+|gold        |features_final|sterility_index_3                   |44              |DOUBLE   |
+|gold        |features_final|shots_faced_per_goal_conceded_3     |45              |DOUBLE   |
+|gold        |features_final|sterility_weighted_3                |46              |DOUBLE   |
+|gold        |features_final|press_resistance_3                  |47              |DOUBLE   |
+|gold        |features_final|shield_efficiency_3                 |48              |DOUBLE   |
+|gold        |features_final|roll_save_pct_3                     |49              |DOUBLE   |
+|gold        |features_final|roll_sota_3                         |50              |DOUBLE   |
+|gold        |features_final|win_rate_roll_3                     |51              |DOUBLE   |
+|gold        |features_final|points_pg_roll_3                    |52              |DOUBLE   |
+|gold        |features_final|opp_np_xg_3                         |53              |DOUBLE   |
+|gold        |features_final|opp_np_xg_venue_3                   |54              |DOUBLE   |
+|gold        |features_final|opp_np_xg_conceded_3                |55              |DOUBLE   |
+|gold        |features_final|opp_xg_net_3                        |56              |DOUBLE   |
+|gold        |features_final|opp_sqr_3                           |57              |DOUBLE   |
+|gold        |features_final|opp_shot_accuracy_3                 |58              |DOUBLE   |
+|gold        |features_final|opp_ppda_3                          |59              |DOUBLE   |
+|gold        |features_final|opp_ppda_allowed_3                  |60              |DOUBLE   |
+|gold        |features_final|opp_ppda_ratio_3                    |61              |DOUBLE   |
+|gold        |features_final|opp_defensive_actions_3             |62              |DOUBLE   |
+|gold        |features_final|opp_xg_opi_3                        |63              |DOUBLE   |
+|gold        |features_final|opp_save_rate_3                     |64              |DOUBLE   |
+|gold        |features_final|opp_red_card_rate_3                 |65              |DOUBLE   |
+|gold        |features_final|opp_win_rate_3                      |66              |DOUBLE   |
+|gold        |features_final|opp_points_pg_3                     |67              |DOUBLE   |
+|gold        |features_final|xg_net_diff_3                       |68              |DOUBLE   |
+|gold        |features_final|sqr_diff_3                          |69              |DOUBLE   |
+|gold        |features_final|ppda_diff_3                         |70              |DOUBLE   |
+|gold        |features_final|ppda_ratio_diff_3                   |71              |DOUBLE   |
+|gold        |features_final|xg_opi_diff_3                       |72              |DOUBLE   |
+|gold        |features_final|save_rate_diff_3                    |73              |DOUBLE   |
+|gold        |features_final|defensive_actions_diff_3            |74              |DOUBLE   |
+|gold        |features_final|keeper_form_diff_3                  |75              |DOUBLE   |
+|gold        |features_final|red_card_rate_diff_3                |76              |DOUBLE   |
+|gold        |features_final|sterility_diff_3                    |77              |DOUBLE   |
+|gold        |features_final|shots_faced_per_goal_conceded_diff_3|78              |DOUBLE   |
+|gold        |features_final|sterility_weighted_diff_3           |79              |DOUBLE   |
+|gold        |features_final|press_resistance_diff_3             |80              |DOUBLE   |
+|gold        |features_final|shield_efficiency_diff_3            |81              |DOUBLE   |
+|gold        |features_final|win_rate_diff_3                     |82              |DOUBLE   |
+|gold        |features_final|points_pg_diff_3                    |83              |DOUBLE   |
+|gold        |features_final|np_xg_roll_5                        |84              |DOUBLE   |
+|gold        |features_final|np_xg_roll_venue_5                  |85              |DOUBLE   |
+|gold        |features_final|np_xg_conceded_roll_5               |86              |DOUBLE   |
+|gold        |features_final|xg_net_roll_5                       |87              |DOUBLE   |
+|gold        |features_final|shot_quality_ratio_5                |88              |DOUBLE   |
+|gold        |features_final|shot_quality_ratio_venue_5          |89              |DOUBLE   |
+|gold        |features_final|shot_accuracy_roll_5                |90              |DOUBLE   |
+|gold        |features_final|save_rate_roll_5                    |91              |DOUBLE   |
+|gold        |features_final|poss_roll_5                         |92              |DOUBLE   |
+|gold        |features_final|poss_roll_venue_5                   |93              |DOUBLE   |
+|gold        |features_final|ppda_roll_5                         |94              |DOUBLE   |
+|gold        |features_final|ppda_allowed_roll_5                 |95              |DOUBLE   |
+|gold        |features_final|ppda_ratio_roll_5                   |96              |DOUBLE   |
+|gold        |features_final|defensive_actions_roll_5            |97              |DOUBLE   |
+|gold        |features_final|fouls_per_tackle_roll_5             |98              |DOUBLE   |
+|gold        |features_final|xg_overperformance_5                |99              |DOUBLE   |
+|gold        |features_final|red_card_rate_roll_5                |100             |DOUBLE   |
+|gold        |features_final|sterility_index_5                   |101             |DOUBLE   |
+|gold        |features_final|shots_faced_per_goal_conceded_5     |102             |DOUBLE   |
+|gold        |features_final|sterility_weighted_5                |103             |DOUBLE   |
+|gold        |features_final|press_resistance_5                  |104             |DOUBLE   |
+|gold        |features_final|shield_efficiency_5                 |105             |DOUBLE   |
+|gold        |features_final|roll_save_pct_5                     |106             |DOUBLE   |
+|gold        |features_final|roll_sota_5                         |107             |DOUBLE   |
+|gold        |features_final|win_rate_roll_5                     |108             |DOUBLE   |
+|gold        |features_final|points_pg_roll_5                    |109             |DOUBLE   |
+|gold        |features_final|opp_np_xg_5                         |110             |DOUBLE   |
+|gold        |features_final|opp_np_xg_venue_5                   |111             |DOUBLE   |
+|gold        |features_final|opp_np_xg_conceded_5                |112             |DOUBLE   |
+|gold        |features_final|opp_xg_net_5                        |113             |DOUBLE   |
+|gold        |features_final|opp_sqr_5                           |114             |DOUBLE   |
+|gold        |features_final|opp_shot_accuracy_5                 |115             |DOUBLE   |
+|gold        |features_final|opp_ppda_5                          |116             |DOUBLE   |
+|gold        |features_final|opp_ppda_allowed_5                  |117             |DOUBLE   |
+|gold        |features_final|opp_ppda_ratio_5                    |118             |DOUBLE   |
+|gold        |features_final|opp_defensive_actions_5             |119             |DOUBLE   |
+|gold        |features_final|opp_xg_opi_5                        |120             |DOUBLE   |
+|gold        |features_final|opp_save_rate_5                     |121             |DOUBLE   |
+|gold        |features_final|opp_red_card_rate_5                 |122             |DOUBLE   |
+|gold        |features_final|opp_win_rate_5                      |123             |DOUBLE   |
+|gold        |features_final|opp_points_pg_5                     |124             |DOUBLE   |
+|gold        |features_final|xg_net_diff_5                       |125             |DOUBLE   |
+|gold        |features_final|sqr_diff_5                          |126             |DOUBLE   |
+|gold        |features_final|ppda_diff_5                         |127             |DOUBLE   |
+|gold        |features_final|ppda_ratio_diff_5                   |128             |DOUBLE   |
+|gold        |features_final|xg_opi_diff_5                       |129             |DOUBLE   |
+|gold        |features_final|save_rate_diff_5                    |130             |DOUBLE   |
+|gold        |features_final|defensive_actions_diff_5            |131             |DOUBLE   |
+|gold        |features_final|keeper_form_diff_5                  |132             |DOUBLE   |
+|gold        |features_final|red_card_rate_diff_5                |133             |DOUBLE   |
+|gold        |features_final|sterility_diff_5                    |134             |DOUBLE   |
+|gold        |features_final|shots_faced_per_goal_conceded_diff_5|135             |DOUBLE   |
+|gold        |features_final|sterility_weighted_diff_5           |136             |DOUBLE   |
+|gold        |features_final|press_resistance_diff_5             |137             |DOUBLE   |
+|gold        |features_final|shield_efficiency_diff_5            |138             |DOUBLE   |
+|gold        |features_final|win_rate_diff_5                     |139             |DOUBLE   |
+|gold        |features_final|points_pg_diff_5                    |140             |DOUBLE   |
+|gold        |features_final|np_xg_roll_10                       |141             |DOUBLE   |
+|gold        |features_final|np_xg_roll_venue_10                 |142             |DOUBLE   |
+|gold        |features_final|np_xg_conceded_roll_10              |143             |DOUBLE   |
+|gold        |features_final|xg_net_roll_10                      |144             |DOUBLE   |
+|gold        |features_final|shot_quality_ratio_10               |145             |DOUBLE   |
+|gold        |features_final|shot_quality_ratio_venue_10         |146             |DOUBLE   |
+|gold        |features_final|shot_accuracy_roll_10               |147             |DOUBLE   |
+|gold        |features_final|save_rate_roll_10                   |148             |DOUBLE   |
+|gold        |features_final|poss_roll_10                        |149             |DOUBLE   |
+|gold        |features_final|poss_roll_venue_10                  |150             |DOUBLE   |
+|gold        |features_final|ppda_roll_10                        |151             |DOUBLE   |
+|gold        |features_final|ppda_allowed_roll_10                |152             |DOUBLE   |
+|gold        |features_final|ppda_ratio_roll_10                  |153             |DOUBLE   |
+|gold        |features_final|defensive_actions_roll_10           |154             |DOUBLE   |
+|gold        |features_final|fouls_per_tackle_roll_10            |155             |DOUBLE   |
+|gold        |features_final|xg_overperformance_10               |156             |DOUBLE   |
+|gold        |features_final|red_card_rate_roll_10               |157             |DOUBLE   |
+|gold        |features_final|sterility_index_10                  |158             |DOUBLE   |
+|gold        |features_final|shots_faced_per_goal_conceded_10    |159             |DOUBLE   |
+|gold        |features_final|sterility_weighted_10               |160             |DOUBLE   |
+|gold        |features_final|press_resistance_10                 |161             |DOUBLE   |
+|gold        |features_final|shield_efficiency_10                |162             |DOUBLE   |
+|gold        |features_final|roll_save_pct_10                    |163             |DOUBLE   |
+|gold        |features_final|roll_sota_10                        |164             |DOUBLE   |
+|gold        |features_final|win_rate_roll_10                    |165             |DOUBLE   |
+|gold        |features_final|points_pg_roll_10                   |166             |DOUBLE   |
+|gold        |features_final|opp_np_xg_10                        |167             |DOUBLE   |
+|gold        |features_final|opp_np_xg_venue_10                  |168             |DOUBLE   |
+|gold        |features_final|opp_np_xg_conceded_10               |169             |DOUBLE   |
+|gold        |features_final|opp_xg_net_10                       |170             |DOUBLE   |
+|gold        |features_final|opp_sqr_10                          |171             |DOUBLE   |
+|gold        |features_final|opp_shot_accuracy_10                |172             |DOUBLE   |
+|gold        |features_final            |opp_ppda_10                          |173             |DOUBLE   |
+|gold        |features_final            |opp_ppda_allowed_10                  |174             |DOUBLE   |
+|gold        |features_final            |opp_ppda_ratio_10                    |175             |DOUBLE   |
+|gold        |features_final            |opp_defensive_actions_10             |176             |DOUBLE   |
+|gold        |features_final            |opp_xg_opi_10                        |177             |DOUBLE   |
+|gold        |features_final            |opp_save_rate_10                     |178             |DOUBLE   |
+|gold        |features_final            |opp_red_card_rate_10                 |179             |DOUBLE   |
+|gold        |features_final            |opp_win_rate_10                      |180             |DOUBLE   |
+|gold        |features_final            |opp_points_pg_10                     |181             |DOUBLE   |
+|gold        |features_final            |xg_net_diff_10                       |182             |DOUBLE   |
+|gold        |features_final            |sqr_diff_10                          |183             |DOUBLE   |
+|gold        |features_final            |ppda_diff_10                         |184             |DOUBLE   |
+|gold        |features_final            |ppda_ratio_diff_10                   |185             |DOUBLE   |
+|gold        |features_final            |xg_opi_diff_10                       |186             |DOUBLE   |
+|gold        |features_final            |save_rate_diff_10                    |187             |DOUBLE   |
+|gold        |features_final            |defensive_actions_diff_10            |188             |DOUBLE   |
+|gold        |features_final            |keeper_form_diff_10                  |189             |DOUBLE   |
+|gold        |features_final            |red_card_rate_diff_10                |190             |DOUBLE   |
+|gold        |features_final            |sterility_diff_10                    |191             |DOUBLE   |
+|gold        |features_final            |shots_faced_per_goal_conceded_diff_10|192             |DOUBLE   |
+|gold        |features_final            |sterility_weighted_diff_10           |193             |DOUBLE   |
+|gold        |features_final            |press_resistance_diff_10             |194             |DOUBLE   |
+|gold        |features_final            |shield_efficiency_diff_10            |195             |DOUBLE   |
+|gold        |features_final            |win_rate_diff_10                     |196             |DOUBLE   |
+|gold        |features_final            |points_pg_diff_10                    |197             |DOUBLE   |
+|gold        |features_final            |xg_net_diff                          |198             |DOUBLE   |
+|gold        |features_final            |tactical_advantage                   |199             |DOUBLE   |
+|gold        |features_final            |ws_dribble_style_diff                |200             |DOUBLE   |
+|gold        |features_final            |ws_fouled_diff                       |201             |DOUBLE   |
+|gold        |features_final            |sqr_diff                             |202             |DOUBLE   |
+|gold        |features_final            |ppda_diff                            |203             |DOUBLE   |
+|gold        |features_final            |ppda_ratio_diff                      |204             |DOUBLE   |
+|gold        |features_final            |xg_opi_diff                          |205             |DOUBLE   |
+|gold        |features_final            |save_rate_diff                       |206             |DOUBLE   |
+|gold        |features_final            |defensive_actions_diff               |207             |DOUBLE   |
+|gold        |features_final            |keeper_form_diff                     |208             |DOUBLE   |
+|gold        |features_final            |red_card_rate_diff                   |209             |DOUBLE   |
+|gold        |features_final            |sterility_diff                       |210             |DOUBLE   |
+|gold        |features_final            |press_resistance_diff                |211             |DOUBLE   |
+|gold        |features_final            |shield_efficiency_diff               |212             |DOUBLE   |
+|gold        |features_final            |rest_days_diff                       |213             |BIGINT   |
+|gold        |features_final            |draw_rate_diff                       |214             |DOUBLE   |
+|gold        |features_final            |draw_affinity                        |215             |DOUBLE   |
+|gold        |features_final            |form_att_vs_def_gap                  |216             |DOUBLE   |
+|gold        |features_final            |form_mid_dominance                   |217             |DOUBLE   |
+|gold        |features_final            |odds_pinnacle_team                   |218             |DOUBLE   |
+|gold        |features_final            |odds_pinnacle_draw                   |219             |DOUBLE   |
+|gold        |features_final            |odds_pinnacle_opp                    |220             |DOUBLE   |
+|gold        |features_final            |odds_avg_team                        |221             |DOUBLE   |
+|gold        |features_final            |odds_avg_draw                        |222             |DOUBLE   |
+|gold        |features_final            |odds_avg_opp                         |223             |DOUBLE   |
+|gold        |features_final            |pinnacle_prob_team                   |224             |DOUBLE   |
+|gold        |features_final            |pinnacle_prob_draw                   |225             |DOUBLE   |
+|gold        |features_final            |pinnacle_prob_opp                    |226             |DOUBLE   |
+|gold        |features_final            |market_prob_team                     |227             |DOUBLE   |
+|gold        |features_final            |market_prob_draw                     |228             |DOUBLE   |
+|gold        |features_final            |market_prob_opp                      |229             |DOUBLE   |
+|gold        |features_final            |pinnacle_edge                        |230             |DOUBLE   |
+|gold        |features_final            |market_edge                          |231             |DOUBLE   |
+|gold        |features_final            |h2h_win_rate                         |232             |DOUBLE   |
+|gold        |features_final            |h2h_draw_rate                        |233             |DOUBLE   |
+|gold        |features_final            |h2h_goals_scored                     |234             |DOUBLE   |
+|gold        |features_final            |h2h_goals_conceded                   |235             |DOUBLE   |
+|gold        |features_final            |h2h_xg_diff                          |236             |DOUBLE   |
+|gold        |features_final            |h2h_n_matches                        |237             |BIGINT   |
+|gold        |features_final            |league_draw_rate                     |238             |DOUBLE   |
+|gold        |features_final            |rating_ratio_att                     |239             |DOUBLE   |
+|gold        |features_final            |rating_ratio_def                     |240             |DOUBLE   |
+|gold        |features_final            |upset_risk_index                     |241             |DOUBLE   |
+|gold        |features_final            |final_match_id                       |242             |VARCHAR  |
+|gold        |features_final            |ws_field_tilt_actions                |243             |DOUBLE   |
+|gold        |features_final            |ws_high_turnover_rate                |244             |DOUBLE   |
+|gold        |features_final            |ws_deep_completion_rt                |245             |DOUBLE   |
+|gold        |features_final            |ws_momentum_delta                    |246             |DOUBLE   |
+|gold        |features_final            |ws_counter_shot_rate                 |247             |DOUBLE   |
+|gold        |features_final            |ws_set_piece_pressure                |248             |DOUBLE   |
+|gold        |features_final            |ws_attack_left_pct                   |249             |DOUBLE   |
+|gold        |features_final            |ws_attack_center_pct                 |250             |DOUBLE   |
+|gold        |features_final            |ws_attack_right_pct                  |251             |DOUBLE   |
+|gold        |features_final            |ws_zone_def_pct                      |252             |DOUBLE   |
+|gold        |features_final            |ws_zone_mid_pct                      |253             |DOUBLE   |
+|gold        |features_final            |ws_zone_att_pct                      |254             |DOUBLE   |
+|gold        |features_final            |ws_counter_attack_dna                |255             |DOUBLE   |
+|gold        |features_final            |ws_midfield_control_idx              |256             |DOUBLE   |
+|gold        |features_final            |ws_defensive_line_height             |257             |DOUBLE   |
+|gold        |features_final            |ws_flank_exposure_asymm              |258             |DOUBLE   |
+|gold        |features_final            |squad_avg_form_5                     |259             |DOUBLE   |
+|gold        |features_final            |squad_xg_quality_5                   |260             |DOUBLE   |
+|gold        |features_final            |squad_regularity                     |261             |DOUBLE   |
+|gold        |features_final            |squad_top3_share                     |262             |DOUBLE   |
+|gold        |features_final            |has_ws_events                        |263             |INTEGER  |
+|gold        |features_final            |f1_mutual_cancel_idx                 |264             |DOUBLE   |
+|gold        |features_final            |f2_defensive_mirror                  |265             |DOUBLE   |
+|gold        |features_final            |f3_draw_market_dev                   |266             |DOUBLE   |
+|gold        |features_final            |f4_momentum_convergence              |267             |DOUBLE   |
+|gold        |features_final            |f5_cs_mutual_rate                    |268             |DOUBLE   |
+|gold        |features_final            |f7_off_def_mismatch                  |269             |DOUBLE   |
+|gold        |features_final            |f7_def_off_mismatch                  |270             |DOUBLE   |
+|gold        |features_final            |f8_press_dominance_ratio             |271             |DOUBLE   |
+|gold        |features_final            |f9_chance_quality_gap                |272             |DOUBLE   |
+|gold        |features_final            |f10_venue_power_adj                  |273             |DOUBLE   |
+|gold        |features_final            |f11_comeback_rate                    |274             |DOUBLE   |
+|gold        |features_final            |f12_red_card_resilience              |275             |DOUBLE   |
+|gold        |features_final            |f15_xg_yield_ratio                   |276             |DOUBLE   |
+|gold        |features_final            |f16_def_yield_ratio                  |277             |DOUBLE   |
+|gold        |features_final            |f17_shots_to_goal_eff                |278             |DOUBLE   |
+|gold        |features_final            |f18_sot_conversion                   |279             |DOUBLE   |
+|gold        |features_final            |f19_tactical_lock_idx                |280             |DOUBLE   |
+|gold        |features_final            |f20_upset_composite                  |281             |DOUBLE   |
+|gold        |features_final            |form_n_defenders                     |282             |INTEGER  |
+|gold        |features_final            |form_n_midfielders                   |283             |INTEGER  |
+|gold        |features_final            |form_n_attackers                     |284             |INTEGER  |
+|gold        |features_final            |form_familiarity_5                   |285             |DOUBLE   |
+|gold        |features_final            |form_change_flag                     |286             |INTEGER  |
+|gold        |features_final            |home_win_rate_hist                   |287             |DOUBLE   |
+|gold        |features_final__dbt_backup|date                                 |1               |DATE     |
+|gold        |features_final__dbt_backup|team                                 |2               |VARCHAR  |
+|gold        |features_final__dbt_backup|opponent                             |3               |VARCHAR  |
+|gold        |features_final__dbt_backup|venue                                |4               |VARCHAR  |
+|gold        |features_final__dbt_backup|is_home                              |5               |INTEGER  |
+|gold        |features_final__dbt_backup|season                               |6               |VARCHAR  |
+|gold        |features_final__dbt_backup|league_source                        |7               |VARCHAR  |
+|gold        |features_final__dbt_backup|comp_category                        |8               |VARCHAR  |
+|gold        |features_final__dbt_backup|match_id                             |9               |BIGINT   |
+|gold        |features_final__dbt_backup|result_1n2                           |10              |VARCHAR  |
+|gold        |features_final__dbt_backup|days_since_last_match                |11              |BIGINT   |
+|gold        |features_final__dbt_backup|is_return_from_break                 |12              |INTEGER  |
+|gold        |features_final__dbt_backup|is_short_rest                        |13              |INTEGER  |
+|gold        |features_final__dbt_backup|season_att_rating                    |14              |DOUBLE   |
+|gold        |features_final__dbt_backup|season_def_rating                    |15              |DOUBLE   |
+|gold        |features_final__dbt_backup|ws_dribbles_pg                       |16              |DOUBLE   |
+|gold        |features_final__dbt_backup|ws_fouled_pg                         |17              |DOUBLE   |
+|gold        |features_final__dbt_backup|ws_shots_ot_pg                       |18              |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_season_att_rating                |19              |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_season_def_rating                |20              |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_ws_dribbles_pg                   |21              |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_ws_shots_ot_pg                   |22              |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_odds_pinnacle                    |23              |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_pinnacle_prob                    |24              |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_market_prob                      |25              |DOUBLE   |
+|gold        |features_final__dbt_backup|np_xg_roll_3                         |26              |DOUBLE   |
+|gold        |features_final__dbt_backup|np_xg_roll_venue_3                   |27              |DOUBLE   |
+|gold        |features_final__dbt_backup|np_xg_conceded_roll_3                |28              |DOUBLE   |
+|gold        |features_final__dbt_backup|xg_net_roll_3                        |29              |DOUBLE   |
+|gold        |features_final__dbt_backup|shot_quality_ratio_3                 |30              |DOUBLE   |
+|gold        |features_final__dbt_backup|shot_quality_ratio_venue_3           |31              |DOUBLE   |
+|gold        |features_final__dbt_backup|shot_accuracy_roll_3                 |32              |DOUBLE   |
+|gold        |features_final__dbt_backup|save_rate_roll_3                     |33              |DOUBLE   |
+|gold        |features_final__dbt_backup|poss_roll_3                          |34              |DOUBLE   |
+|gold        |features_final__dbt_backup|poss_roll_venue_3                    |35              |DOUBLE   |
+|gold        |features_final__dbt_backup|ppda_roll_3                          |36              |DOUBLE   |
+|gold        |features_final__dbt_backup|ppda_allowed_roll_3                  |37              |DOUBLE   |
+|gold        |features_final__dbt_backup|ppda_ratio_roll_3                    |38              |DOUBLE   |
+|gold        |features_final__dbt_backup|defensive_actions_roll_3             |39              |DOUBLE   |
+|gold        |features_final__dbt_backup|fouls_per_tackle_roll_3              |40              |DOUBLE   |
+|gold        |features_final__dbt_backup|xg_overperformance_3                 |41              |DOUBLE   |
+|gold        |features_final__dbt_backup|red_card_rate_roll_3                 |42              |DOUBLE   |
+|gold        |features_final__dbt_backup|sterility_index_3                    |43              |DOUBLE   |
+|gold        |features_final__dbt_backup|shots_faced_per_goal_conceded_3      |44              |DOUBLE   |
+|gold        |features_final__dbt_backup|sterility_weighted_3                 |45              |DOUBLE   |
+|gold        |features_final__dbt_backup|press_resistance_3                   |46              |DOUBLE   |
+|gold        |features_final__dbt_backup|shield_efficiency_3                  |47              |DOUBLE   |
+|gold        |features_final__dbt_backup|roll_save_pct_3                      |48              |DOUBLE   |
+|gold        |features_final__dbt_backup|roll_sota_3                          |49              |DOUBLE   |
+|gold        |features_final__dbt_backup|win_rate_roll_3                      |50              |DOUBLE   |
+|gold        |features_final__dbt_backup|points_pg_roll_3                     |51              |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_np_xg_3                          |52              |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_np_xg_venue_3                    |53              |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_np_xg_conceded_3                 |54              |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_xg_net_3                         |55              |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_sqr_3                            |56              |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_shot_accuracy_3                  |57              |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_ppda_3                           |58              |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_ppda_allowed_3                   |59              |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_ppda_ratio_3                     |60              |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_defensive_actions_3              |61              |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_xg_opi_3                         |62              |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_save_rate_3                      |63              |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_red_card_rate_3                  |64              |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_win_rate_3                       |65              |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_points_pg_3                      |66              |DOUBLE   |
+|gold        |features_final__dbt_backup|np_xg_roll_5                         |67              |DOUBLE   |
+|gold        |features_final__dbt_backup|np_xg_roll_venue_5                   |68              |DOUBLE   |
+|gold        |features_final__dbt_backup|np_xg_conceded_roll_5                |69              |DOUBLE   |
+|gold        |features_final__dbt_backup|xg_net_roll_5                        |70              |DOUBLE   |
+|gold        |features_final__dbt_backup|shot_quality_ratio_5                 |71              |DOUBLE   |
+|gold        |features_final__dbt_backup|shot_quality_ratio_venue_5           |72              |DOUBLE   |
+|gold        |features_final__dbt_backup|shot_accuracy_roll_5                 |73              |DOUBLE   |
+|gold        |features_final__dbt_backup|save_rate_roll_5                     |74              |DOUBLE   |
+|gold        |features_final__dbt_backup|poss_roll_5                          |75              |DOUBLE   |
+|gold        |features_final__dbt_backup|poss_roll_venue_5                    |76              |DOUBLE   |
+|gold        |features_final__dbt_backup|ppda_roll_5                          |77              |DOUBLE   |
+|gold        |features_final__dbt_backup|ppda_allowed_roll_5                  |78              |DOUBLE   |
+|gold        |features_final__dbt_backup|ppda_ratio_roll_5                    |79              |DOUBLE   |
+|gold        |features_final__dbt_backup|defensive_actions_roll_5             |80              |DOUBLE   |
+|gold        |features_final__dbt_backup|fouls_per_tackle_roll_5              |81              |DOUBLE   |
+|gold        |features_final__dbt_backup|xg_overperformance_5                 |82              |DOUBLE   |
+|gold        |features_final__dbt_backup|red_card_rate_roll_5                 |83              |DOUBLE   |
+|gold        |features_final__dbt_backup|sterility_index_5                    |84              |DOUBLE   |
+|gold        |features_final__dbt_backup|shots_faced_per_goal_conceded_5      |85              |DOUBLE   |
+|gold        |features_final__dbt_backup|sterility_weighted_5                 |86              |DOUBLE   |
+|gold        |features_final__dbt_backup|press_resistance_5                   |87              |DOUBLE   |
+|gold        |features_final__dbt_backup|shield_efficiency_5                  |88              |DOUBLE   |
+|gold        |features_final__dbt_backup|roll_save_pct_5                      |89              |DOUBLE   |
+|gold        |features_final__dbt_backup|roll_sota_5                          |90              |DOUBLE   |
+|gold        |features_final__dbt_backup|win_rate_roll_5                      |91              |DOUBLE   |
+|gold        |features_final__dbt_backup|points_pg_roll_5                     |92              |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_np_xg_5                          |93              |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_np_xg_venue_5                    |94              |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_np_xg_conceded_5                 |95              |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_xg_net_5                         |96              |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_sqr_5                            |97              |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_shot_accuracy_5                  |98              |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_ppda_5                           |99              |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_ppda_allowed_5                   |100             |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_ppda_ratio_5                     |101             |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_defensive_actions_5              |102             |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_xg_opi_5                         |103             |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_save_rate_5                      |104             |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_red_card_rate_5                  |105             |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_win_rate_5                       |106             |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_points_pg_5                      |107             |DOUBLE   |
+|gold        |features_final__dbt_backup|np_xg_roll_10                        |108             |DOUBLE   |
+|gold        |features_final__dbt_backup|np_xg_roll_venue_10                  |109             |DOUBLE   |
+|gold        |features_final__dbt_backup|np_xg_conceded_roll_10               |110             |DOUBLE   |
+|gold        |features_final__dbt_backup|xg_net_roll_10                       |111             |DOUBLE   |
+|gold        |features_final__dbt_backup|shot_quality_ratio_10                |112             |DOUBLE   |
+|gold        |features_final__dbt_backup|shot_quality_ratio_venue_10          |113             |DOUBLE   |
+|gold        |features_final__dbt_backup|shot_accuracy_roll_10                |114             |DOUBLE   |
+|gold        |features_final__dbt_backup|save_rate_roll_10                    |115             |DOUBLE   |
+|gold        |features_final__dbt_backup|poss_roll_10                         |116             |DOUBLE   |
+|gold        |features_final__dbt_backup|poss_roll_venue_10                   |117             |DOUBLE   |
+|gold        |features_final__dbt_backup|ppda_roll_10                         |118             |DOUBLE   |
+|gold        |features_final__dbt_backup|ppda_allowed_roll_10                 |119             |DOUBLE   |
+|gold        |features_final__dbt_backup|ppda_ratio_roll_10                   |120             |DOUBLE   |
+|gold        |features_final__dbt_backup|defensive_actions_roll_10            |121             |DOUBLE   |
+|gold        |features_final__dbt_backup|fouls_per_tackle_roll_10             |122             |DOUBLE   |
+|gold        |features_final__dbt_backup|xg_overperformance_10                |123             |DOUBLE   |
+|gold        |features_final__dbt_backup|red_card_rate_roll_10                |124             |DOUBLE   |
+|gold        |features_final__dbt_backup|sterility_index_10                   |125             |DOUBLE   |
+|gold        |features_final__dbt_backup|shots_faced_per_goal_conceded_10     |126             |DOUBLE   |
+|gold        |features_final__dbt_backup|sterility_weighted_10                |127             |DOUBLE   |
+|gold        |features_final__dbt_backup|press_resistance_10                  |128             |DOUBLE   |
+|gold        |features_final__dbt_backup|shield_efficiency_10                 |129             |DOUBLE   |
+|gold        |features_final__dbt_backup|roll_save_pct_10                     |130             |DOUBLE   |
+|gold        |features_final__dbt_backup|roll_sota_10                         |131             |DOUBLE   |
+|gold        |features_final__dbt_backup|win_rate_roll_10                     |132             |DOUBLE   |
+|gold        |features_final__dbt_backup|points_pg_roll_10                    |133             |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_np_xg_10                         |134             |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_np_xg_venue_10                   |135             |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_np_xg_conceded_10                |136             |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_xg_net_10                        |137             |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_sqr_10                           |138             |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_shot_accuracy_10                 |139             |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_ppda_10                          |140             |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_ppda_allowed_10                  |141             |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_ppda_ratio_10                    |142             |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_defensive_actions_10             |143             |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_xg_opi_10                        |144             |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_save_rate_10                     |145             |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_red_card_rate_10                 |146             |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_win_rate_10                      |147             |DOUBLE   |
+|gold        |features_final__dbt_backup|opp_points_pg_10                     |148             |DOUBLE   |
+|gold        |features_final__dbt_backup|xg_net_diff_3                        |149             |DOUBLE   |
+|gold        |features_final__dbt_backup|sqr_diff_3                           |150             |DOUBLE   |
+|gold        |features_final__dbt_backup|ppda_diff_3                          |151             |DOUBLE   |
+|gold        |features_final__dbt_backup|ppda_ratio_diff_3                    |152             |DOUBLE   |
+|gold        |features_final__dbt_backup|xg_opi_diff_3                        |153             |DOUBLE   |
+|gold        |features_final__dbt_backup|save_rate_diff_3                     |154             |DOUBLE   |
+|gold        |features_final__dbt_backup|defensive_actions_diff_3             |155             |DOUBLE   |
+|gold        |features_final__dbt_backup|keeper_form_diff_3                   |156             |DOUBLE   |
+|gold        |features_final__dbt_backup|red_card_rate_diff_3                 |157             |DOUBLE   |
+|gold        |features_final__dbt_backup|sterility_diff_3                     |158             |DOUBLE   |
+|gold        |features_final__dbt_backup|shots_faced_per_goal_conceded_diff_3 |159             |DOUBLE   |
+|gold        |features_final__dbt_backup|sterility_weighted_diff_3            |160             |DOUBLE   |
+|gold        |features_final__dbt_backup|press_resistance_diff_3              |161             |DOUBLE   |
+|gold        |features_final__dbt_backup|shield_efficiency_diff_3             |162             |DOUBLE   |
+|gold        |features_final__dbt_backup|win_rate_diff_3                      |163             |DOUBLE   |
+|gold        |features_final__dbt_backup|points_pg_diff_3                     |164             |DOUBLE   |
+|gold        |features_final__dbt_backup|xg_net_diff_5                        |165             |DOUBLE   |
+|gold        |features_final__dbt_backup|sqr_diff_5                           |166             |DOUBLE   |
+|gold        |features_final__dbt_backup|ppda_diff_5                          |167             |DOUBLE   |
+|gold        |features_final__dbt_backup|ppda_ratio_diff_5                    |168             |DOUBLE   |
+|gold        |features_final__dbt_backup|xg_opi_diff_5                        |169             |DOUBLE   |
+|gold        |features_final__dbt_backup|save_rate_diff_5                     |170             |DOUBLE   |
+|gold        |features_final__dbt_backup|defensive_actions_diff_5             |171             |DOUBLE   |
+|gold        |features_final__dbt_backup|keeper_form_diff_5                   |172             |DOUBLE   |
+|gold        |features_final__dbt_backup|red_card_rate_diff_5                 |173             |DOUBLE   |
+|gold        |features_final__dbt_backup|sterility_diff_5                     |174             |DOUBLE   |
+|gold        |features_final__dbt_backup|shots_faced_per_goal_conceded_diff_5 |175             |DOUBLE   |
+|gold        |features_final__dbt_backup|sterility_weighted_diff_5            |176             |DOUBLE   |
+|gold        |features_final__dbt_backup|press_resistance_diff_5              |177             |DOUBLE   |
+|gold        |features_final__dbt_backup|shield_efficiency_diff_5             |178             |DOUBLE   |
+|gold        |features_final__dbt_backup|win_rate_diff_5                      |179             |DOUBLE   |
+|gold        |features_final__dbt_backup|points_pg_diff_5                     |180             |DOUBLE   |
+|gold        |features_final__dbt_backup|xg_net_diff_10                       |181             |DOUBLE   |
+|gold        |features_final__dbt_backup|sqr_diff_10                          |182             |DOUBLE   |
+|gold        |features_final__dbt_backup|ppda_diff_10                         |183             |DOUBLE   |
+|gold        |features_final__dbt_backup|ppda_ratio_diff_10                   |184             |DOUBLE   |
+|gold        |features_final__dbt_backup|xg_opi_diff_10                       |185             |DOUBLE   |
+|gold        |features_final__dbt_backup|save_rate_diff_10                    |186             |DOUBLE   |
+|gold        |features_final__dbt_backup|defensive_actions_diff_10            |187             |DOUBLE   |
+|gold        |features_final__dbt_backup|keeper_form_diff_10                  |188             |DOUBLE   |
+|gold        |features_final__dbt_backup|red_card_rate_diff_10                |189             |DOUBLE   |
+|gold        |features_final__dbt_backup|sterility_diff_10                    |190             |DOUBLE   |
+|gold        |features_final__dbt_backup|shots_faced_per_goal_conceded_diff_10|191             |DOUBLE   |
+|gold        |features_final__dbt_backup|sterility_weighted_diff_10           |192             |DOUBLE   |
+|gold        |features_final__dbt_backup|press_resistance_diff_10             |193             |DOUBLE   |
+|gold        |features_final__dbt_backup|shield_efficiency_diff_10            |194             |DOUBLE   |
+|gold        |features_final__dbt_backup|win_rate_diff_10                     |195             |DOUBLE   |
+|gold        |features_final__dbt_backup|points_pg_diff_10                    |196             |DOUBLE   |
+|gold        |features_final__dbt_backup|xg_net_diff                          |197             |DOUBLE   |
+|gold        |features_final__dbt_backup|tactical_advantage                   |198             |DOUBLE   |
+|gold        |features_final__dbt_backup|ws_dribble_style_diff                |199             |DOUBLE   |
+|gold        |features_final__dbt_backup|ws_fouled_diff                       |200             |DOUBLE   |
+|gold        |features_final__dbt_backup|sqr_diff                             |201             |DOUBLE   |
+|gold        |features_final__dbt_backup|ppda_diff                            |202             |DOUBLE   |
+|gold        |features_final__dbt_backup|ppda_ratio_diff                      |203             |DOUBLE   |
+|gold        |features_final__dbt_backup|xg_opi_diff                          |204             |DOUBLE   |
+|gold        |features_final__dbt_backup|save_rate_diff                       |205             |DOUBLE   |
+|gold        |features_final__dbt_backup|defensive_actions_diff               |206             |DOUBLE   |
+|gold        |features_final__dbt_backup|keeper_form_diff                     |207             |DOUBLE   |
+|gold        |features_final__dbt_backup|red_card_rate_diff                   |208             |DOUBLE   |
+|gold        |features_final__dbt_backup|sterility_diff                       |209             |DOUBLE   |
+|gold        |features_final__dbt_backup|press_resistance_diff                |210             |DOUBLE   |
+|gold        |features_final__dbt_backup|shield_efficiency_diff               |211             |DOUBLE   |
+|gold        |features_final__dbt_backup|rest_days_diff                       |212             |BIGINT   |
+|gold        |features_final__dbt_backup|draw_rate_diff                       |213             |DOUBLE   |
+|gold        |features_final__dbt_backup|draw_affinity                        |214             |DOUBLE   |
+|gold        |features_final__dbt_backup|form_att_vs_def_gap                  |215             |DOUBLE   |
+|gold        |features_final__dbt_backup|form_mid_dominance                   |216             |DOUBLE   |
+|gold        |features_final__dbt_backup|odds_pinnacle_team                   |217             |DOUBLE   |
+|gold        |features_final__dbt_backup|odds_pinnacle_draw                   |218             |DOUBLE   |
+|gold        |features_final__dbt_backup|odds_pinnacle_opp                    |219             |DOUBLE   |
+|gold        |features_final__dbt_backup|odds_avg_team                        |220             |DOUBLE   |
+|gold        |features_final__dbt_backup|odds_avg_draw                        |221             |DOUBLE   |
+|gold        |features_final__dbt_backup|odds_avg_opp                         |222             |DOUBLE   |
+|gold        |features_final__dbt_backup|pinnacle_prob_team                   |223             |DOUBLE   |
+|gold        |features_final__dbt_backup|pinnacle_prob_draw                   |224             |DOUBLE   |
+|gold        |features_final__dbt_backup|pinnacle_prob_opp                    |225             |DOUBLE   |
+|gold        |features_final__dbt_backup|market_prob_team                     |226             |DOUBLE   |
+|gold        |features_final__dbt_backup|market_prob_draw                     |227             |DOUBLE   |
+|gold        |features_final__dbt_backup|market_prob_opp                      |228             |DOUBLE   |
+|gold        |features_final__dbt_backup|pinnacle_edge                        |229             |DOUBLE   |
+|gold        |features_final__dbt_backup|market_edge                          |230             |DOUBLE   |
+|gold        |features_final__dbt_backup|h2h_win_rate                         |231             |DOUBLE   |
+|gold        |features_final__dbt_backup|h2h_draw_rate                        |232             |DOUBLE   |
+|gold        |features_final__dbt_backup|h2h_goals_scored                     |233             |DOUBLE   |
+|gold        |features_final__dbt_backup|h2h_goals_conceded                   |234             |DOUBLE   |
+|gold        |features_final__dbt_backup|h2h_xg_diff                          |235             |DOUBLE   |
+|gold        |features_final__dbt_backup|h2h_n_matches                        |236             |INTEGER  |
+|gold        |features_final__dbt_backup|league_draw_rate                     |237             |DOUBLE   |
+|gold        |features_final__dbt_backup|rating_ratio_att                     |238             |DOUBLE   |
+|gold        |features_final__dbt_backup|rating_ratio_def                     |239             |DOUBLE   |
+|gold        |features_final__dbt_backup|upset_risk_index                     |240             |DOUBLE   |
+|gold        |features_final__dbt_backup|final_match_id                       |241             |VARCHAR  |
+|gold        |features_final__dbt_backup|ws_turnover_zone_diff                |242             |DOUBLE   |
+|gold        |features_final__dbt_backup|ws_deep_pass_diff                    |243             |DOUBLE   |
+|gold        |features_final__dbt_backup|ws_momentum_diff                     |244             |DOUBLE   |
+|gold        |features_final__dbt_backup|ws_counter_threat_diff               |245             |DOUBLE   |
+|gold        |features_final__dbt_backup|ws_attack_width_diff                 |246             |DOUBLE   |
+|gold        |features_final__dbt_backup|ws_zone_att_diff                     |247             |DOUBLE   |
+|gold        |features_final__dbt_backup|ws_shot_zone_diff                    |248             |DOUBLE   |
+|gold        |features_final__dbt_backup|ws_conversion_diff                   |249             |DOUBLE   |
+|gold        |features_final__dbt_backup|ws_cross_diff                        |250             |DOUBLE   |
+|gold        |features_final__dbt_backup|ws_long_ball_diff                    |251             |DOUBLE   |
+|gold        |features_final__dbt_backup|ws_left_matchup_adv                  |252             |DOUBLE   |
+|gold        |features_final__dbt_backup|ws_right_matchup_adv                 |253             |DOUBLE   |
+|gold        |features_final__dbt_backup|ws_center_matchup_adv                |254             |DOUBLE   |
+|gold        |features_final__dbt_backup|ws_structural_matchup                |255             |DOUBLE   |
+|gold        |features_final__dbt_backup|ws_left_exploit_score                |256             |DOUBLE   |
+|gold        |features_final__dbt_backup|ws_center_exploit_score              |257             |DOUBLE   |
+|gold        |features_final__dbt_backup|ws_right_exploit_score               |258             |DOUBLE   |
+|gold        |features_final__dbt_backup|squad_quality_gap                    |259             |DOUBLE   |
+|gold        |features_final__dbt_backup|squad_xg_matchup                     |260             |DOUBLE   |
+|gold        |features_final__dbt_backup|f1_mutual_cancel_diff                |261             |DOUBLE   |
+|gold        |features_final__dbt_backup|f7_mismatch_diff                     |262             |DOUBLE   |
+|gold        |features_final__dbt_backup|f8_press_dominance_diff              |263             |DOUBLE   |
+|gold        |features_final__dbt_backup|f9_chance_quality_diff               |264             |DOUBLE   |
+|gold        |features_final__dbt_backup|f10_venue_power_diff                 |265             |DOUBLE   |
+|gold        |features_final__dbt_backup|f11_comeback_diff                    |266             |DOUBLE   |
+|gold        |features_final__dbt_backup|f13_late_goal_diff                   |267             |DOUBLE   |
+|gold        |features_final__dbt_backup|f15_xg_yield_diff                    |268             |DOUBLE   |
+|gold        |features_final__dbt_backup|f16_def_yield_diff                   |269             |DOUBLE   |
+|gold        |features_final__dbt_backup|f19_tactical_lock_diff               |270             |DOUBLE   |
+|gold        |features_final__dbt_backup|f20_upset_diff                       |271             |DOUBLE   |
+|gold        |features_final__dbt_backup|ws_counter_attack_diff               |272             |DOUBLE   |
+|gold        |features_final__dbt_backup|ws_def_line_diff                     |273             |DOUBLE   |
+|gold        |features_final__dbt_backup|ws_flank_asymm_diff                  |274             |DOUBLE   |
+|gold        |features_rolling          |date                                 |1               |DATE     |
+|gold        |features_rolling          |team                                 |2               |VARCHAR  |
+|gold        |features_rolling          |opponent                             |3               |VARCHAR  |
+|gold        |features_rolling          |venue                                |4               |VARCHAR  |
+|gold        |features_rolling          |season                               |5               |VARCHAR  |
+|gold        |features_rolling          |league_source                        |6               |VARCHAR  |
+|gold        |features_rolling          |comp_category                        |7               |VARCHAR  |
+|gold        |features_rolling          |match_id                             |8               |BIGINT   |
+|gold        |features_rolling          |result_1n2                           |9               |VARCHAR  |
+|gold        |features_rolling          |formation                            |10              |VARCHAR  |
+|gold        |features_rolling          |is_home                              |11              |INTEGER  |
+|gold        |features_rolling            |days_since_last_match                |12              |BIGINT   |
+|gold        |features_rolling            |is_return_from_break                 |13              |INTEGER  |
+|gold        |features_rolling            |is_short_rest                        |14              |INTEGER  |
+|gold        |features_rolling            |np_xg_roll_3                         |15              |DOUBLE   |
+|gold        |features_rolling            |np_xg_roll_venue_3                   |16              |DOUBLE   |
+|gold        |features_rolling            |np_xg_conceded_roll_3                |17              |DOUBLE   |
+|gold        |features_rolling            |xg_net_roll_3                        |18              |DOUBLE   |
+|gold        |features_rolling            |shot_quality_ratio_3                 |19              |DOUBLE   |
+|gold        |features_rolling            |shot_quality_ratio_venue_3           |20              |DOUBLE   |
+|gold        |features_rolling            |shot_accuracy_roll_3                 |21              |DOUBLE   |
+|gold        |features_rolling            |save_rate_roll_3                     |22              |DOUBLE   |
+|gold        |features_rolling            |roll_save_pct_3                      |23              |DOUBLE   |
+|gold        |features_rolling            |roll_sota_3                          |24              |DOUBLE   |
+|gold        |features_rolling            |poss_roll_3                          |25              |DOUBLE   |
+|gold        |features_rolling            |poss_roll_venue_3                    |26              |DOUBLE   |
+|gold        |features_rolling            |ppda_roll_3                          |27              |DOUBLE   |
+|gold        |features_rolling            |ppda_allowed_roll_3                  |28              |DOUBLE   |
+|gold        |features_rolling            |ppda_ratio_roll_3                    |29              |DOUBLE   |
+|gold        |features_rolling            |defensive_actions_roll_3             |30              |DOUBLE   |
+|gold        |features_rolling            |fouls_per_tackle_roll_3              |31              |DOUBLE   |
+|gold        |features_rolling            |xg_overperformance_3                 |32              |DOUBLE   |
+|gold        |features_rolling            |sterility_index_3                    |33              |DOUBLE   |
+|gold        |features_rolling            |shots_faced_per_goal_conceded_3      |34              |DOUBLE   |
+|gold        |features_rolling            |sterility_weighted_3                 |35              |DOUBLE   |
+|gold        |features_rolling            |press_resistance_3                   |36              |DOUBLE   |
+|gold        |features_rolling            |shield_efficiency_3                  |37              |DOUBLE   |
+|gold        |features_rolling            |red_card_rate_roll_3                 |38              |DOUBLE   |
+|gold        |features_rolling            |win_rate_roll_3                      |39              |DOUBLE   |
+|gold        |features_rolling            |points_pg_roll_3                     |40              |DOUBLE   |
+|gold        |features_rolling            |np_xg_roll_5                         |41              |DOUBLE   |
+|gold        |features_rolling            |np_xg_roll_venue_5                   |42              |DOUBLE   |
+|gold        |features_rolling            |np_xg_conceded_roll_5                |43              |DOUBLE   |
+|gold        |features_rolling            |xg_net_roll_5                        |44              |DOUBLE   |
+|gold        |features_rolling            |shot_quality_ratio_5                 |45              |DOUBLE   |
+|gold        |features_rolling            |shot_quality_ratio_venue_5           |46              |DOUBLE   |
+|gold        |features_rolling            |shot_accuracy_roll_5                 |47              |DOUBLE   |
+|gold        |features_rolling            |save_rate_roll_5                     |48              |DOUBLE   |
+|gold        |features_rolling            |roll_save_pct_5                      |49              |DOUBLE   |
+|gold        |features_rolling            |roll_sota_5                          |50              |DOUBLE   |
+|gold        |features_rolling            |poss_roll_5                          |51              |DOUBLE   |
+|gold        |features_rolling            |poss_roll_venue_5                    |52              |DOUBLE   |
+|gold        |features_rolling            |ppda_roll_5                          |53              |DOUBLE   |
+|gold        |features_rolling            |ppda_allowed_roll_5                  |54              |DOUBLE   |
+|gold        |features_rolling            |ppda_ratio_roll_5                    |55              |DOUBLE   |
+|gold        |features_rolling            |defensive_actions_roll_5             |56              |DOUBLE   |
+|gold        |features_rolling            |fouls_per_tackle_roll_5              |57              |DOUBLE   |
+|gold        |features_rolling            |xg_overperformance_5                 |58              |DOUBLE   |
+|gold        |features_rolling            |sterility_index_5                    |59              |DOUBLE   |
+|gold        |features_rolling            |shots_faced_per_goal_conceded_5      |60              |DOUBLE   |
+|gold        |features_rolling            |sterility_weighted_5                 |61              |DOUBLE   |
+|gold        |features_rolling            |press_resistance_5                   |62              |DOUBLE   |
+|gold        |features_rolling            |shield_efficiency_5                  |63              |DOUBLE   |
+|gold        |features_rolling            |red_card_rate_roll_5                 |64              |DOUBLE   |
+|gold        |features_rolling            |win_rate_roll_5                      |65              |DOUBLE   |
+|gold        |features_rolling            |points_pg_roll_5                     |66              |DOUBLE   |
+|gold        |features_rolling            |np_xg_roll_10                        |67              |DOUBLE   |
+|gold        |features_rolling            |np_xg_roll_venue_10                  |68              |DOUBLE   |
+|gold        |features_rolling            |np_xg_conceded_roll_10               |69              |DOUBLE   |
+|gold        |features_rolling            |xg_net_roll_10                       |70              |DOUBLE   |
+|gold        |features_rolling            |shot_quality_ratio_10                |71              |DOUBLE   |
+|gold        |features_rolling            |shot_quality_ratio_venue_10          |72              |DOUBLE   |
+|gold        |features_rolling            |shot_accuracy_roll_10                |73              |DOUBLE   |
+|gold        |features_rolling            |save_rate_roll_10                    |74              |DOUBLE   |
+|gold        |features_rolling            |roll_save_pct_10                     |75              |DOUBLE   |
+|gold        |features_rolling            |roll_sota_10                         |76              |DOUBLE   |
+|gold        |features_rolling            |poss_roll_10                         |77              |DOUBLE   |
+|gold        |features_rolling            |poss_roll_venue_10                   |78              |DOUBLE   |
+|gold        |features_rolling            |ppda_roll_10                         |79              |DOUBLE   |
+|gold        |features_rolling            |ppda_allowed_roll_10                 |80              |DOUBLE   |
+|gold        |features_rolling            |ppda_ratio_roll_10                   |81              |DOUBLE   |
+|gold        |features_rolling            |defensive_actions_roll_10            |82              |DOUBLE   |
+|gold        |features_rolling            |fouls_per_tackle_roll_10             |83              |DOUBLE   |
+|gold        |features_rolling            |xg_overperformance_10                |84              |DOUBLE   |
+|gold        |features_rolling            |sterility_index_10                   |85              |DOUBLE   |
+|gold        |features_rolling            |shots_faced_per_goal_conceded_10     |86              |DOUBLE   |
+|gold        |features_rolling            |sterility_weighted_10                |87              |DOUBLE   |
+|gold        |features_rolling            |press_resistance_10                  |88              |DOUBLE   |
+|gold        |features_rolling            |shield_efficiency_10                 |89              |DOUBLE   |
+|gold        |features_rolling            |red_card_rate_roll_10                |90              |DOUBLE   |
+|gold        |features_rolling            |win_rate_roll_10                     |91              |DOUBLE   |
+|gold        |features_rolling            |points_pg_roll_10                    |92              |DOUBLE   |
+|gold        |features_rolling            |draw_rate_5                          |93              |DOUBLE   |
+|gold        |features_rolling            |home_win_rate_hist                   |94              |DOUBLE   |
+|gold        |features_rolling            |form_n_defenders                     |95              |INTEGER  |
+|gold        |features_rolling            |form_n_midfielders                   |96              |INTEGER  |
+|gold        |features_rolling            |form_n_attackers                     |97              |INTEGER  |
+|gold        |features_rolling            |form_familiarity_5                   |98              |DOUBLE   |
+|gold        |features_rolling            |form_change_flag                     |99              |INTEGER  |
+|gold        |features_rolling            |ws_dribbles_pg                       |100             |DOUBLE   |
+|gold        |features_rolling            |ws_fouled_pg                         |101             |DOUBLE   |
+|gold        |features_rolling            |ws_shots_ot_pg                       |102             |DOUBLE   |
+|gold        |features_rolling            |odds_pinnacle_team                   |103             |DOUBLE   |
+|gold        |features_rolling            |odds_pinnacle_draw                   |104             |DOUBLE   |
+|gold        |features_rolling            |odds_pinnacle_opp                    |105             |DOUBLE   |
+|gold        |features_rolling            |odds_avg_team                        |106             |DOUBLE   |
+|gold        |features_rolling            |odds_avg_draw                        |107             |DOUBLE   |
+|gold        |features_rolling            |odds_avg_opp                         |108             |DOUBLE   |
+|gold        |features_rolling            |pinnacle_prob_team                   |109             |DOUBLE   |
+|gold        |features_rolling            |pinnacle_prob_draw                   |110             |DOUBLE   |
+|gold        |features_rolling            |pinnacle_prob_opp                    |111             |DOUBLE   |
+|gold        |features_rolling            |market_prob_team                     |112             |DOUBLE   |
+|gold        |features_rolling            |market_prob_draw                     |113             |DOUBLE   |
+|gold        |features_rolling            |market_prob_opp                      |114             |DOUBLE   |
+|gold        |features_rolling            |season_att_rating                    |115             |DOUBLE   |
+|gold        |features_rolling            |season_def_rating                    |116             |DOUBLE   |
+|gold        |features_rolling__dbt_backup|date                                 |1               |DATE     |
+|gold        |features_rolling__dbt_backup|team                                 |2               |VARCHAR  |
+|gold        |features_rolling__dbt_backup|opponent                             |3               |VARCHAR  |
+|gold        |features_rolling__dbt_backup|venue                                |4               |VARCHAR  |
+|gold        |features_rolling__dbt_backup|season                               |5               |VARCHAR  |
+|gold        |features_rolling__dbt_backup|league_source                        |6               |VARCHAR  |
+|gold        |features_rolling__dbt_backup|comp_category                        |7               |VARCHAR  |
+|gold        |features_rolling__dbt_backup|match_id                             |8               |BIGINT   |
+|gold        |features_rolling__dbt_backup|result_1n2                           |9               |VARCHAR  |
+|gold        |features_rolling__dbt_backup|formation                            |10              |VARCHAR  |
+|gold        |features_rolling__dbt_backup|is_home                              |11              |INTEGER  |
+|gold        |features_rolling__dbt_backup|days_since_last_match                |12              |BIGINT   |
+|gold        |features_rolling__dbt_backup|is_return_from_break                 |13              |INTEGER  |
+|gold        |features_rolling__dbt_backup|is_short_rest                        |14              |INTEGER  |
+|gold        |features_rolling__dbt_backup|np_xg_roll_3                         |15              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|np_xg_roll_venue_3                   |16              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|np_xg_conceded_roll_3                |17              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|xg_net_roll_3                        |18              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|shot_quality_ratio_3                 |19              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|shot_quality_ratio_venue_3           |20              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|shot_accuracy_roll_3                 |21              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|save_rate_roll_3                     |22              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|roll_save_pct_3                      |23              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|roll_sota_3                          |24              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|poss_roll_3                          |25              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|poss_roll_venue_3                    |26              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|ppda_roll_3                          |27              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|ppda_allowed_roll_3                  |28              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|ppda_ratio_roll_3                    |29              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|defensive_actions_roll_3             |30              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|fouls_per_tackle_roll_3              |31              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|xg_overperformance_3                 |32              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|sterility_index_3                    |33              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|shots_faced_per_goal_conceded_3      |34              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|sterility_weighted_3                 |35              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|press_resistance_3                   |36              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|shield_efficiency_3                  |37              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|red_card_rate_roll_3                 |38              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|win_rate_roll_3                      |39              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|points_pg_roll_3                     |40              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|np_xg_roll_5                         |41              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|np_xg_roll_venue_5                   |42              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|np_xg_conceded_roll_5                |43              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|xg_net_roll_5                        |44              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|shot_quality_ratio_5                 |45              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|shot_quality_ratio_venue_5           |46              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|shot_accuracy_roll_5                 |47              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|save_rate_roll_5                     |48              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|roll_save_pct_5                      |49              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|roll_sota_5                          |50              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|poss_roll_5                          |51              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|poss_roll_venue_5                    |52              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|ppda_roll_5                          |53              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|ppda_allowed_roll_5                  |54              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|ppda_ratio_roll_5                    |55              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|defensive_actions_roll_5             |56              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|fouls_per_tackle_roll_5              |57              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|xg_overperformance_5                 |58              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|sterility_index_5                    |59              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|shots_faced_per_goal_conceded_5      |60              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|sterility_weighted_5                 |61              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|press_resistance_5                   |62              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|shield_efficiency_5                  |63              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|red_card_rate_roll_5                 |64              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|win_rate_roll_5                      |65              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|points_pg_roll_5                     |66              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|np_xg_roll_10                        |67              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|np_xg_roll_venue_10                  |68              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|np_xg_conceded_roll_10               |69              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|xg_net_roll_10                       |70              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|shot_quality_ratio_10                |71              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|shot_quality_ratio_venue_10          |72              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|shot_accuracy_roll_10                |73              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|save_rate_roll_10                    |74              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|roll_save_pct_10                     |75              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|roll_sota_10                         |76              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|poss_roll_10                         |77              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|poss_roll_venue_10                   |78              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|ppda_roll_10                         |79              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|ppda_allowed_roll_10                 |80              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|ppda_ratio_roll_10                   |81              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|defensive_actions_roll_10            |82              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|fouls_per_tackle_roll_10             |83              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|xg_overperformance_10                |84              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|sterility_index_10                   |85              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|shots_faced_per_goal_conceded_10     |86              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|sterility_weighted_10                |87              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|press_resistance_10                  |88              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|shield_efficiency_10                 |89              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|red_card_rate_roll_10                |90              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|win_rate_roll_10                     |91              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|points_pg_roll_10                    |92              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|draw_rate_5                          |93              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|home_win_rate_hist                   |94              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|form_n_defenders                     |95              |INTEGER  |
+|gold        |features_rolling__dbt_backup|form_n_midfielders                   |96              |INTEGER  |
+|gold        |features_rolling__dbt_backup|form_n_attackers                     |97              |INTEGER  |
+|gold        |features_rolling__dbt_backup|form_familiarity_5                   |98              |DOUBLE   |
+|gold        |features_rolling__dbt_backup|form_change_flag                     |99              |INTEGER  |
+|gold        |features_rolling__dbt_backup|ws_dribbles_pg                       |100             |DOUBLE   |
+|gold        |features_rolling__dbt_backup|ws_fouled_pg                         |101             |DOUBLE   |
+|gold        |features_rolling__dbt_backup|ws_shots_ot_pg                       |102             |DOUBLE   |
+|gold        |features_rolling__dbt_backup|odds_pinnacle_team                   |103             |DOUBLE   |
+|gold        |features_rolling__dbt_backup|odds_pinnacle_draw                   |104             |DOUBLE   |
+|gold        |features_rolling__dbt_backup|odds_pinnacle_opp                    |105             |DOUBLE   |
+|gold        |features_rolling__dbt_backup|odds_avg_team                        |106             |DOUBLE   |
+|gold        |features_rolling__dbt_backup|odds_avg_draw                        |107             |DOUBLE   |
+|gold        |features_rolling__dbt_backup|odds_avg_opp                         |108             |DOUBLE   |
+|gold        |features_rolling__dbt_backup|pinnacle_prob_team                   |109             |DOUBLE   |
+|gold        |features_rolling__dbt_backup|pinnacle_prob_draw                   |110             |DOUBLE   |
+|gold        |features_rolling__dbt_backup|pinnacle_prob_opp                    |111             |DOUBLE   |
+|gold        |features_rolling__dbt_backup|market_prob_team                     |112             |DOUBLE   |
+|gold        |features_rolling__dbt_backup|market_prob_draw                     |113             |DOUBLE   |
+|gold        |features_rolling__dbt_backup|market_prob_opp                      |114             |DOUBLE   |
+|gold        |features_rolling__dbt_backup|season_att_rating                    |115             |DOUBLE   |
+|gold        |features_rolling__dbt_backup|season_def_rating                    |116             |DOUBLE   |
+|gold        |features_training           |date                                 |1               |DATE     |
+|gold        |features_training           |team                                 |2               |VARCHAR  |
+|gold        |features_training           |opponent                             |3               |VARCHAR  |
+|gold        |features_training           |venue                                |4               |VARCHAR  |
+|gold        |features_training           |season                               |5               |VARCHAR  |
+|gold        |features_training           |league_source                        |6               |VARCHAR  |
+|gold        |features_training           |comp_category                        |7               |VARCHAR  |
+|gold        |features_training           |match_id                             |8               |BIGINT   |
+|gold        |features_training           |result_1n2                           |9               |VARCHAR  |
+|gold        |features_training           |formation                            |10              |VARCHAR  |
+|gold        |features_training           |is_home                              |11              |INTEGER  |
+|gold        |features_training           |days_since_last_match                |12              |BIGINT   |
+|gold        |features_training           |is_return_from_break                 |13              |INTEGER  |
+|gold        |features_training           |is_short_rest                        |14              |INTEGER  |
+|gold        |features_training           |np_xg_roll_3                         |15              |DOUBLE   |
+|gold        |features_training           |np_xg_roll_venue_3                   |16              |DOUBLE   |
+|gold        |features_training           |np_xg_conceded_roll_3                |17              |DOUBLE   |
+|gold        |features_training           |xg_net_roll_3                        |18              |DOUBLE   |
+|gold        |features_training           |shot_quality_ratio_3                 |19              |DOUBLE   |
+|gold        |features_training           |shot_quality_ratio_venue_3           |20              |DOUBLE   |
+|gold        |features_training           |shot_accuracy_roll_3                 |21              |DOUBLE   |
+|gold        |features_training           |save_rate_roll_3                     |22              |DOUBLE   |
+|gold        |features_training           |roll_save_pct_3                      |23              |DOUBLE   |
+|gold        |features_training           |roll_sota_3                          |24              |DOUBLE   |
+|gold        |features_training           |poss_roll_3                          |25              |DOUBLE   |
+|gold        |features_training           |poss_roll_venue_3                    |26              |DOUBLE   |
+|gold        |features_training           |ppda_roll_3                          |27              |DOUBLE   |
+|gold        |features_training           |ppda_allowed_roll_3                  |28              |DOUBLE   |
+|gold        |features_training           |ppda_ratio_roll_3                    |29              |DOUBLE   |
+|gold        |features_training           |defensive_actions_roll_3             |30              |DOUBLE   |
+|gold        |features_training           |fouls_per_tackle_roll_3              |31              |DOUBLE   |
+|gold        |features_training           |xg_overperformance_3                 |32              |DOUBLE   |
+|gold        |features_training           |sterility_index_3                    |33              |DOUBLE   |
+|gold        |features_training           |shots_faced_per_goal_conceded_3      |34              |DOUBLE   |
+|gold        |features_training           |sterility_weighted_3                 |35              |DOUBLE   |
+|gold        |features_training           |press_resistance_3                   |36              |DOUBLE   |
+|gold        |features_training           |shield_efficiency_3                  |37              |DOUBLE   |
+|gold        |features_training           |red_card_rate_roll_3                 |38              |DOUBLE   |
+|gold        |features_training           |win_rate_roll_3                      |39              |DOUBLE   |
+|gold        |features_training           |points_pg_roll_3                     |40              |DOUBLE   |
+|gold        |features_training           |np_xg_roll_5                         |41              |DOUBLE   |
+|gold        |features_training           |np_xg_roll_venue_5                   |42              |DOUBLE   |
+|gold        |features_training           |np_xg_conceded_roll_5                |43              |DOUBLE   |
+|gold        |features_training           |xg_net_roll_5                        |44              |DOUBLE   |
+|gold        |features_training           |shot_quality_ratio_5                 |45              |DOUBLE   |
+|gold        |features_training           |shot_quality_ratio_venue_5           |46              |DOUBLE   |
+|gold        |features_training           |shot_accuracy_roll_5                 |47              |DOUBLE   |
+|gold        |features_training           |save_rate_roll_5                     |48              |DOUBLE   |
+|gold        |features_training           |roll_save_pct_5                      |49              |DOUBLE   |
+|gold        |features_training           |roll_sota_5                          |50              |DOUBLE   |
+|gold        |features_training           |poss_roll_5                          |51              |DOUBLE   |
+|gold        |features_training           |poss_roll_venue_5                    |52              |DOUBLE   |
+|gold        |features_training           |ppda_roll_5                          |53              |DOUBLE   |
+|gold        |features_training           |ppda_allowed_roll_5                  |54              |DOUBLE   |
+|gold        |features_training           |ppda_ratio_roll_5                    |55              |DOUBLE   |
+|gold        |features_training           |defensive_actions_roll_5             |56              |DOUBLE   |
+|gold        |features_training           |fouls_per_tackle_roll_5              |57              |DOUBLE   |
+|gold        |features_training           |xg_overperformance_5                 |58              |DOUBLE   |
+|gold        |features_training           |sterility_index_5                    |59              |DOUBLE   |
+|gold        |features_training           |shots_faced_per_goal_conceded_5      |60              |DOUBLE   |
+|gold        |features_training           |sterility_weighted_5                 |61              |DOUBLE   |
+|gold        |features_training           |press_resistance_5                   |62              |DOUBLE   |
+|gold        |features_training           |shield_efficiency_5                  |63              |DOUBLE   |
+|gold        |features_training           |red_card_rate_roll_5                 |64              |DOUBLE   |
+|gold        |features_training           |win_rate_roll_5                      |65              |DOUBLE   |
+|gold        |features_training           |points_pg_roll_5                     |66              |DOUBLE   |
+|gold        |features_training           |np_xg_roll_10                        |67              |DOUBLE   |
+|gold        |features_training           |np_xg_roll_venue_10                  |68              |DOUBLE   |
+|gold        |features_training           |np_xg_conceded_roll_10               |69              |DOUBLE   |
+|gold        |features_training           |xg_net_roll_10                       |70              |DOUBLE   |
+|gold        |features_training           |shot_quality_ratio_10                |71              |DOUBLE   |
+|gold        |features_training           |shot_quality_ratio_venue_10          |72              |DOUBLE   |
+|gold        |features_training           |shot_accuracy_roll_10                |73              |DOUBLE   |
+|gold        |features_training           |save_rate_roll_10                    |74              |DOUBLE   |
+|gold        |features_training           |roll_save_pct_10                     |75              |DOUBLE   |
+|gold        |features_training           |roll_sota_10                         |76              |DOUBLE   |
+|gold        |features_training           |poss_roll_10                         |77              |DOUBLE   |
+|gold        |features_training           |poss_roll_venue_10                   |78              |DOUBLE   |
+|gold        |features_training           |ppda_roll_10                         |79              |DOUBLE   |
+|gold        |features_training           |ppda_allowed_roll_10                 |80              |DOUBLE   |
+|gold        |features_training           |ppda_ratio_roll_10                   |81              |DOUBLE   |
+|gold        |features_training           |defensive_actions_roll_10            |82              |DOUBLE   |
+|gold        |features_training           |fouls_per_tackle_roll_10             |83              |DOUBLE   |
+|gold        |features_training           |xg_overperformance_10                |84              |DOUBLE   |
+|gold        |features_training           |sterility_index_10                   |85              |DOUBLE   |
+|gold        |features_training           |shots_faced_per_goal_conceded_10     |86              |DOUBLE   |
+|gold        |features_training           |sterility_weighted_10                |87              |DOUBLE   |
+|gold        |features_training           |press_resistance_10                  |88              |DOUBLE   |
+|gold        |features_training           |shield_efficiency_10                 |89              |DOUBLE   |
+|gold        |features_training           |red_card_rate_roll_10                |90              |DOUBLE   |
+|gold        |features_training           |win_rate_roll_10                     |91              |DOUBLE   |
+|gold        |features_training           |points_pg_roll_10                    |92              |DOUBLE   |
+|gold        |features_training           |draw_rate_5                          |93              |DOUBLE   |
+|gold        |features_training           |home_win_rate_hist                   |94              |DOUBLE   |
+|gold        |features_training           |form_n_defenders                     |95              |INTEGER  |
+|gold        |features_training           |form_n_midfielders                   |96              |INTEGER  |
+|gold        |features_training           |form_n_attackers                     |97              |INTEGER  |
+|gold        |features_training           |form_familiarity_5                   |98              |DOUBLE   |
+|gold        |features_training           |form_change_flag                     |99              |INTEGER  |
+|gold        |features_training           |ws_dribbles_pg                       |100             |DOUBLE   |
+|gold        |features_training           |ws_fouled_pg                         |101             |DOUBLE   |
+|gold        |features_training           |ws_shots_ot_pg                       |102             |DOUBLE   |
+|gold        |features_training           |odds_pinnacle_team                   |103             |DOUBLE   |
+|gold        |features_training           |odds_pinnacle_draw                   |104             |DOUBLE   |
+|gold        |features_training           |odds_pinnacle_opp                    |105             |DOUBLE   |
+|gold        |features_training           |odds_avg_team                        |106             |DOUBLE   |
+|gold        |features_training           |odds_avg_draw                        |107             |DOUBLE   |
+|gold        |features_training           |odds_avg_opp                         |108             |DOUBLE   |
+|gold        |features_training           |pinnacle_prob_team                   |109             |DOUBLE   |
+|gold        |features_training           |pinnacle_prob_draw                   |110             |DOUBLE   |
+|gold        |features_training           |pinnacle_prob_opp                    |111             |DOUBLE   |
+|gold        |features_training           |market_prob_team                     |112             |DOUBLE   |
+|gold        |features_training           |market_prob_draw                     |113             |DOUBLE   |
+|gold        |features_training           |market_prob_opp                      |114             |DOUBLE   |
+|gold        |features_training           |season_att_rating                    |115             |DOUBLE   |
+|gold        |features_training           |season_def_rating                    |116             |DOUBLE   |
+|gold        |features_training           |congestion_14d                       |117             |INTEGER  |
+|gold        |features_training           |ws_field_tilt_actions                |118             |DOUBLE   |
+|gold        |features_training           |ws_high_turnover_rate                |119             |DOUBLE   |
+|gold        |features_training           |ws_deep_completion_rt                |120             |DOUBLE   |
+|gold        |features_training           |ws_momentum_delta                    |121             |DOUBLE   |
+|gold        |features_training           |ws_counter_shot_rate                 |122             |DOUBLE   |
+|gold        |features_training           |ws_set_piece_pressure                |123             |DOUBLE   |
+|gold        |features_training           |ws_attack_left_pct                   |124             |DOUBLE   |
+|gold        |features_training           |ws_attack_center_pct                 |125             |DOUBLE   |
+|gold        |features_training           |ws_attack_right_pct                  |126             |DOUBLE   |
+|gold        |features_training           |ws_zone_def_pct                      |127             |DOUBLE   |
+|gold        |features_training           |ws_zone_mid_pct                      |128             |DOUBLE   |
+|gold        |features_training           |ws_zone_att_pct                      |129             |DOUBLE   |
+|gold        |features_training           |ws_shot_six_yard_pct                 |130             |DOUBLE   |
+|gold        |features_training           |ws_shot_penalty_pct                  |131             |DOUBLE   |
+|gold        |features_training           |ws_shot_oob_pct                      |132             |DOUBLE   |
+|gold        |features_training           |ws_shot_open_play_pct                |133             |DOUBLE   |
+|gold        |features_training           |ws_shot_set_piece_pct                |134             |DOUBLE   |
+|gold        |features_training           |ws_shot_penalty_att_pct              |135             |DOUBLE   |
+|gold        |features_training           |ws_conversion_rate                   |136             |DOUBLE   |
+|gold        |features_training           |ws_cross_rate                        |137             |DOUBLE   |
+|gold        |features_training           |ws_through_ball_rate                 |138             |DOUBLE   |
+|gold        |features_training           |ws_long_ball_rate                    |139             |DOUBLE   |
+|gold        |features_training           |ws_short_pass_rate                   |140             |DOUBLE   |
+|gold        |features_training           |ws_def_exposed_left_pct              |141             |DOUBLE   |
+|gold        |features_training           |ws_def_exposed_center_pct            |142             |DOUBLE   |
+|gold        |features_training           |ws_def_exposed_right_pct             |143             |DOUBLE   |
+|gold        |features_training           |has_ws_events                        |144             |INTEGER  |
+|gold        |features_training           |ws_counter_attack_dna                |145             |DOUBLE   |
+|gold        |features_training           |ws_midfield_control_idx              |146             |DOUBLE   |
+|gold        |features_training           |ws_defensive_line_height             |147             |DOUBLE   |
+|gold        |features_training           |ws_flank_exposure_asymm              |148             |DOUBLE   |
+|gold        |features_training           |squad_avg_form_5                     |149             |DOUBLE   |
+|gold        |features_training           |squad_xg_quality_5                   |150             |DOUBLE   |
+|gold        |features_training           |squad_regularity                     |151             |DOUBLE   |
+|gold        |features_training           |squad_top3_share                     |152             |DOUBLE   |
+|gold        |features_training           |ws_late_equalizer_rate               |153             |DOUBLE   |
+|gold        |features_training           |ws_post_yellowcard_concede_rate      |154             |DOUBLE   |
+|gold        |features_training           |ws_post_redcard_resilience           |155             |DOUBLE   |
+|gold        |features_training           |f1_mutual_cancel_idx                 |156             |DOUBLE   |
+|gold        |features_training           |f2_defensive_mirror                  |157             |DOUBLE   |
+|gold        |features_training           |f3_draw_market_dev                   |158             |DOUBLE   |
+|gold        |features_training           |f4_momentum_convergence              |159             |DOUBLE   |
+|gold        |features_training           |f5_cs_mutual_rate                    |160             |DOUBLE   |
+|gold        |features_training           |f6_ht_draw_tendency                  |161             |DOUBLE   |
+|gold        |features_training           |f7_off_def_mismatch                  |162             |DOUBLE   |
+|gold        |features_training           |f7_def_off_mismatch                  |163             |DOUBLE   |
+|gold        |features_training           |f8_press_dominance_ratio             |164             |DOUBLE   |
+|gold        |features_training           |f9_chance_quality_gap                |165             |DOUBLE   |
+|gold        |features_training           |f10_venue_power_adj                  |166             |DOUBLE   |
+|gold        |features_training           |f11_comeback_rate                    |167             |DOUBLE   |
+|gold        |features_training           |f12_red_card_resilience              |168             |DOUBLE   |
+|gold        |features_training           |f13_late_goal_tendency               |169             |DOUBLE   |
+|gold        |features_training           |f14_goal_timing_variance             |170             |DOUBLE   |
+|gold        |features_training           |f15_xg_yield_ratio                   |171             |DOUBLE   |
+|gold        |features_training           |f16_def_yield_ratio                  |172             |DOUBLE   |
+|gold        |features_training           |f17_shots_to_goal_eff                |173             |DOUBLE   |
+|gold        |features_training           |f18_sot_conversion                   |174             |DOUBLE   |
+|gold        |features_training           |f19_tactical_lock_idx                |175             |DOUBLE   |
+|gold        |features_training           |f20_upset_composite                  |176             |DOUBLE   |
+|gold        |features_whoscored          |date                                 |1               |DATE     |
+|gold        |features_whoscored          |team                                 |2               |VARCHAR  |
+|gold        |features_whoscored          |league_source                        |3               |VARCHAR  |
+|gold        |features_whoscored          |ws_field_tilt_actions                |4               |DOUBLE   |
+|gold        |features_whoscored          |ws_high_turnover_rate                |5               |DOUBLE   |
+|gold        |features_whoscored          |ws_deep_completion_rt                |6               |DOUBLE   |
+|gold        |features_whoscored          |ws_momentum_delta                    |7               |DOUBLE   |
+|gold        |features_whoscored          |ws_counter_shot_rate                 |8               |DOUBLE   |
+|gold        |features_whoscored          |ws_set_piece_pressure                |9               |DOUBLE   |
+|gold        |features_whoscored          |ws_attack_left_pct                   |10              |DOUBLE   |
+|gold        |features_whoscored          |ws_attack_center_pct                 |11              |DOUBLE   |
+|gold        |features_whoscored          |ws_attack_right_pct                  |12              |DOUBLE   |
+|gold        |features_whoscored          |ws_zone_def_pct                      |13              |DOUBLE   |
+|gold        |features_whoscored          |ws_zone_mid_pct                      |14              |DOUBLE   |
+|gold        |features_whoscored          |ws_zone_att_pct                      |15              |DOUBLE   |
+|gold        |features_whoscored          |ws_shot_six_yard_pct                 |16              |DOUBLE   |
+|gold        |features_whoscored          |ws_shot_penalty_pct                  |17              |DOUBLE   |
+|gold        |features_whoscored          |ws_shot_oob_pct                      |18              |DOUBLE   |
+|gold        |features_whoscored          |ws_shot_open_play_pct                |19              |DOUBLE   |
+|gold        |features_whoscored          |ws_shot_set_piece_pct                |20              |DOUBLE   |
+|gold        |features_whoscored          |ws_shot_penalty_att_pct              |21              |DOUBLE   |
+|gold        |features_whoscored          |ws_conversion_rate                   |22              |DOUBLE   |
+|gold        |features_whoscored          |ws_cross_rate                        |23              |DOUBLE   |
+|gold        |features_whoscored          |ws_through_ball_rate                 |24              |DOUBLE   |
+|gold        |features_whoscored          |ws_long_ball_rate                    |25              |DOUBLE   |
+|gold        |features_whoscored          |ws_short_pass_rate                   |26              |DOUBLE   |
+|gold        |features_whoscored          |ws_def_exposed_left_pct              |27              |DOUBLE   |
+|gold        |features_whoscored          |ws_def_exposed_center_pct            |28              |DOUBLE   |
+|gold        |features_whoscored          |ws_def_exposed_right_pct             |29              |DOUBLE   |
+|gold        |features_whoscored          |ws_counter_attack_dna                |30              |DOUBLE   |
+|gold        |features_whoscored          |ws_midfield_control_idx              |31              |DOUBLE   |
+|gold        |features_whoscored          |ws_defensive_line_height             |32              |DOUBLE   |
+|gold        |features_whoscored          |ws_flank_exposure_asymm              |33              |DOUBLE   |
+|gold        |features_whoscored          |has_ws_events                        |34              |INTEGER  |
+|gold        |features_whoscored          |squad_avg_form_5                     |35              |DOUBLE   |
+|gold        |features_whoscored          |squad_xg_quality_5                   |36              |DOUBLE   |
+|gold        |features_whoscored          |squad_regularity                     |37              |DOUBLE   |
+|gold        |features_whoscored          |squad_top3_share                     |38              |DOUBLE   |
+|gold        |player_match_stats          |ws_match_id                          |1               |VARCHAR  |
+|gold        |player_match_stats          |team_id                              |2               |INTEGER  |
+|gold        |player_match_stats          |player_id                            |3               |INTEGER  |
+|gold        |player_match_stats          |date                                 |4               |DATE     |
+|gold        |player_match_stats          |season                               |5               |VARCHAR  |
+|gold        |player_match_stats          |league_source                        |6               |VARCHAR  |
+|gold        |player_match_stats          |n_actions                            |7               |BIGINT   |
+|gold        |player_match_stats          |n_shots                              |8               |BIGINT   |
+|gold        |player_match_stats          |n_key_passes                         |9               |BIGINT   |
+|gold        |player_match_stats          |xg_contribution                      |10              |DOUBLE   |
+|gold        |player_match_stats          |zone_dominance                       |11              |DOUBLE   |
+|gold        |stg_backbone                |date                                 |1               |DATE     |
+|gold        |stg_backbone                |team                                 |2               |VARCHAR  |
+|gold        |stg_backbone                |opponent                             |3               |VARCHAR  |
+|gold        |stg_backbone                |raw_team                             |4               |VARCHAR  |
+|gold        |stg_backbone                |raw_opponent                         |5               |VARCHAR  |
+|gold        |stg_backbone                |venue                                |6               |VARCHAR  |
+|gold        |stg_backbone                |season                               |7               |VARCHAR  |
+|gold        |stg_backbone                |league_source                        |8               |VARCHAR  |
+|gold        |stg_backbone                |comp_category                        |9               |VARCHAR  |
+|gold        |stg_backbone                |result_1n2                           |10              |VARCHAR  |
+|gold        |stg_backbone                |match_id                             |11              |BIGINT   |
+|gold        |stg_backbone                |formation                            |12              |VARCHAR  |
+|gold        |stg_backbone                |gf                                   |13              |INTEGER  |
+|gold        |stg_backbone                |ga                                   |14              |INTEGER  |
+|gold        |stg_backbone                |possession                           |15              |DOUBLE   |
+|gold        |stg_backbone                |shots_on_target_faced                |16              |INTEGER  |
+|gold        |stg_backbone                |saves                                |17              |INTEGER  |
+|gold        |stg_backbone                |save_pct                             |18              |DOUBLE   |
+|gold        |stg_backbone                |clean_sheet                          |19              |INTEGER  |
+|gold        |stg_backbone                |shots_total                          |20              |INTEGER  |
+|gold        |stg_backbone                |shots_on_target                      |21              |INTEGER  |
+|gold        |stg_backbone                |goals_per_shot                       |22              |DOUBLE   |
+|gold        |stg_backbone                |yellow_cards                         |23              |INTEGER  |
+|gold        |stg_backbone                |second_yellow_cards                  |24              |INTEGER  |
+|gold        |stg_backbone                |red_cards                            |25              |INTEGER  |
+|gold        |stg_backbone                |fouls_committed                      |26              |INTEGER  |
+|gold        |stg_backbone                |interceptions                        |27              |INTEGER  |
+|gold        |stg_backbone                |tackles_won                          |28              |INTEGER  |
+|gold        |stg_backbone                |np_xg                                |29              |DOUBLE   |
+|gold        |stg_backbone                |np_xg_conceded                       |30              |DOUBLE   |
+|gold        |stg_backbone                |ppda                                 |31              |DOUBLE   |
+|gold        |stg_backbone                |ppda_allowed                         |32              |DOUBLE   |
+|gold        |stg_backbone                |np_xg_diff_match                     |33              |DOUBLE   |
+|gold        |stg_backbone                |season_att_rating                    |34              |DOUBLE   |
+|gold        |stg_backbone                |season_def_rating                    |35              |DOUBLE   |
+|gold        |stg_backbone                |ws_dribbles_pg                       |36              |DOUBLE   |
+|gold        |stg_backbone                |ws_fouled_pg                         |37              |DOUBLE   |
+|gold        |stg_backbone                |ws_shots_ot_pg                       |38              |DOUBLE   |
+|gold        |stg_backbone                |odds_pinnacle_team                   |39              |DOUBLE   |
+|gold        |stg_backbone                |odds_pinnacle_draw                   |40              |DOUBLE   |
+|gold        |stg_backbone                |odds_pinnacle_opp                    |41              |DOUBLE   |
+|gold        |stg_backbone                |odds_avg_team                        |42              |DOUBLE   |
+|gold        |stg_backbone                |odds_avg_draw                        |43              |DOUBLE   |
+|gold        |stg_backbone                |odds_avg_opp                         |44              |DOUBLE   |
+|gold        |stg_backbone                |pinnacle_prob_team                   |45              |DOUBLE   |
+|gold        |stg_backbone                |pinnacle_prob_draw                   |46              |DOUBLE   |
+|gold        |stg_backbone                |pinnacle_prob_opp                    |47              |DOUBLE   |
+|gold        |stg_backbone                |market_prob_team                     |48              |DOUBLE   |
+|gold        |stg_backbone                |market_prob_draw                     |49              |DOUBLE   |
+|gold        |stg_backbone                |market_prob_opp                      |50              |DOUBLE   |
+|gold        |stg_events_qual             |ws_match_id                          |1               |VARCHAR  |
+|gold        |stg_events_qual             |team_id                              |2               |INTEGER  |
+|gold        |stg_events_qual             |player_id                            |3               |INTEGER  |
+|gold        |stg_events_qual             |minute                               |4               |INTEGER  |
+|gold        |stg_events_qual             |second                               |5               |INTEGER  |
+|gold        |stg_events_qual             |expanded_minute                      |6               |INTEGER  |
+|gold        |stg_events_qual             |period                               |7               |INTEGER  |
+|gold        |stg_events_qual             |x                                    |8               |DOUBLE   |
+|gold        |stg_events_qual             |y                                    |9               |DOUBLE   |
+|gold        |stg_events_qual             |end_x                                |10              |DOUBLE   |
+|gold        |stg_events_qual             |end_y                                |11              |DOUBLE   |
+|gold        |stg_events_qual             |type_id                              |12              |INTEGER  |
+|gold        |stg_events_qual             |type_name                            |13              |VARCHAR  |
+|gold        |stg_events_qual             |outcome_id                           |14              |INTEGER  |
+|gold        |stg_events_qual             |is_touch                             |15              |BOOLEAN  |
+|gold        |stg_events_qual             |is_shot                              |16              |BOOLEAN  |
+|gold        |stg_events_qual             |row_num                              |17              |INTEGER  |
+|gold        |stg_events_qual             |qual_type_id                         |18              |INTEGER  |
+|gold        |stg_events_qual             |qual_type_name                       |19              |VARCHAR  |
+|gold        |stg_events_qual             |qual_value                           |20              |VARCHAR  |
+|gold        |stg_team_features           |ws_match_id                          |1               |VARCHAR  |
+|gold        |stg_team_features           |team_id                              |2               |INTEGER  |
+|gold        |stg_team_features           |ws_field_tilt_actions                |3               |DOUBLE   |
+|gold        |stg_team_features           |ws_high_turnover_rate                |4               |DOUBLE   |
+|gold        |stg_team_features           |ws_deep_completion_rt                |5               |DOUBLE   |
+|gold        |stg_team_features           |ws_momentum_delta                    |6               |DOUBLE   |
+|gold        |stg_team_features           |ws_counter_shot_rate                 |7               |DOUBLE   |
+|gold        |stg_team_features           |ws_set_piece_pressure                |8               |DOUBLE   |
+|gold        |stg_team_features           |ws_attack_left_pct                   |9               |DOUBLE   |
+|gold        |stg_team_features           |ws_attack_center_pct                 |10              |DOUBLE   |
+|gold        |stg_team_features           |ws_attack_right_pct                  |11              |DOUBLE   |
+|gold        |stg_team_features           |ws_zone_def_pct                      |12              |DOUBLE   |
+|gold        |stg_team_features           |ws_zone_mid_pct                      |13              |DOUBLE   |
+|gold        |stg_team_features           |ws_zone_att_pct                      |14              |DOUBLE   |
+|gold        |stg_team_features           |ws_shot_six_yard_pct                 |15              |DOUBLE   |
+|gold        |stg_team_features           |ws_shot_penalty_pct                  |16              |DOUBLE   |
+|gold        |stg_team_features           |ws_shot_oob_pct                      |17              |DOUBLE   |
+|gold        |stg_team_features           |ws_shot_open_play_pct                |18              |DOUBLE   |
+|gold        |stg_team_features           |ws_shot_set_piece_pct                |19              |DOUBLE   |
+|gold        |stg_team_features           |ws_shot_penalty_att_pct              |20              |DOUBLE   |
+|gold        |stg_team_features           |ws_conversion_rate                   |21              |DOUBLE   |
+|gold        |stg_team_features           |ws_cross_rate                        |22              |DOUBLE   |
+|gold        |stg_team_features           |ws_through_ball_rate                 |23              |DOUBLE   |
+|gold        |stg_team_features           |ws_long_ball_rate                    |24              |DOUBLE   |
+|gold        |stg_team_features           |ws_short_pass_rate                   |25              |DOUBLE   |
+|gold        |stg_team_features           |ws_def_exposed_left_pct              |26              |DOUBLE   |
+|gold        |stg_team_features           |ws_def_exposed_center_pct            |27              |DOUBLE   |
+|gold        |stg_team_features           |ws_def_exposed_right_pct             |28              |DOUBLE   |
+|gold        |stg_team_features           |ws_counter_attack_dna                |29              |DOUBLE   |
+|gold        |stg_team_features           |ws_midfield_control_idx              |30              |DOUBLE   |
+|gold        |stg_team_features           |ws_defensive_line_height             |31              |DOUBLE   |
+|gold        |stg_team_features           |ws_flank_exposure_asymm              |32              |DOUBLE   |
+|gold        |transfermarkt_clubs         |club_name                            |1               |VARCHAR  |
+|gold        |transfermarkt_clubs         |club_tm_id                           |2               |INTEGER  |
+|gold        |transfermarkt_clubs         |league                               |3               |VARCHAR  |
+|gold        |transfermarkt_clubs         |season                               |4               |VARCHAR  |
+|gold        |transfermarkt_clubs         |market_value_m                       |5               |DOUBLE   |
+|gold        |transfermarkt_clubs         |club_url                             |6               |VARCHAR  |

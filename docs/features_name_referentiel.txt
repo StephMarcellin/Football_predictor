@@ -1,0 +1,27 @@
+|table_schema|table_name         |column_name      |ordinal_position|data_type|
+|------------|-------------------|-----------------|----------------|---------|
+|referentiel |competition_mapping|alias            |1               |VARCHAR  |
+|referentiel |competition_mapping|competition_name |2               |VARCHAR  |
+|referentiel |competition_mapping|category         |3               |VARCHAR  |
+|referentiel |team_mapping       |alias            |1               |VARCHAR  |
+|referentiel |team_mapping       |club_name        |2               |VARCHAR  |
+|referentiel |transfermarkt_clubs|club_name        |1               |VARCHAR  |
+|referentiel |transfermarkt_clubs|club_tm_id       |2               |INTEGER  |
+|referentiel |transfermarkt_clubs|league           |3               |VARCHAR  |
+|referentiel |transfermarkt_clubs|season           |4               |VARCHAR  |
+|referentiel |transfermarkt_clubs|market_value_m   |5               |DOUBLE   |
+|referentiel |transfermarkt_clubs|club_url         |6               |VARCHAR  |
+|referentiel |ws_event_types     |type_id          |1               |INTEGER  |
+|referentiel |ws_event_types     |type_name        |2               |VARCHAR  |
+|referentiel |ws_event_types     |description      |3               |VARCHAR  |
+|referentiel |ws_event_types     |is_offensive     |4               |BOOLEAN  |
+|referentiel |ws_event_types     |is_defensive     |5               |BOOLEAN  |
+|referentiel |ws_event_types     |is_shot          |6               |BOOLEAN  |
+|referentiel |ws_event_types     |first_seen_at    |7               |TIMESTAMP|
+|referentiel |ws_event_types     |updated_at       |8               |TIMESTAMP|
+|referentiel |ws_qualifier_types |qual_type_id     |1               |INTEGER  |
+|referentiel |ws_qualifier_types |qual_display_name|2               |VARCHAR  |
+|referentiel |ws_qualifier_types |description      |3               |VARCHAR  |
+|referentiel |ws_qualifier_types |category         |4               |VARCHAR  |
+|referentiel |ws_qualifier_types |first_seen_at    |5               |TIMESTAMP|
+|referentiel |ws_qualifier_types |updated_at       |6               |TIMESTAMP|

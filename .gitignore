@@ -36,7 +36,6 @@ data/
 db/
 downloaded_files/
 
-docs/
 
 # ── Modèles ML entraînés ──────────────────────────────────
 models/*.joblib
