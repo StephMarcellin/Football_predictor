@@ -157,6 +157,7 @@ def _init_transfermarkt(con: duckdb.DuckDBPyConnection) -> None:
 
 # ── Logs ──────────────────────────────────────────────────────────────────────
 Path("logs").mkdir(exist_ok=True)
+logger.remove()  # supprime le sink terminal par défaut
 logger.add(
     "logs/process.log",
     level="DEBUG",
