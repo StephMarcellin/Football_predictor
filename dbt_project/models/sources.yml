@@ -84,18 +84,11 @@ sources:
             description: "Nom brut de l'équipe avant normalisation"
             tests:
               - not_null
-          - name: clean_team
-            description: "Nom nettoyé de l'équipe (slugifié)"
-            tests:
-              - not_null
           - name: raw_opponent
             description: "Nom brut de l'adversaire avant normalisation"
             tests:
               - not_null
-          - name: clean_opponent
-            description: "Nom nettoyé de l'adversaire (slugifié)"
-            tests:
-              - not_null
+
           - name: result_1n2
             description: "Résultat encodé du point de vue de l'équipe : H (victoire domicile), D (nul), A (victoire extérieur)"
             tests:
@@ -212,16 +205,8 @@ sources:
             description: "Nom brut de l'équipe avant normalisation"
             tests:
               - not_null
-          - name: clean_team
-            description: "Nom nettoyé de l'équipe"
-            tests:
-              - not_null
           - name: raw_opponent
             description: "Nom brut de l'adversaire"
-            tests:
-              - not_null
-          - name: clean_opponent
-            description: "Nom nettoyé de l'adversaire"
             tests:
               - not_null
           - name: result_1n2
@@ -329,16 +314,8 @@ sources:
             description: "Nom brut de l'équipe"
             tests:
               - not_null
-          - name: clean_team
-            description: "Nom nettoyé de l'équipe"
-            tests:
-              - not_null
           - name: raw_opponent
             description: "Nom brut de l'adversaire"
-            tests:
-              - not_null
-          - name: clean_opponent
-            description: "Nom nettoyé de l'adversaire"
             tests:
               - not_null
           - name: result_1n2
@@ -475,16 +452,8 @@ sources:
             description: "Nom brut de l'équipe"
             tests:
               - not_null
-          - name: clean_team
-            description: "Nom nettoyé de l'équipe"
-            tests:
-              - not_null
           - name: raw_opponent
             description: "Nom brut de l'adversaire"
-            tests:
-              - not_null
-          - name: clean_opponent
-            description: "Nom nettoyé de l'adversaire"
             tests:
               - not_null
           - name: result_1n2
@@ -546,16 +515,8 @@ sources:
             description: "Nom brut de l'équipe domicile avant normalisation"
             tests:
               - not_null
-          - name: clean_home_team
-            description: "Nom nettoyé de l'équipe domicile"
-            tests:
-              - not_null
           - name: raw_away_team
             description: "Nom brut de l'équipe extérieur avant normalisation"
-            tests:
-              - not_null
-          - name: clean_away_team
-            description: "Nom nettoyé de l'équipe extérieur"
             tests:
               - not_null
 
