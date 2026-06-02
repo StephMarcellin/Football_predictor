@@ -282,7 +282,7 @@ latest_ws AS (
     JOIN ws_history wsh
         ON  b.team       = wsh.team_name
         AND b.league_source = wsh.league_source
-        AND wsh.ws_date < b.max_ws_date   -- anti-leakage strict
+        AND wsh.ws_date = b.max_ws_date   -- anti-leakage strict
         -- AND b.season     = wsh.ws_season
 ),
 
