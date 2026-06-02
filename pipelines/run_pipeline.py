@@ -29,6 +29,7 @@ Scheduling Prefect :
 """
 
 from __future__ import annotations
+import re
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -42,6 +43,9 @@ import subprocess
 
 
 from prefect import flow, task
+from prefect.client.schemas.objects import State as PrefectState
+from prefect.results import ResultRecord
+from prefect.states import Failed
 from prefect.cache_policies import NO_CACHE
 
 import mlflow
@@ -101,9 +105,35 @@ def run_dbt_test() -> None:
     )
     log_path.write_text(result.stdout + result.stderr, encoding="utf-8")
     logger.info(result.stdout[-2000:])
-    if result.returncode != 0:
-        raise RuntimeError(f"dbt test a échoué :\n{result.stderr[-1000:]}")
+
+    if result.returncode == 2:
+        raise RuntimeError(
+            f"dbt test n'a pas pu s'exécuter (erreur de configuration) :\n{result.stderr[-1000:]}"
+        )
+
+
+def check_dbt_test_results() -> None:
+    """Parse le log dbt test et lève une exception si au moins 1 ERROR est détecté.
     
+    Les WARNs sont ignorés — seuls les ERRORs bloquent le pipeline.
+    Le log dbt contient une ligne de résumé du type :
+    'Completed with 1 error, 0 partial successes, and 21 warnings'
+    On parse cette ligne pour extraire le nombre d'erreurs.
+    """
+
+    log_path = ROOT_DIR / "logs" / "dbt_test_last.log"
+    content = log_path.read_text(encoding="utf-8")
+    
+    match = re.search(r"Completed with (\d+) error", content)
+    if match:
+        n_errors = int(match.group(1))
+        if n_errors > 0:
+            # Extraire les lignes d'erreur pour le message
+            error_lines = [l for l in content.splitlines() if "Failure in test" in l]
+            raise RuntimeError(
+                f"dbt test : {n_errors} erreur(s) détectée(s)\n" + "\n".join(error_lines)
+            )
+
 def run_dbt_seed(refresh: bool = False) -> None:
     """
     Lance dbt seed depuis dbt_project/.
@@ -189,7 +219,7 @@ def make_run_step_task(retries: int, retry_delay_seconds: int):
     """
     @task(
         task_run_name="{step_name}",
-        log_prints=True,
+        log_prints=False,
         cache_policy=NO_CACHE,
         retries=retries,
         retry_delay_seconds=retry_delay_seconds,
@@ -232,7 +262,8 @@ def make_run_step_task(retries: int, retry_delay_seconds: int):
         except Exception as e:
             duration = time.perf_counter() - start
             logger.error(f"✗ {step_name} a échoué après {duration:.1f}s : {e}")
-            return {"name": step_name, "status": "FAILED", "duration": duration, "error": str(e)}
+            result =  {"name": step_name, "status": "FAILED", "duration": duration, "error": str(e)}
+            return Failed(data=result, message = str(e))
 
         finally:
             # Restauration du contexte — toujours exécuté, même si exception
@@ -323,8 +354,15 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
         "dbt_test": {
             "fn":       run_dbt_test,
             "kwargs":   {},
+            "critical": False,
+        },
+
+        "dbt_test_check": {
+            "fn":       check_dbt_test_results,
+            "kwargs":   {},
             "critical": True,
         },
+
         "validate_gold": {
             "fn":       run_validate_gold,
             "kwargs":   {},
@@ -383,7 +421,7 @@ def _import_from_path(module_name: str, path: Path):
 # ══════════════════════════════════════════════════════════════════════════════
 # SECTION 4 — Exécution du pipeline
 # ══════════════════════════════════════════════════════════════════════════════
-@flow(name="Pipeline 3-Étoiles", log_prints=True)
+@flow(name="Pipeline 3-Étoiles", log_prints=False)
 def run_pipeline(steps: dict, dry_run: bool = False, run_step_task=None) -> list[dict]:
     """
     Exécute les étapes dans l'ordre, avec fail-fast sur les étapes critiques.
@@ -406,6 +444,7 @@ def run_pipeline(steps: dict, dry_run: bool = False, run_step_task=None) -> list
     logger.info("=" * 60)
 
     for step_name, step_cfg in steps.items():
+        critical_failure = None
 
         if dry_run:
             logger.info(f"  [DRY-RUN] {step_name} | critical={step_cfg['critical']} | kwargs={step_cfg['kwargs']}")
@@ -413,12 +452,23 @@ def run_pipeline(steps: dict, dry_run: bool = False, run_step_task=None) -> list
             continue
 
         result = run_step_task(step_name, step_cfg["fn"], **step_cfg["kwargs"])
+        # print(f"DEBUG type result : {type(result)}")
+        # if isinstance(result, (PrefectState, ResultRecord)):
+        #     print(f"DEBUG result.data : {result.data}")
+        #     print(f"DEBUG type result.data : {type(result.data)}")
+        #     result = result.data
+        
+        if isinstance(result, PrefectState):
+            result = result.data
+        if isinstance(result, ResultRecord):
+            result = result.result
         results.append(result)
 
         # Fail-fast : on stoppe si l'étape est critique et a échoué
         if result["status"] == "FAILED" and step_cfg["critical"]:
             logger.error(f"Étape critique '{step_name}' en échec — pipeline arrêté.")
             logger.error(f"Erreur : {result['error']}")
+            
             # On marque les étapes non-exécutées comme SKIPPED
             executed_names = {r["name"] for r in results}
             for remaining_name in steps:
@@ -429,6 +479,7 @@ def run_pipeline(steps: dict, dry_run: bool = False, run_step_task=None) -> list
                         "duration": 0.0,
                         "error":    f"Pipeline arrêté après échec de '{step_name}'",
                     })
+            critical_failure = step_name
             break
 
     # ── Prefect Artifacts ─────────────────────────────────────────────────────
@@ -437,6 +488,9 @@ def run_pipeline(steps: dict, dry_run: bool = False, run_step_task=None) -> list
             create_prefect_artifacts(load_config())
         except Exception as e:
             logger.warning(f"Artifact non créé (non bloquant) : {e}")
+
+    if critical_failure:
+        raise RuntimeError(f"Étape critique '{critical_failure}' en échec : {result['error']}")
 
     return results
 
@@ -564,6 +618,7 @@ STEP_NAMES = ["dbt_seed",
               "validate_silver",
               "dbt_run",
               "dbt_test",
+              "dbt_test_check",
               "validate_gold",
               "train", 
               "predict", 
