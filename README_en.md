@@ -235,10 +235,8 @@ The model uses a **two-stage stacking** approach:
 
 - [ ] Feature analysis agent (new feature proposals)
 - [ ] Model analysis agent (alternative architecture proposals)
-- [ ] Great Expectations — data quality checks
+- [ ] Great Expectations — extend coevrage to bronze layer
 - [ ] CI/CD via GitHub Actions
-- [ ] MLflow migration to SQLite backend
-- [ ] Full cloud deployment (GCE + Cloud Run)
 
 ---
 

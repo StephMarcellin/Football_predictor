@@ -1,6 +1,6 @@
-# ⚽ Projet 3-Étoiles — Prédiction de matchs de football
+# ⚽ Projet 3-Étoiles — Pipeline de Prédiction de Matchs de Football
 
-> Pipeline de machine learning end-to-end pour la prédiction de résultats (1N2) et la détection de value bets sur les 5 grands championnats européens.
+> Pipeline de données et ML de bout en bout pour la prédiction des résultats de matchs de football (1X2) et la détection de value bets sur les 5 grands championnats européens.
 
 ![Python](https://img.shields.io/badge/Python-3.11-blue)
 ![dbt](https://img.shields.io/badge/dbt-1.11-orange)
@@ -13,14 +13,22 @@
 
 ## Vue d'ensemble
 
-Projet 3-Étoiles est un pipeline data/ML complet qui :
+Projet 3-Étoiles est un pipeline de données et ML de niveau production qui :
 
-1. **Scrape** les données de match depuis FBref, Understat et WhoScored
-2. **Transforme** les données brutes en features ML via une architecture Bronze/Silver/Gold (DuckDB + dbt)
-3. **Entraîne** un modèle LightGBM two-stage avec calibration de probabilités
-4. **Prédit** les résultats des matchs à venir et détecte les value bets via le critère de Kelly
-5. **Backteste** la stratégie de paris et analyse les performances
-6. **Orchestre** le tout avec Prefect, MLflow pour le tracking, et un agent Gemini pour l'analyse post-run
+1. **Collecte** les données de matchs depuis FBref, Understat et WhoScored
+2. **Transforme** les données brutes en features ML via une architecture médaillon Bronze/Silver/Gold (DuckDB + dbt)
+3. **Entraîne** un modèle LightGBM à deux étages avec calibration des probabilités
+4. **Prédit** les résultats des prochains matchs et détecte les value bets via le critère de Kelly
+5. **Backteste** la stratégie de paris et évalue les performances
+6. **Orchestre** l'ensemble avec Prefect, trace les expériences avec MLflow, et lance un agent Gemini pour l'analyse post-run
+
+### Interfaces
+
+| Interface | URL | Commande |
+|---|---|---|
+| Prefect UI (local) | http://localhost:4200 | `make prefect-ui` |
+| Prefect Cloud | [Dashboard](https://app.prefect.cloud) | `make pipeline` |
+| MLflow UI | http://localhost:5000 | `make mlflow-ui` |
 
 ---
 
@@ -28,7 +36,7 @@ Projet 3-Étoiles est un pipeline data/ML complet qui :
 
 ```mermaid
 flowchart TD
-    subgraph Bronze["🥉 Bronze — Données brutes"]
+    subgraph Bronze["🥉 Bronze — Données Brutes"]
         A1[FBref\nstats matchs] --> P1[01_ingest.py]
         A2[Understat\nxG] --> P1
         A3[WhoScored\névénements] --> P1
@@ -38,22 +46,22 @@ flowchart TD
         P2 -->|DuckDB| DB[(football.duckdb)]
     end
 
-    subgraph Silver["🥈 Silver — Données normalisées"]
+    subgraph Silver["🥈 Silver — Données Normalisées"]
         RAW --> P3[02_process.py\nPolars + SHA1]
         P3 -->|DuckDB| DB
     end
 
     subgraph Gold["🥇 Gold — Features ML"]
-        DB --> DBT[dbt\nmodèles incrementaux]
+        DB --> DBT[dbt\nmodèles incrémentaux]
         DBT --> FEAT[gold.features_final\n~45K lignes]
     end
 
-    subgraph ML["🤖 ML Pipeline"]
+    subgraph ML["🤖 Pipeline ML"]
         FEAT --> TR[04_train.py\nLightGBM Two-Stage]
         TR -->|joblib| MODEL[models/]
         TR -->|métriques| MLFLOW[MLflow\nlocalhost:5000]
         MODEL --> PR[05_predict.py\nValue Bets]
-        PR --> BT[06_backtest.py\nKelly Criterion]
+        PR --> BT[06_backtest.py\nCritère de Kelly]
         BT -->|métriques| MLFLOW
     end
 
@@ -69,20 +77,22 @@ flowchart TD
 
 ---
 
-## Stack technique
+## Stack Technique
 
 | Couche | Outil | Rôle |
 |---|---|---|
-| **Stockage** | DuckDB 1.5.1 | Base de données analytique locale |
-| **Traitement** | Polars + pandas | Transformation Silver layer |
-| **Feature Engineering** | dbt-duckdb 1.10.1 | Modèles Gold incrementaux |
+| **Stockage** | DuckDB 1.5.1 | Base analytique locale |
+| **Traitement** | Polars + pandas | Transformation couche Silver |
+| **Feature Engineering** | dbt-duckdb 1.10.1 | Modèles Gold incrémentaux |
 | **ML** | LightGBM 4.6 + scikit-learn | Two-stage stacking + calibration |
-| **Orchestration** | Prefect 3.6 | Flow, tasks, scheduling, artifacts |
-| **Tracking** | MLflow 3.10 | Métriques, paramètres, modèles |
+| **Orchestration** | Prefect 3.6 | Flows, tasks, scheduling, artifacts |
+| **Suivi d'expériences** | MLflow 3.10 | Métriques, paramètres, modèles |
 | **Agent IA** | Gemini Flash (google-genai) | Analyse ReAct post-pipeline |
 | **Conteneurisation** | Docker + docker-compose | Pipeline + Prefect + MLflow |
 | **Infrastructure** | Terraform + GCS | Bucket Bronze sur Google Cloud |
-| **Logs** | Loguru | Logs centralisés |
+| **Logging** | Loguru | Logs centralisés |
+| **Validation** | Great Expectations 1.17 | Contrats de données Silver → Gold |
+| **Observabilité** | Prefect Cloud | Pipeline observable partout |
 
 ---
 
@@ -95,14 +105,14 @@ flowchart TD
 - `make` (`winget install GnuWin32.Make` sur Windows)
 - Compte Google Cloud (pour GCS)
 
-### Setup local
+### Installation locale
 
 ```bash
 # 1. Cloner le repo
 git clone https://github.com/StephMarcellin/Projet_3etoiles.git
 cd Projet_3etoiles
 
-# 2. Créer et activer le venv
+# 2. Créer et activer l'environnement virtuel
 python -m venv .venv
 .venv\Scripts\Activate.ps1   # Windows
 source .venv/bin/activate     # Linux/Mac
@@ -120,20 +130,21 @@ make pipeline-dry
 
 ---
 
-## Usage
+## Utilisation
 
 ### Commandes principales
 
 ```bash
-make pipeline          # Lance le pipeline complet (démarre Prefect automatiquement)
-make pipeline-dry      # Simule sans exécuter
-make train             # Entraîne le modèle
-make predict           # Génère les prédictions
-make backtest          # Lance le backtest Kelly
-make from-train        # Reprend depuis l'étape train
-make agent             # Lance l'agent Gemini en mode interactif
-make list-steps        # Liste toutes les étapes
-make help              # Affiche toutes les commandes
+make pipeline          # Lancer le pipeline complet (démarre Prefect automatiquement)
+make pipeline-dry      # Simuler sans exécuter
+make train             # Entraîner le modèle
+make predict           # Générer les prédictions
+make backtest          # Lancer le backtest (critère de Kelly)
+make from-train        # Reprendre depuis l'étape d'entraînement
+make agent             # Lancer l'agent Gemini en mode interactif
+make list-steps        # Lister toutes les étapes du pipeline
+make dbt-docs          # Générer et servir la documentation dbt (lineage)
+make help              # Afficher toutes les commandes disponibles
 ```
 
 ### Interfaces locales
@@ -142,13 +153,14 @@ make help              # Affiche toutes les commandes
 |---|---|---|
 | Prefect UI | http://localhost:4200 | `make prefect-ui` |
 | MLflow UI | http://localhost:5000 | `make mlflow-ui` |
+| dbt Docs | http://localhost:8080 | `make dbt-docs` |
 
 ### Avec Docker
 
 ```bash
-docker-compose up -d prefect mlflow        # Démarre les serveurs
-docker-compose run pipeline make train     # Lance une étape
-docker-compose down                         # Arrête tout
+docker-compose up -d prefect mlflow        # Démarrer les serveurs
+docker-compose run pipeline make train     # Lancer une étape du pipeline
+docker-compose down                         # Arrêter tout
 ```
 
 ---
@@ -158,25 +170,27 @@ docker-compose down                         # Arrête tout
 ```
 Projet_3étoiles/
 ├── pipelines/              # Scripts du pipeline
-│   ├── 01_ingest.py        # Scraping Bronze (FBref, Understat, WhoScored)
+│   ├── 01_ingest.py        # Bronze — scraping (FBref, Understat, WhoScored)
 │   ├── 01b_odds.py         # Cotes (football-data.co.uk)
-│   ├── 02_process.py       # Silver layer (Polars, normalisation)
+│   ├── 02_process.py       # Couche Silver (Polars, normalisation)
 │   ├── 04_train.py         # Entraînement LightGBM two-stage
 │   ├── 05_predict.py       # Prédictions + value bets
-│   ├── 06_backtest.py      # Backtest Kelly criterion
+│   ├── 06_backtest.py      # Backtest critère de Kelly
 │   ├── run_pipeline.py     # Orchestrateur Prefect
 │   ├── agent_gemini.py     # Agent ReAct Gemini
 │   └── gcs_utils.py        # Upload Bronze → GCS
 ├── dbt_project/            # Modèles Gold (features ML)
 │   └── models/
-│       ├── intermediate/   # Backbone, events, player stats
+│       ├── intermediate/   # Backbone, événements, stats joueurs
 │       └── gold/           # features_final (~45K lignes)
-├── terraform/              # Infrastructure as Code (GCS, service account)
-├── scripts/                # Scripts utilitaires (wait_for_prefect.ps1)
+├── docs/
+│   └── ADR/                # Décisions architecturales documentées (8 ADR)
+├── terraform/              # Infrastructure as Code (GCS, compte de service)
+├── scripts/                # Scripts utilitaires
 ├── config/                 # Configuration (config.yaml, credentials)
 ├── models/                 # Modèles entraînés (.joblib)
 ├── data/                   # Données Bronze/Silver
-├── logs/                   # Logs pipeline
+├── logs/                   # Logs du pipeline
 ├── Dockerfile              # Image pipeline
 ├── Dockerfile.mlflow       # Image MLflow
 ├── docker-compose.yml      # Orchestration Docker
@@ -186,7 +200,7 @@ Projet_3étoiles/
 
 ---
 
-## Architecture Medallion
+## Architecture Médaillon
 
 Le projet suit une architecture **Bronze / Silver / Gold** :
 
@@ -194,19 +208,19 @@ Le projet suit une architecture **Bronze / Silver / Gold** :
 |---|---|---|
 | **Bronze** | Données brutes scrappées, format original | Parquet + GCS |
 | **Silver** | Données nettoyées, normalisées, dédupliquées | DuckDB (Polars) |
-| **Gold** | Features ML prêtes à l'entraînement | DuckDB (dbt) |
+| **Gold** | Features prêtes pour le ML | DuckDB (dbt) |
 
 ---
 
 ## Modèle ML
 
-Le modèle utilise un **two-stage stacking** :
+Le modèle utilise une approche **two-stage stacking** :
 
-- **Stage 1** : 3 modèles LightGBM spécialisés (Home win, Draw, Away win)
-- **Stage 2** : méta-modèle LightGBM qui combine les prédictions du Stage 1
-- **Calibration** : isotonic regression pour des probabilités bien calibrées
-- **Value bets** : détection par edge = P(modèle) - P(implicite cotes)
-- **Sizing** : Half Kelly criterion pour le sizing des mises
+- **Étage 1** : 3 modèles LightGBM spécialisés (victoire domicile, nul, victoire extérieur)
+- **Étage 2** : Meta-modèle LightGBM combinant les prédictions de l'étage 1
+- **Calibration** : Régression isotonique pour des probabilités bien calibrées
+- **Value bets** : Détection via edge = P(modèle) - P(cotes implicites)
+- **Sizing** : Demi-critère de Kelly pour le dimensionnement des mises
 
 ---
 
@@ -222,17 +236,11 @@ Le modèle utilise un **two-stage stacking** :
 
 ---
 
-## Roadmap
+## Feuille de route
 
 - [ ] Agent d'analyse des features (propositions de nouvelles features)
 - [ ] Agent d'analyse du modèle (propositions d'architectures alternatives)
-- [ ] Great Expectations — data quality checks
+- [ ] Great Expectations — étendre la couverture à la couche Bronze
 - [ ] CI/CD via GitHub Actions
-- [ ] Migration MLflow vers backend SQLite
-- [ ] Déploiement cloud complet (GCE + Cloud Run)
 
 ---
-
-## Licence
-
-MIT
