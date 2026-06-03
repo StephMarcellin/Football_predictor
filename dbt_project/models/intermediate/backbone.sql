@@ -139,6 +139,16 @@ odds_base AS (
     WHERE pinnacle_prob_h IS NOT NULL
 ),
 
+ws_match_index AS (
+    SELECT
+        ws_match_id,
+        match_date,
+        home_team_name,
+        away_team_name,
+        league_source
+    FROM {{ source('silver', 'stg_whoscored_match_index') }}
+),
+
 final AS (
     SELECT
         -- Identifiants
@@ -172,7 +182,9 @@ final AS (
         CASE WHEN f.venue='Home' THEN o.pinnacle_prob_a ELSE o.pinnacle_prob_h END AS pinnacle_prob_opp,
         CASE WHEN f.venue='Home' THEN o.market_prob_h   ELSE o.market_prob_a   END AS market_prob_team,
         o.market_prob_d AS market_prob_draw,
-        CASE WHEN f.venue='Home' THEN o.market_prob_a   ELSE o.market_prob_h   END AS market_prob_opp
+        CASE WHEN f.venue='Home' THEN o.market_prob_a   ELSE o.market_prob_h   END AS market_prob_opp,
+
+        ws_idx.ws_match_id
 
     FROM fbref_understat f
     LEFT JOIN whoscored_features wf
@@ -183,6 +195,14 @@ final AS (
         AND f.league_source = o.league_source
         AND (CASE WHEN f.venue='Home' THEN f.team     ELSE f.opponent END) = o.home_team
         AND (CASE WHEN f.venue='Home' THEN f.opponent ELSE f.team     END) = o.away_team
+    LEFT JOIN ws_match_index ws_idx
+        ON  f.date = ws_idx.match_date
+        AND f.league_source = ws_idx.league_source
+        AND (
+            (f.venue='Home' AND f.team = ws_idx.home_team_name AND f.opponent = ws_idx.away_team_name)
+            OR
+            (f.venue='Away' AND f.team = ws_idx.away_team_name AND f.opponent = ws_idx.home_team_name)
+        )
 )
 
 SELECT * FROM final

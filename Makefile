@@ -107,8 +107,11 @@ backtest: check-env
 # ============================================================
 #  REPRENDRE DEPUIS UNE ETAPE
 # ============================================================
+from-dbt_run: check-env
+	$(PYTHON) $(PIPELINE) --from dbt_run
+
 from-dbt_test: check-env
-	$(PYTHON) $(PIPELINE) --from dbt_test
+	$(PYTHON) $(PIPELINE) --from dbt_test	
 
 from-dbt_test_check: check-env
 	$(PYTHON) $(PIPELINE) --from dbt_test_check

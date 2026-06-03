@@ -162,7 +162,7 @@ def run_dbt_seed(refresh: bool = False) -> None:
     if result.returncode != 0:
         raise RuntimeError(f"dbt seed a échoué :\n{result.stderr[-1000:]}")
 
-def run_dbt_run(select: str = None) -> None:
+def run_dbt_run(select: str = None,full_refresh: bool = False) -> None:
     """
     Lance dbt run depuis dbt_project/.
     Exécute les modèles dbt.
@@ -176,6 +176,8 @@ def run_dbt_run(select: str = None) -> None:
     cmd = ["dbt", "run", "--profiles-dir", str(Path.home() / ".dbt")]
     if select:
         cmd += ["--select", select]
+    if full_refresh:
+        cmd += ["--full-refresh"]
     result = subprocess.run(
         cmd,
         cwd=dbt_dir,
@@ -347,7 +349,7 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
         },
         "dbt_run": {
             "fn":       run_dbt_run,
-            "kwargs":   {"select": "backbone features_rolling features_whoscored features_draw features_final"},
+            "kwargs":   {"select": "backbone features_rolling features_whoscored features_draw features_final","full_refresh": full_refresh},
             "critical": True,
         },
 
