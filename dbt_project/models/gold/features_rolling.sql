@@ -55,8 +55,8 @@ features_raw AS (
             ROWS BETWEEN 5 PRECEDING AND 1 PRECEDING
         ) AS draw_rate_5,
 
-        AVG(CASE WHEN venue='Home' AND result_1n2='W' THEN 1.0
-                 WHEN venue='Home' THEN 0.0 ELSE NULL END)
+        AVG(CASE WHEN venue='Home' AND result_1n2='H' THEN 1.0
+         WHEN venue='Home' THEN 0.0 ELSE NULL END)
             OVER (PARTITION BY team, league_source ORDER BY date
                   ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS home_win_rate_hist,
 
