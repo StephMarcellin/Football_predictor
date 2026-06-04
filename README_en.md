@@ -1,5 +1,7 @@
 # ⚽ Projet 3-Étoiles — Football Match Prediction Pipeline
 
+[![dbt CI](https://github.com/StephMarcellin/Football_predictor/actions/workflows/dbt-ci.yml/badge.svg)](https://github.com/StephMarcellin/Football_predictor/actions/workflows/dbt-ci.yml)
+
 > End-to-end machine learning pipeline for football match outcome prediction (1X2) and value bet detection across Europe's top 5 leagues.
 
 ![Python](https://img.shields.io/badge/Python-3.11-blue)
