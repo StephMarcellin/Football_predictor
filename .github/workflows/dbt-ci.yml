@@ -1,0 +1,80 @@
+# Workflow CI — lance dbt test à chaque push sur main
+# Utilise une base de test légère (3.5 Mo) stockée sur GCS
+# pour éviter de transporter les 8 Go de football.duckdb
+
+name: dbt CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'dbt_project/**'
+      - 'pipelines/02_process.py'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'dbt_project/**'
+      - 'pipelines/02_process.py'
+
+jobs:
+  dbt-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Récupère le code du repo sur le runner
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Installe Python 3.11 sur la machine Ubuntu vierge
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # 3. Installe uniquement les dépendances nécessaires à la CI
+      # (pas besoin de LightGBM, Prefect, etc. pour dbt test)
+      - name: Install dependencies
+        run: |
+          pip install dbt-duckdb==1.10.1 google-cloud-storage
+
+      # 4. Écrit le fichier service account GCP depuis le secret GitHub
+      # Le secret GCP_SA_KEY contient le JSON complet du service account
+      - name: Write GCP service account
+        run: |
+          mkdir -p config
+          echo '${{ secrets.GCP_SA_KEY }}' > config/gcp-service-account.json
+
+      # 5. Télécharge football_test.duckdb depuis GCS
+      # C'est la base de 3.5 Mo extraite de la prod (Premier League 2023-2024)
+      - name: Download test database from GCS
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: config/gcp-service-account.json
+          GCS_BUCKET_NAME: ${{ secrets.GCS_BUCKET_NAME }}
+        run: |
+          python - <<'EOF'
+          import os
+          from google.cloud import storage
+
+          client = storage.Client.from_service_account_json("config/gcp-service-account.json")
+          bucket = client.bucket(os.environ["GCS_BUCKET_NAME"])
+          blob   = bucket.blob("ci/football_test.duckdb")
+
+          os.makedirs("db", exist_ok=True)
+          blob.download_to_filename("db/football_test.duckdb")
+          print(f"Downloaded: {os.path.getsize('db/football_test.duckdb') / 1_048_576:.1f} Mo")
+          EOF
+
+      # 6. Lance dbt seed, run, test depuis le dossier dbt_project/
+      # --profiles-dir . utilise le profiles.yml local (target ci)
+      # --full-refresh force la reconstruction des modèles incrementaux
+      - name: dbt seed
+        working-directory: dbt_project
+        run: dbt seed --profiles-dir . --target ci
+
+      - name: dbt run
+        working-directory: dbt_project
+        run: dbt run --profiles-dir . --target ci --full-refresh
+
+      - name: dbt test
+        working-directory: dbt_project
+        run: dbt test --profiles-dir . --target ci
