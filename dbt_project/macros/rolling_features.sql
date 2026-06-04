@@ -27,6 +27,8 @@
     AVG(possession)               OVER ({{ fg }}) / NULLIF(AVG(ppda_allowed) OVER ({{ fg }}), 0) AS press_resistance_{{ w }},
     AVG(save_pct)                 OVER ({{ fg }}) / NULLIF(1 + AVG(np_xg_conceded) OVER ({{ fg }}), 0) AS shield_efficiency_{{ w }},
     AVG(CASE WHEN (red_cards + second_yellow_cards) > 0 THEN 1.0 ELSE 0.0 END) OVER ({{ fg }}) AS red_card_rate_roll_{{ w }},
-    AVG(CASE WHEN result_1n2 = 'W' THEN 1.0 ELSE 0.0 END) OVER ({{ fg }}) AS win_rate_roll_{{ w }},
-    AVG(CASE WHEN result_1n2 = 'W' THEN 3.0 WHEN result_1n2 = 'D' THEN 1.0 ELSE 0.0 END) OVER ({{ fg }}) AS points_pg_roll_{{ w }},
+    AVG(CASE WHEN (result_1n2 = 'H' AND venue = 'Home') OR (result_1n2 = 'A' AND venue = 'Away') THEN 1.0 ELSE 0.0 END) OVER ({{ fg }}) AS win_rate_roll_{{ w }},
+    AVG(CASE WHEN (result_1n2 = 'H' AND venue = 'Home') OR (result_1n2 = 'A' AND venue = 'Away') THEN 3.0
+         WHEN result_1n2 = 'D' THEN 1.0
+         ELSE 0.0 END) OVER ({{ fg }}) AS points_pg_roll_{{ w }},
 {% endmacro %}

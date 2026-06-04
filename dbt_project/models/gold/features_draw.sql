@@ -426,8 +426,8 @@ f_computed AS (
         END AS f12_red_card_resilience,
 
         -- F13/F14 — Late goal tendency et variance
-        tvo.ws_post_yellowcard_concede_rate AS f13_late_goal_tendency,
-        tvo.ws_post_redcard_resilience      AS f14_goal_timing_variance,
+        NULL::DOUBLE        AS f13_late_goal_tendency,
+        NULL::DOUBLE        AS f14_goal_timing_variance,
 
         -- AXE 4 — Efficacité / yield (F15–F18)
         CASE WHEN tvo.avg_xg_5 > 0

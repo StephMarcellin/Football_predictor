@@ -157,7 +157,6 @@ def _init_transfermarkt(con: duckdb.DuckDBPyConnection) -> None:
 
 # ── Logs ──────────────────────────────────────────────────────────────────────
 Path("logs").mkdir(exist_ok=True)
-logger.remove()  # supprime le sink terminal par défaut
 logger.add(
     "logs/process.log",
     level="DEBUG",
@@ -825,6 +824,31 @@ def process_whoscored(con: duckdb.DuckDBPyConnection) -> None:
     df = remove_duplicates(df, ["team", "season", "league_source"], "whoscored")
 
     _write_to_duckdb(con, df, "whoscored_team_season", "whoscored")
+
+    # ── Normalisation stg_whoscored_match_index ────────────────────────────────
+    try:
+        n = con.execute("SELECT COUNT(*) FROM silver.stg_whoscored_match_index").fetchone()[0]
+        if n == 0:
+            logger.info("  WhoScored match index : table vide, ignorée")
+        else:
+            logger.info(f"  WhoScored match index : normalisation de {n:,} lignes")
+            df_idx = con.execute("SELECT * FROM silver.stg_whoscored_match_index").pl()
+
+            # Normalisation compétition
+            df_idx = normalize_competition_col(df_idx, "league_source", "whoscored_match_index")
+
+            # Normalisation équipes
+            df_idx = normalize_team_col(df_idx, "home_team_name", "whoscored_match_index", conn=con)
+            df_idx = normalize_team_col(df_idx, "away_team_name", "whoscored_match_index", conn=con)
+
+            # Standardisation saison
+            df_idx = standardize_season(df_idx)
+
+            # Réécriture
+            _write_to_duckdb(con, df_idx, "stg_whoscored_match_index", "whoscored_match_index")
+
+    except Exception as e:
+        logger.warning(f"  stg_whoscored_match_index absent ou erreur : {e}")
 
 
 # ══════════════════════════════════════════════════════════════════════════════

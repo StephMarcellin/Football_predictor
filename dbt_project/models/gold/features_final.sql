@@ -101,7 +101,7 @@ opponent_stats AS (
 h2h_stats AS (
     SELECT
         t.date, t.team, t.opponent, t.league_source,
-        AVG(CASE WHEN h.result_1n2='W' THEN 1.0 ELSE 0.0 END) AS h2h_win_rate,
+        AVG(CASE WHEN (h.result_1n2 = 'H' AND h.venue = 'Home') OR (h.result_1n2 = 'A' AND h.venue = 'Away') THEN 1.0 ELSE 0.0 END) AS h2h_win_rate,
         AVG(CASE WHEN h.result_1n2='D' THEN 1.0 ELSE 0.0 END) AS h2h_draw_rate,
         AVG(h.gf)                                               AS h2h_goals_scored,
         AVG(h.ga)                                               AS h2h_goals_conceded,
@@ -274,12 +274,12 @@ final AS (
                  t.season_def_rating / o.opp_season_def_rating
              ) * t.is_home ELSE NULL END AS upset_risk_index,
 
-        -- final_match_id
-        'fbref_' || LEFT(md5(
-            CAST(t.date AS VARCHAR) || '|' ||
-            LEAST(t.team, t.opponent) || '|' ||
-            GREATEST(t.team, t.opponent) || '|' || t.league_source
-        ), 10) AS final_match_id,
+        -- -- final_match_id
+        -- 'fbref_' || LEFT(md5(
+        --     CAST(t.date AS VARCHAR) || '|' ||
+        --     LEAST(t.team, t.opponent) || '|' ||
+        --     GREATEST(t.team, t.opponent) || '|' || t.league_source
+        -- ), 10) AS final_match_id,
 
         -- WhoScored features
         t.ws_field_tilt_actions, t.ws_high_turnover_rate, t.ws_deep_completion_rt,

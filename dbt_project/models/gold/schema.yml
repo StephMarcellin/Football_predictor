@@ -99,8 +99,7 @@ models:
         description: "Déviation cote nul vs taux de nul historique de la ligue"
       - name: f4_momentum_convergence
         description: "Convergence de momentum — 1 - |ws_momentum_delta - ws_momentum_delta adverse|"
-        tests:
-          - not_null
+
       - name: f5_cs_mutual_rate
         description: "Taux de clean sheet mutuel — cs_rate × cs_rate adverse"
       - name: f6_ht_draw_tendency

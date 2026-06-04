@@ -429,3 +429,5 @@ models:
         description: "Hauteur moyenne de la ligne défensive (position X)"
       - name: ws_flank_exposure_asymm
         description: "Asymétrie d'exposition sur les flancs — différentiel gauche/droite"
+
+  - name: id_registry

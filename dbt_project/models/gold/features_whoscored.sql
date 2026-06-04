@@ -151,8 +151,9 @@ match_pivot AS (
 -- ══════════════════════════════════════════════════════════════════════════════
 home_side AS (
     SELECT
-        p.match_date                                                AS ws_date,
-        p.season                                                    AS ws_season,
+        p.match_date                AS ws_date,
+        p.ws_match_id               AS ws_match_id,
+        p.season                    AS ws_season,
         p.league_source,
         COALESCE(tm.club_name, p.home_team_name)                   AS team_name,
         p.home_field_tilt_actions   AS ws_field_tilt_actions,
@@ -193,6 +194,7 @@ home_side AS (
 away_side AS (
     SELECT
         p.match_date                                                AS ws_date,
+        p.ws_match_id               AS ws_match_id,
         p.season                                                    AS ws_season,
         p.league_source,
         COALESCE(tm.club_name, p.away_team_name)                   AS team_name,
@@ -244,25 +246,28 @@ ws_history AS (
 -- STRICTEMENT ANTÉRIEUR à la date du match (pas de data leakage)
 -- ══════════════════════════════════════════════════════════════════════════════
 backbone_base AS (
-    SELECT "date", team, league_source, season
+    SELECT date, team, league_source, season, ws_match_id
     FROM {{ ref('backbone') }}
 ),
-
-latest_ws_date AS (
+previous_ws_match AS (
     SELECT
-        b.date, b.team, b.league_source,
-        MAX(wsh.ws_date) AS max_ws_date
-    FROM backbone_base b
-    JOIN ws_history wsh
-        ON  b.team          = wsh.team_name
-        AND b.league_source = wsh.league_source
-        AND wsh.ws_date     < b.date
-    GROUP BY b.date, b.team, b.league_source
+        ws_match_id,
+        ws_date,
+        ws_season,
+        league_source,
+        team_name,
+        LAG(ws_match_id) OVER (
+            PARTITION BY team_name, league_source, ws_season
+            ORDER BY ws_date
+        ) AS prev_ws_match_id
+    FROM ws_history
 ),
 latest_ws AS (
     SELECT
-        b."date",
-        b.team, b.league_source,
+        p.ws_date      AS date,
+        p.team_name    AS team,
+        p.league_source,
+        p.ws_match_id,
         wsh.ws_field_tilt_actions, wsh.ws_high_turnover_rate, wsh.ws_deep_completion_rt,
         wsh.ws_momentum_delta, wsh.ws_counter_shot_rate, wsh.ws_set_piece_pressure,
         wsh.ws_attack_left_pct, wsh.ws_attack_center_pct, wsh.ws_attack_right_pct,
@@ -273,17 +278,12 @@ latest_ws AS (
         wsh.ws_long_ball_rate, wsh.ws_short_pass_rate,
         wsh.ws_def_exposed_left_pct, wsh.ws_def_exposed_center_pct, wsh.ws_def_exposed_right_pct,
         wsh.ws_counter_attack_dna, wsh.ws_midfield_control_idx,
-        wsh.ws_defensive_line_height, wsh.ws_flank_exposure_asymm,
-        -- ROW_NUMBER() OVER (
-        --     PARTITION BY b.team, b."date", b.league_source
-        --     ORDER BY wsh.ws_date DESC
-        -- ) AS rn
-    FROM latest_ws_date b
+        wsh.ws_defensive_line_height, wsh.ws_flank_exposure_asymm
+    FROM previous_ws_match p
     JOIN ws_history wsh
-        ON  b.team       = wsh.team_name
-        AND b.league_source = wsh.league_source
-        AND wsh.ws_date < b.max_ws_date   -- anti-leakage strict
-        -- AND b.season     = wsh.ws_season
+        ON  wsh.ws_match_id = p.prev_ws_match_id
+        AND wsh.team_name   = p.team_name
+    WHERE p.prev_ws_match_id IS NOT NULL
 ),
 
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -302,17 +302,17 @@ squad_current AS (
 player_form AS (
     SELECT
         cur.ws_match_id, cur.team_id, cur.player_id,
-        cur.match_date, cur.league_source,
+        cur.match_date, cur.league_source,cur.season,
         AVG(hist.n_actions)        AS player_avg_actions_5,
         AVG(hist.xg_contribution)  AS player_avg_xg_5,
         COUNT(hist.ws_match_id)    AS n_prev_matches
     FROM squad_current cur
-    LEFT JOIN {{ ref('player_match_stats') }} hist
+    LEFT JOIN intermediate.player_match_stats hist
         ON  hist.player_id    = cur.player_id
         AND hist.league_source = cur.league_source
         AND hist."date"::DATE   < cur.match_date
         AND hist."date"::DATE  >= cur.match_date - INTERVAL '180 days'
-    GROUP BY cur.ws_match_id, cur.team_id, cur.player_id, cur.match_date, cur.league_source
+    GROUP BY cur.ws_match_id, cur.team_id, cur.player_id, cur.match_date, cur.league_source, cur.season
     HAVING COUNT(hist.ws_match_id) >= 1
 ),
 
@@ -321,11 +321,11 @@ squad_regularity AS (
         COUNT(DISTINCT cur.player_id) AS squad_size,
         CASE WHEN COUNT(DISTINCT cur.player_id) > 0
              THEN CAST(COUNT(DISTINCT prev.player_id) AS DOUBLE) / COUNT(DISTINCT cur.player_id)
-             ELSE NULL END AS squad_regularity
+             ELSE NULL END AS squad_reg_rate
     FROM squad_current cur
     LEFT JOIN (
-        SELECT player_id, team_id, CAST("date" AS DATE) AS prev_date, league_source
-        FROM {{ ref('player_match_stats') }}
+        SELECT player_id, team_id, date AS prev_date, league_source
+        FROM intermediate.player_match_stats
         WHERE player_id IS NOT NULL
     ) prev
         ON  prev.player_id    = cur.player_id
@@ -352,16 +352,16 @@ squad_top3 AS (
 
 squad_agg AS (
     SELECT
-        pf.ws_match_id, pf.team_id, pf.match_date, pf.league_source,
+        pf.ws_match_id, pf.team_id, pf.match_date, pf.league_source, pf.season,
         AVG(pf.player_avg_actions_5) AS squad_avg_form_5,
         AVG(pf.player_avg_xg_5)      AS squad_xg_quality_5,
-        sr.squad_regularity,
+        sr.squad_reg_rate,
         t3.squad_top3_share
     FROM player_form pf
     LEFT JOIN squad_regularity sr ON pf.ws_match_id=sr.ws_match_id AND pf.team_id=sr.team_id
     LEFT JOIN squad_top3       t3 ON pf.ws_match_id=t3.ws_match_id AND pf.team_id=t3.team_id
-    GROUP BY pf.ws_match_id, pf.team_id, pf.match_date, pf.league_source,
-             sr.squad_regularity, t3.squad_top3_share
+    GROUP BY pf.ws_match_id, pf.team_id, pf.match_date, pf.league_source, pf.season,
+             sr.squad_reg_rate, t3.squad_top3_share
 ),
 
 -- Résolution team_name pour le squad via team_mapping
@@ -373,28 +373,43 @@ squad_named AS (
                  ELSE mi.away_team_name END
         ) AS team_name
     FROM squad_agg sa
-    JOIN {{ source('silver', 'stg_whoscored_match_index') }} mi
+    JOIN silver.stg_whoscored_match_index mi
         ON sa.ws_match_id = mi.ws_match_id
-    LEFT JOIN {{ ref('team_mapping') }} tm ON tm.alias =
+    LEFT JOIN referentiel.team_mapping tm ON tm.alias =
         CASE WHEN mi.home_team_id = sa.team_id THEN mi.home_team_name
              ELSE mi.away_team_name END
 ),
 
 -- Anti-leakage squad : dernier match squad AVANT la date du match backbone
+squad_sequence AS (
+    SELECT
+        ws_match_id,
+        match_date,
+        season,
+        league_source,
+        team_name,
+        LAG(ws_match_id) OVER (
+            PARTITION BY team_name, league_source, season
+            ORDER BY match_date
+        ) AS prev_ws_match_id
+    FROM squad_named
+),
+
 squad_for_backbone AS (
     SELECT
-        b."date", b.team, b.league_source,
-        sn.squad_avg_form_5, sn.squad_xg_quality_5,
-        sn.squad_regularity, sn.squad_top3_share,
-        ROW_NUMBER() OVER (
-            PARTITION BY b.team, b.league_source, CAST(b."date" AS DATE)
-            ORDER BY sn.match_date DESC
-        ) AS rn
-    FROM backbone_base b
+        seq.match_date AS date,
+        seq.ws_match_id,
+        seq.team_name  AS team,
+        seq.league_source,
+        sn.squad_avg_form_5,
+        sn.squad_xg_quality_5,
+        sn.squad_reg_rate,
+        sn.squad_top3_share
+    FROM squad_sequence seq
     JOIN squad_named sn
-        ON  sn.team_name    = b.team
-        AND sn.league_source = b.league_source
-        AND CAST(sn.match_date AS DATE) < CAST(b."date" AS DATE)
+        ON  sn.ws_match_id  = seq.prev_ws_match_id
+        AND sn.team_name    = seq.team_name
+    WHERE seq.prev_ws_match_id IS NOT NULL
 ),
 
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -402,7 +417,7 @@ squad_for_backbone AS (
 -- ══════════════════════════════════════════════════════════════════════════════
 final AS (
     SELECT
-        b."date", b.team, b.league_source,
+        b.date, b.team, b.league_source,b.ws_match_id,
 
         -- Features WhoScored match (anti-leakage LAG1)
         lws.ws_field_tilt_actions,
@@ -440,20 +455,17 @@ final AS (
         -- Squad features (anti-leakage)
         sfb.squad_avg_form_5,
         sfb.squad_xg_quality_5,
-        sfb.squad_regularity,
+        sfb.squad_reg_rate as squad_regularity,
         sfb.squad_top3_share
+
 
     FROM backbone_base b
     LEFT JOIN latest_ws lws
-        ON  b."date" = lws."date"
-        AND b.team               = lws.team
-        AND b.league_source      = lws.league_source
-        -- AND lws.rn = 1
-    LEFT JOIN squad_for_backbone sfb
-        ON  CAST(b."date" AS DATE) = CAST(sfb."date" AS DATE)
-        AND b.team               = sfb.team
-        AND b.league_source      = sfb.league_source
-        -- AND sfb.rn = 1
+	    ON  lws.ws_match_id = b.ws_match_id
+	    AND lws.team   = b.team
+	LEFT JOIN squad_for_backbone sfb
+	    ON  sfb.ws_match_id = b.ws_match_id
+	    AND sfb.team   = b.team
 )
 
 SELECT * FROM final
