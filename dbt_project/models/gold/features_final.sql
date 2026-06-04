@@ -22,6 +22,7 @@ WITH
 enriched AS (
     SELECT
         r.*,
+        ws.ws_match_id,
         ws.ws_field_tilt_actions, ws.ws_high_turnover_rate, ws.ws_deep_completion_rt,
         ws.ws_momentum_delta, ws.ws_counter_shot_rate, ws.ws_set_piece_pressure,
         ws.ws_attack_left_pct, ws.ws_attack_center_pct, ws.ws_attack_right_pct,
@@ -55,6 +56,7 @@ enriched AS (
 opponent_stats AS (
     SELECT
         date, team AS opp_team, league_source,
+        ws_match_id AS opp_ws_match_id,
         season_att_rating           AS opp_season_att_rating,
         season_def_rating           AS opp_season_def_rating,
         ws_dribbles_pg              AS opp_ws_dribbles_pg,
@@ -151,7 +153,7 @@ league_draw_rate AS (
 final AS (
     SELECT
         -- Identifiants
-        t.date, t.team, t.opponent, t.venue, t.is_home,
+        t.date, t.team, t.opponent, t.venue, t.is_home, t.ws_match_id,
         t.season, t.league_source, t.comp_category, t.match_id, t.result_1n2,
         t.formation,
 

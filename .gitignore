@@ -56,6 +56,7 @@ dbt_project/logs/
 # ── dbt artefacts compilés ────────────────────────────────
 dbt_project/target/
 dbt_project/dbt_packages/
+dbt_project/.user.yml
 
 # ── Pipelines ───────────────────────────────────────────────
 pipelines/structure_projet.txt

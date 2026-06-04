@@ -1,0 +1,8 @@
+football_prediction:
+  target: ci
+  outputs:
+    ci:
+      type: duckdb
+      path: "../db/football_test.duckdb"
+      schema: gold
+      threads: 2
