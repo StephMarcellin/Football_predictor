@@ -107,6 +107,12 @@ backtest: check-env
 # ============================================================
 #  REPRENDRE DEPUIS UNE ETAPE
 # ============================================================
+from-dbt_test: check-env
+	$(PYTHON) $(PIPELINE) --from dbt_test
+
+from-dbt_test_check: check-env
+	$(PYTHON) $(PIPELINE) --from dbt_test_check
+
 from-train: check-env
 	$(PYTHON) $(PIPELINE) --from train
 
@@ -152,6 +158,10 @@ docker-train:
 
 docker-pipeline:
 	docker-compose run pipeline python pipelines\run_pipeline.py
+
+# DBT
+dbt-docs:
+	cd dbt_project && dbt docs generate && dbt docs serve --port 8080
 # ============================================================
 #  VERIFICATION
 # ============================================================

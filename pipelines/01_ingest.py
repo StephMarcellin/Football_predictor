@@ -118,6 +118,7 @@ TEAM_MAPPING: dict[str, str] = _load_team_mapping()
 
 # ── Logs ──────────────────────────────────────────────────────────────────────
 Path("logs").mkdir(exist_ok=True)
+logger.remove()  # supprime le sink terminal par défaut
 logger.add(
     "logs/ingest.log",
     level="DEBUG",

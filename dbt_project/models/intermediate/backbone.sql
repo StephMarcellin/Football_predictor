@@ -194,7 +194,7 @@ WHERE NOT (
 )
 
 {% if is_incremental() %}
-WHERE (date::VARCHAR || '_' || team || '_' || opponent) NOT IN (
+AND (date::VARCHAR || '_' || team || '_' || opponent) NOT IN (
     SELECT (date::VARCHAR || '_' || team || '_' || opponent)
     FROM {{ this }}
 )

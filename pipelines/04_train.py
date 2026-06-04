@@ -17,6 +17,7 @@ Usage :
 """
 
 import argparse
+from sys import prefix
 import warnings
 import joblib
 import os
@@ -264,6 +265,8 @@ def prepare_perspective(df_match: pd.DataFrame,
 
     X = df_match[feat_cols].copy()
     X.columns = [c[len(prefix):] for c in X.columns]  # strip prefix
+    # Exclure les colonnes non-numériques (ex: formation — encodage prévu en V2)
+    X = X.select_dtypes(include=[np.number])
 
     y_raw = df_match["result_match"]
     if perspective == "away":
@@ -278,6 +281,7 @@ def prepare_combined(df_match: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
     h_cols = [c for c in df_match.columns if c.startswith("h_")]
     a_cols = [c for c in df_match.columns if c.startswith("a_")]
     X = df_match[h_cols + a_cols].copy()
+    X = X.select_dtypes(include=[np.number])
     y = df_match["result_match"]
     return X, y
 
@@ -1180,13 +1184,14 @@ def main(step: int = 2, use_shap: bool = True, n_trials: int = 50):
             "calibrators":   calibrators,
             "winsorize_caps": caps,
             "feature_names": {
-                "home":     list(X_h_tr.columns),
-                "away":     list(X_a_tr.columns),
-                "combined": list(X_c_tr.columns),
+                "home":     list(pp_home.get_feature_names_out(X_h_tr.columns)),
+                "away":     list(pp_away.get_feature_names_out(X_a_tr.columns)),
+                "combined": list(pp_comb.get_feature_names_out(X_c_tr.columns)),
             },
             "draw_threshold": draw_threshold,
         }
         model_path = MODELS_DIR / "football_stacking_v1.joblib"
+        logger.info(f"  feature_names home : {len(list(X_h_tr.columns))} colonnes")
         joblib.dump(artifacts, model_path)
         mlflow.log_artifact(str(model_path))
         logger.success(f"  Modèle sauvegardé : {model_path}")

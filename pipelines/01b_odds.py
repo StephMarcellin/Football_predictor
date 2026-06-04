@@ -37,6 +37,7 @@ BETS_DIR     = ROOT_DIR / CFG["paths"]["raw_data"]/ "bets"
 
 # ── Logs ──────────────────────────────────────────────────────────────────────
 Path("logs").mkdir(exist_ok=True)
+logger.remove()  # supprime le sink terminal par défaut
 logger.add(
     "logs/odds.log",
     level="DEBUG",

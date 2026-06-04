@@ -7,6 +7,7 @@ Usage :
 """
 
 import argparse
+from pprint import pp
 import sys
 from pathlib import Path
 
@@ -21,8 +22,18 @@ DB_PATH   = "db/football.duckdb"
 MODEL_PATH = "models/football_stacking_v1.joblib"
 OUTPUT_PATH = "models/predictions_upcoming.csv"
 
-ID_COLS = ["final_match_id", "date", "season", "league_source",
-           "comp_category", "venue", "result_1n2", "result_match"]
+ID_COLS = [
+    "date", "team", "opponent", "venue", "season", "league_source",
+    "comp_category", "match_id", "final_match_id", "result_1n2",
+    # Cotes exclues des Stage 1 — entrée directe dans Stage 2 uniquement
+    "odds_pinnacle_team", "odds_pinnacle_draw", "odds_pinnacle_opp",
+    "odds_avg_team", "odds_avg_draw", "odds_avg_opp",
+    "pinnacle_prob_team", "pinnacle_prob_draw", "pinnacle_prob_opp",
+    "market_prob_team", "market_prob_draw", "market_prob_opp",
+    "pinnacle_edge", "market_edge",
+    "opp_odds_pinnacle", "opp_pinnacle_prob", "opp_market_prob",
+    # "formation" # A traiter plus tard
+]
 TARGET  = "result_1n2"
 
 DRAW_THRESHOLD = 0.28
@@ -79,6 +90,11 @@ def pivot_to_match(df: pd.DataFrame) -> pd.DataFrame:
     feature_cols  = [c for c in df.columns
                      if c not in ID_COLS + id_cols_pivot
                      and c not in ["team", "opponent"]]
+    
+    logger.debug(f"  Nombre feature_cols avant pivot : {len(feature_cols)}")
+    logger.debug(f"  Nombre ID_COLS : {len(ID_COLS)}")
+    logger.debug(f"  Nombre colonnes df : {len(df.columns)}")
+
     odds_check = [c for c in feature_cols if "odds" in c or "prob" in c or "market" in c or "pinnacle" in c]
     logger.debug(f"  Colonnes cotes dans feature_cols : {odds_check}")
 
@@ -189,13 +205,13 @@ def run_inference(df_match: pd.DataFrame, art: dict) -> pd.DataFrame:
     # X_comb_s = pp["combined"].transform(X_comb)
     
     # Après transform, réemballer en DataFrame
-    home_cols = fn["home"]
-    away_cols = fn["away"]
-    comb_cols = fn["combined"]
+    X_home_s = pd.DataFrame(pp["home"].transform(X_home), columns=X_home.columns)
+    X_away_s = pd.DataFrame(pp["away"].transform(X_away), columns=X_away.columns)
+    X_comb_s = pd.DataFrame(pp["combined"].transform(X_comb), columns=X_comb.columns)
 
-    X_home_s = pd.DataFrame(pp["home"].transform(X_home), columns=home_cols)
-    X_away_s = pd.DataFrame(pp["away"].transform(X_away), columns=away_cols)
-    X_comb_s = pd.DataFrame(pp["combined"].transform(X_comb), columns=comb_cols)
+    print("DEBUG X_home_s shape :", X_home_s.shape)
+    print("DEBUG X_away_s shape :", X_away_s.shape)
+    print("DEBUG X_comb_s shape :", X_comb_s.shape)
 
     # ── Stage 1 ───────────────────────────────────────────────────────────────
     proba_home = lgbm_home.predict_proba(X_home_s)   # P(H/D/A) vue home
