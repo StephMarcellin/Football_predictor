@@ -209,7 +209,7 @@ models:
           - not_null
       - name: match_id
         description: "Identifiant Understat du match"
-      - name: final_match_id
+      - name: ws_match_id
         description: "Identifiant unique canonique — hash md5 sur date|team|opponent|league"
         tests:
           - not_null

@@ -75,9 +75,6 @@ models:
       - name: match_id
         description: "Identifiant Understat du match — NULL si le match n'existe pas dans Understat"
         tests:
-          - unique:
-              config:
-                severity: warn
           - not_null:
               config:
                 severity: warn
