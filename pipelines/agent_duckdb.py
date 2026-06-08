@@ -7,12 +7,15 @@ import os
 import sys
 import yaml
 from pathlib import Path
-from typing import TypedDict, Optional
+from typing import TypedDict, Optional, Annotated
 
 import duckdb
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from langgraph.graph import StateGraph, START, END
+from langchain_core.messages import HumanMessage, AIMessage
+from langgraph.checkpoint.memory import MemorySaver
+import operator
 
 # 1. Définition de l'état partagé
 class AgentState(TypedDict):
@@ -21,6 +24,7 @@ class AgentState(TypedDict):
     sql_result: Optional[str]        # résultats bruts retournés par DuckDB
     error: Optional[str]             # message d'erreur si execute_sql échoue
     final_answer: Optional[str]      # réponse mise en forme par le LLM
+    messages : Annotated[list, operator.add]         # historique des messages
 
 # 2. Connection duckdb
 # ── Chemins ───────────────────────────────────────────────────────────────────
@@ -50,7 +54,7 @@ def load_schema() -> str:
             FROM information_schema.columns
             WHERE table_schema = 'gold'
               AND table_name   = 'features_final'
-            ORDER BY ordinal_position
+            ORDER BY ordinal_position;
         """).fetchall()
         con.close()
         return "\n".join(f"  - {col} ({dtype})" for col, dtype in rows)
@@ -68,7 +72,6 @@ llm = ChatGroq(
 # ── Chargement du schéma au démarrage ─────────────────────────────────────────
 SCHEMA = load_schema()
 
-
 # 4. Les nœuds du graphe
 # ── Nœud 1 : generate_sql ─────────────────────────────────────────────────────
 def generate_sql(state: AgentState) -> dict:
@@ -77,7 +80,7 @@ def generate_sql(state: AgentState) -> dict:
     prête à être exécutée sur gold.features_final.
     """
     prompt = ChatPromptTemplate.from_messages([
-       ("system", """Tu génères des requêtes SQL pour DuckDB sur la table gold.features_final.
+        ("system", """Tu génères des requêtes SQL pour DuckDB sur la table gold.features_final.
 
 Colonnes disponibles dans gold.features_final :
 {schema}
@@ -99,10 +102,17 @@ Règles absolues :
 - Utilise toujours le préfixe gold.features_final
 - Limite les résultats à 50 lignes maximum avec LIMIT 50
 - N'utilise que les colonnes listées ci-dessus"""),
-            ("human", "{question}"),
+        *state.get("messages", [])[-6:],
+        ("human", "{question}"),
         ])
 
     chain = prompt | llm
+
+    print("\n[DEBUG] Prompt envoyé au LLM :")
+    print(prompt.format(schema=SCHEMA, question=state["question"]))
+    print("\n[DEBUG] Historique des messages :")
+    for msg in state.get("messages", []):
+        print(f"  - {msg['role']}: {msg['content']}")
 
     response = chain.invoke({
         "schema": SCHEMA,
@@ -136,7 +146,6 @@ def execute_sql(state: AgentState) -> dict:
     except Exception as e:
         return {"sql_result": None, "error": str(e)}
     
-
 # ── Nœud 3 : format_response ──────────────────────────────────────────────────
 def format_response(state: AgentState) -> dict:
     """
@@ -145,8 +154,8 @@ def format_response(state: AgentState) -> dict:
     """
     prompt = ChatPromptTemplate.from_messages([
         ("system", """Tu reçois les résultats d'une requête SQL sur une base de données football.
-Formule une réponse claire et concise en français à la question posée. Sois consis, une ou deux phrases suffisent.
-Si une erreur SQL est présente, explique ce qui s'est passé simplement."""),
+        Réponds en une phrase courte et directe en français. 
+        Si une erreur SQL est présente, explique ce qui s'est passé simplement."""),
         ("human", """Question : {question}
 
 Requête SQL exécutée : {sql_query}
@@ -165,7 +174,13 @@ Erreur éventuelle : {error}"""),
         "error":      state["error"] or "Aucune",
     })
 
-    return {"final_answer": response.content.strip()}
+    return {
+        "final_answer": response.content.strip(),
+        "messages": [
+            HumanMessage(content=state["question"]),
+            AIMessage(content=response.content.strip()),
+        ]
+    }
 
 # 5. Assemblage du graphe ───────────────────────────────────────────────────────
 def build_graph():
@@ -173,6 +188,7 @@ def build_graph():
     Assemble et compile le graphe LangGraph.
     Retourne un graphe prêt à être invoqué.
     """
+    memory = MemorySaver()
     graph = StateGraph(AgentState)
 
     # Ajout des nœuds
@@ -186,18 +202,15 @@ def build_graph():
     graph.add_edge("execute_sql",     "format_response")
     graph.add_edge("format_response", END)
 
-    return graph.compile()
+    return graph.compile(checkpointer=memory)
 
 # ── Point d'entrée ────────────────────────────────────────────────────────────
 def main():
-    """
-    Boucle interactive CLI.
-    Pose une question, l'agent interroge DuckDB et répond.
-    """
     print("Agent DuckDB — Projet 3-Étoiles")
     print("Tape 'exit' pour quitter\n")
 
-    agent = build_graph()
+    agent    = build_graph()
+    thread   = {"configurable": {"thread_id": "session_1"}}
 
     while True:
         question = input("Question : ").strip()
@@ -208,11 +221,13 @@ def main():
         if not question:
             continue
 
-        result = agent.invoke({"question": question})
+        result = agent.invoke(
+            {"question": question, "messages": []},
+            config=thread
+        )
 
-        print(f"\nSQL généré    : {result['sql_query']}")
-        print(f"Réponse       : {result['final_answer']}\n")
-
+        print(f"\nSQL généré : {result['sql_query']}")
+        print(f"Réponse    : {result['final_answer']}\n")
 
 if __name__ == "__main__":
     main()
