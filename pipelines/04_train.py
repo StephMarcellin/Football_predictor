@@ -85,17 +85,10 @@ TRAIN_SEASONS = CFG["train"]["TRAIN_SEASONS"]
 VAL_SEASONS = CFG["train"]["VAL_SEASONS"]
 TEST_SEASON = CFG["train"]["TEST_SEASON"]
 
-# TRAIN_SEASONS = [
-#     "2017-2018", "2018-2019", "2019-2020",
-#     "2020-2021", "2021-2022",
-# ]
-# VAL_SEASONS = ["2022-2023", "2023-2024"]   # deux saisons pour plus de robustesse
-# TEST_SEASON = "2024-2025"                  # intouchable jusqu'au backtest final
-
 # Colonnes identifiants — jamais dans le modèle
 ID_COLS = [
     "date", "team", "opponent", "venue", "season", "league_source",
-    "comp_category", "match_id", "final_match_id", "result_1n2",
+    "comp_category","match_id", "result_1n2",
     # Cotes exclues des Stage 1 — entrée directe dans Stage 2 uniquement
     "odds_pinnacle_team", "odds_pinnacle_draw", "odds_pinnacle_opp",
     "odds_avg_team", "odds_avg_draw", "odds_avg_opp",
@@ -144,7 +137,6 @@ def load_data() -> pd.DataFrame:
         SELECT *
         FROM gold.features_final
         WHERE comp_category = 'Big5'
-          AND result_1n2    IS NOT NULL
     """).df()
     conn.close()
 
@@ -162,7 +154,7 @@ def pivot_to_match(df: pd.DataFrame) -> pd.DataFrame:
     Principe :
       - Ligne Home : features de l'équipe domicile
       - Ligne Away : features de l'équipe extérieur
-      - On joint sur final_match_id en séparant home_ et away_
+      - On joint sur match_id en séparant home_ et away_
 
     Le résultat contient :
       - Toutes les features Home préfixées h_
@@ -171,7 +163,7 @@ def pivot_to_match(df: pd.DataFrame) -> pd.DataFrame:
     """
     logger.info("Pivot home/away → 1 ligne par match...")
 
-    id_cols_pivot = ["final_match_id", "date", "season",
+    id_cols_pivot = ["match_id", "date", "season",
                      "league_source", "comp_category"]
     feature_cols  = [c for c in df.columns
                      if c not in ID_COLS + id_cols_pivot
@@ -185,6 +177,9 @@ def pivot_to_match(df: pd.DataFrame) -> pd.DataFrame:
     home_renamed = home[id_cols_pivot + ["team", "opponent", TARGET] + feature_cols].copy()
     away_renamed = away[id_cols_pivot + ["team", "opponent"] + feature_cols].copy()
 
+    print(f" Colonnes avant pivot : {len(feature_cols)}")
+    print(f" Colonnes home: {home_renamed.columns.tolist()}")
+
     home_renamed = home_renamed.rename(
         columns={c: f"h_{c}" for c in feature_cols}
     ).rename(columns={"team": "home_team", "opponent": "away_team",
@@ -194,11 +189,19 @@ def pivot_to_match(df: pd.DataFrame) -> pd.DataFrame:
         columns={c: f"a_{c}" for c in feature_cols}
     ).rename(columns={"team": "away_team_check", "opponent": "home_team_check"})
 
-    # Jointure sur final_match_id
+    print(f"  Home features : {len(feature_cols)} → {len([c for c in home_renamed.columns if c.startswith('h_')])}")
+    print(f"  Away features : {len(feature_cols)} → {len([c for c in away_renamed.columns if c.startswith('a_')])}")
+
+    print(f" Colonnes après pivot : {len(feature_cols)}")
+    print(f" Colonnes home: {home_renamed.columns.tolist()}")
+    print(f"Nb feature_cols : {len(feature_cols)}")
+    print(f"match_id dans feature_cols : {'match_id' in feature_cols}")
+
+    # Jointure sur match_id
     merged = home_renamed.merge(
-        away_renamed[["final_match_id"] +
+        away_renamed[["match_id"] +
                      [f"a_{c}" for c in feature_cols]],
-        on="final_match_id",
+        on="match_id",
         how="inner",
     )
 
@@ -731,11 +734,12 @@ def analyze_upsets(y_proba, y_true_enc, le,
     idx_D   = classes.index("D")
 
     df_out = pd.DataFrame({
-        "final_match_id": df_match["final_match_id"].values,
+        "match_id": df_match["match_id"].values,
         "home_team":      df_match["home_team"].values,
         "away_team":      df_match["away_team"].values,
         "date":           df_match["date"].values,
         "league":         df_match["league_source"].values,
+        "season":         df_match["season"].values,
         "prob_home":      y_proba[:, idx_H],
         "prob_draw":      y_proba[:, idx_D],
         "prob_away":      y_proba[:, idx_A],
@@ -765,6 +769,104 @@ def analyze_upsets(y_proba, y_true_enc, le,
 
     return df_out
 
+def compute_rps(y_true_str: pd.Series,
+                prob_h: np.ndarray,
+                prob_d: np.ndarray,
+                prob_a: np.ndarray) -> float:
+    """
+    Ranked Probability Score multiclasse pour H/D/A.
+    Ordre naturel : H=0, D=1, A=2
+    RPS plus bas = meilleur modèle.
+    """
+    classes = ["H", "D", "A"]
+    n = len(y_true_str)
+    rps_total = 0.0
+
+    for i, true_cls in enumerate(y_true_str):
+        # Vecteur one-hot de la vraie classe
+        o = np.array([1.0 if c == true_cls else 0.0 for c in classes])
+        # Vecteur des probabilités prédites
+        p = np.array([prob_h[i], prob_d[i], prob_a[i]])
+        # RPS = somme des carrés des CDF cumulées
+        rps_total += np.sum((np.cumsum(p) - np.cumsum(o)) ** 2)
+
+    return rps_total / n
+
+
+def log_detailed_metrics(df_preds: pd.DataFrame, prefix: str) -> None:
+    """
+    Calcule et logge dans MLflow les métriques détaillées par league,
+    par saison et par classe.
+
+    Paramètres :
+        df_preds : DataFrame avec colonnes league, season, actual_result,
+                   pred, prob_home, prob_draw, prob_away
+        prefix   : "val", "test" ou "train"
+    """
+    metrics = {}
+    classes = ["H", "D", "A"]
+
+    prob_matrix = df_preds[["prob_home", "prob_draw", "prob_away"]].values
+
+    # ── F1 / précision / rappel par classe — global ───────────────────────────
+    from sklearn.metrics import precision_recall_fscore_support
+    prec, rec, f1, _ = precision_recall_fscore_support(
+        df_preds["actual_result"],
+        df_preds["pred"],
+        labels=classes,
+        zero_division=0,
+    )
+    for i, cls in enumerate(classes):
+        metrics[f"{prefix}_f1_{cls}"]        = float(f1[i])
+        metrics[f"{prefix}_precision_{cls}"] = float(prec[i])
+        metrics[f"{prefix}_recall_{cls}"]    = float(rec[i])
+
+    # ── RPS global ────────────────────────────────────────────────────────────
+    rps = compute_rps(
+        df_preds["actual_result"],
+        df_preds["prob_home"].values,
+        df_preds["prob_draw"].values,
+        df_preds["prob_away"].values,
+    )
+    metrics[f"{prefix}_rps"] = float(rps)
+
+    # ── ECE global ────────────────────────────────────────────────────────────
+    # On moyenne l'ECE sur les 3 classes (one-vs-rest)
+    ece_total = 0.0
+    for i, cls in enumerate(classes):
+        y_binary   = (df_preds["actual_result"] == cls).astype(int).values
+        y_prob     = prob_matrix[:, i]
+        frac, mean = calibration_curve(y_binary, y_prob, n_bins=10)
+        ece_total += float(mean_absolute_error(frac, mean))
+    metrics[f"{prefix}_ece"] = ece_total / 3
+
+    # ── Overconfidence rate ───────────────────────────────────────────────────
+    # % de prédictions avec confiance > 80% qui sont fausses
+    high_conf_mask = df_preds[["prob_home", "prob_draw", "prob_away"]].max(axis=1) > 0.80
+    if high_conf_mask.sum() > 0:
+        wrong_high_conf = (
+            df_preds.loc[high_conf_mask, "pred"]
+            != df_preds.loc[high_conf_mask, "actual_result"]
+        ).mean()
+        metrics[f"{prefix}_overconfidence_rate"] = float(wrong_high_conf)
+
+    # ── Métriques par league ──────────────────────────────────────────────────
+    for league, grp in df_preds.groupby("league"):
+        league_key = league.lower().replace(" ", "_")
+        acc = accuracy_score(grp["actual_result"], grp["pred"])
+        ll  = log_loss(grp["actual_result"], grp[["prob_home", "prob_draw", "prob_away"]].values,
+                       labels=classes)
+        metrics[f"{prefix}_acc_{league_key}"]      = float(acc)
+        metrics[f"{prefix}_log_loss_{league_key}"] = float(ll)
+
+    # ── Métriques par saison ──────────────────────────────────────────────────
+    for season, grp in df_preds.groupby("season"):
+        season_key = season.replace("-", "_")
+        acc = accuracy_score(grp["actual_result"], grp["pred"])
+        metrics[f"{prefix}_acc_{season_key}"] = float(acc)
+
+    mlflow.log_metrics(metrics)
+    logger.info(f"  [{prefix}] {len(metrics)} métriques loggées dans MLflow")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # BLOC 7 — SHAP
@@ -1118,6 +1220,7 @@ def main(step: int = 2, use_shap: bool = True, n_trials: int = 50):
 
         # Export résultats
         results_path = MODELS_DIR / "predictions_val.csv"
+        log_detailed_metrics(df_results, prefix="val")
         df_results.to_csv(results_path, index=False)
         mlflow.log_artifact(str(results_path))
         logger.info(f"  Prédictions sauvegardées : {results_path}")
@@ -1148,6 +1251,7 @@ def main(step: int = 2, use_shap: bool = True, n_trials: int = 50):
                 proba_test_cal, y_c_test_enc, le_combined, df_test, draw_threshold=draw_threshold
             )
             test_path = MODELS_DIR / "predictions_test.csv"
+            log_detailed_metrics(df_test_results, prefix="test")
             df_test_results.to_csv(test_path, index=False)
             mlflow.log_artifact(str(test_path))
             logger.info(f"  Prédictions test sauvegardées : {test_path}")
