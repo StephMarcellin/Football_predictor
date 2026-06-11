@@ -28,6 +28,9 @@ from pathlib import Path
 import polars as pl
 from loguru import logger
 
+from datetime import date
+
+
 # ── Chemins par défaut ────────────────────────────────────────────────────────
 
 ROOT_DIR  = Path(__file__).resolve().parent.parent
@@ -54,8 +57,6 @@ logger.add(
 def load_transfermarkt_clubs(csv_path: Path) -> list[str]:
     """
     Lit le CSV Transfermarkt et retourne les club_name uniques triés.
-    Colonnes attendues : club_name, club_tm_id, league, season,
-                         market_value_m, club_url
     """
     logger.info(f"Lecture Transfermarkt : {csv_path}")
     df = pl.read_csv(csv_path, infer_schema_length=1000)
@@ -101,6 +102,38 @@ def compute_new_clubs(
     logger.info(f"  {already} déjà couverts | {len(new_clubs)} nouveaux à ajouter")
     return new_clubs
 
+def initialize_team_ids(mapping_df: pl.DataFrame, reset: bool = False) -> pl.DataFrame:
+    today = date.today().strftime("%Y%m%d")
+
+    if "team_id" not in mapping_df.columns:
+        mapping_df = mapping_df.with_columns(
+            pl.lit(None).cast(pl.Int64).alias("team_id")
+        )
+
+    if reset:
+        mapping_df = mapping_df.with_columns(
+            pl.lit(None).cast(pl.Int64).alias("team_id")
+        )
+
+    clubs_sans_id = (
+        mapping_df
+        .filter(pl.col("team_id").is_null())
+        ["club_name"]
+        .drop_nulls()
+        .unique()
+        .sort()
+        .to_list()
+    )
+
+    generated = {club: int(f"{today}{str(i+1).zfill(4)}")
+                 for i, club in enumerate(clubs_sans_id)}
+
+    return mapping_df.with_columns(
+        pl.struct(["club_name", "team_id"]).map_elements(
+            lambda row: generated.get(row["club_name"]) if row["team_id"] is None else row["team_id"],
+            return_dtype=pl.Int64,
+        ).alias("team_id")
+    )
 
 def enrich_mapping(
     mapping_df: pl.DataFrame,
@@ -114,6 +147,9 @@ def enrich_mapping(
     """
     if not new_clubs:
         logger.success("Aucun nouveau club — team_mapping déjà à jour ✅")
+        if not dry_run:
+            mapping_df.write_csv(output_path)
+            logger.success(f"  CSV écrit → {output_path} ✅")
         return
 
     if dry_run:
@@ -123,10 +159,18 @@ def enrich_mapping(
         logger.info(f"[DRY-RUN] Fichier cible : {output_path} (non modifié)")
         return
 
-    # Construction des nouvelles lignes
-    new_rows = pl.DataFrame(
-        {"alias": new_clubs, "club_name": ["NEW"] * len(new_clubs)}
-    )
+    # Génération des team_id pour les nouveaux clubs
+    today = date.today().strftime("%Y%m%d")
+    if "team_id" not in mapping_df.columns:
+        mapping_df = mapping_df.with_columns(
+            pl.lit(None).cast(pl.Int64).alias("team_id")
+        )
+    new_rows = pl.DataFrame({
+        "alias":     new_clubs,
+        "club_name": ["NEW"] * len(new_clubs),
+        "team_id":   [int(f"{today}{str(i+1).zfill(4)}") 
+                      for i in range(len(new_clubs))],
+    }).with_columns(pl.col("team_id").cast(pl.Int64))
 
     enriched = pl.concat([mapping_df, new_rows], how="vertical")
 
@@ -150,6 +194,7 @@ def main(
     mapping_csv: Path,
     output_csv: Path,
     dry_run: bool,
+    reset_ids: bool,
 ) -> None:
     logger.info("=== Démarrage enrich_team_mapping ===")
 
@@ -162,11 +207,14 @@ def main(
     tm_clubs   = load_transfermarkt_clubs(tm_csv)
     mapping_df = load_team_mapping(mapping_csv)
 
+    mapping_df = initialize_team_ids(mapping_df, reset=reset_ids)
+
     # 2. Extraire les alias existants
     existing_aliases = set(mapping_df["alias"].drop_nulls().to_list())
 
     # 3. Calculer les nouveaux clubs
     new_clubs = compute_new_clubs(tm_clubs, existing_aliases)
+
 
     # 4. Enrichir et écrire
     enrich_mapping(mapping_df, new_clubs, dry_run, output_csv)
@@ -197,6 +245,11 @@ if __name__ == "__main__":
         help="Fichier de sortie (défaut : écrase --mapping-csv en place)",
     )
     parser.add_argument(
+        "--reset-ids",
+        action="store_true",
+        help="Régénère tous les team_id from scratch (écrase les existants)",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Affiche les ajouts sans modifier le CSV",
@@ -211,4 +264,5 @@ if __name__ == "__main__":
         mapping_csv=args.mapping_csv,
         output_csv=output,
         dry_run=args.dry_run,
+        reset_ids=args.reset_ids,
     )
