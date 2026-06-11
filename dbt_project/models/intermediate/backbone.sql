@@ -1,7 +1,7 @@
 {{
     config(
         materialized='incremental',
-        unique_key=['date', 'team', 'opponent'],
+        unique_key=['match_id', 'team_id'],
         on_schema_change='sync_all_columns',
         schema="intermediate",
         alias='backbone'
@@ -11,58 +11,94 @@
 WITH
 fbref_base AS (
     SELECT
-        date, team, opponent, raw_team, raw_opponent,
-        venue, season, league_source, result_1n2, comp_category, formation,
-        CAST(gf AS INTEGER) AS gf,
-        CAST(ga AS INTEGER) AS ga,
+        match_id,
+        team_id, opponent_id,
+
+        date, formation,
+        venue, season, league_source, comp_category,
+        result_1n2,
+        gf,
+        ga,
         CAST(NULLIF(TRIM(CAST(poss AS VARCHAR)), '') AS DOUBLE) AS possession
-    FROM {{ source('silver', 'fbref_schedule') }}
+    FROM {{ ref('int_fbref_schedule') }}
 ),
 
 fbref_keeper_cte AS (
     SELECT
-        date, team, opponent, league_source,
-        sota AS shots_on_target_faced, saves, save_pct,
-        cs AS clean_sheet, pk_att AS pk_faced, pk_allowed AS pk_conceded
-    FROM {{ source('silver', 'fbref_keeper') }}
+        match_id,
+        team_id, opponent_id,
+
+        sota AS shots_on_target_faced,
+        ga_keeper,
+        saves, save_pct,
+        cs AS clean_sheet,
+        pk_att AS pk_faced,
+        pk_allowed AS pk_conceded,
+        pk_saved,
+        pk_missed,
+    FROM {{ ref('int_fbref_keeper') }}
 ),
 
 fbref_shooting_cte AS (
     SELECT
-        date, team, opponent, league_source,
-        standard_sh AS shots_total, standard_sot AS shots_on_target,
-        standard_sot_pct AS shots_on_target_pct, standard_g_sh AS goals_per_shot,
-        standard_pk AS pk_goals, standard_pkatt AS pk_attempts
-    FROM {{ source('silver', 'fbref_shooting') }}
+        match_id,
+        team_id, opponent_id,
+
+        standard_gls as goals,
+        standard_sh AS shots_total,
+        standard_sot AS shots_on_target,
+        standard_sot_pct AS shots_on_target_pct, 
+        standard_g_sh AS goals_per_shot,
+        standard_pk AS pk_goals, 
+        standard_pkatt AS pk_attempts
+
+    FROM {{ ref('int_fbref_shooting') }}
 ),
 
 fbref_misc_cte AS (
     SELECT
-        date, team, opponent, league_source,
-        crdy AS yellow_cards, crdr AS red_cards, crdy2 AS second_yellow_cards,
-        fls AS fouls_committed, fld AS fouls_drawn, off AS offsides, crosses,
-        int AS interceptions, tklw AS tackles_won,
-        pkwon AS pk_won, pkcon AS pk_conceded_misc, og AS own_goals
-    FROM {{ source('silver', 'fbref_misc') }}
+        match_id,
+        team_id, opponent_id,
+
+        crdy AS yellow_cards, 
+        crdr AS red_cards, 
+        crdy2 AS second_yellow_cards,
+        fls AS fouls_committed, 
+        fld AS fouls_drawn, 
+        off AS offsides, 
+        crosses,
+        int AS interceptions, 
+        tklw AS tackles_won,
+        pkwon AS pk_won, 
+        pkcon AS pk_conceded_misc, 
+        og AS own_goals
+
+    FROM {{ ref('int_fbref_misc') }}
 ),
 
 understat_base AS (
     SELECT
-        u.season, u.home_team, u.away_team, u.match_id, u.league_source,
+        u.match_id,
+        u.team_id, u.opponent_id,
+
         CAST(NULLIF(TRIM(CAST(us.home_np_xg      AS VARCHAR)), '') AS DOUBLE) AS home_np_xg,
         CAST(NULLIF(TRIM(CAST(us.away_np_xg      AS VARCHAR)), '') AS DOUBLE) AS away_np_xg,
         CAST(NULLIF(TRIM(CAST(us.home_ppda       AS VARCHAR)), '') AS DOUBLE) AS home_ppda,
         CAST(NULLIF(TRIM(CAST(us.away_ppda       AS VARCHAR)), '') AS DOUBLE) AS away_ppda,
         CAST(NULLIF(TRIM(CAST(us.home_np_xg_diff AS VARCHAR)), '') AS DOUBLE) AS home_np_xg_diff,
         CAST(NULLIF(TRIM(CAST(us.away_np_xg_diff AS VARCHAR)), '') AS DOUBLE) AS away_np_xg_diff
-    FROM {{ source('silver', 'understat_schedule') }} u
-    LEFT JOIN {{ source('silver', 'understat_stats') }} us
+
+    FROM {{ ref('int_understat_schedule') }} u
+    LEFT JOIN {{ ref('int_understat_stats') }} us
         ON u.match_id = us.match_id
 ),
 
 fbref_merged AS (
     SELECT
-        b.date, b.team, b.opponent, b.raw_team, b.raw_opponent,
+        b.match_id,
+        b.team_id, b.opponent_id,
+
+        b.date,  
         b.venue, b.season, b.league_source, b.result_1n2, b.comp_category, b.formation,
         b.gf, b.ga, b.possession,
         k.shots_on_target_faced, k.saves, k.save_pct, k.clean_sheet,
@@ -74,17 +110,21 @@ fbref_merged AS (
         m.interceptions, m.tackles_won, m.pk_won, m.pk_conceded_misc, m.own_goals
     FROM fbref_base b
     LEFT JOIN fbref_keeper_cte   k
-        ON b.date=k.date AND b.team=k.team AND b.opponent=k.opponent AND b.league_source=k.league_source
+        ON b.match_id=k.match_id
     LEFT JOIN fbref_shooting_cte s
-        ON b.date=s.date AND b.team=s.team AND b.opponent=s.opponent AND b.league_source=s.league_source
+        ON b.match_id=s.match_id
     LEFT JOIN fbref_misc_cte     m
-        ON b.date=m.date AND b.team=m.team AND b.opponent=m.opponent AND b.league_source=m.league_source
+        ON b.match_id=m.match_id
 ),
 
 fbref_understat AS (
     SELECT
+        f.match_id,
+        f.team_id, f.opponent_id,
+        f.date,
+
         f.league_source, f.season, f.venue, u.match_id,
-        f.team, f.opponent, f.raw_team, f.raw_opponent, f.date,
+        
         f.result_1n2, f.comp_category, f.formation,
         f.gf, f.ga, f.possession,
         f.shots_on_target_faced, f.saves, f.save_pct, f.clean_sheet,
@@ -98,26 +138,24 @@ fbref_understat AS (
         CASE WHEN f.venue='Home' THEN u.home_np_xg_diff ELSE u.away_np_xg_diff END AS np_xg_diff_match
     FROM fbref_merged f
     LEFT JOIN understat_base u
-        ON  f.season       = u.season
-        AND f.league_source = u.league_source
-        AND f.team     = (CASE WHEN f.venue='Home' THEN u.home_team ELSE u.away_team END)
-        AND f.opponent = (CASE WHEN f.venue='Home' THEN u.away_team ELSE u.home_team END)
+        ON  f.match_id = u.match_id
 ),
 
 whoscored_base AS (
     SELECT
-        team, season, league_source,
+        team_id, season, league_source,
+
         ws_home_att_rating, ws_away_att_rating,
         ws_home_def_rating, ws_away_def_rating,
         ws_home_dribbles_pg, ws_away_dribbles_pg,
         ws_home_fouled_pg, ws_away_fouled_pg,
         ws_home_shots_ot_pg, ws_away_shots_ot_pg
-    FROM {{ source('silver', 'whoscored_team_season') }}
+    FROM {{ ref('int_whoscored_team_season') }}
 ),
 
 whoscored_features AS (
     SELECT
-        b.date, b.team, b.season, b.league_source,
+        b.match_id, b.team_id, b.season, b.league_source,
         CASE WHEN b.venue='Home' THEN ws.ws_home_att_rating  ELSE ws.ws_away_att_rating  END AS season_att_rating,
         CASE WHEN b.venue='Home' THEN ws.ws_home_def_rating  ELSE ws.ws_away_def_rating  END AS season_def_rating,
         CASE WHEN b.venue='Home' THEN ws.ws_home_dribbles_pg ELSE ws.ws_away_dribbles_pg END AS ws_dribbles_pg,
@@ -125,36 +163,32 @@ whoscored_features AS (
         CASE WHEN b.venue='Home' THEN ws.ws_home_shots_ot_pg ELSE ws.ws_away_shots_ot_pg END AS ws_shots_ot_pg
     FROM fbref_understat b
     LEFT JOIN whoscored_base ws
-        ON b.team=ws.team AND b.season=ws.season AND b.league_source=ws.league_source
+         ON b.team_id=ws.team_id AND b.season=ws.season AND b.league_source=ws.league_source
 ),
 
 odds_base AS (
     SELECT
-        date::DATE AS date, season, league_source, home_team, away_team,
+        match_id,
+        team_id, opponent_id, 
+
         odds_pinnacle_h, odds_pinnacle_d, odds_pinnacle_a,
         odds_avg_h, odds_avg_d, odds_avg_a,
         pinnacle_prob_h, pinnacle_prob_d, pinnacle_prob_a,
         market_prob_h, market_prob_d, market_prob_a
-    FROM {{ source('silver', 'odds') }}
-    WHERE pinnacle_prob_h IS NOT NULL
-),
 
-ws_match_index AS (
-    SELECT
-        ws_match_id,
-        match_date,
-        home_team_name,
-        away_team_name,
-        league_source
-    FROM {{ source('silver', 'stg_whoscored_match_index') }}
+    FROM {{ ref('int_odds') }}
+    WHERE pinnacle_prob_h IS NOT NULL
 ),
 
 final AS (
     SELECT
         -- Identifiants
-        f.date, f.team, f.opponent, f.raw_team, f.raw_opponent,
+        f.match_id,
+        f.team_id, f.opponent_id,
+
+        f.date,
         f.venue, f.season, f.league_source, f.comp_category,
-        f.result_1n2, f.match_id,
+        f.result_1n2,
         f.formation, f.gf, f.ga, f.possession,
 
         -- FBref
@@ -184,25 +218,13 @@ final AS (
         o.market_prob_d AS market_prob_draw,
         CASE WHEN f.venue='Home' THEN o.market_prob_a   ELSE o.market_prob_h   END AS market_prob_opp,
 
-        ws_idx.ws_match_id
-
     FROM fbref_understat f
     LEFT JOIN whoscored_features wf
-        ON f.date=wf.date AND f.team=wf.team AND f.season=wf.season AND f.league_source=wf.league_source
+        ON f.match_id = wf.match_id
+        AND f.team_id = wf.team_id
     LEFT JOIN odds_base o
-        ON  f.date::DATE = o.date
-        AND f.season     = o.season
-        AND f.league_source = o.league_source
-        AND (CASE WHEN f.venue='Home' THEN f.team     ELSE f.opponent END) = o.home_team
-        AND (CASE WHEN f.venue='Home' THEN f.opponent ELSE f.team     END) = o.away_team
-    LEFT JOIN ws_match_index ws_idx
-        ON  f.date = ws_idx.match_date
-        AND f.league_source = ws_idx.league_source
-        AND (
-            (f.venue='Home' AND f.team = ws_idx.home_team_name AND f.opponent = ws_idx.away_team_name)
-            OR
-            (f.venue='Away' AND f.team = ws_idx.away_team_name AND f.opponent = ws_idx.home_team_name)
-        )
+        ON  f.match_id = o.match_id
+        AND f.team_id = o.team_id
 )
 
 SELECT * FROM final
@@ -214,8 +236,8 @@ WHERE NOT (
 )
 
 {% if is_incremental() %}
-AND (date::VARCHAR || '_' || team || '_' || opponent) NOT IN (
-    SELECT (date::VARCHAR || '_' || team || '_' || opponent)
+AND (match_id || '_' || team_id::VARCHAR) NOT IN (
+    SELECT (match_id || '_' || team_id::VARCHAR)
     FROM {{ this }}
 )
 {% endif %}

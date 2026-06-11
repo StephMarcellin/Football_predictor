@@ -37,7 +37,7 @@ seeds:
       +column_types:
         alias: VARCHAR
         club_name: VARCHAR
-        team_id: DOUBLE
+        team_id: BIGINT
     competition_mapping:
       +column_types:
         alias: VARCHAR

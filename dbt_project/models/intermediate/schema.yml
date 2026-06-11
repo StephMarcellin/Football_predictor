@@ -12,28 +12,24 @@ models:
     columns:
 
       # ── Identifiants ────────────────────────────────────────────────────────
+      - name: match_id
+        description: "Identifiant Understat du match — NULL si le match n'existe pas dans Understat"
+        tests:
+          - not_null:
+              config:
+                severity: warn
       - name: date
         description: "Date du match"
         tests:
           - not_null
 
-      - name: team
+      - name: team_id
         description: "Nom normalisé de l'équipe"
         tests:
           - not_null
 
-      - name: opponent
+      - name: opponent_id
         description: "Nom normalisé de l'adversaire"
-        tests:
-          - not_null
-
-      - name: raw_team
-        description: "Nom brut de l'équipe avant normalisation"
-        tests:
-          - not_null
-
-      - name: raw_opponent
-        description: "Nom brut de l'adversaire avant normalisation"
         tests:
           - not_null
 
@@ -71,13 +67,6 @@ models:
                 severity: error
               arguments:
                 values: ['H', 'D', 'A']
-
-      - name: match_id
-        description: "Identifiant Understat du match — NULL si le match n'existe pas dans Understat"
-        tests:
-          - not_null:
-              config:
-                severity: warn
 
       - name: formation
         description: "Formation tactique de l'équipe (ex: 4-3-3)"
@@ -427,4 +416,3 @@ models:
       - name: ws_flank_exposure_asymm
         description: "Asymétrie d'exposition sur les flancs — différentiel gauche/droite"
 
-  - name: id_registry
