@@ -22,7 +22,6 @@ WITH
 enriched AS (
     SELECT
         r.*,
-        ws.ws_match_id,
         ws.ws_field_tilt_actions, ws.ws_high_turnover_rate, ws.ws_deep_completion_rt,
         ws.ws_momentum_delta, ws.ws_counter_shot_rate, ws.ws_set_piece_pressure,
         ws.ws_attack_left_pct, ws.ws_attack_center_pct, ws.ws_attack_right_pct,
@@ -40,14 +39,12 @@ enriched AS (
         d.f17_shots_to_goal_eff, d.f18_sot_conversion,
         d.f19_tactical_lock_idx, d.f20_upset_composite
     FROM {{ ref('features_rolling') }} r
+
     LEFT JOIN {{ ref('features_whoscored') }} ws
-        ON  r.date          = ws.date
-        AND r.team          = ws.team
-        AND r.league_source = ws.league_source
+        ON  r.match_id      = ws.match_id
+        
     LEFT JOIN {{ ref('features_draw') }} d
-        ON  r.date          = d.date
-        AND r.team          = d.team
-        AND r.league_source = d.league_source
+        ON  r.match_id      = d.match_id
 ),
 
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -55,8 +52,9 @@ enriched AS (
 -- ══════════════════════════════════════════════════════════════════════════════
 opponent_stats AS (
     SELECT
-        date, team AS opp_team, league_source,
-        ws_match_id AS opp_ws_match_id,
+        match_id,
+        date, team_id AS opp_team_id, league_source,
+
         season_att_rating           AS opp_season_att_rating,
         season_def_rating           AS opp_season_def_rating,
         ws_dribbles_pg              AS opp_ws_dribbles_pg,
@@ -93,7 +91,6 @@ opponent_stats AS (
         win_rate_roll_{{ w }}           AS opp_win_rate_{{ w }},
         points_pg_roll_{{ w }}          AS opp_points_pg_{{ w }},
         {% endfor %}
-        1 AS _dummy
     FROM enriched
 ),
 
@@ -102,50 +99,18 @@ opponent_stats AS (
 -- ══════════════════════════════════════════════════════════════════════════════
 h2h_stats AS (
     SELECT
-        t.date, t.team, t.opponent, t.league_source,
-        AVG(CASE WHEN (h.result_1n2 = 'H' AND h.venue = 'Home') OR (h.result_1n2 = 'A' AND h.venue = 'Away') THEN 1.0 ELSE 0.0 END) AS h2h_win_rate,
-        AVG(CASE WHEN h.result_1n2='D' THEN 1.0 ELSE 0.0 END) AS h2h_draw_rate,
-        AVG(h.gf)                                               AS h2h_goals_scored,
-        AVG(h.ga)                                               AS h2h_goals_conceded,
-        AVG(COALESCE(h.np_xg - h.np_xg_conceded,
-            CAST(h.gf AS DOUBLE) - CAST(h.ga AS DOUBLE)))       AS h2h_xg_diff,
-        COUNT(*)                                                 AS h2h_n_matches
-    FROM enriched t
-    JOIN (
-        SELECT
-            b.*,
-            ROW_NUMBER() OVER (
-                PARTITION BY b.team, b.opponent, b.league_source
-                ORDER BY b.date DESC
-            ) AS rn
-        FROM {{ ref('backbone') }} b
-    ) h ON  h.team          = t.team
-        AND h.opponent      = t.opponent
-        AND h.league_source = t.league_source
-        AND h.date          < t.date
-        AND h.rn            <= 10
-    GROUP BY t.date, t.team, t.opponent, t.league_source
+        match_id,
+        team_id,
+        h2h_wins_10 / NULLIF(h2h_played_10, 0)  AS h2h_win_rate,
+        h2h_draws_10 / NULLIF(h2h_played_10, 0) AS h2h_draw_rate,
+        h2h_avg_gf_10                            AS h2h_goals_scored,
+        h2h_avg_ga_10                            AS h2h_goals_conceded,
+        h2h_avg_xg_diff_10                       AS h2h_xg_diff,
+        h2h_played_10                            AS h2h_n_matches
+    FROM {{ ref('h2h_history') }}
 ),
 
--- ══════════════════════════════════════════════════════════════════════════════
--- LEAGUE DRAW RATE : taux de nul historique par ligue (saisons précédentes)
--- ══════════════════════════════════════════════════════════════════════════════
-season_draw_rates AS (
-    SELECT league_source, season,
-        AVG(CASE WHEN result_1n2='D' THEN 1.0 ELSE 0.0 END) AS season_draw_rate
-    FROM {{ ref('backbone') }}
-    GROUP BY league_source, season
-),
 
-league_draw_rate AS (
-    SELECT s1.league_source, s1.season,
-        AVG(s2.season_draw_rate) AS league_draw_rate
-    FROM season_draw_rates s1
-    JOIN season_draw_rates s2
-        ON  s2.league_source = s1.league_source
-        AND s2.season        < s1.season
-    GROUP BY s1.league_source, s1.season
-),
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- ASSEMBLAGE FINAL
@@ -153,8 +118,9 @@ league_draw_rate AS (
 final AS (
     SELECT
         -- Identifiants
-        t.date, t.team, t.opponent, t.venue, t.is_home, t.ws_match_id,
-        t.season, t.league_source, t.comp_category, t.match_id, t.result_1n2,
+        t.match_id,
+        t.date, t.team_id, t.opponent_id, t.venue, t.is_home,
+        t.season, t.league_source, t.comp_category, t.result_1n2,
         t.formation,
 
         -- Contexte match
@@ -309,15 +275,15 @@ final AS (
         t.home_win_rate_hist
 
     FROM enriched t
+
     LEFT JOIN opponent_stats o
-        ON  t.date          = o.date
-        AND t.opponent      = o.opp_team
-        AND t.league_source = o.league_source
+        ON  t.match_id      = o.match_id
+        AND t.opponent_id   = o.opp_team_id
+
     LEFT JOIN h2h_stats h
-        ON  t.date          = h.date
-        AND t.team          = h.team
-        AND t.opponent      = h.opponent
-        AND t.league_source = h.league_source
+        ON  t.match_id      = h.match_id
+        AND t.team_id       = h.team_id
+        
     LEFT JOIN league_draw_rate ldr
         ON  t.league_source = ldr.league_source
         AND t.season        = ldr.season

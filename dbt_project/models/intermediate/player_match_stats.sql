@@ -1,7 +1,7 @@
 {{
     config(
         materialized='incremental',
-        unique_key=['ws_match_id', 'team_id', 'player_id'],
+        unique_key=['match_id', 'team_id', 'player_id'],
         on_schema_change='sync_all_columns',
         schema='intermediate',
         alias='player_match_stats'
@@ -19,27 +19,27 @@ max_scraped AS (
     SELECT MAX(scraped_at) AS last_scraped FROM {{ this }}
 ),
 new_matches AS (
-    SELECT DISTINCT ws_match_id
-    FROM {{ source('silver', 'stg_whoscored_events') }}
+    SELECT DISTINCT match_id
+    FROM {{ ref('int_whoscored_events') }}
     CROSS JOIN max_scraped
     WHERE scraped_at > last_scraped
 ),
 {% else %}
 new_matches AS (
-    SELECT DISTINCT ws_match_id
-    FROM {{ source('silver', 'stg_whoscored_events') }}
+    SELECT DISTINCT match_id
+    FROM {{ ref('int_whoscored_events') }}
 ),
 {% endif %}
 
 match_dates AS (
-    SELECT ws_match_id, match_date, league_source, season, scraped_at
-    FROM {{ source('silver', 'stg_whoscored_match_index') }}
-    WHERE ws_match_id IN (SELECT ws_match_id FROM new_matches)
+    SELECT match_id, match_date, league_source, season, scraped_at
+    FROM {{ ref('int_whoscored_match_index') }}
+    WHERE match_id IN (SELECT match_id FROM new_matches)
 ),
 
 player_agg AS (
     SELECT
-        e.ws_match_id,
+        e.match_id,
         e.team_id,
         e.player_id,
         COUNT(*)                                        AS n_actions,
@@ -60,14 +60,14 @@ player_agg AS (
             ELSE 0.0
         END                                             AS xg_contribution,
         AVG(e.x) FILTER (WHERE e.is_touch = TRUE)       AS zone_dominance
-    FROM {{ source('silver', 'stg_whoscored_events') }} e
+    FROM {{ ref('int_whoscored_events') }} e
     WHERE e.player_id IS NOT NULL
-      AND e.ws_match_id IN (SELECT ws_match_id FROM match_dates)
-    GROUP BY e.ws_match_id, e.team_id, e.player_id
+      AND e.match_id IN (SELECT match_id FROM match_dates)
+    GROUP BY e.match_id, e.team_id, e.player_id
 )
 
 SELECT
-    p.ws_match_id, p.team_id, p.player_id,
+    p.match_id, p.team_id, p.player_id,
     d.match_date   AS date,
     d.season,
     d.league_source,
@@ -75,4 +75,4 @@ SELECT
     p.n_actions, p.n_shots, p.n_key_passes,
     p.xg_contribution, p.zone_dominance
 FROM player_agg p
-JOIN match_dates d ON p.ws_match_id = d.ws_match_id
+JOIN match_dates d ON p.match_id = d.match_id

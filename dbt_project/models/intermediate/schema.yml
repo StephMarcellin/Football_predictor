@@ -389,9 +389,6 @@ models:
       Features tactiques WhoScored par équipe par match.
       Calculées depuis silver.stg_whoscored_events et intermediate.events_qual.
       32 métriques couvrant le pressing, les zones d'attaque, la structure défensive.
-
-    config:
-      alias: team_features_ws
     columns:
       - name: ws_match_id
         description: "Identifiant WhoScored du match"
@@ -416,3 +413,18 @@ models:
       - name: ws_flank_exposure_asymm
         description: "Asymétrie d'exposition sur les flancs — différentiel gauche/droite"
 
+  - name: h2h_history
+    description: "Registre brut des confrontations directes entre équipes. Une ligne par match."
+    columns:
+      - name: match_id
+        tests:
+          - not_null
+      - name: home_team_id
+        tests:
+          - not_null
+      - name: away_team_id
+        tests:
+          - not_null
+      - name: date
+        tests:
+          - not_null

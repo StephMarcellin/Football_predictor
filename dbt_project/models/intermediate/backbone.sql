@@ -110,11 +110,11 @@ fbref_merged AS (
         m.interceptions, m.tackles_won, m.pk_won, m.pk_conceded_misc, m.own_goals
     FROM fbref_base b
     LEFT JOIN fbref_keeper_cte   k
-        ON b.match_id=k.match_id
+        ON b.match_id=k.match_id AND b.team_id = k.team_id
     LEFT JOIN fbref_shooting_cte s
-        ON b.match_id=s.match_id
+        ON b.match_id=s.match_id AND b.team_id = s.team_id
     LEFT JOIN fbref_misc_cte     m
-        ON b.match_id=m.match_id
+        ON b.match_id=m.match_id AND b.team_id = m.team_id
 ),
 
 fbref_understat AS (
@@ -123,7 +123,7 @@ fbref_understat AS (
         f.team_id, f.opponent_id,
         f.date,
 
-        f.league_source, f.season, f.venue, u.match_id,
+        f.league_source, f.season, f.venue,
         
         f.result_1n2, f.comp_category, f.formation,
         f.gf, f.ga, f.possession,
