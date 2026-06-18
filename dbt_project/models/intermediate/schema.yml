@@ -341,16 +341,23 @@ models:
         description: "Minute de l'action"
         tests:
           - not_null
+      - name: event_id
+        description: "Identifiant de l'action dans le match"
+        tests:
+          - not_null
 
   - name: player_match_stats
     description: >
       Agrégats WhoScored par joueur par match.
-      Calculé depuis silver.stg_whoscored_events.
+      Calculé depuis int_whoscored_events et events_qual.
+      Structure en trois CTEs : base_agg (métriques générales),
+      offensive_agg (passes, tirs, progressions),
+      defensive_agg (tackles, interceptions, dégagements).
       Utilisé pour les squad features dans gold.features_whoscored.
 
     columns:
-      - name: ws_match_id
-        description: "Identifiant WhoScored du match"
+      - name: match_id
+        description: "Identifiant du match (SHA1)"
         tests:
           - not_null
       - name: team_id
@@ -365,24 +372,42 @@ models:
         description: "Date du match"
         tests:
           - not_null
+      - name: season
+        description: "Saison (format YYYY-YYYY)"
+        tests:
+          - not_null
+      - name: league_source
+        description: "Ligue source"
+        tests:
+          - not_null
+
+      # ── Métriques générales ──────────────────────────────────────
       - name: n_actions
-        description: "Nombre total d'actions du joueur"
-        tests:
-          - is_positive
-      - name: n_shots
-        description: "Nombre de tirs"
-        tests:
-          - is_positive
-      - name: n_key_passes
-        description: "Nombre de passes décisives (qualifier type_id=210)"
+        description: "Nombre total d'actions du joueur dans le match"
         tests:
           - is_positive
       - name: xg_contribution
-        description: "Contribution xG estimée — nombre de tirs pondéré par la distance au but"
+        description: >
+          Contribution xG estimée — nombre de tirs pondéré par la distance
+          géométrique au centre du but adverse.
         tests:
           - is_positive
       - name: zone_dominance
-        description: "Position moyenne X des touches — mesure la zone de jeu du joueur (0=défense, 100=attaque)"
+        description: >
+          Position moyenne X des touches (hors actions gardien).
+          0 = zone défensive, 100 = zone offensive.
+
+      # ── Métriques offensives ─────────────────────────────────────
+      - name: n_shots
+        description: "Nombre de tirs tentés"
+        tests:
+          - is_positive
+      - name: n_shots_regular_play
+        description: "Tirs dans le jeu collectif (qualifier RegularPlay=22)"
+        tests:
+          - is_positive
+      - name: n_shots_individual_play
+        description: "Tirs après action individuelle (qualifier
 
   - name: team_features_ws
     description: >
