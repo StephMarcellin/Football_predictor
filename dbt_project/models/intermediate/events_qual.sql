@@ -18,6 +18,7 @@ SELECT
     e.match_id, e.team_id, e.player_id, e.event_id, e.minute, e.second,
     e.expanded_minute, e.period, e.x, e.y, e.end_x, e.end_y,
     e.type_id, e.type_name, e.outcome_id, e.is_touch, e.is_shot,
+    e.row_num,
     TRY_CAST(json_extract_string(q.qual, '$.type.value') AS INTEGER) AS qual_type_id,
     json_extract_string(q.qual, '$.type.displayName')                AS qual_type_name,
     json_extract_string(q.qual, '$.value')                     AS qual_value
