@@ -58,18 +58,6 @@ base_agg AS (
             ELSE 0.0
         END                                                    AS xg_contribution,
 
-        -- Zone de dominance : position moyenne sur les touches
-        -- Exclut les BallTouch de gardien (StandingSave=178, DivingSave=179)
-        AVG(e.x) FILTER (
-            WHERE e.is_touch = TRUE
-              AND NOT EXISTS (
-                  SELECT 1 FROM {{ ref('events_qual') }} eq
-                  WHERE eq.match_id  = e.match_id
-                    AND eq.row_num   = e.row_num
-                    AND eq.qual_type_id IN (178, 179)
-              )
-        )                                                      AS zone_dominance
-
     FROM {{ ref('int_whoscored_events') }} e
     WHERE e.player_id IS NOT NULL
       AND e.match_id IN (SELECT match_id FROM match_dates)
@@ -143,8 +131,6 @@ offensive_agg AS (
     GROUP BY e.match_id, e.team_id, e.player_id
 ),
 
-
-
 defensive_agg AS (
     -- Métriques défensives par joueur par match
     -- Calculé séparément de player_agg pour garder la lisibilité
@@ -180,25 +166,226 @@ defensive_agg AS (
     WHERE e.player_id IS NOT NULL
       AND e.match_id IN (SELECT match_id FROM match_dates)
     GROUP BY e.match_id, e.team_id, e.player_id
-)
+),
 
+spatial_agg AS (
+    -- Métriques spatiales par joueur par match
+    -- Terrain découpé en 25 zones (5 longueur × 5 largeur)
+    -- Pourcentages de touches par zone (hors actions gardien)
+    -- Inspiré des 5 couloirs de Luis Enrique
+    SELECT
+        e.match_id,
+        e.team_id,
+        e.player_id,
+
+        COUNT(*) FILTER (
+            WHERE e.is_touch = TRUE
+              AND NOT EXISTS (
+                  SELECT 1 FROM {{ ref('events_qual') }} eq
+                  WHERE eq.match_id     = e.match_id
+                    AND eq.row_num      = e.row_num
+                    AND eq.qual_type_id IN (178, 179)
+              )
+        )                                                      AS n_touches,
+        {{ spatial_zones() }}
+
+        
+
+    FROM {{ ref('int_whoscored_events') }} e
+    WHERE e.player_id IS NOT NULL
+      AND e.match_id IN (SELECT match_id FROM match_dates)
+    GROUP BY e.match_id, e.team_id, e.player_id
+),
+
+-- Reconstruction du score cumulatif à chaque événement
+-- puis calcul des métriques par état de score
+goals AS (
+    -- Un goal par ligne, par équipe, par match
+    SELECT
+        match_id,
+        team_id,
+        expanded_minute,
+        COUNT(*) OVER (
+            PARTITION BY match_id, team_id
+            ORDER BY expanded_minute, second
+            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+        ) AS team_goals_so_far
+    FROM {{ ref('int_whoscored_events') }}
+    WHERE type_id = 16
+        AND outcome_id = 1
+        AND is_shot = TRUE
+        AND match_id IN (SELECT match_id FROM match_dates)
+),
+
+-- Score des deux équipes à chaque instant pour chaque match
+match_score AS (
+    SELECT
+        e.match_id,
+        e.team_id,
+        e.player_id,
+        e.expanded_minute,
+        e.second,
+        e.type_id,
+        e.is_shot,
+        e.outcome_id,
+        e.is_touch,
+        e.x,
+        e.y,
+        e.end_x,
+
+        -- Buts marqués par cette équipe jusqu'à cet instant
+        COALESCE(MAX(g_team.team_goals_so_far), 0) AS team_score,
+
+        -- Buts marqués par l'adversaire jusqu'à cet instant
+        COALESCE(MAX(g_opp.team_goals_so_far), 0)  AS opp_score
+
+    FROM {{ ref('int_whoscored_events') }} e
+
+    -- Dernière valeur cumulée de l'équipe avant ou à cet instant
+    LEFT JOIN goals g_team
+        ON  g_team.match_id        = e.match_id
+        AND g_team.team_id         = e.team_id
+        AND g_team.expanded_minute <= e.expanded_minute
+
+    -- Dernière valeur cumulée de l'adversaire avant ou à cet instant
+    LEFT JOIN goals g_opp
+        ON  g_opp.match_id        = e.match_id
+        AND g_opp.team_id        != e.team_id
+        AND g_opp.expanded_minute <= e.expanded_minute
+
+    WHERE e.player_id IS NOT NULL
+        AND e.match_id IN (SELECT match_id FROM match_dates)
+    GROUP BY
+        e.match_id, e.team_id, e.player_id,
+        e.expanded_minute, e.second,
+        e.type_id, e.is_shot, e.outcome_id,
+        e.is_touch, e.x, e.end_x, e.y
+),
+
+-- Assignation de l'état de score à chaque événement
+events_with_state AS (
+    SELECT
+        match_id, team_id, player_id,
+        expanded_minute, type_id, is_shot,
+        outcome_id, is_touch, x, end_x, y,
+        team_score, opp_score,
+        CASE
+            WHEN expanded_minute >= 75 AND team_score = 0 AND opp_score = 0
+                THEN 'blank_late'
+            WHEN expanded_minute >= 75 AND team_score = opp_score
+                THEN 'drawing_late'
+            WHEN expanded_minute >= 75 AND team_score > opp_score
+                THEN 'winning_late'
+            WHEN expanded_minute >= 75 AND team_score < opp_score
+                THEN 'losing_late'
+            WHEN team_score = 0 AND opp_score = 0
+                THEN 'blank'
+            WHEN team_score = opp_score
+                THEN 'drawing'
+            WHEN team_score > opp_score
+                THEN 'winning'
+            ELSE 'losing'
+        END AS score_state
+    FROM match_score
+),
+score_state_agg AS (
+    -- Agrégation par joueur par match par état
+    SELECT
+        match_id, team_id, player_id,
+
+        {% for state in ['blank', 'blank_late', 'drawing', 'drawing_late',
+                         'winning', 'winning_late', 'losing', 'losing_late'] %}
+
+        COUNT(*) FILTER (WHERE score_state = '{{ state }}')
+            AS n_actions_{{ state }},
+
+        COUNT(*) FILTER (WHERE score_state = '{{ state }}'
+                           AND type_id = 1
+                           AND outcome_id = 1
+                           AND x IS NOT NULL
+                           AND end_x > (x + 10))
+            AS n_progressive_passes_{{ state }},
+
+        COUNT(*) FILTER (WHERE score_state = '{{ state }}'
+                           AND type_id IN (7, 8, 49, 45, 12))
+            AS n_defensive_actions_{{ state }},
+
+        COUNT(*) FILTER (WHERE score_state = '{{ state }}'
+                           AND is_shot = TRUE)
+            AS n_shots_{{ state }},
+
+        {{ spatial_zones(
+            filter_condition="score_state = '" + state + "' AND e.is_touch = TRUE",
+            prefix=state + '_'
+        ) }}
+        {{ "," if not loop.last }}
+        {% endfor %}
+
+        FROM events_with_state e
+        GROUP BY e.match_id, e.team_id, e.player_id
+),
+
+aerial_agg AS (
+    SELECT
+        e.match_id,
+        e.team_id,
+        e.player_id,
+
+        COUNT(*) FILTER (WHERE e.type_id = 44)                 AS n_aerial_duels,
+        COUNT(*) FILTER (WHERE e.type_id = 44
+                           AND e.outcome_id = 1)               AS n_aerial_won,
+        CASE
+            WHEN COUNT(*) FILTER (WHERE e.type_id = 44) > 0
+            THEN CAST(COUNT(*) FILTER (WHERE e.type_id = 44
+                                         AND e.outcome_id = 1)
+                      AS DOUBLE)
+                 / COUNT(*) FILTER (WHERE e.type_id = 44)
+            ELSE NULL
+        END                                                    AS aerial_win_rate
+
+    FROM {{ ref('int_whoscored_events') }} e
+    WHERE e.player_id IS NOT NULL
+      AND e.match_id IN (SELECT match_id FROM match_dates)
+    GROUP BY e.match_id, e.team_id, e.player_id
+)
 
 SELECT
     b.*,
     o.* EXCLUDE (match_id, team_id, player_id),
     da.* EXCLUDE (match_id, team_id, player_id),
+    sa.* EXCLUDE (match_id, team_id, player_id),
+    ssa.* EXCLUDE (match_id, team_id, player_id),
+    aa.* EXCLUDE (match_id, team_id, player_id),
     d.match_date AS date,
     d.season,
     d.league_source,
     d.scraped_at
 FROM base_agg b
+
 LEFT JOIN offensive_agg o
     ON o.match_id   = b.match_id
     AND o.team_id   = b.team_id
     AND o.player_id = b.player_id
+
 LEFT JOIN defensive_agg da
     ON da.match_id   = b.match_id
     AND da.team_id   = b.team_id
     AND da.player_id = b.player_id
+
+LEFT JOIN spatial_agg sa
+    ON sa.match_id   = b.match_id
+    AND sa.team_id   = b.team_id
+    AND sa.player_id = b.player_id
+
+LEFT JOIN score_state_agg ssa    
+    ON ssa.match_id   = b.match_id
+    AND ssa.team_id   = b.team_id
+    AND ssa.player_id = b.player_id
+
+LEFT JOIN aerial_agg aa
+    ON aa.match_id   = b.match_id
+    AND aa.team_id   = b.team_id
+    AND aa.player_id = b.player_id
+
 JOIN match_dates d
     ON d.match_id = b.match_id
