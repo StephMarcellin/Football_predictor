@@ -76,9 +76,12 @@ qual_pivot AS (
         MAX(CASE WHEN qual_type_id = 2     THEN 1 ELSE 0 END) AS is_cross,
         MAX(CASE WHEN qual_type_id = 4     THEN 1 ELSE 0 END) AS is_throughball,
         MAX(CASE WHEN qual_type_id = 22    THEN 1 ELSE 0 END) AS is_regular_play,
-        MAX(CASE WHEN qual_type_id = 215   THEN 1 ELSE 0 END) AS is_individual_play
+        MAX(CASE WHEN qual_type_id = 215   THEN 1 ELSE 0 END) AS is_individual_play,
+        MAX(CASE WHEN qual_type_id = 170   THEN 1 ELSE 0 END) AS is_leading_to_goal,
+        MAX(CASE WHEN qual_type_id = 169   THEN 1 ELSE 0 END) AS is_leading_to_attempt
     FROM {{ ref('events_qual') }}
-    WHERE qual_type_id IN (210, 11113, 1, 2, 4, 22, 215)
+    WHERE qual_type_id IN (210, 11113, 1, 2, 4, 22, 215, 170,169)
+    AND match_id IN (SELECT match_id FROM match_dates)
     GROUP BY match_id, row_num
 ),
 
@@ -288,6 +291,7 @@ events_with_state AS (
         END AS score_state
     FROM match_score
 ),
+
 score_state_agg AS (
     -- Agrégation par joueur par match par état
     SELECT
@@ -347,6 +351,33 @@ aerial_agg AS (
     WHERE e.player_id IS NOT NULL
       AND e.match_id IN (SELECT match_id FROM match_dates)
     GROUP BY e.match_id, e.team_id, e.player_id
+),
+
+error_agg AS (
+    -- Proxy erreurs défensives menant à un tir ou un but adverse
+    -- LeadingToGoal (170) : action qui mène directement au but
+    -- LeadingToAttempt (169) : action qui mène à un tir
+    -- Combiné avec type_id=51 (Error) pour isoler les vraies erreurs
+    SELECT
+        e.match_id,
+        e.team_id,
+        e.player_id,
+
+        SUM(CASE WHEN e.type_id = 51
+                  AND COALESCE(qp.is_leading_to_goal, 0) = 1
+                 THEN 1 ELSE 0 END)    AS n_errors_lead_to_goal,
+
+        SUM(CASE WHEN e.type_id = 51
+                  AND COALESCE(qp.is_leading_to_attempt, 0) = 1
+                 THEN 1 ELSE 0 END)    AS n_errors_lead_to_shot
+
+    FROM {{ ref('int_whoscored_events') }} e
+    LEFT JOIN qual_pivot qp
+        ON qp.match_id = e.match_id
+        AND qp.row_num  = e.row_num
+    WHERE e.player_id IS NOT NULL
+      AND e.match_id IN (SELECT match_id FROM match_dates)
+    GROUP BY e.match_id, e.team_id, e.player_id
 )
 
 SELECT
@@ -356,6 +387,7 @@ SELECT
     sa.* EXCLUDE (match_id, team_id, player_id),
     ssa.* EXCLUDE (match_id, team_id, player_id),
     aa.* EXCLUDE (match_id, team_id, player_id),
+    ea.* EXCLUDE (match_id, team_id, player_id),
     d.match_date AS date,
     d.season,
     d.league_source,
@@ -386,6 +418,11 @@ LEFT JOIN aerial_agg aa
     ON aa.match_id   = b.match_id
     AND aa.team_id   = b.team_id
     AND aa.player_id = b.player_id
+
+LEFT JOIN error_agg ea
+    ON ea.match_id   = b.match_id
+    AND ea.team_id   = b.team_id
+    AND ea.player_id = b.player_id
 
 JOIN match_dates d
     ON d.match_id = b.match_id
