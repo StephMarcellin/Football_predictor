@@ -1065,10 +1065,10 @@ def scrape_match(driver, match: dict) -> Optional[dict]:
             mark_no_data(ws_id)  # ← aussi ici pour les autres cas sans data
             return None
         
-        payload = extract_all_stats_from_source(page_source)
-        if not payload:
-            logger.warning(f"  ⚠️  Aucune donnée extractible pour {ws_id}")
-            return None
+        # payload = extract_all_stats_from_source(page_source)
+        # if not payload:
+        #     logger.warning(f"  ⚠️  Aucune donnée extractible pour {ws_id}")
+        #     return None
 
         method = payload.get("source", "unknown")
         data   = payload.get("data", {})
