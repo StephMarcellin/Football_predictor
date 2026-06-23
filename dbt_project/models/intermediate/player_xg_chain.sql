@@ -48,11 +48,13 @@ chain_shots AS (
         pc.event_id         AS shot_event_id,
         pc.expanded_minute  AS shot_minute,
         pc.type_id          AS shot_type_id,
-        ev.chance_creation  AS xg_proxy
+        ev.chance_creation  AS xg_proxy,
+        
     FROM {{ ref('player_possession_chains') }} pc
     JOIN {{ ref('event_values') }} ev
         ON  ev.match_id = pc.match_id
         AND ev.row_num  = pc.row_num
+    
     WHERE pc.match_id IN (SELECT match_id FROM new_matches)
       AND pc.is_shot   = TRUE
       AND pc.team_id   = pc.chain_team_id
@@ -93,6 +95,24 @@ assister_players AS (
         ON  pc.match_id = ae.match_id
         AND pc.chain_id = ae.chain_id
         AND pc.event_id = ae.assister_event_id
+),
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- COUNTER_ATTACK_CHAINS
+-- Identifie les chaînes contenant au moins un tir avec qual 23 (FastBreak).
+-- is_counter_attack est une propriété de la chaîne entière, pas du tir terminal.
+-- ══════════════════════════════════════════════════════════════════════════════
+counter_attack_chains AS (
+    SELECT DISTINCT
+        pc.match_id,
+        pc.chain_id
+    FROM {{ ref('player_possession_chains') }} pc
+    JOIN {{ ref('events_qual') }} eq_fb
+        ON  eq_fb.match_id     = pc.match_id
+        AND eq_fb.row_num      = pc.row_num
+        AND eq_fb.qual_type_id = 23
+    WHERE pc.match_id IN (SELECT match_id FROM new_matches)
+      AND pc.is_shot = TRUE
 ),
 
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -171,6 +191,10 @@ chain_players_flagged AS (
         cs.shot_type_id,
         cs.shot_minute,
         cs.xg_proxy,
+        CASE
+            WHEN cac.chain_id IS NOT NULL THEN TRUE
+            ELSE FALSE
+        END                                         AS is_counter_attack,
         cp.position_in_chain,
         cp.chain_length,
         cp.position_weight,
@@ -218,6 +242,10 @@ chain_players_flagged AS (
     LEFT JOIN assister_players ap
         ON  ap.match_id = cp.match_id
         AND ap.chain_id = cp.chain_id
+
+    LEFT JOIN counter_attack_chains cac
+        ON  cac.match_id = cp.match_id
+        AND cac.chain_id = cp.chain_id
 )
 
 -- ══════════════════════════════════════════════════════════════════════════════

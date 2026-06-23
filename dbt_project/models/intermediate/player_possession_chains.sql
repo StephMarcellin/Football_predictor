@@ -169,6 +169,50 @@ possession_resolved AS (
     FROM possession_last_known
 ),
 
+chain_trigger_quals AS (
+    SELECT
+        match_id,
+        row_num,
+        MAX(CASE WHEN qual_type_id = 6   THEN 1 ELSE 0 END) AS is_corner_taken,
+        MAX(CASE WHEN qual_type_id = 5   THEN 1 ELSE 0 END) AS is_free_kick,
+        MAX(CASE WHEN qual_type_id = 107 THEN 1 ELSE 0 END) AS is_throw_in,
+        MAX(CASE WHEN qual_type_id = 124 THEN 1 ELSE 0 END) AS is_goal_kick
+    FROM {{ ref('events_qual') }}
+    WHERE match_id IN (SELECT match_id FROM new_matches)
+      AND qual_type_id IN (5, 6, 107, 124)
+    GROUP BY match_id, row_num
+),
+
+chain_first_events AS (
+    SELECT
+        match_id,
+        possession_group,
+        MIN(row_num) AS first_row_num
+    FROM possession_resolved
+    GROUP BY match_id, possession_group
+),
+
+chain_triggers AS (
+    SELECT
+        cfe.match_id,
+        cfe.possession_group,
+        CASE
+            WHEN pr.type_id IN (7, 8, 49)      THEN 'recovery'
+            WHEN ctq.is_corner_taken = 1        THEN 'corner'
+            WHEN ctq.is_goal_kick    = 1        THEN 'goal_kick'
+            WHEN ctq.is_throw_in     = 1        THEN 'throw_in'
+            WHEN ctq.is_free_kick    = 1        THEN 'free_kick'
+            ELSE                                     'open_play'
+        END AS chain_trigger
+    FROM chain_first_events cfe
+    JOIN possession_resolved pr
+        ON  pr.match_id = cfe.match_id
+        AND pr.row_num  = cfe.first_row_num
+    LEFT JOIN chain_trigger_quals ctq
+        ON  ctq.match_id = pr.match_id
+        AND ctq.row_num  = pr.row_num
+),
+
 -- ══════════════════════════════════════════════════════════════════════════════
 -- CHAIN_BOUNDARIES
 -- La rupture = le resolved_possessor change entre deux lignes consécutives.
@@ -177,19 +221,22 @@ possession_resolved AS (
 -- ══════════════════════════════════════════════════════════════════════════════
 chain_boundaries AS (
     SELECT
-        *,
+        pr.*,
+        ct.chain_trigger,
         CASE
-            -- Pas de rupture sur la toute première ligne du match
-            WHEN match_row_number = 1
+            WHEN pr.match_row_number = 1
                 THEN 0
-            WHEN LEAD(resolved_possessor) OVER (
-                    PARTITION BY match_id
-                    ORDER BY expanded_minute, second, row_num
-                ) IS DISTINCT FROM resolved_possessor
+            WHEN LEAD(pr.resolved_possessor) OVER (
+                    PARTITION BY pr.match_id
+                    ORDER BY pr.expanded_minute, pr.second, pr.row_num
+                ) IS DISTINCT FROM pr.resolved_possessor
                 THEN 1
             ELSE 0
         END AS is_rupture
-    FROM possession_resolved
+    FROM possession_resolved pr
+    LEFT JOIN chain_triggers ct
+        ON  ct.match_id        = pr.match_id
+        AND ct.possession_group = pr.possession_group
 )
 
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -237,6 +284,7 @@ SELECT
     x,
     y,
     is_rupture,
+    chain_trigger,
     certain_possessor,
     scraped_at
 
