@@ -21,3 +21,7 @@ def run_validate_silver() -> None:
 def run_validate_gold() -> None:
     """Valide la couche Gold. Lève RuntimeError si violation — stoppera le pipeline."""
     validate_gold()
+
+def run_validate_intermediate() -> None:
+    """Valide la couche intermediate. Lève RuntimeError si violation — stoppera le pipeline."""
+    validate_intermediate()
