@@ -515,3 +515,15 @@ models:
       - name: date
         tests:
           - not_null
+  - name: player_possession_chains
+    description: "Chaînes de possession par joueur par match. Une ligne par action."
+    columns:
+      - name: match_id
+        tests:
+          - not_null
+      - name: row_num
+        tests:
+          - not_null
+          - unique:
+              config:
+                severity: error

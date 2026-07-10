@@ -51,40 +51,70 @@ new_matches AS (
 -- ══════════════════════════════════════════════════════════════════════════════
 certain_possession AS (
     SELECT
-        match_id,
-        team_id,
-        player_id,
-        event_id,
-        row_num,
-        expanded_minute,
-        second,
-        period,
-        type_id,
-        type_name,
-        outcome_id,
-        is_shot,
-        x,
-        y,
-        season,
-        league_source,
-        scraped_at,
+        ie.match_id,
+        ie.team_id,
+        ie.player_id,
+        ie.event_id,
+        ie.row_num,
+        ie.expanded_minute,
+        ie.second,
+        ie.period,
+        ie.type_id,
+        ie.type_name,
+        ie.outcome_id,
+        ie.is_shot,
+        ie.x,
+        ie.y,
+        ie.season,
+        ie.league_source,
+        ie.scraped_at,
+
+        -- Remise en jeu formelle : force une nouvelle chaîne
+        CASE WHEN EXISTS (
+            SELECT 1 FROM {{ ref('events_qual') }} eq
+            WHERE eq.match_id    = ie.match_id
+              AND eq.row_num     = ie.row_num
+              AND eq.qual_type_id IN (5, 6, 107, 124, 241)
+        ) THEN 1 ELSE 0 END                             AS is_set_piece,
 
         CASE
-            -- Contact de possession : le joueur contrôle le ballon
-            WHEN type_id IN (1, 3, 13, 14, 15, 16, 42, 61, 12, 52, 11, 41)
+            -- Action active : le joueur contrôle intentionnellement le ballon
+            WHEN et.possession_type = 'actif'
                 THEN team_id
-            -- Récupérations et interceptions réussies
-            WHEN type_id IN (8, 49) AND outcome_id = 1
-                THEN team_id
-            -- Pas une possession
+            -- Pas une possession certaine
             ELSE NULL
-        END AS certain_possessor
+        END AS certain_possessor,
 
-    FROM {{ ref('int_event_enriched') }}
-    WHERE match_id IN (SELECT match_id FROM new_matches)
-    AND player_id IS NOT NULL
-    AND type_id NOT IN (17, 18, 19, 30, 32, 34, 40)
+        CASE
+            WHEN ie.type_id = 12  -- Clearance
+            AND LEAD(certain_possessor IGNORE NULLS) OVER (
+                    PARTITION BY ie.match_id
+                    ORDER BY ie.expanded_minute, ie.second, ie.row_num
+                ) = ie.team_id   -- Le prochain événement est de la même équipe
+            THEN 1
+            ELSE 0
+        END AS is_winning_clearance
+
+    FROM {{ ref('int_event_enriched') }} ie
+    LEFT JOIN {{ ref('event_types') }} et ON ie.type_id = et.type_id
+    WHERE ie.match_id IN (SELECT match_id FROM new_matches)
+    AND ie.player_id IS NOT NULL
+    AND ie.type_id NOT IN (17, 18, 19, 30, 32, 34, 40)
     -- Card, SubstitutionOff, SubstitutionOn, End, Start, FormationSet, FormationChange
+),
+
+chain_trigger_quals AS (
+    SELECT
+        match_id,
+        row_num,
+        MAX(CASE WHEN qual_type_id = 6   THEN 1 ELSE 0 END) AS is_corner_taken,
+        MAX(CASE WHEN qual_type_id = 5   THEN 1 ELSE 0 END) AS is_free_kick,
+        MAX(CASE WHEN qual_type_id = 107 THEN 1 ELSE 0 END) AS is_throw_in,
+        MAX(CASE WHEN qual_type_id = 124 THEN 1 ELSE 0 END) AS is_goal_kick
+    FROM {{ ref('events_qual') }}
+    WHERE match_id IN (SELECT match_id FROM new_matches)
+      AND qual_type_id IN (5, 6, 107, 124)
+    GROUP BY match_id, row_num
 ),
 
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -106,15 +136,27 @@ possession_groups AS (
         *,
         -- Incrément : 1 uniquement quand le possesseur certain change d'équipe
         CASE
+            WHEN is_set_piece = 1 THEN 1
+            WHEN LAG(is_winning_clearance) OVER (
+                PARTITION BY match_id
+                ORDER BY expanded_minute, second, row_num
+            ) = 1 THEN 1
+            WHEN LAG(type_id) OVER (
+                    PARTITION BY match_id
+                    ORDER BY expanded_minute, second, row_num
+                ) = 41
+            AND LAG(outcome_id) OVER (
+                    PARTITION BY match_id
+                    ORDER BY expanded_minute, second, row_num
+                ) = 1                               THEN 1
             WHEN certain_possessor IS NOT NULL
-             AND certain_possessor != LAG(certain_possessor) OVER (
+             AND certain_possessor != LAG(certain_possessor IGNORE NULLS) OVER (
                     PARTITION BY match_id
                     ORDER BY expanded_minute, second, row_num
                  )
             THEN 1
-            -- Premier événement certain du match : on démarre le premier groupe
             WHEN certain_possessor IS NOT NULL
-             AND LAG(certain_possessor) OVER (
+             AND LAG(certain_possessor IGNORE NULLS) OVER (
                     PARTITION BY match_id
                     ORDER BY expanded_minute, second, row_num
                  ) IS NULL
@@ -169,19 +211,7 @@ possession_resolved AS (
     FROM possession_last_known
 ),
 
-chain_trigger_quals AS (
-    SELECT
-        match_id,
-        row_num,
-        MAX(CASE WHEN qual_type_id = 6   THEN 1 ELSE 0 END) AS is_corner_taken,
-        MAX(CASE WHEN qual_type_id = 5   THEN 1 ELSE 0 END) AS is_free_kick,
-        MAX(CASE WHEN qual_type_id = 107 THEN 1 ELSE 0 END) AS is_throw_in,
-        MAX(CASE WHEN qual_type_id = 124 THEN 1 ELSE 0 END) AS is_goal_kick
-    FROM {{ ref('events_qual') }}
-    WHERE match_id IN (SELECT match_id FROM new_matches)
-      AND qual_type_id IN (5, 6, 107, 124)
-    GROUP BY match_id, row_num
-),
+
 
 chain_first_events AS (
     SELECT
@@ -237,8 +267,99 @@ chain_boundaries AS (
     LEFT JOIN chain_triggers ct
         ON  ct.match_id        = pr.match_id
         AND ct.possession_group = pr.possession_group
-)
+),
 
+-- ══════════════════════════════════════════════════════════════════════════════
+-- On détecte les aerial orphelins : les aerials qui n'ont pas de pair (OppositeRelatedEvent) dans la même chaîne.
+aerial_orphans AS (
+    SELECT
+        ppc.match_id,
+        ppc.row_num,
+        ppc.team_id,
+        ppc.expanded_minute,
+        ppc.second,
+        ppc.possession_group
+    FROM chain_boundaries ppc
+    LEFT JOIN {{ ref('events_qual') }} eq
+        ON  eq.match_id     = ppc.match_id
+        AND eq.event_id     = ppc.event_id
+        AND eq.qual_type_id = 233
+    WHERE ppc.type_id   = 44
+      AND eq.qual_value IS NULL
+),
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- AERIAL_ORPHAN_PAIRS: on trouve le pair de chaque Aerial orphelin dans la chaîne adverse, et on récupère son possession_group.
+aerial_orphan_pairs AS (
+    SELECT
+        ao.match_id,
+        ao.row_num,
+        MIN(cb.possession_group) AS pair_possession_group
+    FROM aerial_orphans ao
+    JOIN chain_boundaries cb
+        ON  cb.match_id        = ao.match_id
+        AND cb.team_id        != ao.team_id
+        AND cb.type_id         = 44
+        AND cb.expanded_minute = ao.expanded_minute
+        AND cb.second          = ao.second
+    GROUP BY ao.match_id, ao.row_num
+),
+-- ══════════════════════════════════════════════════════════════════════════════
+-- AERIAL_CORRECTIONS
+-- Pour chaque Aerial, on vérifie si son pair (OppositeRelatedEvent) est dans
+-- une chaîne différente. Si oui, on leur assigne le même chain_id en prenant
+-- le plus petit possession_group des deux — pour garder les deux Aerial
+-- dans la même chaîne.
+-- ══════════════════════════════════════════════════════════════════════════════
+
+aerial_with_pair_group AS (
+    SELECT
+        cb.match_id,
+        cb.row_num,
+        cb.possession_group,
+        cb_pair.possession_group AS pair_possession_group
+    FROM chain_boundaries cb
+    LEFT JOIN {{ ref('events_qual') }} eq
+        ON  eq.match_id     = cb.match_id
+        AND eq.event_id     = cb.event_id
+        AND eq.qual_type_id = 233
+    LEFT JOIN chain_boundaries cb_pair
+        ON  cb_pair.match_id = cb.match_id
+        AND cb_pair.event_id = CAST(eq.qual_value AS INTEGER)
+        AND cb_pair.team_id != cb.team_id
+    WHERE cb.type_id = 44
+    QUALIFY ROW_NUMBER() OVER (
+        PARTITION BY cb.match_id, cb.row_num
+        ORDER BY COALESCE(cb_pair.possession_group, cb.possession_group)
+    ) = 1
+),
+
+aerial_best_group AS (
+    SELECT
+        awpg.match_id,
+        awpg.row_num,
+        LEAST(
+            awpg.possession_group,
+            COALESCE(
+                awpg.pair_possession_group,
+                aop.pair_possession_group,
+                awpg.possession_group
+            )
+        ) AS best_possession_group
+    FROM aerial_with_pair_group awpg
+    LEFT JOIN aerial_orphan_pairs aop
+        ON  aop.match_id = awpg.match_id
+        AND aop.row_num  = awpg.row_num
+),
+
+aerial_corrections AS (
+    SELECT
+        match_id,
+        row_num,
+        match_id || '_' || CAST(best_possession_group AS VARCHAR) AS chain_id_corrected,
+        best_possession_group                                       AS chain_number_corrected
+    FROM aerial_best_group
+)
 -- ══════════════════════════════════════════════════════════════════════════════
 -- SELECT FINAL
 -- Une ligne par action avec son chain_id.
@@ -247,46 +368,41 @@ chain_boundaries AS (
 -- depuis la dernière possession certaine.
 -- ══════════════════════════════════════════════════════════════════════════════
 SELECT
-    match_id,
-    season,
-    league_source,
+    cb.match_id,
+    cb.season,
+    cb.league_source,
 
-    -- Identifiant global de la chaîne
-    match_id || '_' || CAST(
-        SUM(is_rupture) OVER (
-            PARTITION BY match_id
-            ORDER BY expanded_minute, second, row_num
-            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-        ) - is_rupture
-    AS VARCHAR)                                             AS chain_id,
+    COALESCE(ac.chain_id_corrected,
+        cb.match_id || '_' || CAST(cb.possession_group AS VARCHAR)
+    )                                                       AS chain_id,
 
-    -- Numéro local de chaîne dans le match
-    SUM(is_rupture) OVER (
-        PARTITION BY match_id
-        ORDER BY expanded_minute, second, row_num
-        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-    ) - is_rupture                                          AS chain_number,
+    COALESCE(ac.chain_number_corrected,
+        cb.possession_group
+    )                                                       AS chain_number,
 
     -- Équipe en possession durant cette chaîne
     resolved_possessor                                      AS chain_team_id,
 
-    team_id,
-    player_id,
-    event_id,
-    row_num,
-    expanded_minute,
-    second,
-    period,
-    type_id,
-    type_name,
-    outcome_id,
-    is_shot,
-    x,
-    y,
-    is_rupture,
-    chain_trigger,
-    certain_possessor,
-    scraped_at
+    cb.team_id,
+    cb.player_id,
+    cb.event_id,
+    cb.row_num,
+    cb.expanded_minute,
+    cb.second,
+    cb.period,
+    cb.type_id,
+    cb.type_name,
+    cb.outcome_id,
+    cb.is_shot,
+    cb.x,
+    cb.y,
+    cb.is_rupture,
+    cb.chain_trigger,
+    cb.certain_possessor,
+    cb.scraped_at
 
-FROM chain_boundaries
-ORDER BY match_id, expanded_minute, second, row_num
+FROM chain_boundaries cb
+LEFT JOIN aerial_corrections ac
+    ON  ac.match_id = cb.match_id
+    AND ac.row_num  = cb.row_num
+ORDER BY cb.match_id, cb.expanded_minute, cb.second, cb.row_num
