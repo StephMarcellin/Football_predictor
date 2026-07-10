@@ -24,6 +24,9 @@ clean-targets:         # directories to be removed by `dbt clean`
 # Configuring models
 # Full documentation: https://docs.getdbt.com/docs/configuring-models
 
+on-run-start:
+  - "SET temp_directory='C:/Users/marce/AppData/Local/Temp/duckdb_dbt'"
+
 # Configuration seeds
 seeds:
   football_prediction:
@@ -37,6 +40,7 @@ seeds:
       +column_types:
         alias: VARCHAR
         club_name: VARCHAR
+        team_id: BIGINT
     competition_mapping:
       +column_types:
         alias: VARCHAR

@@ -882,3 +882,49 @@ sources:
             description: "Compétition source"
             tests:
               - not_null
+
+
+  - name: intermediate
+    description: >
+      Tables intermédiaires gérées hors dbt (ex: match_registry alimenté par 02_process.py).
+      dbt les lit comme sources pour construire les modèles intermediate.
+    schema: intermediate
+
+    tables:
+
+      - name: match_registry
+        description: >
+          Registre central des matchs — 1 ligne par match physique.
+          Alimenté par upsert depuis 02_process.py via SHA1 sur (date, home_team, away_team, league_source, season).
+          Point de départ de toute la chaîne features du gold.
+        columns:
+          - name: match_id
+            description: "Identifiant unique du match (SHA1)"
+            tests:
+              - not_null
+              - unique
+          - name: match_date
+            description: "Date du match"
+            tests:
+              - not_null
+          - name: home_team_id
+            description: "Identifiant normalisé de l'équipe domicile (FK vers referentiel.team_mapping)"
+            tests:
+              - not_null
+          - name: away_team_id
+            description: "Identifiant normalisé de l'équipe extérieure (FK vers referentiel.team_mapping)"
+            tests:
+              - not_null:
+                  config:
+                    severity: warn
+          - name: league_source
+            description: "Compétition source"
+            tests:
+              - not_null
+          - name: season
+            description: "Saison au format YYYY-YYYY"
+            tests:
+              - not_null
+              
+
+        

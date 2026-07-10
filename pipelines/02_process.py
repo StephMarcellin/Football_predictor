@@ -83,6 +83,7 @@ SEASON_FORMAT: str = CFG.get("season_format", "YYYY-YYYY")
 # puis injecté dans les fonctions de normalisation via une variable module-level.
 # On initialise à vide — sera rempli par _init_team_mapping(con) dans main().
 TEAM_MAPPING: dict[str, str] = {}
+TEAM_MAPPING_IDS: dict[str, int] = {}
 
 def _init_team_mapping(con: duckdb.DuckDBPyConnection) -> None:
     """
@@ -101,6 +102,27 @@ def _init_team_mapping(con: duckdb.DuckDBPyConnection) -> None:
         logger.error(f"  Impossible de charger referentiel.team_mapping : {e}")
         TEAM_MAPPING = {}
 
+def _init_team_mapping_ids(con: duckdb.DuckDBPyConnection) -> None:
+    """
+    Charge le dict {club_name: team_id} depuis referentiel.team_mapping.
+    Appelé une seule fois dans main() après _init_team_mapping().
+    """
+    global TEAM_MAPPING_IDS
+    try:
+        rows = con.execute(
+            "SELECT club_name, team_id FROM referentiel.team_mapping"
+        ).fetchall()
+        TEAM_MAPPING_IDS = {
+            club_name: team_id
+            for club_name, team_id in rows
+            if team_id is not None
+        }
+
+        TEAM_MAPPING_IDS["Minor Club"] = 0  # Ajout de l'entrée "Minor Club" avec team_id = 0
+        logger.info(f"  team_mapping_ids chargé : {len(TEAM_MAPPING_IDS)} entrées")
+    except Exception as e:
+        logger.error(f"  Impossible de charger team_mapping_ids : {e}")
+        TEAM_MAPPING_IDS = {}
 # competition_mapping : chargé depuis referentiel.competition_mapping dans DuckDB.
 # Deux vues plates pré-calculées pour un accès O(1) dans la hot path de normalisation.
 # Initialisées à vide — remplies par _init_competition_mapping(con) dans main().
@@ -155,6 +177,19 @@ def _init_transfermarkt(con: duckdb.DuckDBPyConnection) -> None:
         logger.error(f"  Impossible de charger referentiel.transfermarkt_clubs : {e}")
         TM_CLUBS = set()
 
+
+def _init_match_registry(con: duckdb.DuckDBPyConnection) -> None:
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS intermediate.match_registry (
+            match_id      VARCHAR PRIMARY KEY,
+            match_date    DATE,
+            home_team_id  BIGINT,
+            away_team_id  BIGINT,
+            league_source VARCHAR,
+            season        VARCHAR
+        )
+    """)
+    logger.info("  match_registry initialisé")
 # ── Logs ──────────────────────────────────────────────────────────────────────
 Path("logs").mkdir(exist_ok=True)
 logger.add(
@@ -416,8 +451,18 @@ def normalize_team_col(
             canonical = slug_team_mapping.get(_slugify(raw_name))
 
         if canonical is not None:
-            local_map[name] = canonical
-            continue
+                    local_map[name] = canonical
+                    continue
+
+        # ── Niveau 1b : strip préfixe pays FBref (eng, fr, es, it, de, pt...) ─
+        stripped = re.sub(r'^[a-z]{2,3}(?=[A-Z])', '', raw_name)
+        if stripped != raw_name:
+            canonical = TEAM_MAPPING.get(stripped)
+            if canonical is None:
+                canonical = slug_team_mapping.get(_slugify(stripped))
+            if canonical is not None:
+                local_map[name] = canonical
+                continue
 
         # ── Niveau 2 : vérification Transfermarkt ─────────────────────────────
         if has_season and has_league and TM_CLUBS:
@@ -521,7 +566,6 @@ def standardize_date(df: pl.DataFrame) -> pl.DataFrame:
         )
     return df
 
-
 def encode_result_1n2(df: pl.DataFrame) -> pl.DataFrame:
     """W/D/L + venue → H/D/A (perspective équipe)."""
     if "result" not in df.columns or "venue" not in df.columns:
@@ -551,8 +595,6 @@ def encode_result_1n2(df: pl.DataFrame) -> pl.DataFrame:
         .otherwise(None)
         .alias("result_1n2")
     )
-
-
 
 def generate_match_id(df: pl.DataFrame) -> pl.DataFrame:
     """
@@ -601,7 +643,6 @@ def generate_match_id(df: pl.DataFrame) -> pl.DataFrame:
         .alias("match_id")
     )
 
-
 def apply_cat_c_rejection(df: pl.DataFrame, source: str) -> pl.DataFrame:
     active = [c for c in CAT_C_REJECT if c in df.columns]
     if not active:
@@ -613,7 +654,6 @@ def apply_cat_c_rejection(df: pl.DataFrame, source: str) -> pl.DataFrame:
         logger.warning(f"  [{source}] Cat C : {removed} ligne(s) rejetées (nulls identifiants)")
     return df
 
-
 def apply_cat_a_zerofill(df: pl.DataFrame, source: str) -> pl.DataFrame:
     cols = [c for c in CAT_A_ZERO_FILL if c in df.columns]
     if not cols:
@@ -623,7 +663,6 @@ def apply_cat_a_zerofill(df: pl.DataFrame, source: str) -> pl.DataFrame:
     if n > 0:
         logger.debug(f"  [{source}] Cat A : {n} null(s) → 0")
     return filled
-
 
 def apply_cat_d_outliers(df: pl.DataFrame, source: str) -> pl.DataFrame:
     for rule in CAT_D_OUTLIERS:
@@ -644,7 +683,6 @@ def apply_cat_d_outliers(df: pl.DataFrame, source: str) -> pl.DataFrame:
                 for ex in examples:
                     logger.warning(f"    {ex}")
     return df
-
 
 def cast_numeric_cols(df: pl.DataFrame) -> pl.DataFrame:
     exprs = []
@@ -733,6 +771,28 @@ def process_fbref(con: duckdb.DuckDBPyConnection) -> None:
         df = apply_cat_d_outliers(df, f"fbref/{cat}")
         df = remove_duplicates(df, ["team", "opponent", "date", "league_source"], f"fbref/{cat}")
 
+        df_home = df.filter(pl.col("venue") == "Home")
+        upsert_match_registry(con, df_home, date_col="date", home_col="team", away_col="opponent")
+
+        df_away = df.filter(pl.col("venue") == "Away")
+        upsert_match_registry(con, df_away, date_col="date", home_col="opponent", away_col="team")
+
+        df_neutral = df.filter(pl.col("venue") == "Neutral")
+
+        # Convention : home = équipe alphabétiquement première
+        upsert_match_registry(
+            con,
+            df_neutral.with_columns([
+                pl.when(pl.col("team") < pl.col("opponent"))
+                .then(pl.col("team")).otherwise(pl.col("opponent")).alias("home_team_neutral"),
+                pl.when(pl.col("team") < pl.col("opponent"))
+                .then(pl.col("opponent")).otherwise(pl.col("team")).alias("away_team_neutral"),
+            ]),
+            date_col="date",
+            home_col="home_team_neutral",
+            away_col="away_team_neutral",
+        )
+
         _write_to_duckdb(con, df, f"fbref_{cat}", f"fbref/{cat}")
 
 
@@ -779,6 +839,33 @@ def process_understat(con: duckdb.DuckDBPyConnection) -> None:
         df = apply_cat_d_outliers(df, f"understat/{subtype}")
         df = remove_duplicates(df, ["match_id", "home_team", "away_team"], f"understat/{subtype}")
 
+        if all(c in df.columns for c in ["home_team", "away_team", "league_source", "season"]):
+            # Récupérer la date depuis fbref_schedule
+            try:
+                fbref_dates = con.execute("""
+                    SELECT DISTINCT team as home_team, opponent as away_team, 
+                        league_source, season, date
+                    FROM silver.fbref_schedule
+                    WHERE venue = 'Home'
+                """).pl()
+                
+                df_with_date = df.join(
+                    fbref_dates,
+                    on=["home_team", "away_team", "league_source", "season"],
+                    how="left"
+                )
+                
+                df_with_date = df_with_date.filter(pl.col("date").is_not_null())
+                
+                upsert_match_registry(
+                    con, df_with_date,
+                    date_col="date",
+                    home_col="home_team",
+                    away_col="away_team",
+                )
+            except Exception as e:
+                logger.warning(f"  upsert_match_registry understat : {e}")
+
         _write_to_duckdb(con, df, f"understat_{subtype}", f"understat/{subtype}")
 
 
@@ -823,6 +910,8 @@ def process_whoscored(con: duckdb.DuckDBPyConnection) -> None:
     df = apply_cat_d_outliers(df, "whoscored")
     df = remove_duplicates(df, ["team", "season", "league_source"], "whoscored")
 
+    
+
     _write_to_duckdb(con, df, "whoscored_team_season", "whoscored")
 
     # ── Normalisation stg_whoscored_match_index ────────────────────────────────
@@ -844,12 +933,65 @@ def process_whoscored(con: duckdb.DuckDBPyConnection) -> None:
             # Standardisation saison
             df_idx = standardize_season(df_idx)
 
+            upsert_match_registry(con, df_idx, date_col="match_date", home_col="home_team_name", away_col="away_team_name")
+
             # Réécriture
             _write_to_duckdb(con, df_idx, "stg_whoscored_match_index", "whoscored_match_index")
 
     except Exception as e:
         logger.warning(f"  stg_whoscored_match_index absent ou erreur : {e}")
 
+def upsert_match_registry(
+    con: duckdb.DuckDBPyConnection,
+    df: pl.DataFrame,
+    date_col: str,
+    home_col: str,
+    away_col: str,
+) -> None:
+    """
+    Insère les nouveaux matchs dans intermediate.match_registry.
+    SHA1 calculé sur (date, home_team, away_team, league_source, season).
+    Ne touche pas aux matchs déjà présents.
+    """
+    import hashlib
+
+    rows = (
+        df
+        .select([date_col, home_col, away_col, "league_source", "season"])
+        .unique()
+        .drop_nulls()
+    )
+
+    records = []
+    for row in rows.iter_rows(named=True):
+        key = f"{row[date_col]}|{row[home_col]}|{row[away_col]}|{row['league_source']}|{row['season']}"
+        match_id = hashlib.sha1(key.encode()).hexdigest()
+
+        home_id = TEAM_MAPPING_IDS.get(row[home_col])
+        away_id = TEAM_MAPPING_IDS.get(row[away_col])
+
+        records.append({
+            "match_id":     match_id,
+            "match_date":   row[date_col],
+            "home_team_id": home_id,
+            "away_team_id": away_id,
+            "league_source": row["league_source"],
+            "season":        row["season"],
+        })
+
+    if not records:
+        return
+
+    import pandas as pd
+    df_reg = pd.DataFrame(records)
+    con.register("df_registry", df_reg)
+    con.execute("""
+        INSERT INTO intermediate.match_registry
+        SELECT * FROM df_registry
+        WHERE match_id NOT IN (SELECT match_id FROM intermediate.match_registry)
+    """)
+    n = con.execute("SELECT COUNT(*) FROM intermediate.match_registry").fetchone()[0]
+    logger.info(f"  match_registry : {n:,} matchs au total")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # QUALITY CHECK (AUDIT)
@@ -1059,12 +1201,17 @@ def main(source: str = None, reset: bool = False, audit_only: bool = False) -> N
 
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect(str(DB_PATH))
+
+    # Creation du schema silver (si pas déjà fait) + schema intermédiaire pour les étapes de normalisation nécessitant des jointures SQL
     con.execute("CREATE SCHEMA IF NOT EXISTS silver")
+    con.execute("CREATE SCHEMA IF NOT EXISTS intermediate")
 
     # Initialisation des mappings (chargement en mémoire + log des entités manquantes)
     _init_team_mapping(con)
+    _init_team_mapping_ids(con)
     _init_competition_mapping(con)
     _init_transfermarkt(con)
+    _init_match_registry(con)
 
     if audit_only:
         run_quality_check(con)

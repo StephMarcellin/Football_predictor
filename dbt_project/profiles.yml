@@ -3,6 +3,6 @@ football_prediction:
   outputs:
     ci:
       type: duckdb
-      path: "../db/football_test.duckdb"
+      path: "../db/football.duckdb"
       schema: gold
       threads: 2

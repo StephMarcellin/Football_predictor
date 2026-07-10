@@ -1,951 +1,956 @@
-alias,club_name
-Ajaccio,Ajaccio
-AC Ajaccio,Ajaccio
-Gazélec Ajaccio,Ajaccio
-Gazelec Ajaccio,Ajaccio
-GFC Ajaccio,Ajaccio
-Amiens,Amiens
-Amiens SC,Amiens
-Angers,Angers
-Angers SCO,Angers
-Annecy,Annecy
-Annecy FC,Annecy
-Auxerre,Auxerre
-AJ Auxerre,Auxerre
-Bastia,Bastia
-SC Bastia,Bastia
-frBastia,Bastia
-Béziers,Béziers
-AS Béziers,Béziers
-Bordeaux,Bordeaux
-FC Girondins de Bordeaux,Bordeaux
-Girondins de Bordeaux,Bordeaux
-Brest,Brest
-Stade Brestois,Brest
-Stade Brestois 29,Brest
-Caen,Caen
-SM Caen,Caen
-Chambly,Chambly
-FC Chambly Oise,Chambly
-Châteauroux,Châteauroux
-LB Châteauroux,Châteauroux
-Berrichonne de Châteauroux,Châteauroux
-Clermont Foot,Clermont Foot
-Clermont,Clermont Foot
-Concarneau,Concarneau
-US Concarneau,Concarneau
-Dijon,Dijon
-Dijon FCO,Dijon
-Dunkerque,Dunkerque
-USL Dunkerque,Dunkerque
-Grenoble,Grenoble
-Grenoble Foot 38,Grenoble
-Guingamp,Guingamp
-EA Guingamp,Guingamp
-Laval,Laval
-Stade Lavallois,Laval
-Le Havre,Le Havre
-Le Havre AC,Le Havre
-HAC,Le Havre
-Lens,Lens
-RC Lens,Lens
-Lille,Lille
-LOSC,Lille
-LOSC Lille,Lille
-Lorient,Lorient
-FC Lorient,Lorient
-Lyon,Lyon
-Olympique Lyonnais,Lyon
-OL,Lyon
-Marseille,Olympique de Marseille
-Olympique de Marseille,Olympique de Marseille
-Olympique-Marseille,Olympique de Marseille
-OM,Olympique de Marseille
-Martigues,Martigues
-FC Martigues,Martigues
-Metz,Metz
-FC Metz,Metz
-Monaco,Monaco
-AS Monaco,Monaco
-Montpellier,Montpellier
-Montpellier HSC,Montpellier
-Nancy,Nancy
-AS Nancy Lorraine,Nancy
-Nantes,Nantes
-FC Nantes,Nantes
-Nice,Nice
-OGC Nice,Nice
-Nîmes,Nimes
-Nimes,Nimes
-Nîmes Olympique,Nimes
-Niort,Niort
-Chamois Niortais,Niort
-Orléans,Orléans
-US Orléans,Orléans
-Paris FC,Paris FC
-Paris-FC,Paris FC
-Paris Saint-Germain,Paris Saint-Germain
-PSG,Paris Saint-Germain
-Paris SG,Paris Saint-Germain
-Paris-Saint-Germain,Paris Saint-Germain
-Pau,Pau
-Pau FC,Pau
-Quevilly-Rouen,Quevilly-Rouen
-Quevilly,Quevilly-Rouen
-Quevilly-Rouen Métropole,Quevilly-Rouen
-Red Star,Red Star
-Red Star FC,Red Star
-Reims,Reims
-Stade de Reims,Reims
-Rennes,Rennes
-Stade Rennais,Rennes
-Rodez,Rodez
-Rodez AF,Rodez
-Saint-Étienne,Saint-Étienne
-Saint-Etienne,Saint-Étienne
-AS Saint-Étienne,Saint-Étienne
-AS Saint-Etienne,Saint-Étienne
-Sochaux,Sochaux
-FC Sochaux-Montbéliard,Sochaux
-Strasbourg,Strasbourg
-RC Strasbourg,Strasbourg
-Toulouse,Toulouse
-Toulouse FC,Toulouse
-Tours,Tours
-Tours FC,Tours
-Troyes,Troyes
-ESTAC Troyes,Troyes
-Valenciennes,Valenciennes
-Valenciennes FC,Valenciennes
-Arsenal,Arsenal
-Aston Villa,Aston Villa
-Aston-Villa,Aston Villa
-Barnsley,Barnsley
-enBarnsley,Barnsley
-Birmingham City,Birmingham City
-Birmingham,Birmingham City
-enBirmingham City,Birmingham City
-Blackburn Rovers,Blackburn
-Blackburn,Blackburn
-Blackpool,Blackpool
-Bolton Wanderers,Bolton
-Bolton,Bolton
-Bournemouth,Bournemouth
-AFC Bournemouth,Bournemouth
-Brentford,Brentford
-Brighton & Hove Albion,Brighton & Hove Albion
-Brighton,Brighton & Hove Albion
-Brighton and Hove Albion,Brighton & Hove Albion
-Brighton-and-Hove-Albion,Brighton & Hove Albion
-Bristol City,Bristol City
-Bristol,Bristol City
-Burnley,Burnley
-Burton Albion,Burton Albion
-Burton,Burton Albion
-Cardiff City,Cardiff City
-Cardiff,Cardiff City
-Charlton Athletic,Charlton
-Charlton,Charlton
-Chelsea,Chelsea
-Coventry City,Coventry City
-Coventry,Coventry City
-Crystal Palace,Crystal Palace
-Crystal-Palace,Crystal Palace
-Derby County,Derby County
-Derby,Derby County
-Everton,Everton
-Fulham,Fulham
-Huddersfield Town,Huddersfield
-Huddersfield,Huddersfield
-Hull City,Hull City
-Hull,Hull City
-Ipswich Town,Ipswich Town
-Ipswich,Ipswich Town
-Leeds United,Leeds United
-Leeds,Leeds United
-Leeds-United,Leeds United
-Leicester City,Leicester City
-Leicester,Leicester City
-Liverpool,Liverpool
-Luton Town,Luton
-Luton,Luton
-Manchester City,Manchester City
-Man City,Manchester City
-Man-City,Manchester City
-Manchester United,Manchester United
-Man United,Manchester United
-Man-Utd,Manchester United
-Man Utd,Manchester United
-Manchester Utd,Manchester United
-Middlesbrough,Middlesbrough
-Boro,Middlesbrough
-Millwall,Millwall
-Millwall FC,Millwall
-Newcastle United,Newcastle United
-Newcastle,Newcastle United
-Newcastle-United,Newcastle United
-Norwich City,Norwich City
-Norwich,Norwich City
-Nottingham Forest,Nottingham Forest
-Nott'm Forest,Nottingham Forest
-Nottingham-Forest,Nottingham Forest
-Oxford United,Oxford United
-Oxford,Oxford United
-Peterborough United,Peterborough
-Peterborough,Peterborough
-Plymouth Argyle,Plymouth Argyle
-Plymouth,Plymouth Argyle
-Portsmouth,Portsmouth
-Preston North End,Preston North End
-Preston,Preston North End
-Queens Park Rangers,QPR
-QPR,QPR
-Reading,Reading
-Reading FC,Reading
-Rotherham United,Rotherham
-Rotherham,Rotherham
-Sheffield United,Sheffield United
-Sheff Utd,Sheffield United
-Sheffield Utd,Sheffield United
-Sheffield Wednesday,Sheffield Wednesday
-Southampton,Southampton
-Stoke City,Stoke
-Stoke-City,Stoke
-Stoke,Stoke
-Sunderland,Sunderland
-Sunderland AFC,Sunderland
-Swansea City,Swansea
-Swansea-City,Swansea
-Swansea,Swansea
-Tottenham Hotspur,Tottenham Hotspur
-Tottenham-Hotspur,Tottenham Hotspur
-Tottenham,Tottenham Hotspur
-Spurs,Tottenham Hotspur
-Watford,Watford
-West Bromwich Albion,West Brom
-West-Bromwich-Albion,West Brom
-West Brom,West Brom
-Albion,West Brom
-WBA,West Brom
-West Ham United,West Ham United
-West Ham,West Ham United
-West-Ham-United,West Ham United
-Wolverhampton Wanderers,Wolves
-Wolves,Wolves
-Wolverhampton,Wolves
-Wolverhampton-Wanderers,Wolves
-Wycombe Wanderers,Wycombe
-Wycombe,Wycombe
-Arminia Bielefeld,Arminia Bielefeld
-Arminia-Bielefeld,Arminia Bielefeld
-Arminia,Arminia Bielefeld
-Bielefeld,Arminia Bielefeld
-Augsburg,Augsburg
-FC Augsburg,Augsburg
-Bayer Leverkusen,Bayer Leverkusen
-Leverkusen,Bayer Leverkusen
-Bayern München,Bayern München
-Bayern Munich,Bayern München
-Bayern,Bayern München
-Bayern-Munich,Bayern München
-deBayern Munich,Bayern München
-Bochum,Bochum
-VfL Bochum,Bochum
-Borussia Dortmund,Borussia Dortmund
-Dortmund,Borussia Dortmund
-BVB,Borussia Dortmund
-deDortmund,Borussia Dortmund
-Borussia Mönchengladbach,Borussia Mönchengladbach
-Borussia Monchengladbach,Borussia Mönchengladbach
-Monchengladbach,Borussia Mönchengladbach
-Borussia M.Gladbach,Borussia Mönchengladbach
-M'Gladbach,Borussia Mönchengladbach
-Gladbach,Borussia Mönchengladbach
-Darmstadt 98,Darmstadt 98
-Darmstadt,Darmstadt 98
-SV Darmstadt,Darmstadt 98
-Dynamo Dresden,Dynamo Dresden
-Dresden,Dynamo Dresden
-Eintracht Frankfurt,Eintracht Frankfurt
-Eintracht-Frankfurt,Eintracht Frankfurt
-Frankfurt,Eintracht Frankfurt
-Eintracht Braunschweig,Eintracht Braunschweig
-Braunschweig,Eintracht Braunschweig
-Erzgebirge Aue,Erzgebirge Aue
-Aue,Erzgebirge Aue
-FC Cologne,FC Cologne
-FC Köln,FC Cologne
-Köln,FC Cologne
-1.FC Köln,FC Cologne
-Koln,FC Cologne
-FC Koln,FC Cologne
-Fortuna Duesseldorf,Fortuna Duesseldorf
-Fortuna Düsseldorf,Fortuna Duesseldorf
-Fortuna Dusseldorf,Fortuna Duesseldorf
-Düsseldorf,Fortuna Duesseldorf
-Freiburg,Freiburg
-SC Freiburg,Freiburg
-Greuther Fürth,Greuther Fürth
-Greuther Fuerth,Greuther Fürth
-Fürth,Greuther Fürth
-Hamburger SV,Hamburger SV
-HSV,Hamburger SV
-Hamburger-SV,Hamburger SV
-deHamburger SV,Hamburger SV
-Hannover 96,Hannover 96
-Hannover,Hannover 96
-FC Heidenheim,FC Heidenheim
-Heidenheim,FC Heidenheim
-1. FC Heidenheim,FC Heidenheim
-Hertha Berlin,Hertha Berlin
-Hertha BSC,Hertha Berlin
-Hertha,Hertha Berlin
-Hoffenheim,Hoffenheim
-TSG Hoffenheim,Hoffenheim
-TSG 1899 Hoffenheim,Hoffenheim
-Holstein Kiel,Holstein Kiel
-Kiel,Holstein Kiel
-Ingolstadt 04,Ingolstadt 04
-FC Ingolstadt,Ingolstadt 04
-Ingolstadt,Ingolstadt 04
-Jahn Regensburg,Jahn Regensburg
-Regensburg,Jahn Regensburg
-Kaiserslautern,Kaiserslautern
-1. FC Kaiserslautern,Kaiserslautern
-Karlsruhe,Karlsruhe
-Karlsruher SC,Karlsruhe
-Magdeburg,1. FC Magdeburg
-1. FC Magdeburg,1. FC Magdeburg
-Mainz 05,Mainz 05
-Mainz,Mainz 05
-1. FSV Mainz 05,Mainz 05
-Mainz-05,Mainz 05
-MSV Duisburg,MSV Duisburg
-Duisburg,MSV Duisburg
-Nuernberg,Nuernberg
-Nürnberg,Nuernberg
-Nurnberg,Nuernberg
-1. FC Nürnberg,Nuernberg
-Paderborn 07,Paderborn
-Paderborn,Paderborn
-SC Paderborn,Paderborn
-Paderborn-07,Paderborn
-Preußen Münster,Preußen Münster
-Munster,Preußen Münster
-RB Leipzig,RB Leipzig
-RasenBallsport Leipzig,RB Leipzig
-RB-Leipzig,RB Leipzig
-RBL,RB Leipzig
-Rostock,Hansa Rostock
-Hansa Rostock,Hansa Rostock
-Schalke 04,Schalke 04
-Schalke,Schalke 04
-SSV Ulm,Ulm
-St. Pauli,St. Pauli
-FC St. Pauli,St. Pauli
-St-Pauli,St. Pauli
-Stuttgart,VfB Stuttgart
-VfB Stuttgart,VfB Stuttgart
-Union Berlin,Union Berlin
-1. FC Union Berlin,Union Berlin
-Union-Berlin,Union Berlin
-Wehen Wiesbaden,Wehen Wiesbaden
-Wiesbaden,Wehen Wiesbaden
-Werder Bremen,Werder Bremen
-Werder-Bremen,Werder Bremen
-Wolfsburg,Wolfsburg
-VfL Wolfsburg,Wolfsburg
-Würzburger Kickers,Würzburger Kickers
-Würzburg,Würzburger Kickers
-Wurzburg,Würzburger Kickers
-Albacete,Albacete
-Albacete Balompié,Albacete
-esAlbacete,Albacete
-Alcorcón,Alcorcon
-Alcorcon,Alcorcon
-AD Alcorcón,Alcorcon
-esAlcorcon,Alcorcon
-Almería,Almería
-UD Almería,Almería
-esAlmería,Almería
-Amorebieta,Amorebieta
-SD Amorebieta,Amorebieta
-Andorra,Andorra
-Andorra CF,Andorra
-FC Andorra,Andorra
-Athletic Club,Athletic Club
-Athletic Bilbao,Athletic Club
-Athletic-Club,Athletic Club
-Atlético Madrid,Atlético Madrid
-Atletico Madrid,Atlético Madrid
-Atletico,Atlético Madrid
-Atletico-Madrid,Atlético Madrid
-Barcelona,Barcelona
-FC Barcelona,Barcelona
-Burgos,Burgos
-Burgos CF,Burgos
-Cádiz,Cádiz
-Cadiz,Cádiz
-Cádiz CF,Cádiz
-Cartagena,Cartagena
-FC Cartagena,Cartagena
-Castellón,Castellón
-CD Castellón,Castellón
-Celta Vigo,Celta Vigo
-Celta-Vigo,Celta Vigo
-Córdoba,Córdoba
-Cordoba,Córdoba
-Córdoba CF,Córdoba
-Cultural Leonesa,Cultural Leonesa
-Deportivo La Coruna,Deportivo La Coruna
-Deportivo de La Coruña,Deportivo La Coruna
-Dep La Coruña,Deportivo La Coruna
-Deportivo,Deportivo La Coruna
-RC Deportivo,Deportivo La Coruna
-Deportivo Alavés,Deportivo Alavés
-Alaves,Deportivo Alavés
-Deportivo Alaves,Deportivo Alavés
-Alavés,Deportivo Alavés
-Eibar,Eibar
-SD Eibar,Eibar
-Elche,Elche
-Elche CF,Elche
-Eldense,Eldense
-CD Eldense,Eldense
-Espanyol,Espanyol
-RCD Espanyol,Espanyol
-Extremadura,Extremadura
-Extremadura UD,Extremadura
-Fuenlabrada,Fuenlabrada
-CF Fuenlabrada,Fuenlabrada
-Getafe,Getafe
-Getafe CF,Getafe
-Girona,Girona
-Girona FC,Girona
-Granada,Granada
-Granada CF,Granada
-Huesca,SD Huesca
-SD Huesca,SD Huesca
-Ibiza,Ibiza
-UD Ibiza,Ibiza
-Las Palmas,Las Palmas
-UD Las Palmas,Las Palmas
-Leganés,Leganés
-Leganes,Leganés
-CD Leganés,Leganés
-Levante,Levante
-Levante UD,Levante
-Logroñés,Logroñés
-UD Logroñés,Logroñés
-Lorca,Lorca
-Lorca FC,Lorca
-Lugo,Lugo
-CD Lugo,Lugo
-Málaga,Malaga
-Malaga,Malaga
-Málaga CF,Malaga
-Malaga CF,Malaga
-Mallorca,Mallorca
-RCD Mallorca,Mallorca
-Mirandés,Mirandés
-Mirandes,Mirandés
-CD Mirandés,Mirandés
-Nàstic,Gimnàstic
-Gimnàstic,Gimnàstic
-Gimnàstic de Tarragona,Gimnàstic
-Nàstic de Tarragona,Gimnàstic
-Numancia,Numancia
-CD Numancia,Numancia
-Osasuna,Osasuna
-CA Osasuna,Osasuna
-Oviedo,Oviedo
-Real Oviedo,Oviedo
-Ponferradina,Ponferradina
-SD Ponferradina,Ponferradina
-Racing Ferrol,Racing Ferrol
-Racing Santander,Racing Santander
-Racing de Santander,Racing Santander
-Rayo Vallecano,Rayo Vallecano
-Rayo-Vallecano,Rayo Vallecano
-Real Betis,Real Betis
-Real-Betis,Real Betis
-Real Madrid,Real Madrid
-Real-Madrid,Real Madrid
-Real Sociedad,Real Sociedad
-Real-Sociedad,Real Sociedad
-Real Valladolid,Real Valladolid
-Valladolid,Real Valladolid
-Reus,Reus
-CF Reus Deportiu,Reus
-Reus Deportiu,Reus
-Sabadell,Sabadell
-CE Sabadell,Sabadell
-Sevilla,Sevilla
-Sevilla FC,Sevilla
-Sporting Gijón,Sporting Gijón
-Sporting de Gijón,Sporting Gijón
-Tenerife,Tenerife
-CD Tenerife,Tenerife
-Valencia,Valencia
-Valencia CF,Valencia
-Villarreal,Villarreal
-Villarreal CF,Villarreal
-Villarreal B,Villarreal B
-Zaragoza,Zaragoza
-Real Zaragoza,Zaragoza
-Alessandria,Alessandria
-US Alessandria,Alessandria
-Ascoli,Ascoli
-Ascoli Calcio,Ascoli
-itAscoli,Ascoli
-Atalanta,Atalanta
-Atalanta BC,Atalanta
-Avellino,Avellino
-US Avellino,Avellino
-Bari,Bari
-SSC Bari,Bari
-itBari,Bari
-Benevento,Benevento
-Benevento Calcio,Benevento
-Bologna,Bologna
-Bologna FC,Bologna
-Brescia,Brescia
-Brescia Calcio,Brescia
-itBrescia,Brescia
-Cagliari,Cagliari
-Cagliari Calcio,Cagliari
-Carpi,Carpi
-Carpi FC,Carpi
-Carrarese,Carrarese
-Carrarese Calcio,Carrarese
-Catanzaro,Catanzaro
-US Catanzaro,Catanzaro
-Cesena,Cesena
-AC Cesena,Cesena
-Chievo,Chievo
-Chievo Verona,Chievo
-Cittadella,Cittadella
-AS Cittadella,Cittadella
-Como,Como
-Como 1907,Como
-Cosenza,Cosenza
-Cosenza Calcio,Cosenza
-Cremonese,Cremonese
-US Cremonese,Cremonese
-Crotone,Crotone
-FC Crotone,Crotone
-Empoli,Empoli
-Empoli FC,Empoli
-Entella,Entella
-Virtus Entella,Entella
-Feralpisalò,Feralpisalò
-Feralpisalo,Feralpisalò
-Fiorentina,Fiorentina
-ACF Fiorentina,Fiorentina
-Foggia,Foggia
-Foggia Calcio,Foggia
-Frosinone,Frosinone
-Frosinone Calcio,Frosinone
-Genoa,Genoa
-Genoa CFC,Genoa
-Hellas Verona,Hellas Verona
-Hellas-Verona,Hellas Verona
-Verona,Hellas Verona
-Internazionale,Internazionale
-Inter,Internazionale
-Inter Milan,Internazionale
-Juventus,Juventus
-Juventus FC,Juventus
-Lazio,Lazio
-SS Lazio,Lazio
-Lecce,Lecce
-US Lecce,Lecce
-Lecco,Lecco
-Calcio Lecco,Lecco
-Livorno,Livorno
-AS Livorno,Livorno
-Mantova,Mantova
-Mantova 1911,Mantova
-Milan,Milan
-AC Milan,Milan
-Modena,Modena
-Modena FC,Modena
-Monza,Monza
-AC Monza,Monza
-Napoli,Napoli
-SSC Napoli,Napoli
-Novara,Novara
-Novara Calcio,Novara
-Padova,Padova
-Calcio Padova,Padova
-Palermo,Palermo
-Palermo FC,Palermo
-US Città di Palermo,Palermo
-Parma,Parma
-Parma Calcio,Parma
-Parma Calcio 1913,Parma
-Perugia,Perugia
-AC Perugia,Perugia
-Pescara,Pescara
-Delfino Pescara,Pescara
-Pisa,Pisa
-AC Pisa,Pisa
-Pisa SC,Pisa
-Pordenone,Pordenone
-Pordenone Calcio,Pordenone
-Pro Vercelli,Pro Vercelli
-FC Pro Vercelli,Pro Vercelli
-Reggiana,Reggiana
-AC Reggiana,Reggiana
-Reggina,Reggina
-Reggina 1914,Reggina
-Roma,Roma
-AS Roma,Roma
-Salernitana,Salernitana
-US Salernitana,Salernitana
-Sampdoria,Sampdoria
-UC Sampdoria,Sampdoria
-Sassuolo,Sassuolo
-US Sassuolo,Sassuolo
-SPAL,SPAL 2013
-SPAL 2013,SPAL 2013
-Spezia,Spezia
-Spezia Calcio,Spezia
-Sudtirol,Sudtirol
-Südtirol,Sudtirol
-Ternana,Ternana
-Ternana Calcio,Ternana
-Torino,Torino
-Torino FC,Torino
-Trapani,Trapani
-Trapani Calcio,Trapani
-Udinese,Udinese
-Udinese Calcio,Udinese
-Venezia,Venezia
-Venezia FC,Venezia
-Vicenza,Vicenza
-LR Vicenza,Vicenza
-Ajax,Ajax
-nlAjax,Ajax
-PSV,PSV
-nlPSV,PSV
-Feyenoord,Feyenoord
-nlFeyenoord,Feyenoord
-Porto,Porto
-ptPorto,Porto
-Benfica,Benfica
-ptBenfica,Benfica
-Sporting CP,Sporting CP
-ptSporting CP,Sporting CP
-AZ Alkmaar,AZ Alkmaar
-nlAZ Alkmaar,AZ Alkmaar
-Twente,Twente
-nlTwente,Twente
-Utrecht,Utrecht
-nlUtrecht,Utrecht
-Braga,Braga
-ptBraga,Braga
-Vitória Guimarães,Vitória Guimarães
-ptVitória Guimarães,Vitória Guimarães
-Celtic,Celtic
-sctCeltic,Celtic
-Rangers,Rangers
-sctRangers,Rangers
-Aberdeen,Aberdeen
-sctAberdeen,Aberdeen
-Hearts,Hearts
-sctHearts,Hearts
-Club Brugge,Club Brugge
-beClub Brugge,Club Brugge
-Anderlecht,Anderlecht
-beAnderlecht,Anderlecht
-Union SG,Union SG
-beUnion SG,Union SG
-Genk,Genk
-beGenk,Genk
-Gent,Gent
-beGent,Gent
-Galatasaray,Galatasaray
-trGalatasaray,Galatasaray
-Fenerbahce,Fenerbahce
-trFenerbahce,Fenerbahce
-Besiktas,Besiktas
-trBesiktas,Besiktas
-RB Salzburg,RB Salzburg
-atRB Salzburg,RB Salzburg
-Sturm Graz,Sturm Graz
-atSturm Graz,Sturm Graz
-Olympiacos,Olympiacos
-grOlympiacos,Olympiacos
-PAOK,PAOK
-grPAOK,PAOK
-Panathinaikos,Panathinaikos
-grPanathinaikos,Panathinaikos
-Bodø/Glimt,Bodø/Glimt
-noBodø/Glimt,Bodø/Glimt
-Molde,Molde
-noMolde,Molde
-Rosenborg,Rosenborg
-noRosenborg,Rosenborg
-Malmö FF,Malmö FF
-seMalmö FF,Malmö FF
-FC Copenhagen,FC Copenhagen
-dkFC Copenhagen,FC Copenhagen
-rsRed Star,Red Star
-Partizan,Partizan
-rsPartizan,Partizan
-Dinamo Zagreb,Dinamo Zagreb
-hrDinamo Zagreb,Dinamo Zagreb
-Shakhtar Donetsk,Shakhtar Donetsk
-uaShakhtar Donetsk,Shakhtar Donetsk
-Dynamo Kyiv,Dynamo Kyiv
-uaDynamo Kyiv,Dynamo Kyiv
-Sheriff Tiraspol,Sheriff Tiraspol
-mdFC Sheriff Tiraspol,Sheriff Tiraspol
-Sparta Prague,Sparta Prague
-czSparta Prague,Sparta Prague
-Slavia Prague,Slavia Prague
-czSlavia Prague,Slavia Prague
-Elversberg,SV Elversberg
-SV Elversberg,SV Elversberg
-deSV Elversberg,SV Elversberg
-Juve Stabia,Juve Stabia
-SS Juve Stabia,Juve Stabia
-itJuve Stabia,Juve Stabia
-Osnabrück,VfL Osnabrück
-Osnabruck,VfL Osnabrück
-VfL Osnabrück,VfL Osnabrück
-deVfL Osnabrück,VfL Osnabrück
-Wigan Athletic,Wigan
-Wigan,Wigan
-enWigan Athletic,Wigan
-atAustria Wien,Austria Wien
-atLASK,LASK
-atRapid Wien,Rapid Wien
-atWolfsberger AC,Wolfsberger AC
-beAntwerp,Antwerp
-beStandard Liège,Standard Liège
-beZulte Waregem,Zulte Waregem
-chBasel,FC Basel
-chYoung Boys,Young Boys
-chZürich,FC Zürich
-chServette FC,Servette FC
-chSt. Gallen,St. Gallen
-chLuzern,Luzern
-trBeşiktaş,Beşiktaş
-trFenerbahçe,Fenerbahçe
-trTrabzonspor,Trabzonspor
-trBaşakşehir,İstanbul Başakşehir
-nlGo Ahead Eagles,Go Ahead Eagles
-nlVitesse,Vitesse
-czViktoria Plzeň,Viktoria Plzeň
-czSlovan Liberec,Slovan Liberec
-czJablonec,FK Jablonec
-dkBrøndby,Brøndby IF
-dkMidtjylland,FC Midtjylland
-plLegia Warsaw,Legia Warsaw
-plLech Poznań,Lech Poznań
-huFerencváros,Ferencváros
-roFCSB,FCSB
-azQarabağ,Qarabağ FK
-bgLudogorets Razgrad,Ludogorets
-uaZorya Luhansk,Zorya Luhansk
-ruCSKA Moscow,CSKA Moscow
-ruZenit,Zenit Saint Petersburg
-alKukësi,FK Kukësi
-baSarajevo,FK Sarajevo
-baZrinjski Mostar,Zrinjski Mostar
-bgCSKA Sofia,CSKA Sofia
-bgLevski Sofia,Levski Sofia
-bgLokomotiv Plovdiv,Lokomotiv Plovdiv
-hrHajduk Split,Hajduk Split
-hrRijeka,HNK Rijeka
-rsTSC,TSC Bačka Topola
-rsČukarički,FK Čukarički
-xkKF Drita,KF Drita
-ruKrasnodar,FK Krasnodar
-ruLoko Moscow,Lokomotiv Moscow
-ruSpartak Moscow,Spartak Moscow
-uaDesna Chernihiv,Desna Chernihiv
-uaFC Oleksandriya,FC Oleksandriya
-uaFC Polissya Zhytomyr,Polissya Zhytomyr
-uaKryvbas,Kryvbas Kryvyi Rih
-uaVorskla Poltava,Vorskla Poltava
-byBATE Borisov,BATE Borisov
-byFC Neman Grodno,Neman Grodno
-byShakhtyor,Shakhtyor Soligorsk
-kzFC Astana,FC Astana
-kzFC Kairat,FC Kairat
-dkSilkeborg,Silkeborg IF
-dkViborg,Viborg FF
-noBrann,SK Brann
-noFredrikstad,Fredrikstad FK
-seBK Häcken,BK Häcken
-seDjurgården,Djurgårdens IF
-seElfsborg,IF Elfsborg
-seMalmö,Malmö FF
-seÖstersund,Östersunds FK
-fiHJK Helsinki,HJK Helsinki
-fiKuPS,KuPS
-eeFC Flora,FC Flora
-ltŽalgiris,FK Žalgiris
-lvFK Rīgas Futbola skola,RFS
-foKÍ Klaksvík,KÍ Klaksvík
-cyAC Omonia,Omonia Nicosia
-cyAEK Larnaca FC,AEK Larnaca
-cyAPOEL FC,APOEL FC
-cyApollon Limassol,Apollon Limassol
-cyAris Limassol FC,Aris Limassol
-cyPafos FC,Pafos FC
-ilMaccabi Haifa,Maccabi Haifa
-ilMaccabi Tel Aviv FC,Maccabi Tel Aviv
-ilHapoel Be'er Sheva FC,Hapoel Be'er Sheva
-ilHapoel Haifa FC,Hapoel Haifa
-grAEK Athens,AEK Athens
-chLausanne-Sport,Lausanne-Sport
-czMladá Boleslav,Mladá Boleslav
-czSigma Olomouc,Sigma Olomouc
-czSlovácko,FC Slovácko
-skSlovan Bratislava,Slovan Bratislava
-skRužomberok,MFK Ružomberok
-huDebrecen,Debreceni VSC
-huPuskás Akadémia,Puskás Akadémia
-huVidi,MOL Fehérvár
-huÚjpest,Újpest FC
-roCFR Cluj,CFR Cluj
-roCS U Craiova,Universitatea Craiova
-roDinamo București,Dinamo București
-plJagiellonia,Jagiellonia Białystok
-plRaków,Raków Częstochowa
-trAkhisarspor,Akhisarspor
-trKonyaspor,Konyaspor
-trSamsunspor,Samsunspor
-trSivasspor,Sivasspor
-ieDundalk FC,Dundalk
-ieShamrock Rovers,Shamrock Rovers
-ieShelbourne FC,Shelbourne
-isBreiðablik,Breiðablik
-isStjarnan,Stjarnan
-luF91 Dudelange,F91 Dudelange
-nirCrusaders FC,Crusaders
-wlsThe New Saints FC,TNS
-liVaduz,FC Vaduz
-beOostende,KV Oostende
-ptPaços de Ferreira,Paços de Ferreira
-ptRio Ave,Rio Ave
-sctHibernian,Hibernian
-amFC Noah,FC Noah
-amPyunik,Pyunik Yerevan
-FC Südtirol,FC Südtirol
-Karlsruher,Karlsruhe
-Sheffield Weds,Sheffield Wednesday
-Stade Laval,Laval
-Grenoble Foot,Grenoble
-Celta,Celta Vigo
-Ath Bilbao,Athletic Club
-Ath Madrid,Atlético Madrid
-Betis,Real Betis
-Sociedad,Real Sociedad
-Espanol,Espanyol
-La Coruna,Deportivo La Coruna
-Vallecano,Rayo Vallecano
-Almeria,Almería
-Ein Frankfurt,Eintracht Frankfurt
-Hamburg,Hamburger SV
-Dusseldorf,Fortuna Duesseldorf
-Greuther Furth,Greuther Fürth
-Leipzig,RB Leipzig
-St Etienne,Saint-Étienne
-Spal,SPAL 2013
-AC Chievo Verona,Chievo
-AC Perugia Calcio,Perugia
-AC Pisa 1909,Pisa
-AC Reggiana 1919,Reggiana
-Ascoli Picchio,Ascoli
-Brescia Calcio (- 2025),Brescia
-Calcio Lecco 1912,Lecco
-Carpi FC 1909,Carpi
-Carrarese Calcio 1908,Carrarese
-Cesena FC,Cesena
-Delfino Pescara 1936,Pescara
-FC Bari 1908,Bari
-FC Bologna,Bologna
-FC Empoli,Empoli
-FC Pro Vercelli 1892,Pro Vercelli
-Juventus Turin,Juventus
-Lazio Rome,Lazio
-Novara Calcio 1908,Novara
-Palerme FC,Palermo
-Pisa Sporting Club,Pisa
-Ternana Unicusano Calcio,Ternana
-US Alessandria Calcio 1912,Alessandria
-US Avellino 1912,Avellino
-US Palermo,Palermo
-US Salernitana 1919,Salernitana
-AS Nancy-Lorraine,Nancy
-Chamois Niortais FC,Niort
-Clermont Foot 63,Clermont Foot
-FC Annecy,Annecy
-Football Bourg-en-Bresse Péronnas 01,Bourg-en-Bresse
-Le Mans FC,Le Mans
-Montpellier Hérault SC,Montpellier
-Quevilly - Rouen Métropole,Quevilly Rouen
-Quevilly Rouen Métropole,Quevilly Rouen
-RC Strasbourg Alsace,Strasbourg
-Stade Rennais FC,Rennes
-Atlético de Madrid,Atlético Madrid
-CE Sabadell FC,Sabadell
-CF Rayo Majadahonda,Rayo Majadahonda
-Espanyol Barcelona,Espanyol
-FC Barcelona B,Barcelona B
-FC Barcelone,Barcelona
-FC Córdoba,Córdoba
-FC Getafe,Getafe
-FC Granada,Granada
-FC Valencia,Valencia
-Racing de Ferrol,Racing Ferrol
-Real Betis Balompié,Real Betis
-Real Sociedad B,Real Sociedad B
-Sevilla Atlético,Sevilla B
-Séville FC,Sevilla
-UD Levante,Levante
-Villarreal CF B,Villarreal B
-AFC Sunderland,Sunderland
-Arsenal FC,Arsenal
-Barnsley FC,Barnsley
-Blackpool FC,Blackpool
-Burnley FC,Burnley
-Chelsea FC,Chelsea
-FC Brentford,Brentford
-FC Everton,Everton
-FC Fulham,Fulham
-FC Liverpool,Liverpool
-FC Millwall,Millwall
-FC Portsmouth,Portsmouth
-FC Reading,Reading
-FC Southampton,Southampton
-FC Watford,Watford
-Middlesbrough FC,Middlesbrough
-1.FC Heidenheim 1846,FC Heidenheim
-1.FC Kaiserslautern,Kaiserslautern
-1.FC Magdeburg,1. FC Magdeburg
-1.FC Nürnberg,Nuernberg
-1.FC Union Berlin,Union Berlin
-1.FSV Mainz 05,Mainz 05
-Bayer 04 Leverkusen,Bayer Leverkusen
-Eintracht Francfort,Eintracht Frankfurt
-FC Erzgebirge Aue,Erzgebirge Aue
-FC Hansa Rostock,Hansa Rostock
-FC Ingolstadt 04,Ingolstadt 04
-FC Schalke 04,Schalke 04
-SC Fribourg,Freiburg
-SC Paderborn 07,Paderborn
-SG Dynamo Dresden,Dynamo Dresden
-SSV Jahn Regensburg,Jahn Regensburg
-SSV Ulm 1846,Ulm
-SV 07 Elversberg,SV Elversberg
-SV Darmstadt 98,Darmstadt 98
-SV Sandhausen,Sandhausen
-SV Wehen Wiesbaden,Wehen Wiesbaden
-SV Werder Bremen,Werder Bremen
-SpVgg Greuther Fürth,Greuther Fürth
+alias,club_name,team_id
+Ajaccio,Ajaccio,202606100007
+AC Ajaccio,Ajaccio,202606100007
+Gazélec Ajaccio,Ajaccio,202606100007
+Gazelec Ajaccio,Ajaccio,202606100007
+GFC Ajaccio,Ajaccio,202606100007
+Amiens,Amiens,202606100014
+Amiens SC,Amiens,202606100014
+Angers,Angers,202606100018
+Angers SCO,Angers,202606100018
+Annecy,Annecy,202606100019
+Annecy FC,Annecy,202606100019
+Auxerre,Auxerre,202606100032
+AJ Auxerre,Auxerre,202606100032
+Bastia,Bastia,202606100040
+SC Bastia,Bastia,202606100040
+frBastia,Bastia,202606100040
+Béziers,Béziers,202606100070
+AS Béziers,Béziers,202606100070
+Bordeaux,Bordeaux,202606100054
+FC Girondins de Bordeaux,Bordeaux,202606100054
+Girondins de Bordeaux,Bordeaux,202606100054
+Brest,Brest,202606100063
+Stade Brestois,Brest,202606100063
+Stade Brestois 29,Brest,202606100063
+Caen,Caen,202606100074
+SM Caen,Caen,202606100074
+Chambly,Chambly,202606100085
+FC Chambly Oise,Chambly,202606100085
+Châteauroux,Châteauroux,202606100089
+LB Châteauroux,Châteauroux,202606100089
+Berrichonne de Châteauroux,Châteauroux,202606100089
+Clermont Foot,Clermont Foot,202606100091
+Clermont,Clermont Foot,202606100091
+Concarneau,Concarneau,202606100094
+US Concarneau,Concarneau,202606100094
+Dijon,Dijon,202606100110
+Dijon FCO,Dijon,202606100110
+Dunkerque,Dunkerque,202606100115
+USL Dunkerque,Dunkerque,202606100115
+Grenoble,Grenoble,202606100173
+Grenoble Foot 38,Grenoble,202606100173
+Guingamp,Guingamp,202606100175
+EA Guingamp,Guingamp,202606100175
+Laval,Laval,202606100212
+Stade Lavallois,Laval,202606100212
+Le Havre,Le Havre,202606100214
+Le Havre AC,Le Havre,202606100214
+HAC,Le Havre,202606100214
+Lens,Lens,202606100223
+RC Lens,Lens,202606100223
+Lille,Lille,202606100226
+LOSC,Lille,202606100226
+LOSC Lille,Lille,202606100226
+Lorient,Lorient,202606100233
+FC Lorient,Lorient,202606100233
+Lyon,Lyon,202606100238
+Olympique Lyonnais,Lyon,202606100238
+OL,Lyon,202606100238
+Marseille,Olympique de Marseille,202606100277
+Olympique de Marseille,Olympique de Marseille,202606100277
+Olympique-Marseille,Olympique de Marseille,202606100277
+OM,Olympique de Marseille,202606100277
+Martigues,Martigues,202606100251
+FC Martigues,Martigues,202606100251
+Metz,Metz,202606100252
+FC Metz,Metz,202606100252
+Monaco,Monaco,202606100260
+AS Monaco,Monaco,202606100260
+Montpellier,Montpellier,202606100261
+Montpellier HSC,Montpellier,202606100261
+Nancy,Nancy,202606100263
+AS Nancy Lorraine,Nancy,202606100263
+Nantes,Nantes,202606100264
+FC Nantes,Nantes,202606100264
+Nice,Nice,202606100268
+OGC Nice,Nice,202606100268
+Nîmes,Nimes,202606100269
+Nimes,Nimes,202606100269
+Nîmes Olympique,Nimes,202606100269
+Niort,Niort,202606100270
+Chamois Niortais,Niort,202606100270
+Orléans,Orléans,202606100279
+US Orléans,Orléans,202606100279
+Paris FC,Paris FC,202606100290
+Paris-FC,Paris FC,202606100290
+Paris Saint-Germain,Paris Saint-Germain,202606100291
+PSG,Paris Saint-Germain,202606100291
+Paris SG,Paris Saint-Germain,202606100291
+Paris-Saint-Germain,Paris Saint-Germain,202606100291
+Pau,Pau,202606100294
+Pau FC,Pau,202606100294
+Quevilly-Rouen,Quevilly-Rouen,202606100314
+Quevilly,Quevilly-Rouen,202606100314
+Quevilly-Rouen Métropole,Quevilly-Rouen,202606100314
+Red Star,Red Star,202606100331
+Red Star FC,Red Star,202606100331
+Reims,Reims,202606100334
+Stade de Reims,Reims,202606100334
+Rennes,Rennes,202606100335
+Stade Rennais,Rennes,202606100335
+Rodez,Rodez,202606100338
+Rodez AF,Rodez,202606100338
+Saint-Étienne,Saint-Étienne,202606100347
+Saint-Etienne,Saint-Étienne,202606100347
+AS Saint-Étienne,Saint-Étienne,202606100347
+AS Saint-Etienne,Saint-Étienne,202606100347
+Sochaux,Sochaux,202606100370
+FC Sochaux-Montbéliard,Sochaux,202606100370
+Strasbourg,Strasbourg,202606100382
+RC Strasbourg,Strasbourg,202606100382
+Toulouse,Toulouse,202606100393
+Toulouse FC,Toulouse,202606100393
+Tours,Tours,202606100394
+Tours FC,Tours,202606100394
+Troyes,Troyes,202606100397
+ESTAC Troyes,Troyes,202606100397
+Valenciennes,Valenciennes,202606100406
+Valenciennes FC,Valenciennes,202606100406
+Arsenal,Arsenal,202606100024
+Aston Villa,Aston Villa,202606100026
+Aston-Villa,Aston Villa,202606100026
+Barnsley,Barnsley,202606100039
+enBarnsley,Barnsley,202606100039
+Birmingham City,Birmingham City,202606100047
+Birmingham,Birmingham City,202606100047
+enBirmingham City,Birmingham City,202606100047
+Blackburn Rovers,Blackburn,202606100048
+Blackburn,Blackburn,202606100048
+Blackpool,Blackpool,202606100049
+Bolton Wanderers,Bolton,202606100053
+Bolton,Bolton,202606100053
+Bournemouth,Bournemouth,202606100058
+AFC Bournemouth,Bournemouth,202606100058
+Brentford,Brentford,202606100061
+Brighton & Hove Albion,Brighton & Hove Albion,202606100064
+Brighton,Brighton & Hove Albion,202606100064
+Brighton and Hove Albion,Brighton & Hove Albion,202606100064
+Brighton-and-Hove-Albion,Brighton & Hove Albion,202606100064
+Bristol City,Bristol City,202606100065
+Bristol,Bristol City,202606100065
+Burnley,Burnley,202606100068
+Burton Albion,Burton Albion,202606100069
+Burton,Burton Albion,202606100069
+Cardiff City,Cardiff City,202606100076
+Cardiff,Cardiff City,202606100076
+Charlton Athletic,Charlton,202606100086
+Charlton,Charlton,202606100086
+Chelsea,Chelsea,202606100087
+Coventry City,Coventry City,202606100096
+Coventry,Coventry City,202606100096
+Crystal Palace,Crystal Palace,202606100100
+Crystal-Palace,Crystal Palace,202606100100
+Derby County,Derby County,202606100108
+Derby,Derby County,202606100108
+Everton,Everton,202606100127
+Fulham,Fulham,202606100163
+Huddersfield Town,Huddersfield,202606100190
+Huddersfield,Huddersfield,202606100190
+Hull City,Hull City,202606100191
+Hull,Hull City,202606100191
+Ipswich Town,Ipswich Town,202606100196
+Ipswich,Ipswich Town,202606100196
+Leeds United,Leeds United,202606100219
+Leeds,Leeds United,202606100219
+Leeds-United,Leeds United,202606100219
+Leicester City,Leicester City,202606100222
+Leicester,Leicester City,202606100222
+Liverpool,Liverpool,202606100227
+Luton Town,Luton,202606100236
+Luton,Luton,202606100236
+Manchester City,Manchester City,202606100248
+Man City,Manchester City,202606100248
+Man-City,Manchester City,202606100248
+Manchester United,Manchester United,202606100249
+Man United,Manchester United,202606100249
+Man-Utd,Manchester United,202606100249
+Man Utd,Manchester United,202606100249
+Manchester Utd,Manchester United,202606100249
+Middlesbrough,Middlesbrough,202606100253
+Boro,Middlesbrough,202606100253
+Millwall,Millwall,202606100255
+Millwall FC,Millwall,202606100255
+Newcastle United,Newcastle United,202606100267
+Newcastle,Newcastle United,202606100267
+Newcastle-United,Newcastle United,202606100267
+Norwich City,Norwich City,202606100271
+Norwich,Norwich City,202606100271
+Nottingham Forest,Nottingham Forest,202606100272
+Nott'm Forest,Nottingham Forest,202606100272
+Nottingham-Forest,Nottingham Forest,202606100272
+Oxford United,Oxford United,202606100282
+Oxford,Oxford United,202606100282
+Peterborough United,Peterborough,202606100298
+Peterborough,Peterborough,202606100298
+Plymouth Argyle,Plymouth Argyle,202606100300
+Plymouth,Plymouth Argyle,202606100300
+Portsmouth,Portsmouth,202606100305
+Preston North End,Preston North End,202606100306
+Preston,Preston North End,202606100306
+Queens Park Rangers,QPR,202606100311
+QPR,QPR,202606100311
+Reading,Reading,202606100325
+Reading FC,Reading,202606100325
+Rotherham United,Rotherham,202606100341
+Rotherham,Rotherham,202606100341
+Sheffield United,Sheffield United,202606100360
+Sheff Utd,Sheffield United,202606100360
+Sheffield Utd,Sheffield United,202606100360
+Sheffield Wednesday,Sheffield Wednesday,202606100361
+Southampton,Southampton,202606100371
+Stoke City,Stoke,202606100381
+Stoke-City,Stoke,202606100381
+Stoke,Stoke,202606100381
+Sunderland,Sunderland,202606100385
+Sunderland AFC,Sunderland,202606100385
+Swansea City,Swansea,202606100386
+Swansea-City,Swansea,202606100386
+Swansea,Swansea,202606100386
+Tottenham Hotspur,Tottenham Hotspur,202606100392
+Tottenham-Hotspur,Tottenham Hotspur,202606100392
+Tottenham,Tottenham Hotspur,202606100392
+Spurs,Tottenham Hotspur,202606100392
+Watford,Watford,202606100418
+West Bromwich Albion,West Brom,202606100421
+West-Bromwich-Albion,West Brom,202606100421
+West Brom,West Brom,202606100421
+Albion,West Brom,202606100421
+WBA,West Brom,202606100421
+West Ham United,West Ham United,202606100422
+West Ham,West Ham United,202606100422
+West-Ham-United,West Ham United,202606100422
+Wolverhampton Wanderers,Wolves,202606100426
+Wolves,Wolves,202606100426
+Wolverhampton,Wolves,202606100426
+Wolverhampton-Wanderers,Wolves,202606100426
+Wycombe Wanderers,Wycombe,202606100427
+Wycombe,Wycombe,202606100427
+Arminia Bielefeld,Arminia Bielefeld,202606100023
+Arminia-Bielefeld,Arminia Bielefeld,202606100023
+Arminia,Arminia Bielefeld,202606100023
+Bielefeld,Arminia Bielefeld,202606100023
+Augsburg,Augsburg,202606100030
+FC Augsburg,Augsburg,202606100030
+Bayer Leverkusen,Bayer Leverkusen,202606100041
+Leverkusen,Bayer Leverkusen,202606100041
+Bayern München,Bayern München,202606100042
+Bayern Munich,Bayern München,202606100042
+Bayern,Bayern München,202606100042
+Bayern-Munich,Bayern München,202606100042
+deBayern Munich,Bayern München,202606100042
+Bochum,Bochum,202606100050
+VfL Bochum,Bochum,202606100050
+Borussia Dortmund,Borussia Dortmund,202606100055
+Dortmund,Borussia Dortmund,202606100055
+BVB,Borussia Dortmund,202606100055
+deDortmund,Borussia Dortmund,202606100055
+Borussia Mönchengladbach,Borussia Mönchengladbach,202606100056
+Borussia Monchengladbach,Borussia Mönchengladbach,202606100056
+Monchengladbach,Borussia Mönchengladbach,202606100056
+Borussia M.Gladbach,Borussia Mönchengladbach,202606100056
+M'Gladbach,Borussia Mönchengladbach,202606100056
+Gladbach,Borussia Mönchengladbach,202606100056
+Darmstadt 98,Darmstadt 98,202606100104
+Darmstadt,Darmstadt 98,202606100104
+SV Darmstadt,Darmstadt 98,202606100104
+Dynamo Dresden,Dynamo Dresden,202606100116
+Dresden,Dynamo Dresden,202606100116
+Eintracht Frankfurt,Eintracht Frankfurt,202606100120
+Eintracht-Frankfurt,Eintracht Frankfurt,202606100120
+Frankfurt,Eintracht Frankfurt,202606100120
+Eintracht Braunschweig,Eintracht Braunschweig,202606100119
+Braunschweig,Eintracht Braunschweig,202606100119
+BTSV,Braunschweig,202606100119
+Erzgebirge Aue,Erzgebirge Aue,202606100125
+Aue,Erzgebirge Aue,202606100125
+FC Cologne,FC Cologne,202606100132
+FC Köln,FC Cologne,202606100132
+Köln,FC Cologne,202606100132
+1.FC Köln,FC Cologne,202606100132
+Koln,FC Cologne,202606100132
+FC Koln,FC Cologne,202606100132
+Fortuna Duesseldorf,Fortuna Duesseldorf,202606100158
+Fortuna Düsseldorf,Fortuna Duesseldorf,202606100158
+Fortuna Dusseldorf,Fortuna Duesseldorf,202606100158
+Düsseldorf,Fortuna Duesseldorf,202606100158
+Freiburg,Freiburg,202606100160
+SC Freiburg,Freiburg,202606100160
+Greuther Fürth,Greuther Fürth,202606100174
+Greuther Fuerth,Greuther Fürth,202606100174
+Fürth,Greuther Fürth,202606100174
+Hamburger SV,Hamburger SV,202606100179
+HSV,Hamburger SV,202606100179
+Hamburger-SV,Hamburger SV,202606100179
+deHamburger SV,Hamburger SV,202606100179
+Hannover 96,Hannover 96,202606100180
+Hannover,Hannover 96,202606100180
+FC Heidenheim,FC Heidenheim,202606100135
+Heidenheim,FC Heidenheim,202606100135
+1. FC Heidenheim,FC Heidenheim,202606100135
+Hertha Berlin,Hertha Berlin,202606100186
+Hertha BSC,Hertha Berlin,202606100186
+Hertha,Hertha Berlin,202606100186
+Hoffenheim,Hoffenheim,202606100188
+TSG Hoffenheim,Hoffenheim,202606100188
+TSG 1899 Hoffenheim,Hoffenheim,202606100188
+Holstein Kiel,Holstein Kiel,202606100189
+Kiel,Holstein Kiel,202606100189
+Ingolstadt 04,Ingolstadt 04,202606100194
+FC Ingolstadt,Ingolstadt 04,202606100194
+Ingolstadt,Ingolstadt 04,202606100194
+Jahn Regensburg,Jahn Regensburg,202606100198
+Regensburg,Jahn Regensburg,202606100198
+Kaiserslautern,Kaiserslautern,202606100203
+1. FC Kaiserslautern,Kaiserslautern,202606100203
+Karlsruhe,Karlsruhe,202606100204
+Karlsruher SC,Karlsruhe,202606100204
+Magdeburg,1. FC Magdeburg,202606100001
+1. FC Magdeburg,1. FC Magdeburg,202606100001
+Mainz 05,Mainz 05,202606100244
+Mainz,Mainz 05,202606100244
+1. FSV Mainz 05,Mainz 05,202606100244
+Mainz-05,Mainz 05,202606100244
+MSV Duisburg,MSV Duisburg,202606100241
+Duisburg,MSV Duisburg,202606100241
+Nuernberg,Nuernberg,202606100274
+Nürnberg,Nuernberg,202606100274
+Nurnberg,Nuernberg,202606100274
+1. FC Nürnberg,Nuernberg,202606100274
+Paderborn 07,Paderborn,202606100285
+Paderborn,Paderborn,202606100285
+SC Paderborn,Paderborn,202606100285
+Paderborn-07,Paderborn,202606100285
+Preußen Münster,Preußen Münster,202606100307
+Munster,Preußen Münster,202606100307
+RB Leipzig,RB Leipzig,202606100315
+RasenBallsport Leipzig,RB Leipzig,202606100315
+RB-Leipzig,RB Leipzig,202606100315
+RBL,RB Leipzig,202606100315
+Rostock,Hansa Rostock,202606100181
+Hansa Rostock,Hansa Rostock,202606100181
+Schalke 04,Schalke 04,202606100353
+Schalke,Schalke 04,202606100353
+SSV Ulm,Ulm,202606100400
+St. Pauli,St. Pauli,202606100378
+FC St. Pauli,St. Pauli,202606100378
+St-Pauli,St. Pauli,202606100378
+Stuttgart,VfB Stuttgart,202606100408
+VfB Stuttgart,VfB Stuttgart,202606100408
+Union Berlin,Union Berlin,202606100401
+1. FC Union Berlin,Union Berlin,202606100401
+Union-Berlin,Union Berlin,202606100401
+Wehen Wiesbaden,Wehen Wiesbaden,202606100419
+Wiesbaden,Wehen Wiesbaden,202606100419
+Werder Bremen,Werder Bremen,202606100420
+Werder-Bremen,Werder Bremen,202606100420
+Wolfsburg,Wolfsburg,202606100425
+VfL Wolfsburg,Wolfsburg,202606100425
+Würzburger Kickers,Würzburger Kickers,202606100428
+Würzburg,Würzburger Kickers,202606100428
+Wurzburg,Würzburger Kickers,202606100428
+Albacete,Albacete,202606100010
+Albacete Balompié,Albacete,202606100010
+esAlbacete,Albacete,202606100010
+Alcorcón,Alcorcon,202606100011
+Alcorcon,Alcorcon,202606100011
+AD Alcorcón,Alcorcon,202606100011
+esAlcorcon,Alcorcon,202606100011
+Almería,Almería,202606100013
+UD Almería,Almería,202606100013
+esAlmería,Almería,202606100013
+Amorebieta,Amorebieta,202606100015
+SD Amorebieta,Amorebieta,202606100015
+Andorra,Andorra,202606100017
+Andorra CF,Andorra,202606100017
+FC Andorra,Andorra,202606100017
+Athletic Club,Athletic Club,202606100028
+Athletic Bilbao,Athletic Club,202606100028
+Athletic-Club,Athletic Club,202606100028
+Atlético Madrid,Atlético Madrid,202606100029
+Atletico Madrid,Atlético Madrid,202606100029
+Atletico,Atlético Madrid,202606100029
+Atletico-Madrid,Atlético Madrid,202606100029
+Barcelona,Barcelona,202606100036
+FC Barcelona,Barcelona,202606100036
+Burgos,Burgos,202606100067
+Burgos CF,Burgos,202606100067
+Cádiz,Cádiz,202606100102
+Cadiz,Cádiz,202606100102
+Cádiz CF,Cádiz,202606100102
+Cartagena,Cartagena,202606100079
+FC Cartagena,Cartagena,202606100079
+Castellón,Castellón,202606100080
+CD Castellón,Castellón,202606100080
+Celta Vigo,Celta Vigo,202606100082
+Celta-Vigo,Celta Vigo,202606100082
+Córdoba,Córdoba,202606100103
+Cordoba,Córdoba,202606100103
+Córdoba CF,Córdoba,202606100103
+Cultural Leonesa,Cultural Leonesa,202606100101
+Deportivo La Coruna,Deportivo La Coruna,202606100107
+Deportivo de La Coruña,Deportivo La Coruna,202606100107
+Dep La Coruña,Deportivo La Coruna,202606100107
+Deportivo,Deportivo La Coruna,202606100107
+RC Deportivo,Deportivo La Coruna,202606100107
+Deportivo Alavés,Deportivo Alavés,202606100106
+Alaves,Deportivo Alavés,202606100106
+Deportivo Alaves,Deportivo Alavés,202606100106
+Alavés,Deportivo Alavés,202606100106
+Eibar,Eibar,202606100118
+SD Eibar,Eibar,202606100118
+Elche,Elche,202606100121
+Elche CF,Elche,202606100121
+Eldense,Eldense,202606100122
+CD Eldense,Eldense,202606100122
+Espanyol,Espanyol,202606100126
+RCD Espanyol,Espanyol,202606100126
+Extremadura,Extremadura,202606100128
+Extremadura UD,Extremadura,202606100128
+Fuenlabrada,Fuenlabrada,202606100162
+CF Fuenlabrada,Fuenlabrada,202606100162
+Getafe,Getafe,202606100168
+Getafe CF,Getafe,202606100168
+Girona,Girona,202606100170
+Girona FC,Girona,202606100170
+Granada,Granada,202606100172
+Granada CF,Granada,202606100172
+Huesca,SD Huesca,202606100342
+SD Huesca,SD Huesca,202606100342
+Ibiza,Ibiza,202606100193
+UD Ibiza,Ibiza,202606100193
+Las Palmas,Las Palmas,202606100210
+UD Las Palmas,Las Palmas,202606100210
+Leganés,Leganés,202606100220
+Leganes,Leganés,202606100220
+CD Leganés,Leganés,202606100220
+Levante,Levante,202606100224
+Levante UD,Levante,202606100224
+Logroñés,Logroñés,202606100229
+UD Logroñés,Logroñés,202606100229
+Lorca,Lorca,202606100232
+Lorca FC,Lorca,202606100232
+Lugo,Lugo,202606100235
+CD Lugo,Lugo,202606100235
+Málaga,Malaga,202606100245
+Malaga,Malaga,202606100245
+Málaga CF,Malaga,202606100245
+Malaga CF,Malaga,202606100245
+Mallorca,Mallorca,202606100246
+RCD Mallorca,Mallorca,202606100246
+Mirandés,Mirandés,202606100256
+Mirandes,Mirandés,202606100256
+CD Mirandés,Mirandés,202606100256
+Nàstic,Gimnàstic,202606100169
+Gimnàstic,Gimnàstic,202606100169
+Gimnàstic de Tarragona,Gimnàstic,202606100169
+Nàstic de Tarragona,Gimnàstic,202606100169
+Numancia,Numancia,202606100275
+CD Numancia,Numancia,202606100275
+Osasuna,Osasuna,202606100280
+CA Osasuna,Osasuna,202606100280
+Oviedo,Oviedo,202606100281
+Real Oviedo,Oviedo,202606100281
+Ponferradina,Ponferradina,202606100302
+SD Ponferradina,Ponferradina,202606100302
+Racing Ferrol,Racing Ferrol,202606100318
+Racing Santander,Racing Santander,202606100319
+Racing de Santander,Racing Santander,202606100319
+Racing Sant,Racing Santander,202606100319
+Rayo Vallecano,Rayo Vallecano,202606100324
+Rayo-Vallecano,Rayo Vallecano,202606100324
+Real Betis,Real Betis,202606100326
+Real-Betis,Real Betis,202606100326
+Real Madrid,Real Madrid,202606100327
+Real-Madrid,Real Madrid,202606100327
+Real Sociedad,Real Sociedad,202606100328
+Real-Sociedad,Real Sociedad,202606100328
+Real Valladolid,Real Valladolid,202606100330
+Valladolid,Real Valladolid,202606100330
+Reus,Reus,202606100336
+CF Reus Deportiu,Reus,202606100336
+Reus Deportiu,Reus,202606100336
+Sabadell,Sabadell,202606100346
+CE Sabadell,Sabadell,202606100346
+Sevilla,Sevilla,202606100355
+Sevilla FC,Sevilla,202606100355
+Sporting Gijón,Sporting Gijón,202606100376
+Sporting de Gijón,Sporting Gijón,202606100376
+Tenerife,Tenerife,202606100389
+CD Tenerife,Tenerife,202606100389
+Valencia,Valencia,202606100405
+Valencia CF,Valencia,202606100405
+Villarreal,Villarreal,202606100413
+Villarreal CF,Villarreal,202606100413
+Villarreal B,Villarreal B,202606100414
+Zaragoza,Zaragoza,202606100430
+Real Zaragoza,Zaragoza,202606100430
+Alessandria,Alessandria,202606100012
+US Alessandria,Alessandria,202606100012
+Ascoli,Ascoli,202606100025
+Ascoli Calcio,Ascoli,202606100025
+itAscoli,Ascoli,202606100025
+Atalanta,Atalanta,202606100027
+Atalanta BC,Atalanta,202606100027
+Avellino,Avellino,202606100033
+US Avellino,Avellino,202606100033
+Bari,Bari,202606100038
+SSC Bari,Bari,202606100038
+itBari,Bari,202606100038
+Benevento,Benevento,202606100043
+Benevento Calcio,Benevento,202606100043
+Bologna,Bologna,202606100052
+Bologna FC,Bologna,202606100052
+Brescia,Brescia,202606100062
+Brescia Calcio,Brescia,202606100062
+itBrescia,Brescia,202606100062
+Cagliari,Cagliari,202606100075
+Cagliari Calcio,Cagliari,202606100075
+Carpi,Carpi,202606100077
+Carpi FC,Carpi,202606100077
+Carrarese,Carrarese,202606100078
+Carrarese Calcio,Carrarese,202606100078
+Catanzaro,Catanzaro,202606100081
+US Catanzaro,Catanzaro,202606100081
+Cesena,Cesena,202606100084
+AC Cesena,Cesena,202606100084
+Chievo,Chievo,202606100088
+Chievo Verona,Chievo,202606100088
+Cittadella,Cittadella,202606100090
+AS Cittadella,Cittadella,202606100090
+Como,Como,202606100093
+Como 1907,Como,202606100093
+Cosenza,Cosenza,202606100095
+Cosenza Calcio,Cosenza,202606100095
+Cremonese,Cremonese,202606100097
+US Cremonese,Cremonese,202606100097
+Crotone,Crotone,202606100098
+FC Crotone,Crotone,202606100098
+Empoli,Empoli,202606100123
+Empoli FC,Empoli,202606100123
+Entella,Entella,202606100124
+Virtus Entella,Entella,202606100124
+Feralpisalò,Feralpisalò,202606100153
+Feralpisalo,Feralpisalò,202606100153
+Fiorentina,Fiorentina,202606100156
+ACF Fiorentina,Fiorentina,202606100156
+Foggia,Foggia,202606100157
+Foggia Calcio,Foggia,202606100157
+Frosinone,Frosinone,202606100161
+Frosinone Calcio,Frosinone,202606100161
+Genoa,Genoa,202606100166
+Genoa CFC,Genoa,202606100166
+Hellas Verona,Hellas Verona,202606100185
+Hellas-Verona,Hellas Verona,202606100185
+Verona,Hellas Verona,202606100185
+Internazionale,Internazionale,202606100195
+Inter,Internazionale,202606100195
+Inter Milan,Internazionale,202606100195
+Juventus,Juventus,202606100200
+Juventus FC,Juventus,202606100200
+Lazio,Lazio,202606100213
+SS Lazio,Lazio,202606100213
+Lecce,Lecce,202606100216
+US Lecce,Lecce,202606100216
+Lecco,Lecco,202606100217
+Calcio Lecco,Lecco,202606100217
+Livorno,Livorno,202606100228
+AS Livorno,Livorno,202606100228
+Mantova,Mantova,202606100250
+Mantova 1911,Mantova,202606100250
+Milan,Milan,202606100254
+AC Milan,Milan,202606100254
+Modena,Modena,202606100258
+Modena FC,Modena,202606100258
+Monza,Monza,202606100262
+AC Monza,Monza,202606100262
+Napoli,Napoli,202606100265
+SSC Napoli,Napoli,202606100265
+Novara,Novara,202606100273
+Novara Calcio,Novara,202606100273
+Padova,Padova,202606100286
+Calcio Padova,Padova,202606100286
+Palermo,Palermo,202606100288
+Palermo FC,Palermo,202606100288
+US Città di Palermo,Palermo,202606100288
+Parma,Parma,202606100292
+Parma Calcio,Parma,202606100292
+Parma Calcio 1913,Parma,202606100292
+Perugia,Perugia,202606100296
+AC Perugia,Perugia,202606100296
+Pescara,Pescara,202606100297
+Delfino Pescara,Pescara,202606100297
+Pisa,Pisa,202606100299
+AC Pisa,Pisa,202606100299
+Pisa SC,Pisa,202606100299
+Pordenone,Pordenone,202606100303
+Pordenone Calcio,Pordenone,202606100303
+Pro Vercelli,Pro Vercelli,202606100308
+FC Pro Vercelli,Pro Vercelli,202606100308
+Reggiana,Reggiana,202606100332
+AC Reggiana,Reggiana,202606100332
+Reggina,Reggina,202606100333
+Reggina 1914,Reggina,202606100333
+US Reggina,Reggina,202606100333
+Roma,Roma,202606100339
+AS Roma,Roma,202606100339
+Salernitana,Salernitana,202606100348
+US Salernitana,Salernitana,202606100348
+Sampdoria,Sampdoria,202606100349
+UC Sampdoria,Sampdoria,202606100349
+Sassuolo,Sassuolo,202606100352
+US Sassuolo,Sassuolo,202606100352
+SPAL,SPAL 2013,202606100344
+SPAL 2013,SPAL 2013,202606100344
+Spezia,Spezia,202606100374
+Spezia Calcio,Spezia,202606100374
+Sudtirol,Sudtirol,202606100384
+Südtirol,Sudtirol,202606100384
+Ternana,Ternana,202606100390
+Ternana Calcio,Ternana,202606100390
+Torino,Torino,202606100391
+Torino FC,Torino,202606100391
+Trapani,Trapani,202606100396
+Trapani Calcio,Trapani,202606100396
+Udinese,Udinese,202606100399
+Udinese Calcio,Udinese,202606100399
+Venezia,Venezia,202606100407
+Venezia FC,Venezia,202606100407
+Vicenza,Vicenza,202606100411
+LR Vicenza,Vicenza,202606100411
+Ajax,Ajax,202606100008
+nlAjax,Ajax,202606100008
+PSV,PSV,202606100284
+nlPSV,PSV,202606100284
+Feyenoord,Feyenoord,202606100155
+nlFeyenoord,Feyenoord,202606100155
+Porto,Porto,202606100304
+ptPorto,Porto,202606100304
+Benfica,Benfica,202606100044
+ptBenfica,Benfica,202606100044
+Sporting CP,Sporting CP,202606100375
+ptSporting CP,Sporting CP,202606100375
+AZ Alkmaar,AZ Alkmaar,202606100005
+nlAZ Alkmaar,AZ Alkmaar,202606100005
+Twente,Twente,202606100398
+nlTwente,Twente,202606100398
+Utrecht,Utrecht,202606100404
+nlUtrecht,Utrecht,202606100404
+Braga,Braga,202606100059
+ptBraga,Braga,202606100059
+Vitória Guimarães,Vitória Guimarães,202606100416
+ptVitória Guimarães,Vitória Guimarães,202606100416
+Celtic,Celtic,202606100083
+sctCeltic,Celtic,202606100083
+Rangers,Rangers,202606100321
+sctRangers,Rangers,202606100321
+Aberdeen,Aberdeen,202606100006
+sctAberdeen,Aberdeen,202606100006
+Hearts,Hearts,202606100184
+sctHearts,Hearts,202606100184
+Club Brugge,Club Brugge,202606100092
+beClub Brugge,Club Brugge,202606100092
+Anderlecht,Anderlecht,202606100016
+beAnderlecht,Anderlecht,202606100016
+Union SG,Union SG,202606100402
+beUnion SG,Union SG,202606100402
+Genk,Genk,202606100165
+beGenk,Genk,202606100165
+Gent,Gent,202606100167
+beGent,Gent,202606100167
+Galatasaray,Galatasaray,202606100164
+trGalatasaray,Galatasaray,202606100164
+Fenerbahce,Fenerbahce,202606100151
+trFenerbahce,Fenerbahce,202606100151
+Besiktas,Besiktas,202606100045
+trBesiktas,Besiktas,202606100045
+RB Salzburg,RB Salzburg,202606100316
+atRB Salzburg,RB Salzburg,202606100316
+Sturm Graz,Sturm Graz,202606100383
+atSturm Graz,Sturm Graz,202606100383
+Olympiacos,Olympiacos,202606100276
+grOlympiacos,Olympiacos,202606100276
+PAOK,PAOK,202606100283
+grPAOK,PAOK,202606100283
+Panathinaikos,Panathinaikos,202606100289
+grPanathinaikos,Panathinaikos,202606100289
+Bodø/Glimt,Bodø/Glimt,202606100051
+noBodø/Glimt,Bodø/Glimt,202606100051
+Molde,Molde,202606100259
+noMolde,Molde,202606100259
+Rosenborg,Rosenborg,202606100340
+noRosenborg,Rosenborg,202606100340
+Malmö FF,Malmö FF,202606100247
+seMalmö FF,Malmö FF,202606100247
+FC Copenhagen,FC Copenhagen,202606100133
+dkFC Copenhagen,FC Copenhagen,202606100133
+rsRed Star,Red Star,202606100331
+Partizan,Partizan,202606100293
+rsPartizan,Partizan,202606100293
+Dinamo Zagreb,Dinamo Zagreb,202606100112
+hrDinamo Zagreb,Dinamo Zagreb,202606100112
+Shakhtar Donetsk,Shakhtar Donetsk,202606100357
+uaShakhtar Donetsk,Shakhtar Donetsk,202606100357
+Dynamo Kyiv,Dynamo Kyiv,202606100117
+uaDynamo Kyiv,Dynamo Kyiv,202606100117
+Sheriff Tiraspol,Sheriff Tiraspol,202606100363
+mdFC Sheriff Tiraspol,Sheriff Tiraspol,202606100363
+Sparta Prague,Sparta Prague,202606100372
+czSparta Prague,Sparta Prague,202606100372
+Slavia Prague,Slavia Prague,202606100367
+czSlavia Prague,Slavia Prague,202606100367
+Elversberg,SV Elversberg,202606100345
+SV Elversberg,SV Elversberg,202606100345
+deSV Elversberg,SV Elversberg,202606100345
+Juve Stabia,Juve Stabia,202606100199
+SS Juve Stabia,Juve Stabia,202606100199
+itJuve Stabia,Juve Stabia,202606100199
+Osnabrück,VfL Osnabrück,202606100409
+Osnabruck,VfL Osnabrück,202606100409
+VfL Osnabrück,VfL Osnabrück,202606100409
+deVfL Osnabrück,VfL Osnabrück,202606100409
+Wigan Athletic,Wigan,202606100423
+Wigan,Wigan,202606100423
+enWigan Athletic,Wigan,202606100423
+atAustria Wien,Austria Wien,202606100031
+atLASK,LASK,202606100209
+atRapid Wien,Rapid Wien,202606100322
+atWolfsberger AC,Wolfsberger AC,202606100424
+beAntwerp,Antwerp,202606100020
+beStandard Liège,Standard Liège,202606100379
+beZulte Waregem,Zulte Waregem,202606100434
+chBasel,FC Basel,202606100131
+chYoung Boys,Young Boys,202606100429
+chZürich,FC Zürich,202606100143
+chServette FC,Servette FC,202606100354
+chSt. Gallen,St. Gallen,202606100377
+chLuzern,Luzern,202606100237
+trBeşiktaş,Beşiktaş,202606100046
+trFenerbahçe,Fenerbahçe,202606100152
+trTrabzonspor,Trabzonspor,202606100395
+trBaşakşehir,İstanbul Başakşehir,202606100437
+nlGo Ahead Eagles,Go Ahead Eagles,202606100171
+nlVitesse,Vitesse,202606100415
+czViktoria Plzeň,Viktoria Plzeň,202606100412
+czSlovan Liberec,Slovan Liberec,202606100369
+czJablonec,FK Jablonec,202606100145
+dkBrøndby,Brøndby IF,202606100066
+dkMidtjylland,FC Midtjylland,202606100137
+plLegia Warsaw,Legia Warsaw,202606100221
+plLech Poznań,Lech Poznań,202606100218
+huFerencváros,Ferencváros,202606100154
+roFCSB,FCSB,202606100144
+azQarabağ,Qarabağ FK,202606100312
+bgLudogorets Razgrad,Ludogorets,202606100234
+uaZorya Luhansk,Zorya Luhansk,202606100432
+ruCSKA Moscow,CSKA Moscow,202606100072
+ruZenit,Zenit Saint Petersburg,202606100431
+alKukësi,FK Kukësi,202606100147
+baSarajevo,FK Sarajevo,202606100148
+baZrinjski Mostar,Zrinjski Mostar,202606100433
+bgCSKA Sofia,CSKA Sofia,202606100073
+bgLevski Sofia,Levski Sofia,202606100225
+bgLokomotiv Plovdiv,Lokomotiv Plovdiv,202606100231
+hrHajduk Split,Hajduk Split,202606100178
+hrRijeka,HNK Rijeka,202606100177
+rsTSC,TSC Bačka Topola,202606100388
+rsČukarički,FK Čukarički,202606100149
+xkKF Drita,KF Drita,202606100201
+ruKrasnodar,FK Krasnodar,202606100146
+ruLoko Moscow,Lokomotiv Moscow,202606100230
+ruSpartak Moscow,Spartak Moscow,202606100373
+uaDesna Chernihiv,Desna Chernihiv,202606100109
+uaFC Oleksandriya,FC Oleksandriya,202606100139
+uaFC Polissya Zhytomyr,Polissya Zhytomyr,202606100301
+uaKryvbas,Kryvbas Kryvyi Rih,202606100206
+uaVorskla Poltava,Vorskla Poltava,202606100417
+byBATE Borisov,BATE Borisov,202606100034
+byFC Neman Grodno,Neman Grodno,202606100266
+byShakhtyor,Shakhtyor Soligorsk,202606100358
+kzFC Astana,FC Astana,202606100130
+kzFC Kairat,FC Kairat,202606100136
+dkSilkeborg,Silkeborg IF,202606100365
+dkViborg,Viborg FF,202606100410
+noBrann,SK Brann,202606100343
+noFredrikstad,Fredrikstad FK,202606100159
+seBK Häcken,BK Häcken,202606100035
+seDjurgården,Djurgårdens IF,202606100113
+seElfsborg,IF Elfsborg,202606100192
+seMalmö,Malmö FF,202606100247
+seÖstersund,Östersunds FK,202606100435
+fiHJK Helsinki,HJK Helsinki,202606100176
+fiKuPS,KuPS,202606100207
+eeFC Flora,FC Flora,202606100134
+ltŽalgiris,FK Žalgiris,202606100150
+lvFK Rīgas Futbola skola,RFS,202606100317
+foKÍ Klaksvík,KÍ Klaksvík,202606100208
+cyAC Omonia,Omonia Nicosia,202606100278
+cyAEK Larnaca FC,AEK Larnaca,202606100003
+cyAPOEL FC,APOEL FC,202606100004
+cyApollon Limassol,Apollon Limassol,202606100021
+cyAris Limassol FC,Aris Limassol,202606100022
+cyPafos FC,Pafos FC,202606100287
+ilMaccabi Haifa,Maccabi Haifa,202606100242
+ilMaccabi Tel Aviv FC,Maccabi Tel Aviv,202606100243
+ilHapoel Be'er Sheva FC,Hapoel Be'er Sheva,202606100182
+ilHapoel Haifa FC,Hapoel Haifa,202606100183
+grAEK Athens,AEK Athens,202606100002
+chLausanne-Sport,Lausanne-Sport,202606100211
+czMladá Boleslav,Mladá Boleslav,202606100257
+czSigma Olomouc,Sigma Olomouc,202606100364
+czSlovácko,FC Slovácko,202606100140
+skSlovan Bratislava,Slovan Bratislava,202606100368
+skRužomberok,MFK Ružomberok,202606100239
+huDebrecen,Debreceni VSC,202606100105
+huPuskás Akadémia,Puskás Akadémia,202606100309
+huVidi,MOL Fehérvár,202606100240
+huÚjpest,Újpest FC,202606100436
+roCFR Cluj,CFR Cluj,202606100071
+roCS U Craiova,Universitatea Craiova,202606100403
+roDinamo București,Dinamo București,202606100111
+plJagiellonia,Jagiellonia Białystok,202606100197
+plRaków,Raków Częstochowa,202606100320
+trAkhisarspor,Akhisarspor,202606100009
+trKonyaspor,Konyaspor,202606100205
+trSamsunspor,Samsunspor,202606100350
+trSivasspor,Sivasspor,202606100366
+ieDundalk FC,Dundalk,202606100114
+ieShamrock Rovers,Shamrock Rovers,202606100359
+ieShelbourne FC,Shelbourne,202606100362
+isBreiðablik,Breiðablik,202606100060
+isStjarnan,Stjarnan,202606100380
+luF91 Dudelange,F91 Dudelange,202606100129
+nirCrusaders FC,Crusaders,202606100099
+wlsThe New Saints FC,TNS,202606100387
+liVaduz,FC Vaduz,202606100142
+beOostende,KV Oostende,202606100202
+ptPaços de Ferreira,Paços de Ferreira,202606100295
+ptRio Ave,Rio Ave,202606100337
+sctHibernian,Hibernian,202606100187
+amFC Noah,FC Noah,202606100138
+amPyunik,Pyunik Yerevan,202606100310
+FC Südtirol,FC Südtirol,202606100141
+Karlsruher,Karlsruhe,202606100204
+Sheffield Weds,Sheffield Wednesday,202606100361
+Stade Laval,Laval,202606100212
+Grenoble Foot,Grenoble,202606100173
+Celta,Celta Vigo,202606100082
+Ath Bilbao,Athletic Club,202606100028
+Ath Madrid,Atlético Madrid,202606100029
+Betis,Real Betis,202606100326
+Sociedad,Real Sociedad,202606100328
+Espanol,Espanyol,202606100126
+La Coruna,Deportivo La Coruna,202606100107
+Vallecano,Rayo Vallecano,202606100324
+Almeria,Almería,202606100013
+Ein Frankfurt,Eintracht Frankfurt,202606100120
+Hamburg,Hamburger SV,202606100179
+Dusseldorf,Fortuna Duesseldorf,202606100158
+Greuther Furth,Greuther Fürth,202606100174
+Leipzig,RB Leipzig,202606100315
+St Etienne,Saint-Étienne,202606100347
+Spal,SPAL 2013,202606100344
+AC Chievo Verona,Chievo,202606100088
+AC Perugia Calcio,Perugia,202606100296
+AC Pisa 1909,Pisa,202606100299
+AC Reggiana 1919,Reggiana,202606100332
+Ascoli Picchio,Ascoli,202606100025
+Brescia Calcio (- 2025),Brescia,202606100062
+Calcio Lecco 1912,Lecco,202606100217
+Carpi FC 1909,Carpi,202606100077
+Carrarese Calcio 1908,Carrarese,202606100078
+Cesena FC,Cesena,202606100084
+Delfino Pescara 1936,Pescara,202606100297
+FC Bari 1908,Bari,202606100038
+FC Bologna,Bologna,202606100052
+FC Empoli,Empoli,202606100123
+FC Pro Vercelli 1892,Pro Vercelli,202606100308
+Juventus Turin,Juventus,202606100200
+Lazio Rome,Lazio,202606100213
+Novara Calcio 1908,Novara,202606100273
+Palerme FC,Palermo,202606100288
+Pisa Sporting Club,Pisa,202606100299
+Ternana Unicusano Calcio,Ternana,202606100390
+US Alessandria Calcio 1912,Alessandria,202606100012
+US Avellino 1912,Avellino,202606100033
+US Palermo,Palermo,202606100288
+US Salernitana 1919,Salernitana,202606100348
+AS Nancy-Lorraine,Nancy,202606100263
+Chamois Niortais FC,Niort,202606100270
+Clermont Foot 63,Clermont Foot,202606100091
+FC Annecy,Annecy,202606100019
+Football Bourg-en-Bresse Péronnas 01,Bourg-en-Bresse,202606100057
+Le Mans FC,Le Mans,202606100215
+Montpellier Hérault SC,Montpellier,202606100261
+Quevilly - Rouen Métropole,Quevilly Rouen,202606100313
+Quevilly Rouen Métropole,Quevilly Rouen,202606100313
+RC Strasbourg Alsace,Strasbourg,202606100382
+Stade Rennais FC,Rennes,202606100335
+Atlético de Madrid,Atlético Madrid,202606100029
+CE Sabadell FC,Sabadell,202606100346
+CF Rayo Majadahonda,Rayo Majadahonda,202606100323
+Espanyol Barcelona,Espanyol,202606100126
+FC Barcelona B,Barcelona B,202606100037
+FC Barcelone,Barcelona,202606100036
+FC Córdoba,Córdoba,202606100103
+FC Getafe,Getafe,202606100168
+FC Granada,Granada,202606100172
+FC Valencia,Valencia,202606100405
+Racing de Ferrol,Racing Ferrol,202606100318
+Real Betis Balompié,Real Betis,202606100326
+Real Sociedad B,Real Sociedad B,202606100329
+Sevilla Atlético,Sevilla B,202606100356
+Séville FC,Sevilla,202606100355
+UD Levante,Levante,202606100224
+Villarreal CF B,Villarreal B,202606100414
+AFC Sunderland,Sunderland,202606100385
+Arsenal FC,Arsenal,202606100024
+Barnsley FC,Barnsley,202606100039
+Blackpool FC,Blackpool,202606100049
+Burnley FC,Burnley,202606100068
+Chelsea FC,Chelsea,202606100087
+FC Brentford,Brentford,202606100061
+FC Everton,Everton,202606100127
+FC Fulham,Fulham,202606100163
+FC Liverpool,Liverpool,202606100227
+FC Millwall,Millwall,202606100255
+FC Portsmouth,Portsmouth,202606100305
+FC Reading,Reading,202606100325
+FC Southampton,Southampton,202606100371
+FC Watford,Watford,202606100418
+Middlesbrough FC,Middlesbrough,202606100253
+1.FC Heidenheim 1846,FC Heidenheim,202606100135
+1.FC Kaiserslautern,Kaiserslautern,202606100203
+1.FC Magdeburg,1. FC Magdeburg,202606100001
+1.FC Nürnberg,Nuernberg,202606100274
+1.FC Union Berlin,Union Berlin,202606100401
+1.FSV Mainz 05,Mainz 05,202606100244
+Bayer 04 Leverkusen,Bayer Leverkusen,202606100041
+Eintracht Francfort,Eintracht Frankfurt,202606100120
+FC Erzgebirge Aue,Erzgebirge Aue,202606100125
+FC Hansa Rostock,Hansa Rostock,202606100181
+FC Ingolstadt 04,Ingolstadt 04,202606100194
+FC Schalke 04,Schalke 04,202606100353
+SC Fribourg,Freiburg,202606100160
+SC Paderborn 07,Paderborn,202606100285
+SG Dynamo Dresden,Dynamo Dresden,202606100116
+SSV Jahn Regensburg,Jahn Regensburg,202606100198
+SSV Ulm 1846,Ulm,202606100400
+SV 07 Elversberg,SV Elversberg,202606100345
+SV Darmstadt 98,Darmstadt 98,202606100104
+SV Sandhausen,Sandhausen,202606100351
+Sandhausen,Sandhausen,202606100351
+SV Wehen Wiesbaden,Wehen Wiesbaden,202606100419
+SV Werder Bremen,Werder Bremen,202606100420
+SpVgg Greuther Fürth,Greuther Fürth,202606100174
+Shrewsbury Town,Shrewsbury Town,202606110005

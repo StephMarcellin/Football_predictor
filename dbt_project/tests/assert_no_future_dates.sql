@@ -3,5 +3,5 @@
 {{ config(severity='warn') }}
 
 SELECT match_id, team, date
-FROM {{ ref('gold_backbone') }}
+FROM {{ ref('backbone') }}
 WHERE date > CURRENT_DATE

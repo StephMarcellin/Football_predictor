@@ -4,7 +4,7 @@ WITH coverage AS (
     SELECT
         COUNT(*)                                        AS total,
         COUNT(CASE WHEN np_xg IS NOT NULL THEN 1 END)  AS matched
-    FROM {{ ref('gold_backbone') }}
+    FROM {{ ref('backbone') }}
     WHERE league_source IN (
         'Ligue 1', 'Premier League', 'La Liga', 'Bundesliga', 'Serie A'
     )
