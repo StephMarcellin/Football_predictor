@@ -117,6 +117,21 @@ chain_trigger_quals AS (
     GROUP BY match_id, row_num
 ),
 
+foul_resolution AS (
+    SELECT
+        match_id,
+        row_num,
+        -- Le row_num le plus élevé du groupe de Foul simultané
+        MAX(row_num) OVER (
+            PARTITION BY match_id, expanded_minute, second
+        )                                                       AS last_row_num_in_foul_group,
+        -- Une des deux lignes du groupe a-t-elle outcome_id = 1 ?
+        MAX(CASE WHEN outcome_id = 1 THEN 1 ELSE 0 END) OVER (
+            PARTITION BY match_id, expanded_minute, second
+        )                                                       AS foul_won
+    FROM certain_possession
+    WHERE type_id = 4
+),
 -- ══════════════════════════════════════════════════════════════════════════════
 -- POSSESSION_GROUPS
 -- On crée un compteur qui avance uniquement quand le possesseur certain change.
@@ -133,37 +148,54 @@ chain_trigger_quals AS (
 -- ══════════════════════════════════════════════════════════════════════════════
 possession_groups AS (
     SELECT
-        *,
-        -- Incrément : 1 uniquement quand le possesseur certain change d'équipe
+        pc.*,
+        fr.last_row_num_in_foul_group,
+        fr.foul_won,
         CASE
             WHEN is_set_piece = 1 THEN 1
             WHEN LAG(is_winning_clearance) OVER (
-                PARTITION BY match_id
-                ORDER BY expanded_minute, second, row_num
+                PARTITION BY pc.match_id
+                ORDER BY pc.expanded_minute, pc.second, pc.row_num
             ) = 1 THEN 1
             WHEN LAG(type_id) OVER (
-                    PARTITION BY match_id
-                    ORDER BY expanded_minute, second, row_num
+                    PARTITION BY pc.match_id
+                    ORDER BY pc.expanded_minute, pc.second, pc.row_num
                 ) = 41
             AND LAG(outcome_id) OVER (
-                    PARTITION BY match_id
-                    ORDER BY expanded_minute, second, row_num
+                    PARTITION BY pc.match_id
+                    ORDER BY pc.expanded_minute, pc.second, pc.row_num
                 ) = 1                               THEN 1
+            -- Nouvelle règle : la ligne précédente est la dernière d'un groupe
+            -- de Foul simultané, et ce groupe a été gagné par une équipe
+            WHEN LAG(pc.row_num) OVER (
+                    PARTITION BY pc.match_id
+                    ORDER BY pc.expanded_minute, pc.second, pc.row_num
+                 ) = LAG(fr.last_row_num_in_foul_group) OVER (
+                    PARTITION BY pc.match_id
+                    ORDER BY pc.expanded_minute, pc.second, pc.row_num
+                 )
+             AND LAG(foul_won) OVER (
+                    PARTITION BY pc.match_id
+                    ORDER BY pc.expanded_minute, pc.second, pc.row_num
+                 ) = 1                               THEN 1
             WHEN certain_possessor IS NOT NULL
              AND certain_possessor != LAG(certain_possessor IGNORE NULLS) OVER (
-                    PARTITION BY match_id
-                    ORDER BY expanded_minute, second, row_num
+                    PARTITION BY pc.match_id
+                     ORDER BY pc.expanded_minute, pc.second, pc.row_num   
                  )
             THEN 1
             WHEN certain_possessor IS NOT NULL
              AND LAG(certain_possessor IGNORE NULLS) OVER (
-                    PARTITION BY match_id
-                    ORDER BY expanded_minute, second, row_num
+                    PARTITION BY pc.match_id
+                    ORDER BY pc.expanded_minute, pc.second, pc.row_num
                  ) IS NULL
             THEN 1
             ELSE 0
         END AS possession_group_increment
-    FROM certain_possession
+    FROM certain_possession pc
+    LEFT JOIN foul_resolution fr
+        ON  fr.match_id = pc.match_id
+        AND fr.row_num  = pc.row_num
 ),
 
 -- ══════════════════════════════════════════════════════════════════════════════
