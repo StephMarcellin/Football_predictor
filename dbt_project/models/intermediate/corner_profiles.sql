@@ -96,6 +96,64 @@ corner_agg AS (
 ),
 
 -- ══════════════════════════════════════════════════════════════════════════════
+-- CTE — CORNER_ATTACKING_EVENTS
+-- Relit player_possession_chains directement (pas corner_chains, qui a
+-- déjà écrasé team_id par chain_team_id). On ne garde que les actions de
+-- l'équipe qui a obtenu le corner (team_id = chain_team_id), et on joint
+-- action_value depuis event_values pour noter chaque action.
+-- ══════════════════════════════════════════════════════════════════════════════
+corner_attacking_events AS (
+    SELECT
+        pc.match_id,
+        pc.chain_id,
+        pc.row_num,
+        pc.is_shot,
+        ev.action_value
+    FROM {{ ref('player_possession_chains') }} pc
+    LEFT JOIN {{ ref('event_values') }} ev
+        ON  ev.match_id = pc.match_id
+        AND ev.row_num  = pc.row_num
+    WHERE pc.chain_trigger = 'corner'
+      AND pc.match_id IN (SELECT match_id FROM new_matches)
+      AND pc.team_id = pc.chain_team_id
+),
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- CTE — CORNER_LAST_SHOT
+-- row_num du dernier tir de chaque chaîne (convention déjà utilisée pour
+-- freekick_profiles : le dernier tir de la chaîne fait foi).
+-- ══════════════════════════════════════════════════════════════════════════════
+corner_last_shot AS (
+    SELECT
+        match_id,
+        chain_id,
+        MAX(row_num) AS last_shot_row
+    FROM corner_attacking_events
+    WHERE is_shot = TRUE
+    GROUP BY match_id, chain_id
+),
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- CTE — CORNER_DANGER_AGG
+-- chain_danger_total : somme de tout le danger généré par l'équipe attaquante
+-- dans la chaîne (SUM(action_value)).
+-- danger_before_shot : part de ce danger accumulée avant le dernier tir,
+-- utilisée ensuite pour calculer le ratio de momentum.
+-- ══════════════════════════════════════════════════════════════════════════════
+corner_danger_agg AS (
+    SELECT
+        cae.chain_id,
+        SUM(cae.action_value)                                                 AS chain_danger_total,
+        SUM(cae.action_value) FILTER (WHERE cae.row_num < cls.last_shot_row)  AS danger_before_shot,
+        cls.last_shot_row
+    FROM corner_attacking_events cae
+    LEFT JOIN corner_last_shot cls
+        ON  cls.match_id = cae.match_id
+        AND cls.chain_id = cae.chain_id
+    GROUP BY cae.chain_id, cls.last_shot_row
+),
+
+-- ══════════════════════════════════════════════════════════════════════════════
 -- CTE 4 — SELECT FINAL
 -- Assemblage : delivery + agg + landing_zone calculée depuis end_x/end_y
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -127,13 +185,22 @@ final AS (
             ELSE                           'retained'
         END                                                    AS outcome,
 
-        -- xg_generated : 1 si tir dans la séquence, 0 sinon
-        -- (approximation — pas de valeur xG par tir dans events_qual)
-        ca.has_shot                                            AS xg_generated
+        -- chain_danger_total : somme du danger (action_value) généré par
+        -- l'équipe attaquante sur toute la chaîne issue du corner.
+        da.chain_danger_total,
+
+        -- chain_danger_momentum : part du danger accumulée AVANT le dernier
+        -- tir, rapportée au danger total de la chaîne. NULL si aucun tir.
+        CASE
+            WHEN da.last_shot_row IS NULL THEN NULL
+            ELSE da.danger_before_shot / NULLIF(da.chain_danger_total, 0)
+        END                                                    AS chain_danger_momentum
 
     FROM corner_delivery cd
     JOIN corner_agg ca
         ON ca.chain_id = cd.chain_id
+    LEFT JOIN corner_danger_agg da
+        ON da.chain_id = cd.chain_id
 )
 
 SELECT * FROM final
