@@ -527,3 +527,28 @@ models:
           - unique:
               config:
                 severity: error
+  - name: freekick_profiles
+    columns:
+      - name: match_id
+        tests:
+          - not_null
+      - name: row_num
+        tests:
+          - not_null
+      - name: fk_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['direct', 'indirect', 'short_pass']
+      - name: outcome
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['goal', 'shot_saved', 'shot_off_target', 'offside', 'foul_won', 'corner_won', 'open_play', 'turnover']
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - match_id
+            - row_num
