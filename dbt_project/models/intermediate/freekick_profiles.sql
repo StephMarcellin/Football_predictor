@@ -40,6 +40,45 @@ freekick_qual_flags AS (
     GROUP BY match_id, row_num
 ),
 
+freekick_attacking_events AS (
+    SELECT
+        pc.match_id,
+        pc.chain_id,
+        pc.row_num,
+        pc.is_shot,
+        ev.action_value
+    FROM {{ ref('player_possession_chains') }} pc
+    LEFT JOIN {{ ref('event_values') }} ev
+        ON  ev.match_id = pc.match_id
+        AND ev.row_num  = pc.row_num
+    WHERE pc.chain_trigger = 'free_kick'
+      AND pc.match_id IN (SELECT match_id FROM new_matches)
+      AND pc.team_id = pc.chain_team_id
+),
+
+freekick_last_shot AS (
+    SELECT
+        match_id,
+        chain_id,
+        MAX(row_num) AS last_shot_row
+    FROM freekick_attacking_events
+    WHERE is_shot = TRUE
+    GROUP BY match_id, chain_id
+),
+
+freekick_danger_agg AS (
+    SELECT
+        cae.chain_id,
+        SUM(cae.action_value)                                                 AS chain_danger_total,
+        SUM(cae.action_value) FILTER (WHERE cae.row_num < cls.last_shot_row)  AS danger_before_shot,
+        cls.last_shot_row
+    FROM freekick_attacking_events cae
+    LEFT JOIN freekick_last_shot cls
+        ON  cls.match_id = cae.match_id
+        AND cls.chain_id = cae.chain_id
+    GROUP BY cae.chain_id, cls.last_shot_row
+),
+
 freekick_direct_anchor AS (
     SELECT
         pc.match_id,
@@ -57,7 +96,7 @@ freekick_direct_anchor AS (
         pc.y,
         'direct'   AS fk_type,
         FALSE      AS is_offside,
-        ev.chance_creation AS xg_generated,
+        -- ev.chance_creation AS xg_generated,
         CASE
             WHEN pc.type_id = 16          THEN 'goal'
             WHEN pc.type_id = 15          THEN 'shot_saved'
@@ -67,9 +106,9 @@ freekick_direct_anchor AS (
     JOIN freekick_qual_flags fqf
         ON  fqf.match_id = pc.match_id
         AND fqf.row_num  = pc.row_num
-    LEFT JOIN {{ ref('event_values') }} ev
-        ON  ev.match_id = pc.match_id
-        AND ev.row_num  = pc.row_num
+    -- LEFT JOIN {{ ref('event_values') }} ev
+    --     ON  ev.match_id = pc.match_id
+    --     AND ev.row_num  = pc.row_num
     WHERE pc.match_id IN (SELECT match_id FROM new_matches)
       AND pc.chain_trigger    = 'free_kick'
       AND pc.type_id          IN (13, 14, 15, 16)
@@ -150,7 +189,7 @@ freekick_pass_enriched AS (
         fpa.y,
         fpa.fk_type,
         fpa.is_offside,
-        ev.chance_creation AS xg_generated,
+        -- ev.chance_creation AS xg_generated,
         CASE
             WHEN fpa.is_offside = TRUE                              THEN 'offside'
             WHEN fpo.shot_type_id = 16                              THEN 'goal'
@@ -175,15 +214,28 @@ freekick_pass_enriched AS (
         ON  lta.chain_id = fpa.chain_id
         AND lta.rn_last  = 1
 
-    LEFT JOIN {{ ref('event_values') }} ev
-        ON  ev.match_id = fpa.match_id
-        AND ev.row_num   = fpo.shot_row_num
+    -- LEFT JOIN {{ ref('event_values') }} ev
+    --     ON  ev.match_id = fpa.match_id
+    --     AND ev.row_num   = fpo.shot_row_num
 ),
 
-freekick_anchors AS (
+freekick_anchors_raw AS (
     SELECT * FROM freekick_direct_anchor
     UNION ALL
     SELECT * FROM freekick_pass_enriched
+),
+
+freekick_anchors AS (
+    SELECT
+        far.*,
+        da.chain_danger_total,
+        CASE
+            WHEN da.last_shot_row IS NULL THEN NULL
+            ELSE da.danger_before_shot / NULLIF(da.chain_danger_total, 0)
+        END AS chain_danger_momentum
+    FROM freekick_anchors_raw far
+    LEFT JOIN freekick_danger_agg da
+        ON da.chain_id = far.chain_id
 ),
 
 freekick_geometry AS (
