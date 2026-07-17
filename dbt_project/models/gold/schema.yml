@@ -259,3 +259,306 @@ models:
         description: "Index de verrouillage tactique (draw signal composite)"
       - name: f20_upset_composite
         description: "Index d'upset composite (draw signal)"
+
+  - name: rolling_corners
+    description: >
+      Rolling windows W=3/5/10 sur les corners, depuis intermediate.corner_profiles.
+      1 ligne par équipe par match — "for" (corners obtenus) et "against" (corners
+      concédés), jointes via intermediate.backbone (team_id / opponent_id).
+      Action dangereuse = corner ayant produit un tir (outcome IN goal/shot_saved/
+      shot_off_target). Ratio de sommes sur la fenêtre, pas moyenne de taux par match.
+      Enrichi (Vague 5.4) : intensite de danger continue (xG/corner), profil aerien
+      (tetes sur tirs/buts), tendance corner court, et bataille du degagement defensif.
+    config:
+      alias: rolling_corners
+
+    columns:
+      - name: match_id
+        description: "ID unique du match provenant du backbone"
+        tests:
+          - not_null
+      - name: team_id
+        description: "ID de l'équipe"
+        tests:
+          - not_null
+      - name: date
+        description: "Date du match"
+        tests:
+          - not_null
+      - name: season
+        description: "Saison"
+      - name: league_source
+        description: "Compétition source"
+      - name: corners_for_3
+        description: "Nombre de corners obtenus sur les 3 derniers matchs"
+      - name: corner_danger_rate_for_3
+        description: "Taux de corners obtenus ayant produit une action dangereuse, sur 3 matchs"
+      - name: corner_conversion_rate_for_3
+        description: "Taux de conversion en but des actions dangereuses issues de corner, sur 3 matchs"
+      - name: corners_against_3
+        description: "Nombre de corners concédés sur les 3 derniers matchs"
+      - name: corner_danger_rate_against_3
+        description: "Taux de corners concédés ayant produit une action dangereuse, sur 3 matchs"
+      - name: corner_conversion_rate_against_3
+        description: "Taux de conversion en but des corners concédés, sur 3 matchs"
+      - name: corner_danger_intensity_for_3
+        description: "Danger continu généré par corner obtenu (somme chain_danger_total / nb corners), sur 3 matchs — équivalent xG par corner"
+      - name: corner_danger_intensity_against_3
+        description: "Danger continu concédé par corner concédé, sur 3 matchs"
+      - name: corner_header_share_for_3
+        description: "Part des tirs issus de corners obtenus qui sont des têtes, sur 3 matchs"
+      - name: corner_header_share_against_3
+        description: "Part des tirs issus de corners concédés qui sont des têtes, sur 3 matchs"
+      - name: corner_header_goal_share_for_3
+        description: "Part des buts sur corner obtenu marqués de la tête, sur 3 matchs"
+      - name: corner_header_goal_share_against_3
+        description: "Part des buts sur corner concédé marqués de la tête, sur 3 matchs"
+      - name: corner_short_rate_for_3
+        description: "Part des corners obtenus joués courts plutôt que centrés, sur 3 matchs"
+      - name: corner_short_rate_against_3
+        description: "Part des corners concédés joués courts par l'adversaire, sur 3 matchs"
+      - name: corner_forced_bad_clearance_rate_for_3
+        description: "Part des dégagements adverses mal exécutés (poor/failed) face à nos corners, sur 3 matchs — capacité à créer du chaos en seconde balle"
+      - name: corner_clearance_fail_rate_against_3
+        description: "Part de nos propres dégagements mal exécutés (poor/failed) face aux corners concédés, sur 3 matchs — solidité défensive"
+      - name: corner_headed_clearance_rate_against_3
+        description: "Part de nos dégagements défensifs faits de la tête, sur 3 matchs"
+      - name: corners_for_5
+        description: "Nombre de corners obtenus sur les 5 derniers matchs"
+      - name: corner_danger_rate_for_5
+        description: "Taux de corners obtenus ayant produit une action dangereuse, sur 5 matchs"
+      - name: corner_conversion_rate_for_5
+        description: "Taux de conversion en but des actions dangereuses issues de corner, sur 5 matchs"
+      - name: corners_against_5
+        description: "Nombre de corners concédés sur les 5 derniers matchs"
+      - name: corner_danger_rate_against_5
+        description: "Taux de corners concédés ayant produit une action dangereuse, sur 5 matchs"
+      - name: corner_conversion_rate_against_5
+        description: "Taux de conversion en but des corners concédés, sur 5 matchs"
+      - name: corner_danger_intensity_for_5
+        description: "Danger continu généré par corner obtenu, sur 5 matchs — équivalent xG par corner"
+      - name: corner_danger_intensity_against_5
+        description: "Danger continu concédé par corner concédé, sur 5 matchs"
+      - name: corner_header_share_for_5
+        description: "Part des tirs issus de corners obtenus qui sont des têtes, sur 5 matchs"
+      - name: corner_header_share_against_5
+        description: "Part des tirs issus de corners concédés qui sont des têtes, sur 5 matchs"
+      - name: corner_header_goal_share_for_5
+        description: "Part des buts sur corner obtenu marqués de la tête, sur 5 matchs"
+      - name: corner_header_goal_share_against_5
+        description: "Part des buts sur corner concédé marqués de la tête, sur 5 matchs"
+      - name: corner_short_rate_for_5
+        description: "Part des corners obtenus joués courts plutôt que centrés, sur 5 matchs"
+      - name: corner_short_rate_against_5
+        description: "Part des corners concédés joués courts par l'adversaire, sur 5 matchs"
+      - name: corner_forced_bad_clearance_rate_for_5
+        description: "Part des dégagements adverses mal exécutés face à nos corners, sur 5 matchs"
+      - name: corner_clearance_fail_rate_against_5
+        description: "Part de nos propres dégagements mal exécutés face aux corners concédés, sur 5 matchs"
+      - name: corner_headed_clearance_rate_against_5
+        description: "Part de nos dégagements défensifs faits de la tête, sur 5 matchs"
+      - name: corners_for_10
+        description: "Nombre de corners obtenus sur les 10 derniers matchs"
+      - name: corner_danger_rate_for_10
+        description: "Taux de corners obtenus ayant produit une action dangereuse, sur 10 matchs"
+      - name: corner_conversion_rate_for_10
+        description: "Taux de conversion en but des actions dangereuses issues de corner, sur 10 matchs"
+      - name: corners_against_10
+        description: "Nombre de corners concédés sur les 10 derniers matchs"
+      - name: corner_danger_rate_against_10
+        description: "Taux de corners concédés ayant produit une action dangereuse, sur 10 matchs"
+      - name: corner_conversion_rate_against_10
+        description: "Taux de conversion en but des corners concédés, sur 10 matchs"
+      - name: corner_danger_intensity_for_10
+        description: "Danger continu généré par corner obtenu, sur 10 matchs — équivalent xG par corner"
+      - name: corner_danger_intensity_against_10
+        description: "Danger continu concédé par corner concédé, sur 10 matchs"
+      - name: corner_header_share_for_10
+        description: "Part des tirs issus de corners obtenus qui sont des têtes, sur 10 matchs"
+      - name: corner_header_share_against_10
+        description: "Part des tirs issus de corners concédés qui sont des têtes, sur 10 matchs"
+      - name: corner_header_goal_share_for_10
+        description: "Part des buts sur corner obtenu marqués de la tête, sur 10 matchs"
+      - name: corner_header_goal_share_against_10
+        description: "Part des buts sur corner concédé marqués de la tête, sur 10 matchs"
+      - name: corner_short_rate_for_10
+        description: "Part des corners obtenus joués courts plutôt que centrés, sur 10 matchs"
+      - name: corner_short_rate_against_10
+        description: "Part des corners concédés joués courts par l'adversaire, sur 10 matchs"
+      - name: corner_forced_bad_clearance_rate_for_10
+        description: "Part des dégagements adverses mal exécutés face à nos corners, sur 10 matchs"
+      - name: corner_clearance_fail_rate_against_10
+        description: "Part de nos propres dégagements mal exécutés face aux corners concédés, sur 10 matchs"
+      - name: corner_headed_clearance_rate_against_10
+        description: "Part de nos dégagements défensifs faits de la tête, sur 10 matchs"
+
+  - name: rolling_freekicks
+    description: >
+      Rolling windows W=3/5/10 sur les coups francs, depuis intermediate.freekick_profiles.
+      1 ligne par équipe par match — "for" (coups francs obtenus) et "against" (concédés),
+      jointes via intermediate.backbone (team_id / opponent_id). Filtré sur
+      fk_zone_type IN (crossed, direct_shot) : les coups francs too_far/own_box sont
+      exclus, ils n'ont pas de danger réel et diluent le signal.
+      Action dangereuse = coup franc ayant produit un tir. Ratio de sommes sur la
+      fenêtre, pas moyenne de taux par match.
+      Enrichi (Vague 5.4) : intensité de danger continue, profil aérien, bataille du
+      dégagement, répartition tactique par zone (direct/crossed/own_box/too_far,
+      non filtrée) et qualité de position (distance/angle) des coups francs directs.
+    config:
+      alias: rolling_freekicks
+
+    columns:
+      - name: match_id
+        description: "ID unique du match provenant du backbone"
+        tests:
+          - not_null
+      - name: team_id
+        description: "ID de l'équipe"
+        tests:
+          - not_null
+      - name: date
+        description: "Date du match"
+        tests:
+          - not_null
+      - name: season
+        description: "Saison"
+      - name: league_source
+        description: "Compétition source"
+      - name: freekicks_for_3
+        description: "Nombre de coups francs crossés/directs obtenus sur les 3 derniers matchs"
+      - name: freekick_danger_rate_for_3
+        description: "Taux de coups francs obtenus ayant produit une action dangereuse, sur 3 matchs"
+      - name: freekick_conversion_rate_for_3
+        description: "Taux de conversion en but des actions dangereuses issues de coup franc, sur 3 matchs"
+      - name: freekicks_against_3
+        description: "Nombre de coups francs crossés/directs concédés sur les 3 derniers matchs"
+      - name: freekick_danger_rate_against_3
+        description: "Taux de coups francs concédés ayant produit une action dangereuse, sur 3 matchs"
+      - name: freekick_conversion_rate_against_3
+        description: "Taux de conversion en but des coups francs concédés, sur 3 matchs"
+      - name: freekick_danger_intensity_for_3
+        description: "Danger continu généré par coup franc obtenu (somme chain_danger_total / nb coups francs), sur 3 matchs"
+      - name: freekick_danger_intensity_against_3
+        description: "Danger continu concédé par coup franc concédé, sur 3 matchs"
+      - name: freekick_header_share_for_3
+        description: "Part des tirs issus de coups francs obtenus qui sont des têtes, sur 3 matchs"
+      - name: freekick_header_share_against_3
+        description: "Part des tirs issus de coups francs concédés qui sont des têtes, sur 3 matchs"
+      - name: freekick_header_goal_share_for_3
+        description: "Part des buts sur coup franc obtenu marqués de la tête, sur 3 matchs"
+      - name: freekick_header_goal_share_against_3
+        description: "Part des buts sur coup franc concédé marqués de la tête, sur 3 matchs"
+      - name: freekick_forced_bad_clearance_rate_for_3
+        description: "Part des dégagements adverses mal exécutés face à nos coups francs centrés, sur 3 matchs"
+      - name: freekick_clearance_fail_rate_against_3
+        description: "Part de nos propres dégagements mal exécutés face aux coups francs centrés concédés, sur 3 matchs"
+      - name: freekick_headed_clearance_rate_against_3
+        description: "Part de nos dégagements défensifs de la tête sur coup franc centré concédé, sur 3 matchs"
+      - name: freekick_direct_distance_avg_for_3
+        description: "Distance moyenne (m) des coups francs directs obtenus, sur 3 matchs"
+      - name: freekick_direct_distance_avg_against_3
+        description: "Distance moyenne (m) des coups francs directs concédés, sur 3 matchs — discipline défensive"
+      - name: freekick_direct_angle_avg_for_3
+        description: "Angle moyen (rad) vers le but des coups francs directs obtenus, sur 3 matchs"
+      - name: freekick_direct_angle_avg_against_3
+        description: "Angle moyen (rad) vers le but des coups francs directs concédés, sur 3 matchs"
+      - name: freekick_zone_direct_rate_for_3
+        description: "Part des coups francs obtenus joués en tir direct, sur 3 matchs"
+      - name: freekick_zone_direct_rate_against_3
+        description: "Part des coups francs concédés joués en tir direct par l'adversaire, sur 3 matchs"
+      - name: freekick_zone_crossed_rate_for_3
+        description: "Part des coups francs obtenus centrés dans la surface, sur 3 matchs"
+      - name: freekick_zone_crossed_rate_against_3
+        description: "Part des coups francs concédés centrés dans la surface par l'adversaire, sur 3 matchs"
+      - name: freekicks_for_5
+        description: "Nombre de coups francs crossés/directs obtenus sur les 5 derniers matchs"
+      - name: freekick_danger_rate_for_5
+        description: "Taux de coups francs obtenus ayant produit une action dangereuse, sur 5 matchs"
+      - name: freekick_conversion_rate_for_5
+        description: "Taux de conversion en but des actions dangereuses issues de coup franc, sur 5 matchs"
+      - name: freekicks_against_5
+        description: "Nombre de coups francs crossés/directs concédés sur les 5 derniers matchs"
+      - name: freekick_danger_rate_against_5
+        description: "Taux de coups francs concédés ayant produit une action dangereuse, sur 5 matchs"
+      - name: freekick_conversion_rate_against_5
+        description: "Taux de conversion en but des coups francs concédés, sur 5 matchs"
+      - name: freekick_danger_intensity_for_5
+        description: "Danger continu généré par coup franc obtenu, sur 5 matchs"
+      - name: freekick_danger_intensity_against_5
+        description: "Danger continu concédé par coup franc concédé, sur 5 matchs"
+      - name: freekick_header_share_for_5
+        description: "Part des tirs issus de coups francs obtenus qui sont des têtes, sur 5 matchs"
+      - name: freekick_header_share_against_5
+        description: "Part des tirs issus de coups francs concédés qui sont des têtes, sur 5 matchs"
+      - name: freekick_header_goal_share_for_5
+        description: "Part des buts sur coup franc obtenu marqués de la tête, sur 5 matchs"
+      - name: freekick_header_goal_share_against_5
+        description: "Part des buts sur coup franc concédé marqués de la tête, sur 5 matchs"
+      - name: freekick_forced_bad_clearance_rate_for_5
+        description: "Part des dégagements adverses mal exécutés face à nos coups francs centrés, sur 5 matchs"
+      - name: freekick_clearance_fail_rate_against_5
+        description: "Part de nos propres dégagements mal exécutés face aux coups francs centrés concédés, sur 5 matchs"
+      - name: freekick_headed_clearance_rate_against_5
+        description: "Part de nos dégagements défensifs de la tête sur coup franc centré concédé, sur 5 matchs"
+      - name: freekick_direct_distance_avg_for_5
+        description: "Distance moyenne (m) des coups francs directs obtenus, sur 5 matchs"
+      - name: freekick_direct_distance_avg_against_5
+        description: "Distance moyenne (m) des coups francs directs concédés, sur 5 matchs"
+      - name: freekick_direct_angle_avg_for_5
+        description: "Angle moyen (rad) vers le but des coups francs directs obtenus, sur 5 matchs"
+      - name: freekick_direct_angle_avg_against_5
+        description: "Angle moyen (rad) vers le but des coups francs directs concédés, sur 5 matchs"
+      - name: freekick_zone_direct_rate_for_5
+        description: "Part des coups francs obtenus joués en tir direct, sur 5 matchs"
+      - name: freekick_zone_direct_rate_against_5
+        description: "Part des coups francs concédés joués en tir direct par l'adversaire, sur 5 matchs"
+      - name: freekick_zone_crossed_rate_for_5
+        description: "Part des coups francs obtenus centrés dans la surface, sur 5 matchs"
+      - name: freekick_zone_crossed_rate_against_5
+        description: "Part des coups francs concédés centrés dans la surface par l'adversaire, sur 5 matchs"
+      - name: freekicks_for_10
+        description: "Nombre de coups francs crossés/directs obtenus sur les 10 derniers matchs"
+      - name: freekick_danger_rate_for_10
+        description: "Taux de coups francs obtenus ayant produit une action dangereuse, sur 10 matchs"
+      - name: freekick_conversion_rate_for_10
+        description: "Taux de conversion en but des actions dangereuses issues de coup franc, sur 10 matchs"
+      - name: freekicks_against_10
+        description: "Nombre de coups francs crossés/directs concédés sur les 10 derniers matchs"
+      - name: freekick_danger_rate_against_10
+        description: "Taux de coups francs concédés ayant produit une action dangereuse, sur 10 matchs"
+      - name: freekick_conversion_rate_against_10
+        description: "Taux de conversion en but des coups francs concédés, sur 10 matchs"
+      - name: freekick_danger_intensity_for_10
+        description: "Danger continu généré par coup franc obtenu, sur 10 matchs"
+      - name: freekick_danger_intensity_against_10
+        description: "Danger continu concédé par coup franc concédé, sur 10 matchs"
+      - name: freekick_header_share_for_10
+        description: "Part des tirs issus de coups francs obtenus qui sont des têtes, sur 10 matchs"
+      - name: freekick_header_share_against_10
+        description: "Part des tirs issus de coups francs concédés qui sont des têtes, sur 10 matchs"
+      - name: freekick_header_goal_share_for_10
+        description: "Part des buts sur coup franc obtenu marqués de la tête, sur 10 matchs"
+      - name: freekick_header_goal_share_against_10
+        description: "Part des buts sur coup franc concédé marqués de la tête, sur 10 matchs"
+      - name: freekick_forced_bad_clearance_rate_for_10
+        description: "Part des dégagements adverses mal exécutés face à nos coups francs centrés, sur 10 matchs"
+      - name: freekick_clearance_fail_rate_against_10
+        description: "Part de nos propres dégagements mal exécutés face aux coups francs centrés concédés, sur 10 matchs"
+      - name: freekick_headed_clearance_rate_against_10
+        description: "Part de nos dégagements défensifs de la tête sur coup franc centré concédé, sur 10 matchs"
+      - name: freekick_direct_distance_avg_for_10
+        description: "Distance moyenne (m) des coups francs directs obtenus, sur 10 matchs"
+      - name: freekick_direct_distance_avg_against_10
+        description: "Distance moyenne (m) des coups francs directs concédés, sur 10 matchs"
+      - name: freekick_direct_angle_avg_for_10
+        description: "Angle moyen (rad) vers le but des coups francs directs obtenus, sur 10 matchs"
+      - name: freekick_direct_angle_avg_against_10
+        description: "Angle moyen (rad) vers le but des coups francs directs concédés, sur 10 matchs"
+      - name: freekick_zone_direct_rate_for_10
+        description: "Part des coups francs obtenus joués en tir direct, sur 10 matchs"
+      - name: freekick_zone_direct_rate_against_10
+        description: "Part des coups francs concédés joués en tir direct par l'adversaire, sur 10 matchs"
+      - name: freekick_zone_crossed_rate_for_10
+        description: "Part des coups francs obtenus centrés dans la surface, sur 10 matchs"
+      - name: freekick_zone_crossed_rate_against_10
+        description: "Part des coups francs concédés centrés dans la surface par l'adversaire, sur 10 matchs"
