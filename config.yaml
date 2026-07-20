@@ -62,6 +62,16 @@ pipeline:
   retries: 2
   retry_delay_seconds: 30
 
+# Scraping nocturne WhoScored (run_scrapping.py)
+# Un flow = scrape_raw (raw-only, sans écriture DuckDB) puis load_archive.
+scraping:
+  cron: "0 23 * * *"                     # tous les jours à 23h
+  deployment_name: "scraping-whoscored-nuit"
+  max_runtime_min: 480                   # arrêt du scrape après 8h (23h → 7h),
+                                         # laisse une marge avant 8h pour le load
+  retries: 1
+  retry_delay_seconds: 60
+
 # ── Agent Gemini ──────────────────────────────────────────────────────────────
 agent:
   model: "gemini-3.1-flash-lite-preview"   # ou gemini-1.5-flash selon ta clé
