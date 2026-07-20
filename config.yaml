@@ -42,6 +42,10 @@ paths:
   models: models/
   db: db/football.duckdb
   duckdb: db/football.duckdb
+  # Archive brute des JSON matchCentreData WhoScored (gzip).
+  # Chemin relatif = sous la racine du projet. Pour un disque externe,
+  # mets un chemin ABSOLU ici, ex: E:/3etoiles_bronze/whoscored/
+  whoscored_raw: data/raw/whoscored/
 
 # Compétitions
 competitions:

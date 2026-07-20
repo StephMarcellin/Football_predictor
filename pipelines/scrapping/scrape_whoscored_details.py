@@ -51,6 +51,7 @@ USAGE
 """
 
 import json
+import gzip
 import re
 import time
 import random
@@ -90,6 +91,12 @@ with open(MAIN_CFG, encoding="utf-8") as f:
 
 DB_PATH      = ROOT_DIR / MAIN_CFG_DATA["paths"]["duckdb"]
 TRACKING_CSV = ROOT_DIR / "logs" / "whoscored_details_tracking.csv"
+
+# Répertoire d'archive brute des JSON matchCentreData.
+# Si le chemin de config est absolu (ex: disque externe E:/...), on l'utilise
+# tel quel ; sinon on le résout sous la racine du projet.
+_raw_cfg = MAIN_CFG_DATA["paths"].get("whoscored_raw", "data/raw/whoscored/")
+RAW_DIR  = Path(_raw_cfg) if Path(_raw_cfg).is_absolute() else ROOT_DIR / _raw_cfg
 
 WS_BASE      = "https://www.whoscored.com"
 MAX_RETRIES  = 3
@@ -165,6 +172,21 @@ CREATE TABLE IF NOT EXISTS silver.stg_whoscored_events (
     -- ── Flags ─────────────────────────────────────────────────────────────
     is_touch          BOOLEAN,
     is_shot           BOOLEAN,
+    is_goal           BOOLEAN,
+    is_own_goal       BOOLEAN,
+
+    -- ── Relations entre actions ───────────────────────────────────────────
+    related_event_id  INTEGER,   -- eventId (dans le match) de l'action liée
+    related_player_id INTEGER,   -- joueur lié (passeur décisif, sub entrant...)
+
+    -- ── Carton ────────────────────────────────────────────────────────────
+    card_type         VARCHAR,   -- Yellow / Red / SecondYellow
+
+    -- ── Placement du tir ──────────────────────────────────────────────────
+    goal_mouth_y      DOUBLE,    -- position horizontale dans le but
+    goal_mouth_z      DOUBLE,    -- hauteur dans le but
+    blocked_x         DOUBLE,    -- position X où le tir a été contré
+    blocked_y         DOUBLE,    -- position Y où le tir a été contré
 
     -- ── Qualifiers bruts (JSON) — rien ne se perd ─────────────────────────
     qualifiers_json   VARCHAR,
@@ -193,37 +215,147 @@ CREATE TABLE IF NOT EXISTS silver.stg_whoscored_match_index (
 """
 # ── DuckDB ────────────────────────────────────────────────────────────────────
 
+# Colonnes ajoutées à stg_whoscored_events (nom → type DuckDB).
+# Utilisé par la migration pour les bases déjà créées avec l'ancien schéma.
+EVENTS_NEW_COLUMNS = {
+    "is_goal":           "BOOLEAN",
+    "is_own_goal":       "BOOLEAN",
+    "related_event_id":  "INTEGER",
+    "related_player_id": "INTEGER",
+    "card_type":         "VARCHAR",
+    "goal_mouth_y":      "DOUBLE",
+    "goal_mouth_z":      "DOUBLE",
+    "blocked_x":         "DOUBLE",
+    "blocked_y":         "DOUBLE",
+}
+
+
+def migrate_events_table(conn: duckdb.DuckDBPyConnection):
+    """
+    Ajoute les nouvelles colonnes à silver.stg_whoscored_events si elles
+    manquent. Idempotent : ne fait rien si les colonnes existent déjà.
+    Nécessaire car CREATE TABLE IF NOT EXISTS ne modifie pas une table
+    déjà présente avec l'ancien schéma.
+    """
+    existing = {r[0] for r in conn.execute(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_schema='silver' AND table_name='stg_whoscored_events'"
+    ).fetchall()}
+    for col, dtype in EVENTS_NEW_COLUMNS.items():
+        if col not in existing:
+            conn.execute(
+                f"ALTER TABLE silver.stg_whoscored_events ADD COLUMN {col} {dtype}"
+            )
+            logger.debug(f"  Colonne {col} ({dtype}) ajoutée à stg_whoscored_events")
+
+
 def init_db() -> duckdb.DuckDBPyConnection:
     conn = duckdb.connect(str(DB_PATH))
     conn.execute("CREATE SCHEMA IF NOT EXISTS silver")
     conn.execute(CREATE_MATCH_INDEX_TABLE)
     conn.execute(CREATE_EVENTS_TABLE)
+    migrate_events_table(conn)
     return conn
 
 
-def load_pending_urls(limit: Optional[int] = None) -> list[dict]:
+def load_pending_urls(limit: Optional[int] = None,
+                      retries: int = 5, backoff_s: int = 10) -> list[dict]:
     """
     Charge les URLs non encore scrapées depuis silver.stg_whoscored_urls.
+
+    C'est le SEUL accès DuckDB du mode --raw-only, fait une fois au démarrage.
+    Si la base est momentanément verrouillée (DBeaver ouvert au lancement), on
+    réessaie plusieurs fois avant d'abandonner — sinon un run de nuit
+    automatique sauterait toute la nuit en croyant qu'il n'y a rien à faire.
+    """
+    limit_clause = f"LIMIT {limit}" if limit else ""
+    query = f"""
+        SELECT ws_match_id, url, league_source, season
+        FROM silver.stg_whoscored_urls
+        WHERE is_scraped = FALSE
+        ORDER BY season, ws_match_id
+        {limit_clause}
+    """
+    for attempt in range(1, retries + 1):
+        try:
+            conn = duckdb.connect(str(DB_PATH), read_only=True)
+            rows = conn.execute(query).fetchall()
+            conn.close()
+            return [
+                {"ws_match_id": r[0], "url": r[1],
+                 "league_source": r[2], "season": r[3]}
+                for r in rows
+            ]
+        except Exception as e:
+            logger.warning(
+                f"  Lecture des URLs échouée (tentative {attempt}/{retries}) : {e}"
+            )
+            if attempt < retries:
+                time.sleep(backoff_s)
+    logger.error(
+        "  Impossible de lire les URLs après plusieurs tentatives — "
+        "la base est-elle verrouillée (DBeaver ouvert en écriture) ?"
+    )
+    return []
+
+
+def raw_path(ws_match_id: str, league: str, season: str) -> Path:
+    """Chemin du fichier d'archive gzip d'un match : {RAW_DIR}/{saison}/{ligue}/{id}.json.gz"""
+    safe_league = re.sub(r"[^\w\-]+", "_", league or "unknown")
+    return RAW_DIR / (season or "unknown") / safe_league / f"{ws_match_id}.json.gz"
+
+
+# Répertoire des marqueurs de matchs à ne pas re-tenter (paywall, no_data).
+# En mode --raw-only on n'écrit PAS dans DuckDB : ces petits fichiers vides
+# tiennent lieu de mémoire pour la reprise, sans jamais toucher la base.
+SKIP_DIR = RAW_DIR / "_skipped"
+
+
+def write_skip(ws_match_id: str, reason: str):
+    """Écrit un marqueur {SKIP_DIR}/{ws_match_id}.txt contenant la raison du skip."""
+    try:
+        SKIP_DIR.mkdir(parents=True, exist_ok=True)
+        (SKIP_DIR / f"{ws_match_id}.txt").write_text(reason, encoding="utf-8")
+    except Exception as e:
+        logger.warning(f"  Impossible d'écrire le marqueur skip {ws_match_id} : {e}")
+
+
+def is_done_on_disk(ws_match_id: str, league: str, season: str) -> bool:
+    """
+    Vrai si le match est déjà traité sur disque : soit archivé (json.gz existe),
+    soit marqué à ignorer (paywall / no_data). Sert à reprendre un run --raw-only
+    d'une nuit sur l'autre sans jamais interroger DuckDB.
+    """
+    if raw_path(ws_match_id, league, season).exists():
+        return True
+    if (SKIP_DIR / f"{ws_match_id}.txt").exists():
+        return True
+    return False
+
+
+def save_raw_json(ws_match_id: str, league: str, season: str, data: dict) -> bool:
+    """
+    Archive l'objet matchCentreData brut en JSON gzip, un fichier par match :
+        {RAW_DIR}/{season}/{league}/{ws_match_id}.json.gz
+
+    Pourquoi : découpler le fetch (coûteux, lent, risque de ban) du parsing.
+    On garde la matière première telle quelle ; si on veut extraire de
+    nouveaux champs plus tard (notes joueurs, stats équipe...), on relance
+    juste un parsing sur l'archive, sans jamais re-scraper WhoScored.
+
+    Idempotent : re-scraper un match ré-écrit proprement son fichier.
     """
     try:
-        conn = duckdb.connect(str(DB_PATH), read_only=True)
-        limit_clause = f"LIMIT {limit}" if limit else ""
-        rows = conn.execute(f"""
-            SELECT ws_match_id, url, league_source, season
-            FROM silver.stg_whoscored_urls
-            WHERE is_scraped = FALSE
-            ORDER BY season, ws_match_id
-            {limit_clause}
-        """).fetchall()
-        conn.close()
-        return [
-            {"ws_match_id": r[0], "url": r[1],
-             "league_source": r[2], "season": r[3]}
-            for r in rows
-        ]
+        out_path = raw_path(ws_match_id, league, season)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        # "wt" = mode texte gzip → on écrit du JSON UTF-8 directement compressé
+        with gzip.open(out_path, "wt", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+        logger.debug(f"  Archive brute écrite : {out_path}")
+        return True
     except Exception as e:
-        logger.error(f"  Impossible de charger les URLs : {e}")
-        return []
+        logger.warning(f"  Impossible d'archiver le JSON brut {ws_match_id} : {e}")
+        return False
 
 
 def upsert_events(events: list[dict]) -> bool:
@@ -248,9 +380,11 @@ def upsert_events(events: list[dict]) -> bool:
 
         # Cast types
         int_cols   = ["row_num","event_id", "minute", "second", "expanded_minute",
-                      "period", "team_id", "player_id", "type_id", "outcome_id"]
-        float_cols = ["x", "y", "end_x", "end_y"]
-        bool_cols  = ["is_touch", "is_shot"]
+                      "period", "team_id", "player_id", "type_id", "outcome_id",
+                      "related_event_id", "related_player_id"]
+        float_cols = ["x", "y", "end_x", "end_y",
+                      "goal_mouth_y", "goal_mouth_z", "blocked_x", "blocked_y"]
+        bool_cols  = ["is_touch", "is_shot", "is_goal", "is_own_goal"]
 
         for c in int_cols:
             if c in df.columns:
@@ -288,8 +422,15 @@ def upsert_match_index(row: dict) -> bool:
         )
         df = pd.DataFrame([row])
         conn.register("df_idx", df)
+        # Insertion EXPLICITE des colonnes possédées par le scraper.
+        # La table peut porter des colonnes supplémentaires ajoutées par
+        # 02_process.py (comp_category, raw_home/away_team_name) : un SELECT *
+        # depuis nos 9 colonnes échouerait (mismatch). Ces colonnes dérivées
+        # seront recalculées par 02_process au prochain run ; NULL ici.
+        cols = ", ".join(df.columns.tolist())
         conn.execute(
-            "INSERT INTO silver.stg_whoscored_match_index SELECT * FROM df_idx"
+            f"INSERT INTO silver.stg_whoscored_match_index ({cols}) "
+            f"SELECT {cols} FROM df_idx"
         )
         conn.close()
         return True
@@ -473,25 +614,27 @@ def extract_all_stats_from_source(page_source: str) -> Optional[dict]:
         allStats.home.stats.attackZones.{left, center, right}          ← Attack Sides
         allStats.home.stats.fieldZones.{ownHalf, midfield, opposition} ← Action Zones
     """
-    # Tentative 1 : allStats
-    match = RE_ALL_STATS.search(page_source)
-    if match:
-        try:
-            data = json.loads(match.group(1))
-            logger.debug("  allStats extrait avec succès")
-            return {"source": "allStats", "data": data}
-        except json.JSONDecodeError as e:
-            logger.debug(f"  allStats JSON invalide : {e}")
-
-    # Tentative 2 : matchCentreData (structure alternative WhoScored)
+    # Tentative 1 : matchCentreData — objet COMPLET (events + stats équipe +
+    # joueurs + notes + formations + métadonnées). C'est la source primaire.
     match = RE_MATCH_CENTRE.search(page_source)
     if match:
         try:
             data = json.loads(match.group(1))
-            logger.debug("  matchCentreData extrait en fallback")
+            logger.debug("  matchCentreData extrait avec succès")
             return {"source": "matchCentreData", "data": data}
         except json.JSONDecodeError as e:
             logger.debug(f"  matchCentreData JSON invalide : {e}")
+
+    # Tentative 2 : allStats — objet de stats agrégées, SANS le tableau events.
+    # Fallback seulement : ne permet pas de parser les events.
+    match = RE_ALL_STATS.search(page_source)
+    if match:
+        try:
+            data = json.loads(match.group(1))
+            logger.debug("  allStats extrait en fallback (pas d'events)")
+            return {"source": "allStats", "data": data}
+        except json.JSONDecodeError as e:
+            logger.debug(f"  allStats JSON invalide : {e}")
 
     # Tentative 3 : chercher tout objet JSON contenant "attemptTypes"
     # WhoScored peut renommer la variable selon les versions
@@ -958,6 +1101,10 @@ def parse_events(data: dict, ws_match_id: str, league: str, season: str) -> list
         p_raw = ev.get("period", {})
         period = p_raw.get("value") if isinstance(p_raw, dict) else p_raw
 
+        # Card type — structure dict {value, displayName} comme type/outcome
+        c_raw = ev.get("cardType")
+        card_type = c_raw.get("displayName") if isinstance(c_raw, dict) else c_raw
+
         # Qualifiers → JSON string
         qualifiers_json = json.dumps(ev.get("qualifiers", []), ensure_ascii=False)
 
@@ -983,6 +1130,15 @@ def parse_events(data: dict, ws_match_id: str, league: str, season: str) -> list
             "outcome_name":    outcome_name,
             "is_touch":        ev.get("isTouch", False),
             "is_shot":         ev.get("isShot", False),
+            "is_goal":         ev.get("isGoal", False),
+            "is_own_goal":     ev.get("isOwnGoal", False),
+            "related_event_id":  ev.get("relatedEventId"),
+            "related_player_id": ev.get("relatedPlayerId"),
+            "card_type":       card_type,
+            "goal_mouth_y":    ev.get("goalMouthY"),
+            "goal_mouth_z":    ev.get("goalMouthZ"),
+            "blocked_x":       ev.get("blockedX"),
+            "blocked_y":       ev.get("blockedY"),
             "qualifiers_json": qualifiers_json,
             "scraped_at":      scraped_at,
         })
@@ -1007,19 +1163,29 @@ def parse_events(data: dict, ws_match_id: str, league: str, season: str) -> list
     return rows, match_index
 
 
-def scrape_match(driver, match: dict) -> Optional[dict]:
+def scrape_match(driver, match: dict, raw_only: bool = False) -> Optional[dict]:
     """
     Scrape un match report WhoScored.
     Stratégie :
       1. Navigation vers l'URL du match (page Live ou Preview)
-      2. Tentative d'extraction allStats depuis le source JS
-      3. Si allStats absent → clic Match Report + scraping DOM fallback
-      4. Retourne un dict aligné sur stg_whoscored_match_details
+      2. Extraction de matchCentreData depuis le source JS + archive gzip
+      3. Parsing des events (sauf usage raw_only côté appelant)
+
+    raw_only : si True, on n'écrit PAS dans DuckDB. Les cas paywall/no_data
+    sont mémorisés par un marqueur-fichier (write_skip) au lieu d'un UPDATE
+    en base, pour ne jamais poser de verrou sur DuckDB pendant le scraping.
     """
     ws_id        = match["ws_match_id"]
     url          = match["url"]
     league       = match["league_source"]
     season       = match["season"]
+
+    def _skip(reason: str, db_marker):
+        """Mémorise un match à ignorer : marqueur-fichier si raw_only, sinon en base."""
+        if raw_only:
+            write_skip(ws_id, reason)
+        else:
+            db_marker(ws_id)
 
     logger.info(f"  Match {ws_id} — {url}")
 
@@ -1034,7 +1200,7 @@ def scrape_match(driver, match: dict) -> Optional[dict]:
 
         if "/plus" in current_url or "utm_campaign=BAU_POPUP_WS" in current_url:
             logger.warning(f"  💳 Paywall WhoScored+ détecté — match {ws_id} skippé (skip_reason=paywall)")
-            mark_paywall(ws_id)
+            _skip("paywall", mark_paywall)
             return None
 
         if any(x in title for x in ["403", "blocked", "access denied", "captcha"]):
@@ -1045,7 +1211,7 @@ def scrape_match(driver, match: dict) -> Optional[dict]:
             # Re-vérifier après retry
             if "/plus" in driver.current_url:
                 logger.warning(f"  💳 Toujours sur /plus après retry — skip {ws_id}")
-                mark_paywall(ws_id)
+                _skip("paywall", mark_paywall)
                 return None
 
         page_source = driver.page_source
@@ -1056,13 +1222,13 @@ def scrape_match(driver, match: dict) -> Optional[dict]:
 
         if "matchCentreData: null" in page_source or "matchCentreData:null" in page_source:
             logger.warning(f"  📭 matchCentreData=null pour {ws_id} — données absentes")
-            mark_no_data(ws_id)
+            _skip("no_data", mark_no_data)
             return None
 
         payload = extract_all_stats_from_source(page_source)
         if not payload:
             logger.warning(f"  ⚠️  Aucune donnée extractible pour {ws_id}")
-            mark_no_data(ws_id)  # ← aussi ici pour les autres cas sans data
+            _skip("no_data", mark_no_data)  # ← aussi ici pour les autres cas sans data
             return None
         
         # payload = extract_all_stats_from_source(page_source)
@@ -1072,6 +1238,11 @@ def scrape_match(driver, match: dict) -> Optional[dict]:
 
         method = payload.get("source", "unknown")
         data   = payload.get("data", {})
+
+        # ── Archive brute AVANT parsing (découplage fetch / parse) ────────────
+        # On sauvegarde l'objet complet tel quel : même si le parsing des events
+        # échoue plus bas, la matière première est conservée sur disque.
+        save_raw_json(ws_id, league, season, data)
 
         # ── Conversion events bruts → liste de dicts ──────────────────────────
         events, match_index = parse_events(data, ws_id, league, season)
@@ -1094,9 +1265,17 @@ def run_scraping(
     dry_run: bool = False,
     headless: bool = False,
     ua_index: int = 0,
+    raw_only: bool = False,
+    max_runtime_min: Optional[int] = None,
 ) -> dict:
     """
     Pipeline principal de scraping des match details.
+
+    raw_only        : n'écrit QUE les archives gzip, aucune écriture DuckDB
+                      (DBeaver reste libre). Reprise via les fichiers sur disque.
+    max_runtime_min : arrêt propre après N minutes (fenêtre horaire, ex. 23h-8h
+                      via Prefect). Le run reprend là où il s'est arrêté la fois
+                      suivante grâce à la reprise sur disque (mode raw_only).
     """
     # Charger les URLs à scraper
     if single_id:
@@ -1138,7 +1317,10 @@ def run_scraping(
     # Initialisation driver + injection cookies WhoScored
     COOKIE_FILE = ROOT_DIR / "config" / "whoscored_cookies.json"
 
-    driver = Driver(uc=True, headless=False)
+    # block_images=True : n'affiche pas les images (matchCentreData est dans le
+    # HTML brut, on lit page_source → le rendu visuel est inutile). Moins de
+    # bande passante et de rendu = pages prêtes plus vite, sans surcoût de détection.
+    driver = Driver(uc=True, headless=False, block_images=True)
 
     # Injection des cookies pour éviter le paywall WhoScored+
     if COOKIE_FILE.exists():
@@ -1170,9 +1352,27 @@ def run_scraping(
     MAX_CONSECUTIVE_FAILS = 3  # Restart si 3 échecs consécutifs
 
     consecutive_fails = 0
+    start_ts = time.time()
+    deadline = (start_ts + max_runtime_min * 60) if max_runtime_min else None
 
     try:
         for i, match in enumerate(pending):
+
+            # Arrêt propre si la fenêtre horaire (--max-runtime) est dépassée.
+            # Le run reprendra plus tard là où il s'est arrêté (reprise sur disque).
+            if deadline and time.time() > deadline:
+                logger.info(
+                    f"  ⏱  Fenêtre de {max_runtime_min} min atteinte "
+                    f"— arrêt propre à {i}/{total}"
+                )
+                break
+
+            # En --raw-only : reprise sur disque. On saute les matchs déjà
+            # archivés ou marqués à ignorer, sans jamais interroger DuckDB.
+            if raw_only and is_done_on_disk(
+                match["ws_match_id"], match["league_source"], match["season"]
+            ):
+                continue
 
             # Restart préventif ou curatif
             need_restart = (
@@ -1189,7 +1389,7 @@ def run_scraping(
                 driver.quit()
                 time.sleep(120)
                 consecutive_fails = 0
-                driver = Driver(uc=True, headless=False)
+                driver = Driver(uc=True, headless=False, block_images=True)
                 if COOKIE_FILE.exists():
                     driver.get("https://www.whoscored.com")
                     human_delay(3, 5)
@@ -1214,12 +1414,24 @@ def run_scraping(
             ws_id = match["ws_match_id"]
             logger.info(f"  [{i+1}/{total}] {ws_id}")
 
-            row = scrape_match(driver, match)
+            row = scrape_match(driver, match, raw_only=raw_only)
 
             if row:
                 events, match_index = row
                 consecutive_fails = 0  # Reset compteur
-                if upsert_events(events) and upsert_match_index(match_index):
+                if raw_only:
+                    # Archive déjà écrite dans scrape_match — aucune écriture DuckDB.
+                    summary["ok"] += 1
+                    append_tracking({
+                        "ws_match_id":   ws_id,
+                        "league_source": match["league_source"],
+                        "season":        match["season"],
+                        "status":        "archived",
+                        "method":        "raw_only",
+                        "timestamp":     datetime.now().isoformat(timespec="seconds"),
+                        "error":         "",
+                    })
+                elif upsert_events(events) and upsert_match_index(match_index):
                     mark_scraped(ws_id)
                     summary["ok"] += 1
                     append_tracking({
@@ -1276,12 +1488,21 @@ def main():
                         help="Afficher sans scraper")
     parser.add_argument("--ua",       type=int, default=0, choices=[0, 1],
                         help="Index du User-Agent à utiliser (0=Windows, 1=Mac)")
+    parser.add_argument("--raw-only", action="store_true",
+                        help="N'écrit QUE les archives gzip, aucune écriture DuckDB "
+                             "(DBeaver reste libre pendant le scraping)")
+    parser.add_argument("--max-runtime", type=int, default=None,
+                        help="Arrêt propre après N minutes (fenêtre horaire, "
+                             "ex. 540 = 9h pour un créneau 23h-8h)")
     args = parser.parse_args()
 
-    init_db()
+    # En raw_only, on ne touche pas DuckDB : ni création de tables, ni migration.
+    if not args.raw_only:
+        init_db()
     init_tracking_csv()
 
-    logger.info("=== WhoScored — Scraping Match Details ===")
+    mode = "RAW-ONLY (aucune écriture DuckDB)" if args.raw_only else "normal (écriture DuckDB)"
+    logger.info(f"=== WhoScored — Scraping Match Details — mode {mode} ===")
 
     summary = run_scraping(
         limit=args.limit,
@@ -1289,6 +1510,8 @@ def main():
         dry_run=args.dry_run,
         headless=args.headless,
         ua_index=args.ua,
+        raw_only=args.raw_only,
+        max_runtime_min=args.max_runtime,
     )
 
     logger.success(
@@ -1297,7 +1520,9 @@ def main():
         f"{summary['failed']} échecs ==="
     )
 
-    # Rapport rapide de couverture DuckDB
+    # Rapport rapide de couverture DuckDB — sauté en raw_only (aucun accès base)
+    if args.raw_only:
+        return
     try:
         conn = duckdb.connect(str(DB_PATH), read_only=True)
         n_details = conn.execute(
