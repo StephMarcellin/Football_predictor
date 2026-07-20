@@ -48,6 +48,7 @@ from prefect.client.schemas.objects import State as PrefectState
 from prefect.results import ResultRecord
 from prefect.states import Failed
 from prefect.cache_policies import NO_CACHE
+from prefect.schedules import Cron
 
 import yaml
 from loguru import logger
@@ -74,15 +75,31 @@ def load_config() -> dict:
 
 
 # ── Logger dédié à l'orchestrateur de scraping ────────────────────────────────
+# Le sink CONSOLE (stderr) de loguru est actif par défaut.
+# Le sink FICHIER est ajouté à l'EXÉCUTION (via _ensure_file_log), pas à l'import.
+# Raison : Prefect sérialise (cloudpickle) le flow pour l'exécuter en sous-processus.
+# Un fichier de log ouvert n'est pas picklable → si on l'ouvrait à l'import, le
+# processus --serve planterait au moment de sérialiser le flow ("Cannot pickle
+# files ... : a"). En l'ouvrant seulement quand le flow tourne, on l'évite.
 Path("logs").mkdir(exist_ok=True)
-logger.add(
-    "logs/scrapping.log",
-    level="INFO",
-    encoding="utf-8",
-    rotation="5 MB",
-    retention=10,
-    format="{time:YYYY-MM-DD HH:mm:ss} | {level:<8} | [SCRAP] {message}",
-)
+
+_FILE_LOG_ADDED = False
+
+
+def _ensure_file_log() -> None:
+    """Ajoute le sink fichier logs/scrapping.log, une seule fois par processus."""
+    global _FILE_LOG_ADDED
+    if _FILE_LOG_ADDED:
+        return
+    logger.add(
+        "logs/scrapping.log",
+        level="INFO",
+        encoding="utf-8",
+        rotation="5 MB",
+        retention=10,
+        format="{time:YYYY-MM-DD HH:mm:ss} | {level:<8} | [SCRAP] {message}",
+    )
+    _FILE_LOG_ADDED = True
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -179,6 +196,7 @@ def run_scrapping(steps: dict, dry_run: bool = False, run_step_task=None) -> lis
     quand même load_archive pour charger en base ce qui a déjà été archivé.
     Les deux étapes sont donc non-critiques.
     """
+    _ensure_file_log()   # sink fichier activé au runtime (voir _ensure_file_log)
     results = []
 
     logger.info("=" * 60)
@@ -226,6 +244,29 @@ def print_summary(results: list[dict]) -> None:
     print("-" * 60)
     print(f"  TOTAL {total_duration:.1f}s")
     print("=" * 60 + "\n")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SECTION 5b — Flow planifié (pour --serve)
+# ══════════════════════════════════════════════════════════════════════════════
+
+@flow(name="Scraping WhoScored", log_prints=True)
+def scheduled_scrapping() -> list[dict]:
+    """
+    Version sans arguments du scraping, pour le scheduling Prefect.
+
+    IMPORTANT : définie AU NIVEAU MODULE (pas dans main). Prefect la charge par
+    son entrypoint (fichier:fonction) lors d'un run planifié, au lieu de la
+    sérialiser « par valeur ». Sinon le pickling embarque le fichier de log
+    loguru (ouvert en append) → PicklingError. Elle reconstruit tout en interne.
+    """
+    cfg = load_config()
+    scr_cfg = cfg.get("scraping", {})
+    run_step_task = make_run_step_task(
+        retries=scr_cfg.get("retries", 1),
+        retry_delay_seconds=scr_cfg.get("retry_delay_seconds", 60),
+    )
+    return run_scrapping(build_steps(cfg), dry_run=False, run_step_task=run_step_task)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -281,20 +322,21 @@ def main() -> None:
     if args.serve:
         cron            = scr_cfg.get("cron", "0 23 * * *")
         deployment_name = scr_cfg.get("deployment_name", "scraping-whoscored-nuit")
+        timezone        = scr_cfg.get("timezone", "Europe/Paris")
 
         logger.info("Démarrage du scheduler Prefect (scraping)")
         logger.info(f"  Déploiement : {deployment_name}")
-        logger.info(f"  Cron        : {cron}")
+        logger.info(f"  Cron        : {cron}  ({timezone})")
         logger.info(f"  Fenêtre     : {scr_cfg.get('max_runtime_min', 480)} min max")
-        logger.info(f"  UI          : http://localhost:4200")
         logger.info("  (Ctrl+C pour arrêter le scheduler)")
 
-        @flow(name="Scraping WhoScored", log_prints=True)
-        def scheduled_scrapping():
-            """Version sans arguments du scraping, pour le scheduling Prefect."""
-            return run_scrapping(build_steps(cfg), dry_run=False, run_step_task=run_step_task)
-
-        scheduled_scrapping.serve(name=deployment_name, cron=cron)
+        # schedule=Cron(..., timezone=...) : sans fuseau explicite, Prefect
+        # interpréterait le cron en UTC (23h UTC = 1h du matin en France l'été).
+        # scheduled_scrapping est module-level → chargée par entrypoint, pas picklée.
+        scheduled_scrapping.serve(
+            name=deployment_name,
+            schedule=Cron(cron, timezone=timezone),
+        )
         return  # jamais atteint (serve bloque)
 
     # ── Mode normal : exécution immédiate ────────────────────────────────────

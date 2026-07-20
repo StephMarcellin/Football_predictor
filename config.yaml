@@ -66,8 +66,9 @@ pipeline:
 # Un flow = scrape_raw (raw-only, sans écriture DuckDB) puis load_archive.
 scraping:
   cron: "0 23 * * *"                     # tous les jours à 23h
+  timezone: "Europe/Paris"               # sinon le cron serait interprété en UTC
   deployment_name: "scraping-whoscored-nuit"
-  max_runtime_min: 480                   # arrêt du scrape après 8h (23h → 7h),
+  max_runtime_min: 500                   # arrêt du scrape après 8h (23h → 7h),
                                          # laisse une marge avant 8h pour le load
   retries: 1
   retry_delay_seconds: 60
