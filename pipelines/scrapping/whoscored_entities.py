@@ -171,14 +171,15 @@ CREATE_FORMATIONS_TABLE = """
 CREATE TABLE IF NOT EXISTS silver.stg_whoscored_formations (
     ws_match_id         VARCHAR NOT NULL,
     team_id             INTEGER,
+    formation_seq       INTEGER,   -- index de la formation dans la liste de l'équipe
     formation_id        INTEGER,
     period              INTEGER,
-    start_minute        INTEGER,   -- startMinuteExpanded
+    start_minute        INTEGER,   -- startMinuteExpanded (peut se répéter → hors clé)
     end_minute          INTEGER,   -- endMinuteExpanded
     captain_player_id   INTEGER,
     player_ids          VARCHAR,   -- JSON : ordre des joueurs sur la grille
     formation_positions VARCHAR,   -- JSON : coordonnées vertical/horizontal
-    PRIMARY KEY (ws_match_id, team_id, start_minute)
+    PRIMARY KEY (ws_match_id, team_id, formation_seq)
 );
 """
 
@@ -215,6 +216,17 @@ CREATE TABLE IF NOT EXISTS silver.stg_whoscored_match_meta (
 def init_fact_tables(conn: duckdb.DuckDBPyConnection) -> None:
     """Crée les 4 tables de fait si elles n'existent pas."""
     conn.execute("CREATE SCHEMA IF NOT EXISTS silver")
+
+    # Migration : une ancienne table stg_whoscored_formations (PK sur start_minute,
+    # sans formation_seq) est recréée avec le nouveau schéma. Ne s'exécute qu'une
+    # fois — dès que formation_seq existe, plus aucun DROP.
+    cols = [r[0] for r in conn.execute(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_schema='silver' AND table_name='stg_whoscored_formations'"
+    ).fetchall()]
+    if cols and "formation_seq" not in cols:
+        conn.execute("DROP TABLE silver.stg_whoscored_formations")
+
     conn.execute(CREATE_PLAYER_MATCH_TABLE)
     conn.execute(CREATE_FORMATIONS_TABLE)
     conn.execute(CREATE_TEAM_MATCH_TABLE)
@@ -284,10 +296,11 @@ def parse_formations(data: dict, ws_match_id: str) -> list:
     for side in ("home", "away"):
         side_obj = data.get(side) or {}
         team_id = side_obj.get("teamId")
-        for fo in side_obj.get("formations", []) or []:
+        for seq, fo in enumerate(side_obj.get("formations", []) or []):
             rows.append({
                 "ws_match_id":         ws_match_id,
                 "team_id":             team_id,
+                "formation_seq":       seq,
                 "formation_id":        fo.get("formationId"),
                 "period":              fo.get("period"),
                 "start_minute":        fo.get("startMinuteExpanded"),
@@ -382,7 +395,7 @@ def upsert_match_facts(data: dict, ws_match_id: str) -> None:
         )
         _write_fact(
             conn, "stg_whoscored_formations", parse_formations(data, ws_match_id),
-            int_cols=("team_id", "formation_id", "period",
+            int_cols=("team_id", "formation_seq", "formation_id", "period",
                       "start_minute", "end_minute", "captain_player_id"),
         )
         _write_fact(
