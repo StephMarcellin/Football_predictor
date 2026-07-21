@@ -38,6 +38,10 @@ from scrape_whoscored_details import (
     RAW_DIR, DB_PATH, init_db,
     parse_events, upsert_events, upsert_match_index, mark_scraped,
 )
+from whoscored_entities import (
+    collect_player_names, collect_formations_ref,
+    upsert_players_ref, upsert_formations_ref,
+)
 
 SUFFIX = ".json.gz"
 
@@ -85,9 +89,29 @@ def run_load(limit=None, season_filter=None, skip_existing=False) -> dict:
     summary = {"ok": 0, "failed": 0, "skipped": 0, "total": len(files)}
     logger.info(f"  {len(files)} archive(s) à charger depuis {root}")
 
+    # Accumulateurs des dimensions (dédupliquées en mémoire sur tout le run).
+    # On les écrit une seule fois en fin de boucle : les dims sont petites.
+    players_acc: dict = {}
+    formations_acc: dict = {}
+
     for n, f in enumerate(files, 1):
         ws_id = f.name[:-len(SUFFIX)]
 
+        # Ouvrir l'archive UNE fois. La collecte des dimensions se fait pour
+        # chaque archive, indépendamment du skip events (un match déjà chargé
+        # côté events peut ne jamais avoir alimenté les dims).
+        try:
+            with gzip.open(f, "rt", encoding="utf-8") as fh:
+                data = json.load(fh)
+        except Exception as e:
+            summary["failed"] += 1
+            logger.error(f"  Erreur lecture archive {ws_id} : {e}")
+            continue
+
+        collect_player_names(data, players_acc)
+        collect_formations_ref(data, formations_acc)
+
+        # ── Events : on saute si déjà chargé (skip_existing) ──────────────────
         if skip_existing and ws_id in done:
             summary["skipped"] += 1
             continue
@@ -99,8 +123,6 @@ def run_load(limit=None, season_filter=None, skip_existing=False) -> dict:
             )
 
         try:
-            with gzip.open(f, "rt", encoding="utf-8") as fh:
-                data = json.load(fh)
             events, match_index = parse_events(data, ws_id, league, season)
             if events and upsert_events(events) and upsert_match_index(match_index):
                 mark_scraped(ws_id)
@@ -117,6 +139,10 @@ def run_load(limit=None, season_filter=None, skip_existing=False) -> dict:
             break
         if n % 500 == 0:
             logger.info(f"  ... {n}/{len(files)} traités")
+
+    # ── Écriture des dimensions accumulées (une passe) ────────────────────────
+    upsert_players_ref(players_acc)
+    upsert_formations_ref(formations_acc)
 
     return summary
 
