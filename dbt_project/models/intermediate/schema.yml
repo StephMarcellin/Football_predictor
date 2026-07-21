@@ -516,7 +516,15 @@ models:
         tests:
           - not_null
   - name: player_possession_chains
-    description: "Chaînes de possession par joueur par match. Une ligne par action."
+    description: >
+      Segmente le flux d'événements WhoScored en chaînes de possession.
+      Pour chaque événement, détermine l'équipe réellement en possession
+      (possession certaine vs indéterminée), puis marque le déclencheur de
+      chaque chaîne via chain_trigger (corner, free_kick, counter_attack,
+      open_play, recovery, throw_in, goal_kick...).
+      Source : int_event_enriched. Incrémentale sur match_id.
+      Brique de base de corner_profiles, player_passes_raw et player_xg_chain.
+      Une ligne par action.
     columns:
       - name: match_id
         tests:
@@ -528,6 +536,11 @@ models:
               config:
                 severity: error
   - name: freekick_profiles
+    description: >
+      Profils de coups francs par chaîne. Caractérise chaque coup franc par
+      son type (direct, indirect, short_pass) et son issue (goal, shot_saved,
+      shot_off_target, offside, foul_won, corner_won, open_play, turnover).
+      Source : player_possession_chains. Incrémentale.
     columns:
       - name: match_id
         tests:
@@ -552,3 +565,164 @@ models:
           combination_of_columns:
             - match_id
             - row_num
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # COUCHE int_* — rematchage silver → clés unifiées
+  # Chaque table lit une source silver.*, remplace les noms d'équipes bruts par
+  # team_id normalisé (team_mapping) et rattache le match_id unifié
+  # (match_registry). Matérialisées en table.
+  # ════════════════════════════════════════════════════════════════════════════
+
+  - name: int_fbref_keeper
+    description: >
+      Stats gardien FBref (tirs cadrés subis, arrêts, save%) rematchées sur
+      match_id unifié et team_id normalisé. Alimente les colonnes gardien
+      de backbone.
+
+  - name: int_fbref_misc
+    description: >
+      Stats disciplinaires et défensives FBref (cartons, fautes commises,
+      interceptions, tacles gagnés) rematchées sur match_id + team_id.
+      Alimente le bloc disciplinaire de backbone.
+
+  - name: int_fbref_schedule
+    description: >
+      Feuille de match FBref (résultat, buts marqués/encaissés, possession,
+      formation) rematchée sur match_id + team_id. Source des résultats bruts
+      et de la possession dans backbone.
+
+  - name: int_fbref_shooting
+    description: >
+      Volume de tirs FBref (tirs totaux, tirs cadrés, buts par tir) rematché
+      sur match_id + team_id. Alimente le bloc tirs de backbone.
+
+  - name: int_odds
+    description: >
+      Cotes bookmakers (Pinnacle et moyennes marché) rematchées sur match_id
+      + team_id/opponent_id. Alimente les colonnes odds_* et les probabilités
+      implicites de backbone.
+
+  - name: int_understat_schedule
+    description: >
+      Calendrier Understat rematché sur le match_id unifié. Conserve
+      us_match_id (id Understat d'origine) et produit la correspondance
+      us_match_id ↔ match_id réutilisée par int_understat_stats.
+
+  - name: int_understat_stats
+    description: >
+      Stats Understat par match (npxG, npxG concédés, PPDA) rattachées au
+      match_id unifié via int_understat_schedule. Alimente les colonnes xG
+      et pressing de backbone.
+
+  - name: int_whoscored_match_index
+    description: >
+      Pont d'identité entre l'univers WhoScored (ws_match_id, ws_home/away_team_id)
+      et les clés unifiées (match_id, team_id normalisé). Table de résolution
+      d'identité centrale pour toute la chaîne événementielle WhoScored.
+
+  - name: int_whoscored_events
+    description: >
+      Événements bruts WhoScored (silver.stg_whoscored_events) avec team_id
+      normalisé et match_id unifié, résolus via int_whoscored_match_index.
+      Point d'entrée de la chaîne événementielle.
+
+  - name: int_whoscored_team_season
+    description: >
+      Ratings agrégés de saison WhoScored par équipe (attaque/défense, dribbles,
+      tirs cadrés par match, différenciés Home/Away). Alimente les colonnes
+      season_*/ws_* de backbone.
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # CHAÎNE ÉVÉNEMENTIELLE — enrichissement et valorisation par action
+  # ════════════════════════════════════════════════════════════════════════════
+
+  - name: int_event_enriched
+    description: >
+      Événements WhoScored enrichis d'un pivot des qualifiers utiles, notamment
+      la hiérarchie chance_creation (leading_to_goal, intentional_assist,
+      big_chance_created, key_pass, shot_assist...). Table socle de event_values,
+      player_possession_chains, player_network_duels et player_zone_transitions.
+      Incrémentale sur scraped_at.
+
+  - name: event_values
+    description: >
+      Valorise chaque événement individuel selon deux axes : danger_position
+      (localisation terrain pondérée offensif/défensif) et chance_creation
+      (proxy xG hiérarchisé). Couche "value par action" consommée par les
+      modèles de chaînes. Source : int_event_enriched. Incrémentale.
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # COUPS DE PIED ARRÊTÉS
+  # ════════════════════════════════════════════════════════════════════════════
+
+  - name: corner_profiles
+    description: >
+      Profils de corners. Pour chaque chaîne déclenchée par un corner,
+      caractérise la livraison (end_x/end_y, joueur, via qualifier CornerTaken=6)
+      et l'issue de la séquence. Source : player_possession_chains. Incrémentale.
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # RÉSEAU DE PASSES JOUEUR
+  # player_passes_raw → player_network_passes → centrality / betweenness / duels
+  #                                          → team_network_features
+  # ════════════════════════════════════════════════════════════════════════════
+
+  - name: player_passes_raw
+    description: >
+      Passes atomiques passeur → receveur reconstruites depuis les chaînes de
+      possession (LEAD sur les événements de l'équipe en possession, sans sauter
+      les événements adverses). Porte les flags is_progressive/is_creative/
+      is_buildup et le chain_trigger. Brique de base du réseau de passes.
+
+  - name: player_network_passes
+    description: >
+      Arêtes du graphe de passes agrégées par (match, équipe, passeur, receveur) :
+      volume total et ventilé par contexte (contre-attaque, open play, recovery,
+      autre), passes progressives/créatives/buildup. Source : player_passes_raw.
+
+  - name: player_network_centrality
+    description: >
+      Centralité de chaque joueur dans le réseau de passes : degrés entrant et
+      sortant (bruts et pondérés par le volume), passes créatives/progressives
+      émises et reçues. Source : player_network_passes.
+
+  - name: player_network_betweenness
+    description: >
+      Modèle Python (dbt-python). Calcule la betweenness centrality exacte par
+      (match, équipe) avec networkx sur le graphe pondéré de passes (normalized=True,
+      weight=n_passes). Identifie les joueurs-ponts. Source : player_network_passes.
+
+  - name: player_network_duels
+    description: >
+      Apparie les duels adverses via le qualifier 233 (miroir d'événement) pour
+      relier le joueur A et son vis-à-vis B sur le même affrontement. Matière
+      première des duels individuels. Sources : events_qual, int_event_enriched.
+
+  - name: team_network_features
+    description: >
+      Agrège les métriques réseau joueur → features d'équipe par match : nombre
+      de joueurs et d'arêtes actifs, dépendance au top créateur (top_creator_share),
+      betweenness moyenne, entropie de Shannon du réseau (network_entropy).
+      Source : player_network_centrality.
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # xG / MENACE / ZONES
+  # ════════════════════════════════════════════════════════════════════════════
+
+  - name: player_xg_chain
+    description: >
+      Attribue une valeur xG (proxy via chance_creation du tir terminal) aux
+      joueurs impliqués dans une chaîne se terminant par un tir — crédit offensif
+      réparti sur la chaîne. Source : player_possession_chains. Incrémentale.
+
+  - name: threat_conceded
+    description: >
+      Symétrique défensif de player_xg_chain : attribue la menace concédée sur
+      les chaînes adverses terminées par un tir (penalty exclu), pour mesurer la
+      responsabilité défensive. Source : player_xg_chain. Incrémentale.
+
+  - name: player_zone_transitions
+    description: >
+      Compte les transitions de zone (zone_from → zone_to) par joueur, ventilées
+      par période, état au score (score_state) et formation. Décrit les patterns
+      de circulation du ballon. Source : int_event_enriched. Incrémentale.

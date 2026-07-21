@@ -42,6 +42,10 @@ paths:
   models: models/
   db: db/football.duckdb
   duckdb: db/football.duckdb
+  # Archive brute des JSON matchCentreData WhoScored (gzip).
+  # Chemin relatif = sous la racine du projet. Pour un disque externe,
+  # mets un chemin ABSOLU ici, ex: E:/3etoiles_bronze/whoscored/
+  whoscored_raw: data/raw/whoscored/
 
 # Compétitions
 competitions:
@@ -57,6 +61,17 @@ pipeline:
   deployment_name: "pipeline-lundi-midi"
   retries: 2
   retry_delay_seconds: 30
+
+# Scraping nocturne WhoScored (run_scrapping.py)
+# Un flow = scrape_raw (raw-only, sans écriture DuckDB) puis load_archive.
+scraping:
+  cron: "0 23 * * *"                     # tous les jours à 23h
+  timezone: "Europe/Paris"               # sinon le cron serait interprété en UTC
+  deployment_name: "scraping-whoscored-nuit"
+  max_runtime_min: 500                   # arrêt du scrape après 8h (23h → 7h),
+                                         # laisse une marge avant 8h pour le load
+  retries: 1
+  retry_delay_seconds: 60
 
 # ── Agent Gemini ──────────────────────────────────────────────────────────────
 agent:

@@ -260,6 +260,74 @@ models:
       - name: f20_upset_composite
         description: "Index d'upset composite (draw signal)"
 
+  - name: features_players
+    description: >
+      Étape 6.1 — Profil de forme par joueur AVANT chaque match : moyenne des
+      métriques sur les 5 apparitions précédentes de la saison (match courant
+      exclu, anti-leakage strict). 1 ligne par (match_id, team_id, player_id).
+      Peuplé uniquement pour les 4 championnats couverts par WhoScored.
+    config:
+      alias: features_players
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - match_id
+            - team_id
+            - player_id
+    columns:
+      - name: match_id
+        description: "ID du match"
+        tests:
+          - not_null
+      - name: team_id
+        description: "ID de l'équipe du joueur pour ce match"
+        tests:
+          - not_null
+      - name: player_id
+        description: "ID du joueur"
+        tests:
+          - not_null
+      - name: date
+        description: "Date du match cible"
+        tests:
+          - not_null
+      - name: season
+        description: "Saison — clé de partition de la fenêtre rolling"
+      - name: league_source
+        description: "Championnat source (WhoScored)"
+      - name: avg_xg_chain_5
+        description: "xG-chain moyen (somme du crédit des chaînes où le joueur est impliqué), 5 matchs précédents"
+      - name: avg_xg_contribution_5
+        description: "Proxy xG issu des tirs, moyenne 5 matchs précédents"
+      - name: avg_progressive_passes_5
+        description: "Passes progressives moyennes, 5 matchs précédents"
+      - name: avg_key_passes_5
+        description: "Passes clés moyennes, 5 matchs précédents"
+      - name: avg_shots_5
+        description: "Tirs moyens, 5 matchs précédents"
+      - name: avg_pass_share_5
+        description: "Part moyenne des passes de l'équipe portées par le joueur, 5 matchs précédents"
+      - name: avg_betweenness_5
+        description: "Proxy de centralité de passage moyen, 5 matchs précédents"
+      - name: avg_creative_rate_5
+        description: "Taux moyen de passes créatives, 5 matchs précédents"
+      - name: avg_aerial_win_rate_5
+        description: "Taux moyen de duels aériens gagnés, 5 matchs précédents"
+      - name: avg_tackle_win_rate_5
+        description: "Taux moyen de tacles réussis, 5 matchs précédents"
+      - name: avg_defensive_actions_5
+        description: "Actions défensives moyennes (tacles gagnés + interceptions + dégagements + récupérations), 5 matchs précédents"
+      - name: avg_clearances_5
+        description: "Dégagements moyens, 5 matchs précédents"
+      - name: avg_zone_x_5
+        description: "Position longueur moyenne approximée depuis les 25 zones, 5 matchs précédents"
+      - name: avg_zone_y_5
+        description: "Position largeur moyenne approximée depuis les 25 zones, 5 matchs précédents"
+      - name: avg_touches_5
+        description: "Touches moyennes, 5 matchs précédents"
+      - name: n_matchs_window
+        description: "Nombre de matchs réellement utilisés dans la fenêtre (0 à 5) ; 0 = première apparition de la saison, toutes les moyennes sont NULL"
+
   - name: rolling_corners
     description: >
       Rolling windows W=3/5/10 sur les corners, depuis intermediate.corner_profiles.
