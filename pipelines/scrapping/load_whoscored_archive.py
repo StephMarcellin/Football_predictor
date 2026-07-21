@@ -41,6 +41,7 @@ from scrape_whoscored_details import (
 from whoscored_entities import (
     collect_player_names, collect_formations_ref,
     upsert_players_ref, upsert_formations_ref,
+    upsert_match_facts,
 )
 
 SUFFIX = ".json.gz"
@@ -110,6 +111,14 @@ def run_load(limit=None, season_filter=None, skip_existing=False) -> dict:
 
         collect_player_names(data, players_acc)
         collect_formations_ref(data, formations_acc)
+
+        # Tables de fait par match (joueurs, formations, stats équipe, méta).
+        # Écrites pour chaque archive, indépendamment du skip events : un match
+        # déjà chargé côté events peut ne jamais avoir alimenté ces tables.
+        try:
+            upsert_match_facts(data, ws_id)
+        except Exception as e:
+            logger.warning(f"  Faits non écrits pour {ws_id} : {e}")
 
         # ── Events : on saute si déjà chargé (skip_existing) ──────────────────
         if skip_existing and ws_id in done:
