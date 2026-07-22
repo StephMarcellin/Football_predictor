@@ -726,3 +726,28 @@ models:
       Compte les transitions de zone (zone_from → zone_to) par joueur, ventilées
       par période, état au score (score_state) et formation. Décrit les patterns
       de circulation du ballon. Source : int_event_enriched. Incrémentale.
+
+  - name: int_whoscored_player_match
+    description: >
+      Stats + note WhoScored par joueur par match, identités normalisées.
+      Traduit l'id d'équipe WhoScored vers le team_id canonique et rattache le
+      match_id unifié via int_whoscored_match_index (même logique que
+      int_whoscored_events). player_id reste l'id WhoScored (clé vers
+      silver.stg_whoscored_players_ref). Source : silver.stg_whoscored_player_match.
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1)"
+        tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: team_id
+        description: "Id canonique de l'équipe (converti depuis l'id WhoScored)"
+      - name: player_id
+        description: "Identifiant WhoScored du joueur (FK vers stg_whoscored_players_ref)"
+        tests:
+          - not_null
+      - name: rating
+        description: "Note WhoScored finale du joueur sur le match"
+      - name: stats_json
+        description: "Stats du joueur par minute (JSON brut) — totaux calculés plus tard"
