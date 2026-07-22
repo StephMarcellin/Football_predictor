@@ -883,6 +883,133 @@ sources:
             tests:
               - not_null
 
+      # ── Entités WhoScored extraites du JSON brut par load_whoscored_archive.py ──
+      # (whoscored_entities.py). team_id / player_id restent les id WhoScored,
+      # normalisés vers l'id canonique plus tard dans la couche intermediate.
+
+      - name: stg_whoscored_players_ref
+        description: >
+          Dimension joueurs — 1 ligne par joueur (dédupliqué sur tous les matchs).
+          Source : playerIdNameDictionary. Permet de lire les player_id.
+        columns:
+          - name: player_id
+            description: "Identifiant WhoScored du joueur"
+            tests:
+              - not_null
+              - unique
+          - name: player_name
+            description: "Nom du joueur"
+
+      - name: stg_whoscored_formations_ref
+        description: >
+          Dimension formations — catalogue formation_id → nom (ex: 2 → '442').
+          Source : formations[].formationId / formationName.
+        columns:
+          - name: formation_id
+            description: "Identifiant WhoScored de la formation"
+            tests:
+              - not_null
+              - unique
+          - name: formation_name
+            description: "Libellé de la formation (ex: 442, 4141, 3412)"
+
+      - name: stg_whoscored_player_match
+        description: >
+          Faits joueur par match — 1 ligne par joueur par match.
+          Note WhoScored (rating) extraite ; stats brutes par minute en JSON.
+        columns:
+          - name: ws_match_id
+            description: "Identifiant WhoScored du match"
+            tests:
+              - not_null
+          - name: team_id
+            description: "Identifiant WhoScored de l'équipe"
+          - name: player_id
+            description: "Identifiant WhoScored du joueur"
+            tests:
+              - not_null
+          - name: position
+            description: "Poste (GK, DC, MC, FW...)"
+          - name: is_first_eleven
+            description: "Titulaire au coup d'envoi ?"
+          - name: is_man_of_the_match
+            description: "Homme du match ?"
+          - name: rating
+            description: "Note WhoScored finale (valeur à la dernière minute)"
+          - name: stats_json
+            description: "Stats du joueur par minute (JSON brut) — totaux calculés en gold"
+
+      - name: stg_whoscored_formations
+        description: >
+          Timeline tactique — 1 ligne par période de formation par équipe.
+          formation_seq = index de la formation dans la liste de l'équipe.
+        columns:
+          - name: ws_match_id
+            description: "Identifiant WhoScored du match"
+            tests:
+              - not_null
+          - name: team_id
+            description: "Identifiant WhoScored de l'équipe"
+          - name: formation_seq
+            description: "Index de la formation dans la liste de l'équipe (0, 1, 2...)"
+          - name: formation_id
+            description: "Identifiant de la formation (FK vers stg_whoscored_formations_ref)"
+          - name: start_minute
+            description: "Minute étendue de début de la formation"
+          - name: end_minute
+            description: "Minute étendue de fin de la formation"
+          - name: captain_player_id
+            description: "Identifiant du capitaine sur cette période"
+          - name: player_ids
+            description: "JSON — ordre des joueurs sur la grille tactique"
+          - name: formation_positions
+            description: "JSON — coordonnées vertical/horizontal de chaque poste"
+
+      - name: stg_whoscored_team_match
+        description: >
+          Faits équipe par match — 1 ligne par équipe par match.
+          Contexte + 35 métriques équipe officielles (JSON brut par minute).
+        columns:
+          - name: ws_match_id
+            description: "Identifiant WhoScored du match"
+            tests:
+              - not_null
+          - name: team_id
+            description: "Identifiant WhoScored de l'équipe"
+          - name: field
+            description: "Côté : home ou away"
+          - name: manager_name
+            description: "Nom de l'entraîneur"
+          - name: average_age
+            description: "Âge moyen de l'équipe"
+          - name: stats_json
+            description: "Stats équipe par minute (JSON brut) — totaux calculés en gold"
+
+      - name: stg_whoscored_match_meta
+        description: >
+          Métadonnées du match — 1 ligne par match.
+          Arbitre, stade, affluence, scores mi-temps / temps plein.
+        columns:
+          - name: ws_match_id
+            description: "Identifiant WhoScored du match"
+            tests:
+              - not_null
+              - unique
+          - name: referee_id
+            description: "Identifiant de l'arbitre"
+          - name: referee_name
+            description: "Nom de l'arbitre"
+          - name: venue_name
+            description: "Nom du stade"
+          - name: attendance
+            description: "Affluence"
+          - name: kickoff_time
+            description: "Date et heure du coup d'envoi"
+          - name: ht_score
+            description: "Score à la mi-temps"
+          - name: ft_score
+            description: "Score final"
+
 
   - name: intermediate
     description: >
