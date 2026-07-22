@@ -751,3 +751,76 @@ models:
         description: "Note WhoScored finale du joueur sur le match"
       - name: stats_json
         description: "Stats du joueur par minute (JSON brut) — totaux calculés plus tard"
+
+  - name: int_whoscored_formations
+    description: >
+      Timeline tactique par équipe par match, identités normalisées (team_id
+      canonique + match_id unifié via int_whoscored_match_index).
+      formation_id reste la clé vers silver.stg_whoscored_formations_ref.
+      Source : silver.stg_whoscored_formations.
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1)"
+        tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: team_id
+        description: "Id canonique de l'équipe (converti depuis l'id WhoScored)"
+      - name: formation_id
+        description: "Identifiant de la formation (FK vers stg_whoscored_formations_ref)"
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - match_id
+            - team_id
+            - formation_seq
+
+  - name: int_whoscored_team_match
+    description: >
+      Stats d'équipe officielles WhoScored par match, identités normalisées.
+      Conserve stats_json brut (35 métriques par minute) ; extraction des totaux
+      plus tard. Source : silver.stg_whoscored_team_match.
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1)"
+        tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: team_id
+        description: "Id canonique de l'équipe (converti depuis l'id WhoScored)"
+      - name: stats_json
+        description: "Stats équipe par minute (JSON brut) — totaux calculés plus tard"
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - match_id
+            - team_id
+
+  - name: int_whoscored_players
+    description: >
+      Dimension joueur par saison et par équipe — grain (player_id, season,
+      team_id canonique). Un transfert en cours de saison = plusieurs lignes.
+      Profil courant height/weight (âge exclu car WhoScored renvoie l'âge du
+      scrape, pas du match). Sources : int_whoscored_player_match,
+      int_whoscored_match_index, silver.stg_whoscored_players_ref.
+    columns:
+      - name: player_id
+        description: "Identifiant WhoScored du joueur"
+        tests:
+          - not_null
+      - name: season
+        description: "Saison (rattachée via le match)"
+      - name: team_id
+        description: "Id canonique de l'équipe"
+      - name: player_name
+        description: "Nom du joueur (depuis la table de référence)"
+      - name: n_matchs
+        description: "Nombre de matchs joués pour cette équipe cette saison"
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - player_id
+            - season
+            - team_id
