@@ -73,13 +73,34 @@ def already_loaded() -> set:
     return {str(r[0]) for r in rows}
 
 
-def run_load(limit=None, season_filter=None, skip_existing=False) -> dict:
+def slots_filled() -> set:
+    """
+    ws_match_id dont formation_slots est déjà rempli (pour --missing-slots-only).
+    Permet de reprendre un backfill interrompu sans retraiter les matchs déjà faits.
+    """
+    try:
+        conn = duckdb.connect(str(DB_PATH), read_only=True)
+        rows = conn.execute(
+            "SELECT DISTINCT ws_match_id FROM silver.stg_whoscored_formations "
+            "WHERE formation_slots IS NOT NULL"
+        ).fetchall()
+        conn.close()
+        return {str(r[0]) for r in rows}
+    except Exception:
+        return set()
+
+
+def run_load(limit=None, season_filter=None, skip_existing=False,
+             missing_slots_only=False) -> dict:
     """
     Parcourt les archives gzip et les charge en base.
 
-    limit         : s'arrêter après N matchs chargés avec succès (test).
-    season_filter : ne charger qu'une saison (ex: "2023-2024").
-    skip_existing : ignorer les matchs déjà is_scraped=TRUE.
+    limit              : s'arrêter après N matchs chargés avec succès (test).
+    season_filter      : ne charger qu'une saison (ex: "2023-2024").
+    skip_existing      : ignorer le re-parse events des matchs déjà is_scraped=TRUE
+                         (les faits, dont formation_slots, sont écrits quand même).
+    missing_slots_only : ne traiter que les archives dont formation_slots manque
+                         encore (reprise d'un backfill interrompu).
     """
     init_db()  # garantit tables + migration des colonnes events enrichies
     meta = load_url_meta()
@@ -87,6 +108,15 @@ def run_load(limit=None, season_filter=None, skip_existing=False) -> dict:
 
     root = RAW_DIR / season_filter if season_filter else RAW_DIR
     files = sorted(root.rglob(f"*{SUFFIX}"))
+
+    if missing_slots_only:
+        filled = slots_filled()
+        before = len(files)
+        files = [f for f in files if f.name[:-len(SUFFIX)] not in filled]
+        logger.info(
+            f"  --missing-slots-only : {before - len(files)} archive(s) déjà "
+            f"remplie(s) ignorée(s), {len(files)} à traiter"
+        )
     summary = {"ok": 0, "failed": 0, "skipped": 0, "total": len(files)}
     logger.info(f"  {len(files)} archive(s) à charger depuis {root}")
 
@@ -146,7 +176,7 @@ def run_load(limit=None, season_filter=None, skip_existing=False) -> dict:
         if limit and summary["ok"] >= limit:
             logger.info(f"  Limite de {limit} atteinte — arrêt")
             break
-        if n % 500 == 0:
+        if n % 100 == 0:
             logger.info(f"  ... {n}/{len(files)} traités")
 
     # ── Écriture des dimensions accumulées (une passe) ────────────────────────
@@ -165,7 +195,9 @@ def main():
     parser.add_argument("--season", default=None,
                         help="Ne charger qu'une saison (ex: 2023-2024)")
     parser.add_argument("--skip-existing", action="store_true",
-                        help="Ignorer les matchs déjà is_scraped=TRUE")
+                        help="Ignorer le re-parse events des matchs déjà is_scraped=TRUE")
+    parser.add_argument("--missing-slots-only", action="store_true",
+                        help="Ne traiter que les archives dont formation_slots manque (résumable)")
     args = parser.parse_args()
 
     logger.info("=== Chargement des archives WhoScored → DuckDB ===")
@@ -173,6 +205,7 @@ def main():
         limit=args.limit,
         season_filter=args.season,
         skip_existing=args.skip_existing,
+        missing_slots_only=args.missing_slots_only,
     )
     logger.success(
         f"=== Terminé — {summary['ok']}/{summary['total']} chargés | "

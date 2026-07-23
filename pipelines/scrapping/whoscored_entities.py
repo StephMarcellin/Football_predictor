@@ -177,8 +177,9 @@ CREATE TABLE IF NOT EXISTS silver.stg_whoscored_formations (
     start_minute        INTEGER,   -- startMinuteExpanded (peut se répéter → hors clé)
     end_minute          INTEGER,   -- endMinuteExpanded
     captain_player_id   INTEGER,
-    player_ids          VARCHAR,   -- JSON : ordre des joueurs sur la grille
-    formation_positions VARCHAR,   -- JSON : coordonnées vertical/horizontal
+    player_ids          VARCHAR,   -- JSON : ordre des joueurs (18, titulaires + banc)
+    formation_slots     VARCHAR,   -- JSON : slot 1..11 par joueur (0 = banc)
+    formation_positions VARCHAR,   -- JSON : coordonnées vertical/horizontal (grille 11)
     PRIMARY KEY (ws_match_id, team_id, formation_seq)
 );
 """
@@ -229,6 +230,13 @@ def init_fact_tables(conn: duckdb.DuckDBPyConnection) -> None:
 
     conn.execute(CREATE_PLAYER_MATCH_TABLE)
     conn.execute(CREATE_FORMATIONS_TABLE)
+
+    # Migration : table déjà créée sans formation_slots (mais avec formation_seq,
+    # donc pas droppée ci-dessus) → on ajoute la colonne. Le re-load la remplira.
+    if cols and "formation_seq" in cols and "formation_slots" not in cols:
+        conn.execute(
+            "ALTER TABLE silver.stg_whoscored_formations ADD COLUMN formation_slots VARCHAR"
+        )
     conn.execute(CREATE_TEAM_MATCH_TABLE)
     conn.execute(CREATE_MATCH_META_TABLE)
 
@@ -307,6 +315,7 @@ def parse_formations(data: dict, ws_match_id: str) -> list:
                 "end_minute":          fo.get("endMinuteExpanded"),
                 "captain_player_id":   fo.get("captainPlayerId"),
                 "player_ids":          json.dumps(fo.get("playerIds", []), ensure_ascii=False),
+                "formation_slots":     json.dumps(fo.get("formationSlots", []), ensure_ascii=False),
                 "formation_positions": json.dumps(fo.get("formationPositions", []), ensure_ascii=False),
             })
     return rows
