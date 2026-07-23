@@ -29,6 +29,19 @@ match_index AS (
     FROM {{ ref('int_whoscored_match_index') }}
 )
 
+-- Stats de comptage à éclater depuis stats_json (SUM des séries {minute: valeur}).
+-- On ne stocke QUE des comptes ; les % (passSuccess…) se dérivent en aval.
+{% set count_stats = [
+    'touches', 'possession', 'passesTotal', 'passesAccurate', 'passesKey',
+    'shotsTotal', 'shotsOnTarget', 'shotsOffTarget', 'shotsBlocked', 'shotsOnPost',
+    'dribblesAttempted', 'dribblesWon', 'dribblesLost', 'dribbledPast', 'dispossessed',
+    'tacklesTotal', 'tackleSuccessful', 'tackleUnsuccesful', 'interceptions', 'clearances',
+    'aerialsTotal', 'aerialsWon', 'offensiveAerials', 'defensiveAerials',
+    'foulsCommited', 'offsidesCaught', 'errors',
+    'cornersTotal', 'cornersAccurate', 'throwInsTotal', 'throwInsAccurate',
+    'totalSaves', 'parriedSafe', 'parriedDanger', 'claimsHigh', 'collected'
+] %}
+
 SELECT
     idx.match_id,
 
@@ -40,6 +53,16 @@ SELECT
     END AS team_id,
 
     -- On garde toutes les colonnes joueur SAUF les clés brutes remplacées.
-    p.* EXCLUDE (ws_match_id, team_id)
+    -- stats_json reste conservé comme filet de sécurité (ré-extraction possible).
+    p.* EXCLUDE (ws_match_id, team_id),
+
+    -- Éclatage du stats_json : SUM des séries {minute: valeur} par stat.
+    -- Clé absente (ex. dribbles pour un gardien) → COALESCE 0, pas NULL.
+    {% for s in count_stats %}
+    COALESCE(
+        list_sum(map_values(CAST(json_extract(p.stats_json, '$.{{ s }}') AS MAP(VARCHAR, DOUBLE)))),
+        0
+    ) AS {{ modules.re.sub('([A-Z])', '_\\1', s) | lower }}{{ "," if not loop.last }}
+    {% endfor %}
 FROM source p
 LEFT JOIN match_index idx ON p.ws_match_id = idx.ws_match_id

@@ -471,6 +471,42 @@ models:
           Mesure la hauteur de la ligne défensive du joueur.
           Valeur basse = défend profond, valeur haute = pressing haut.
 
+      # ── Discipline ───────────────────────────────────────────────
+      - name: n_yellow_cards
+        description: "Cartons jaunes reçus par le joueur (event type 17, card_type=Yellow)"
+        tests:
+          - is_positive
+      - name: n_second_yellows
+        description: "Deuxièmes cartons jaunes (expulsion indirecte, card_type=SecondYellow)"
+        tests:
+          - is_positive
+      - name: n_red_cards
+        description: "Cartons rouges directs reçus (card_type=Red)"
+        tests:
+          - is_positive
+
+      # ── Création (lien direct related_player_id) ─────────────────
+      - name: n_assists
+        description: >
+          Passes décisives — buts où le joueur est le créateur direct
+          (related_player_id). Conservateur vs qualifier 11111, mais lien exact.
+        tests:
+          - is_positive
+      - name: n_chances_created
+        description: "Tirs créés par le joueur (related_player_id sur un tir, toutes issues)"
+        tests:
+          - is_positive
+
+      # ── Duels aériens offensifs / défensifs ──────────────────────
+      - name: n_aerial_offensive
+        description: "Duels aériens offensifs (type 44 + qualifier 286)"
+        tests:
+          - is_positive
+      - name: n_aerial_defensive
+        description: "Duels aériens défensifs (type 44 + qualifier 285)"
+        tests:
+          - is_positive
+
   - name: team_features_ws
     description: >
       Features tactiques WhoScored par équipe par match.
@@ -824,3 +860,102 @@ models:
             - player_id
             - season
             - team_id
+
+  - name: int_whoscored_lineup
+    description: >
+      Composition positionnelle par période de formation — grain (match × équipe
+      × formation_seq × joueur), une ligne par titulaire (slot 1..11). La position
+      est récupérée via le slot du joueur (formation_positions[slot]), pas par
+      alignement d'index : robuste aux trous de slot (carton rouge). Identités
+      normalisées (team_id canonique + match_id unifié via int_whoscored_match_index).
+      Source : silver.stg_whoscored_formations (prérequis : formation_slots rempli).
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1)"
+        tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: team_id
+        description: "Id canonique de l'équipe (converti depuis l'id WhoScored)"
+      - name: player_id
+        description: "Identifiant WhoScored du joueur titulaire"
+        tests:
+          - not_null
+      - name: slot
+        description: "Slot de formation 1..11 (1 = gardien)"
+      - name: grid_vertical
+        description: "Coordonnée verticale sur la grille tactique (0 = ligne de but propre)"
+      - name: grid_horizontal
+        description: "Coordonnée horizontale sur la grille tactique (5 = axe central)"
+      - name: is_captain
+        description: "Vrai si ce joueur est le capitaine sur cette période"
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - match_id
+            - team_id
+            - formation_seq
+            - player_id
+
+  - name: int_shot_placement
+    description: >
+      Placement de tir au grain « un tir » — base du Post-Shot xG (xGOT).
+      Tirs (types 13/14/15/16) issus de int_event_enriched, avec la géométrie du
+      placement dans le cadre du but (goal_mouth_y/z) dérivée pour les tirs cadrés :
+      zone 3×3, écart au centre, hauteur, distance normalisée à la lucarne. Le xGOT
+      entraîné reste en aval ; ce modèle expose les entrées + un xG pré-tir proxy.
+      Sources : int_event_enriched, event_values.
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1)"
+        tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: player_id
+        description: "Joueur qui tire"
+        tests:
+          - not_null
+      - name: is_on_target
+        description: "Tir cadré (SavedShot ou Goal) — seuls concernés par les dérivés de placement"
+      - name: placement_zone
+        description: "Zone 3×3 du cadre (rangée_colonne, ex: high_left). NULL si hors cadre / hors champ."
+      - name: corner_dist
+        description: "Distance normalisée à la lucarne la plus proche (0 = pleine lucarne)"
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - match_id
+            - row_num
+
+  - name: int_whoscored_lineup_agg
+    description: >
+      Features positionnelles au grain joueur×match, agrégées depuis
+      int_whoscored_lineup : position moyenne pondérée par les minutes, slot
+      principal, capitaine, nombre de périodes tactiques. Couverture liée à
+      formation_slots (se remplit avec le load des archives).
+      Source : int_whoscored_lineup.
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1)"
+        tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: player_id
+        description: "Identifiant WhoScored du joueur"
+        tests:
+          - not_null
+      - name: avg_vertical
+        description: "Position verticale moyenne (0 = ligne de but propre, ~10 = attaque)"
+      - name: avg_horizontal
+        description: "Position horizontale moyenne (5 = axe central)"
+      - name: primary_slot
+        description: "Slot de formation dominant (1..11, 1 = gardien)"
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - match_id
+            - team_id
+            - player_id

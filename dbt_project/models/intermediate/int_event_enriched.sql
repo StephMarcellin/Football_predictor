@@ -119,6 +119,19 @@ SELECT
     e.y,
     e.end_x,
     e.end_y,
+
+    -- Champs events enrichis (propagés depuis stg_whoscored_events).
+    -- Disponibles en aval pour : vrais passeurs (related_player_id),
+    -- discipline (card_type), placement de tir (goal_mouth_*, blocked_*).
+    e.is_own_goal,
+    e.related_event_id,
+    e.related_player_id,
+    e.card_type,
+    e.goal_mouth_y,
+    e.goal_mouth_z,
+    e.blocked_x,
+    e.blocked_y,
+
     d.match_date,
     d.season,
     d.league_source,
@@ -171,6 +184,8 @@ GROUP BY
     e.expanded_minute, e.second, e.period,
     e.type_id, e.type_name, e.outcome_id,
     e.is_shot, e.is_touch, e.x, e.y, e.end_x, e.end_y,
+    e.is_own_goal, e.related_event_id, e.related_player_id, e.card_type,
+    e.goal_mouth_y, e.goal_mouth_z, e.blocked_x, e.blocked_y,
     d.match_date, d.season, d.league_source, d.scraped_at,
     qf.is_leading_to_goal, qf.is_intentional_goal_assist,
     qf.is_intentional_assist, qf.is_big_chance_created,

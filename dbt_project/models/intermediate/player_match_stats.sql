@@ -78,9 +78,11 @@ qual_pivot AS (
         MAX(CASE WHEN qual_type_id = 22    THEN 1 ELSE 0 END) AS is_regular_play,
         MAX(CASE WHEN qual_type_id = 215   THEN 1 ELSE 0 END) AS is_individual_play,
         MAX(CASE WHEN qual_type_id = 170   THEN 1 ELSE 0 END) AS is_leading_to_goal,
-        MAX(CASE WHEN qual_type_id = 169   THEN 1 ELSE 0 END) AS is_leading_to_attempt
+        MAX(CASE WHEN qual_type_id = 169   THEN 1 ELSE 0 END) AS is_leading_to_attempt,
+        MAX(CASE WHEN qual_type_id = 286   THEN 1 ELSE 0 END) AS is_offensive_aerial,
+        MAX(CASE WHEN qual_type_id = 285   THEN 1 ELSE 0 END) AS is_defensive_aerial
     FROM {{ ref('events_qual') }}
-    WHERE qual_type_id IN (210, 11113, 1, 2, 4, 22, 215, 170,169)
+    WHERE qual_type_id IN (210, 11113, 1, 2, 4, 22, 215, 170, 169, 285, 286)
     AND match_id IN (SELECT match_id FROM match_dates)
     GROUP BY match_id, row_num
 ),
@@ -345,9 +347,18 @@ aerial_agg AS (
                       AS DOUBLE)
                  / COUNT(*) FILTER (WHERE e.type_id = 44)
             ELSE NULL
-        END                                                    AS aerial_win_rate
+        END                                                    AS aerial_win_rate,
+
+        -- Split offensif / défensif via qualifiers 286 / 285 (mêmes que event_values)
+        COUNT(*) FILTER (WHERE e.type_id = 44
+                           AND COALESCE(qp.is_offensive_aerial, 0) = 1) AS n_aerial_offensive,
+        COUNT(*) FILTER (WHERE e.type_id = 44
+                           AND COALESCE(qp.is_defensive_aerial, 0) = 1) AS n_aerial_defensive
 
     FROM {{ ref('int_whoscored_events') }} e
+    LEFT JOIN qual_pivot qp
+        ON qp.match_id = e.match_id
+        AND qp.row_num  = e.row_num
     WHERE e.player_id IS NOT NULL
       AND e.match_id IN (SELECT match_id FROM match_dates)
     GROUP BY e.match_id, e.team_id, e.player_id
@@ -378,6 +389,45 @@ error_agg AS (
     WHERE e.player_id IS NOT NULL
       AND e.match_id IN (SELECT match_id FROM match_dates)
     GROUP BY e.match_id, e.team_id, e.player_id
+),
+
+discipline_agg AS (
+    -- Cartons par joueur par match (event type_id=17, valeur dans card_type).
+    -- Cartons sans player_id (staff/banc, ~17% des rouges) volontairement exclus :
+    -- non attribuables à un joueur du onze.
+    SELECT
+        e.match_id,
+        e.team_id,
+        e.player_id,
+
+        COUNT(*) FILTER (WHERE e.type_id = 17 AND e.card_type = 'Yellow')       AS n_yellow_cards,
+        COUNT(*) FILTER (WHERE e.type_id = 17 AND e.card_type = 'SecondYellow') AS n_second_yellows,
+        COUNT(*) FILTER (WHERE e.type_id = 17 AND e.card_type = 'Red')          AS n_red_cards
+
+    FROM {{ ref('int_whoscored_events') }} e
+    WHERE e.player_id IS NOT NULL
+      AND e.match_id IN (SELECT match_id FROM match_dates)
+    GROUP BY e.match_id, e.team_id, e.player_id
+),
+
+creation_agg AS (
+    -- Création de tir via le lien direct related_player_id (toujours un coéquipier).
+    -- Le crédit va au CRÉATEUR (related_player_id), pas au tireur.
+    -- n_assists : buts créés (conservateur vs qualifier 11111, mais lien exact).
+    -- n_chances_created : tirs créés, toutes issues (13/14/15/16).
+    SELECT
+        e.match_id,
+        e.team_id,                          -- équipe du tireur = équipe du créateur (100% coéquipier)
+        e.related_player_id AS player_id,
+
+        COUNT(*) FILTER (WHERE e.type_id = 16 AND e.outcome_id = 1 AND e.is_shot = TRUE) AS n_assists,
+        COUNT(*)                                                                         AS n_chances_created
+
+    FROM {{ ref('int_whoscored_events') }} e
+    WHERE e.related_player_id IS NOT NULL
+      AND e.type_id IN (13, 14, 15, 16)
+      AND e.match_id IN (SELECT match_id FROM match_dates)
+    GROUP BY e.match_id, e.team_id, e.related_player_id
 )
 
 SELECT
@@ -388,6 +438,9 @@ SELECT
     ssa.* EXCLUDE (match_id, team_id, player_id),
     aa.* EXCLUDE (match_id, team_id, player_id),
     ea.* EXCLUDE (match_id, team_id, player_id),
+    dis.* EXCLUDE (match_id, team_id, player_id),
+    COALESCE(cr.n_assists, 0)         AS n_assists,
+    COALESCE(cr.n_chances_created, 0) AS n_chances_created,
     d.match_date AS date,
     d.season,
     d.league_source,
@@ -423,6 +476,16 @@ LEFT JOIN error_agg ea
     ON ea.match_id   = b.match_id
     AND ea.team_id   = b.team_id
     AND ea.player_id = b.player_id
+
+LEFT JOIN discipline_agg dis
+    ON dis.match_id   = b.match_id
+    AND dis.team_id   = b.team_id
+    AND dis.player_id = b.player_id
+
+LEFT JOIN creation_agg cr
+    ON cr.match_id   = b.match_id
+    AND cr.team_id   = b.team_id
+    AND cr.player_id = b.player_id
 
 JOIN match_dates d
     ON d.match_id = b.match_id
