@@ -959,3 +959,214 @@ models:
             - match_id
             - team_id
             - player_id
+
+  - name: int_penalties
+    description: >
+      Penaltys au grain « un penalty tiré ». Pivot = la frappe (types 13/14/15/16
+      portant qual 9) : tireur, résultat (marqué/arrêté/poteau/hors-cadre) et
+      placement (goal_mouth_*). Rattachés en LEFT JOIN : PenaltyFaced (type 58, même
+      instant) → équipe qui défend + gardien ; le foul en double (type 4 + qual 9)
+      → joueur qui obtient / concède, dans une fenêtre de 300 s avant la frappe.
+      Sources : int_event_enriched, int_whoscored_events, events_qual.
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1)"
+        tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: attacking_team_id
+        description: "Id canonique de l'équipe qui tire le penalty"
+        tests:
+          - not_null
+      - name: taker_player_id
+        description: "Joueur qui tire le penalty"
+        tests:
+          - not_null
+      - name: defending_team_id
+        description: "Équipe qui défend (via type 58). NULL si pas de PenaltyFaced apparié (~0,1 %)."
+      - name: gk_player_id
+        description: "Gardien face au penalty (via type 58)"
+      - name: player_conceded
+        description: "Joueur ayant concédé la faute (via qual 233). Rattaché à 100 %."
+      - name: player_drew
+        description: "Joueur ayant obtenu le penalty. Souvent NULL (limite données WhoScored, ~23 %)."
+      - name: result_label
+        description: "scored | saved | post | off_target"
+        tests:
+          - accepted_values:
+              values: ['scored', 'saved', 'post', 'off_target']
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - match_id
+            - row_num
+
+  - name: int_fouls_drawn
+    description: >
+      Fautes subies (coups francs obtenus) au grain « une faute subie » : côté
+      outcome_id=1 des events Foul (type 4). Rattache le fautif via le qual 233
+      (OppositeRelatedEvent, déterministe 100 %), la localisation (x/y, zone), le
+      tiers offensif (x > 66.7) et si la faute donne un penalty. Le joueur qui subit
+      est NULL ~5 % (limite source). Source : int_whoscored_events, events_qual.
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1)"
+        tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: drawing_team_id
+        description: "Équipe qui subit la faute / obtient le coup franc"
+        tests:
+          - not_null
+      - name: drawer_player_id
+        description: "Joueur qui subit la faute. NULL ~5 % (non renseigné à la source)."
+      - name: committed_by_player_id
+        description: "Fautif, rattaché via qual 233. NULL <1 %."
+      - name: is_attacking_third
+        description: "Faute subie dans le tiers offensif (x > 66.7) — coup franc dangereux. NULL si x absent."
+      - name: leads_to_penalty
+        description: "Vrai si la faute donne un penalty (qual 9 présent)"
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - match_id
+            - row_num
+
+  - name: int_defensive_blocks
+    description: >
+      Contres défensifs au grain « un contre », avec le défenseur qui bloque.
+      Basé sur l'event type 74 BlockedPass (bloqueur toujours nommé), rattaché à la
+      passe bloquée via le qual 233 (99,4 %). Ce sont des contres de PASSE ; les
+      contres de tir n'ont pas de bloqueur nommé chez Opta et sont hors périmètre.
+      Le join qual 233 contraint l'équipe adverse (event_id scopé par équipe).
+      Source : int_whoscored_events, events_qual.
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1)"
+        tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: blocking_team_id
+        description: "Équipe qui bloque (défend)"
+        tests:
+          - not_null
+      - name: blocker_player_id
+        description: "Défenseur qui bloque (type 74). Toujours renseigné."
+        tests:
+          - not_null
+      - name: blocked_team_id
+        description: "Équipe dont la passe est bloquée (adverse)"
+      - name: blocked_player_id
+        description: "Joueur dont la passe/action est bloquée (via qual 233). NULL <1 %."
+      - name: blocked_type
+        description: "Type d'action bloquée (surtout Pass)"
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - match_id
+            - row_num
+
+  - name: int_shot_creating_actions
+    description: >
+      Actions créatrices de tir (SCA) et de but (GCA), standard FBref/StatsBomb.
+      Une ligne par crédit = (tir, sca_order 1|2) : les 2 actions offensives de
+      l'équipe qui tire, dans la même chaîne de possession, juste avant le tir
+      (Pass, TakeOn, faute obtenue, tir/rebond). is_gca vrai si le tir est un but.
+      Source : player_possession_chains.
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1)"
+        tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: sca_order
+        description: "1 = action juste avant le tir, 2 = l'action précédente"
+      - name: attacking_team_id
+        description: "Équipe qui tire"
+        tests:
+          - not_null
+      - name: creator_player_id
+        description: "Joueur crédité de l'action créatrice"
+        tests:
+          - not_null
+      - name: action_type
+        description: "Type de l'action créatrice (Pass, TakeOn, tir…)"
+      - name: is_gca
+        description: "Vrai si le tir est un but → ce crédit compte aussi en GCA"
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - match_id
+            - shot_row_num
+            - sca_order
+
+  - name: int_progressive_carries
+    description: >
+      Conduites (dribbles) au grain « un dribble réussi » : TakeOn (type 3) réussis
+      côté offensif (outcome 1 + qual 286). WhoScored n'a pas d'event carry ; le
+      TakeOn est la seule conduite balle au pied enregistrée. Progression mesurée du
+      dribble jusqu'à la touche suivante du joueur dans la même chaîne, en mètres
+      (réduction de distance au but). is_progressive = gain ≥ 5 m.
+      Source : player_possession_chains, events_qual.
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1)"
+        tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: team_id
+        description: "Équipe du dribbleur"
+        tests:
+          - not_null
+      - name: player_id
+        description: "Joueur qui réussit le dribble"
+        tests:
+          - not_null
+      - name: progress_m
+        description: "Gain de distance vers le but adverse (m). NULL si pas de touche suivante en chaîne."
+      - name: is_progressive
+        description: "Vrai si la conduite gagne ≥ 5 m vers le but"
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - match_id
+            - row_num
+
+  - name: int_substitutions
+    description: >
+      Changements au grain « un remplacement » : joueur qui sort (SubstitutionOff,
+      type 18) apparié à celui qui entre (SubstitutionOn, type 19) par rang au sein
+      du groupe (match, équipe, minute, seconde) — gère les changements simultanés.
+      Croisé avec related_player_id (présent 27 %) : concordance 99,8 %. sub_number =
+      k-ième changement de l'équipe. Source : int_whoscored_events.
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1)"
+        tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: team_id
+        description: "Équipe qui effectue le changement"
+        tests:
+          - not_null
+      - name: player_off
+        description: "Joueur qui sort"
+        tests:
+          - not_null
+      - name: player_on
+        description: "Joueur qui entre. NULL si sortie sans remplaçant (ex. carton rouge)."
+      - name: expanded_minute
+        description: "Minute du changement (temps additionnel inclus)"
+      - name: sub_number
+        description: "k-ième changement de l'équipe dans le match"
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - match_id
+            - off_row_num
