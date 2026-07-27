@@ -1,6 +1,8 @@
 {{
     config(
-        materialized='table',
+        materialized='incremental',
+        unique_key=['match_id', 'row_num'],
+        on_schema_change='sync_all_columns',
         schema='intermediate',
         alias='int_shot_placement'
     )
@@ -18,7 +20,29 @@
 -- Le xGOT lui-même (modèle entraîné) reste en ML/gold. Ce modèle expose les
 -- ENTRÉES (placement + xG pré-tir proxy) + des dérivés géométriques de difficulté.
 
-WITH shots AS (
+WITH
+
+-- ── FILTRE INCRÉMENTAL ────────────────────────────────────────────────────────
+-- Même patron que int_event_enriched : on ne traite que les matchs dont le
+-- scraped_at dépasse le dernier déjà présent. Grain « un tir » = append-only
+-- (les tirs passés ne changent pas) → incrémental correct.
+{% if is_incremental() %}
+max_scraped AS (
+    SELECT MAX(scraped_at) AS last_scraped FROM {{ this }}
+),
+new_matches AS (
+    SELECT DISTINCT match_id
+    FROM {{ ref('int_whoscored_events') }}
+    CROSS JOIN max_scraped
+    WHERE scraped_at > last_scraped
+),
+{% else %}
+new_matches AS (
+    SELECT DISTINCT match_id FROM {{ ref('int_whoscored_events') }}
+),
+{% endif %}
+
+shots AS (
     SELECT
         e.match_id,
         e.team_id,
@@ -37,10 +61,12 @@ WITH shots AS (
         e.goal_mouth_z,
         e.blocked_x,
         e.blocked_y,
+        e.is_own_goal,                             -- distingue les CSC (type 16 c.s.c.)
         (e.type_id = 16)          AS is_goal,
         (e.type_id IN (15, 16))   AS is_on_target   -- saved + goal
     FROM {{ ref('int_event_enriched') }} e
     WHERE e.type_id IN (13, 14, 15, 16)
+      AND e.match_id IN (SELECT match_id FROM new_matches)
     -- int_event_enriched contient ~94 doublons (match_id, row_num) sur les tirs
     -- (souci de son modèle incrémental) : on garde une ligne par tir pour
     -- garantir l'unicité de la clé du placement.
