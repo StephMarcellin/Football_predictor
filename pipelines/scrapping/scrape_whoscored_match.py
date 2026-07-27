@@ -68,31 +68,9 @@ TRACKING_CSV = ROOT_DIR / "logs" / "whoscored_indexing_tracking.csv"
 
 # ── Constantes ────────────────────────────────────────────────────────────────
 
-LEAGUE_CONFIG = {
-    "Premier League": {
-        "url":  "https://www.whoscored.com/regions/252/tournaments/2/england-premier-league",
-        "slug": "ENG-Premier-League",
-    },
-    "Ligue 1": {
-        "url":  "https://www.whoscored.com/regions/74/tournaments/22/france-ligue-1",
-        "slug": "FRA-Ligue-1",
-    },
-    "Bundesliga": {
-        "url":  "https://www.whoscored.com/regions/81/tournaments/3/germany-bundesliga",
-        "slug": "GER-Bundesliga",
-    },
-    "Serie A": {
-        "url":  "https://www.whoscored.com/regions/108/tournaments/5/italy-serie-a",
-        "slug": "ITA-Serie-A",
-        "substage_seasons": {
-            "2022-2023": "Serie A",  # saison problématique : substage requis
-                            },
-    },
-    "La Liga": {
-        "url":  "https://www.whoscored.com/regions/206/tournaments/4/spain-laliga",
-        "slug": "ESP-La-Liga",
-    }
-}
+# Métadonnées des ligues (url / slug / substage) chargées depuis config.yaml
+# (clé `whoscored_leagues`). Ajouter une ligue = éditer la config, pas le code.
+LEAGUE_CONFIG = SCRAP_CFG.get("whoscored_leagues", {})
 
 WS_BASE = "https://www.whoscored.com"
 
@@ -297,9 +275,15 @@ def wait_for_loading(driver, timeout: int = 10):
 def safe_click(driver, element):
     driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", element)
     time.sleep(random.uniform(0.3, 0.7))
-    ActionChains(driver).move_to_element(element).pause(
-        random.uniform(0.2, 0.5)
-    ).click().perform()
+    try:
+        ActionChains(driver).move_to_element(element).pause(
+            random.uniform(0.2, 0.5)
+        ).click().perform()
+    except Exception:
+        # Clic gêné (souvent par la modale newsletter) → on la ferme et on réessaie.
+        dismiss_popups(driver)
+        time.sleep(0.5)
+        ActionChains(driver).move_to_element(element).pause(0.3).click().perform()
 
 
 def handle_cookies(driver):
@@ -330,6 +314,48 @@ def handle_cookies(driver):
             driver.switch_to.default_content()
         except Exception:
             driver.switch_to.default_content()
+
+
+def dismiss_popups(driver):
+    """
+    Ferme les interstitiels WhoScored HORS bandeau cookies — surtout la modale
+    newsletter « Become a smarter football bettor » (SweetAlert2), qui recouvre la
+    page et bloque les clics. Non bloquant.
+
+    Elle est backdrop-dismissible (se ferme en cliquant l'overlay autour) et n'est
+    PAS dans une iframe → on la ferme de façon AGNOSTIQUE (sans connaître sa classe).
+
+    Stratégie JS (pas besoin du HTML exact) :
+      1. Échap.
+      2. Clic sur le backdrop SweetAlert2 (.swal2-container) → ferme la modale.
+      3. En secours : retrait des overlays plein-écran à fort z-index (modale + fond).
+    """
+    from selenium.webdriver.common.keys import Keys
+    try:
+        ActionChains(driver).send_keys(Keys.ESCAPE).perform()
+    except Exception:
+        pass
+    js = """
+    let n = 0;
+    // 1) backdrop type SweetAlert2 : cliquer le conteneur (hors popup) ferme la modale
+    const c = document.querySelector('.swal2-container');
+    if (c) { c.click(); n++; }
+    // 2) secours class-agnostic : retire les overlays plein-écran à fort z-index
+    document.querySelectorAll('div, section, aside').forEach(el => {
+      const s = getComputedStyle(el);
+      const z = parseInt(s.zIndex) || 0;
+      if ((s.position === 'fixed' || s.position === 'absolute') && z >= 1000
+          && el.offsetWidth  > window.innerWidth  * 0.5
+          && el.offsetHeight > window.innerHeight * 0.5) { el.remove(); n++; }
+    });
+    return n;
+    """
+    try:
+        n = driver.execute_script(js)
+        if n:
+            logger.debug(f"  ✖ Popup fermé / overlay retiré (n={n})")
+    except Exception:
+        pass
 
 
 def select_season(driver, season_text: str) -> bool:
@@ -394,13 +420,16 @@ def navigate_to_fixtures(driver, league: str, season: str) -> bool:
     driver.uc_open_with_reconnect(cfg["url"], 5)
     human_delay(1,3)
     handle_cookies(driver)
+    dismiss_popups(driver)   # modale newsletter qui bloque les clics (ex: La Liga)
 
     if not select_season(driver, season_ws):
         return False
 
-    # ── Substage conditionnel (ex : Serie A 2022-2023) ────────────────────────
-    substage_seasons = cfg.get("substage_seasons", {})
-    substage = substage_seasons.get(season)
+    # ── Substage ──────────────────────────────────────────────────────────────
+    # Priorité : substage_seasons[season] (cas ponctuel, ex. Serie A 2022-2023),
+    # sinon default_substage (s'applique à TOUTES les saisons, ex. Serie B →
+    # « Regular Season » pour distinguer des play-offs).
+    substage = cfg.get("substage_seasons", {}).get(season) or cfg.get("default_substage")
     if substage:
         logger.info(f"  Substage requis pour {league} {season} : '{substage}'")
         if not select_substage(driver, substage):
@@ -431,6 +460,7 @@ def select_year(driver, year: int) -> bool:
     Le panel reste ouvert avec monthsTbody visible.
     """
     try:
+        dismiss_popups(driver)   # au cas où la modale apparaît après le chargement
         toggle = WebDriverWait(driver, 10).until(
             EC.element_to_be_clickable((By.ID, "toggleCalendar"))
         )
@@ -492,6 +522,24 @@ def select_month_only(driver, month_abbr: str) -> bool:
 
     except Exception as e:
         logger.warning(f"  Échec clic mois {month_abbr} : {e}")
+        return False
+
+
+def month_is_selectable(driver, month_abbr: str) -> bool:
+    """
+    Vrai si le mois est cliquable (= a des matchs). Un mois sans match (ex. juin
+    en La Liga) n'a PAS la classe `datePicker_selectable` → on doit le sauter sans
+    perdre 3 retries. Le panel calendrier est supposé déjà ouvert (après select_year).
+    """
+    try:
+        driver.find_element(
+            By.XPATH,
+            f"//tbody[contains(@class, 'DatePicker-module_monthsTbody')]"
+            f"//td[contains(@class, 'datePicker_selectable') "
+            f"and normalize-space(text())='{month_abbr}']"
+        )
+        return True
+    except Exception:
         return False
 
 
@@ -659,6 +707,20 @@ def collect_and_index_league_season(
                 continue
 
             logger.info(f"  Mois : {month_abbr} {year}")
+
+            # Mois sans match (ex. juin en La Liga) → non sélectionnable : on le
+            # saute proprement, sans gâcher les 3 retries de select_month_with_retry.
+            if not month_is_selectable(driver, month_abbr):
+                logger.info(f"    ⏭️  Aucun match en {month_abbr} {year} — mois ignoré")
+                append_tracking({
+                    "league": league, "season": season,
+                    "month_abbr": month_abbr, "year": year,
+                    "status": "empty", "urls_found": 0,
+                    "timestamp": datetime.now().isoformat(timespec="seconds"),
+                    "error": "",
+                })
+                continue
+
             ok = select_month_with_retry(driver, month_abbr, year)
 
             if not ok:
@@ -761,6 +823,14 @@ def main():
     if args.season:
         seasons_cfg = {args.season}
 
+    # Une ligue de `leagues:` sans bloc dans `whoscored_leagues` est ignorée —
+    # mais on le SIGNALE (avant, c'était silencieux → D2 jamais scrapées sans trace).
+    missing = {l for l in leagues_cfg if l not in LEAGUE_CONFIG}
+    if missing:
+        logger.warning(
+            f"  ⚠️  Ligues sans métadonnées 'whoscored_leagues' (ignorées) : "
+            f"{sorted(missing)} — ajoute leur bloc dans config.yaml pour les scraper."
+        )
     leagues_cfg = {l for l in leagues_cfg if l in LEAGUE_CONFIG}
 
     tasks = sorted(
@@ -793,26 +863,31 @@ def main():
             logger.info(f"\n{'='*50}")
             logger.info(f"  LIGUE : {league} ({len(seasons)} saison(s))")
 
-            for i, season in enumerate(sorted(seasons)):
-                logger.info(f"\n=== {league} {season} ===")
+            try:
+                for i, season in enumerate(sorted(seasons)):
+                    logger.info(f"\n=== {league} {season} ===")
 
-                # Première saison de la ligue → navigation complète
-                # Saisons suivantes → changement de saison uniquement
-                already_on_page = (i > 0)
+                    # Première saison de la ligue → navigation complète
+                    # Saisons suivantes → changement de saison uniquement
+                    already_on_page = (i > 0)
 
-                result = collect_and_index_league_season(
-                    driver, league, season,
-                    reset=args.reset,
-                    dry_run=args.dry_run,
-                    already_on_page=already_on_page,
-                )
-                for k in total:
-                    total[k] += result[k]
+                    result = collect_and_index_league_season(
+                        driver, league, season,
+                        reset=args.reset,
+                        dry_run=args.dry_run,
+                        already_on_page=already_on_page,
+                    )
+                    for k in total:
+                        total[k] += result[k]
 
-                # Pause courte entre saisons de la même ligue
-                # Pause longue entre ligues (gérée après la boucle interne)
-                if i < len(seasons) - 1:
-                    human_delay(5, 10)
+                    # Pause courte entre saisons de la même ligue
+                    if i < len(seasons) - 1:
+                        human_delay(5, 10)
+
+            except Exception as e:
+                # Isolation par ligue : un échec (popup, navigation…) ne coupe plus
+                # le run — on logue et on passe à la ligue suivante.
+                logger.error(f"  ❌ Ligue {league} interrompue : {e} — passage à la suivante")
 
             # Pause longue entre ligues
             human_delay(5, 10)
