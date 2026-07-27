@@ -1077,6 +1077,25 @@ def scrape_dom_fallback(driver) -> dict:
 # ══════════════════════════════════════════════════════════════════════════════
 
 
+def _qualifier_value(qualifiers: list, type_id: int):
+    """
+    Retourne la 'value' du qualifier dont type.value == type_id, sinon None.
+
+    Certaines infos ne sont PAS des champs de l'event WhoScored mais des
+    qualifiers rangés dans ev["qualifiers"] :
+        GoalMouthY=102, GoalMouthZ=103, BlockedX=146, BlockedY=147.
+    ev.get("goalMouthY") renvoyait donc None ~2 fois sur 3 (le champ n'existe pas
+    au niveau event). La valeur ici est une chaîne ("53.9") ; le cast en DOUBLE
+    est fait plus loin par pd.to_numeric dans upsert_events.
+    """
+    for q in qualifiers:
+        t = q.get("type")
+        tid = t.get("value") if isinstance(t, dict) else t
+        if tid == type_id:
+            return q.get("value")
+    return None
+
+
 def parse_events(data: dict, ws_match_id: str, league: str, season: str) -> list[dict]:
     """
     Convertit matchCentreData["events"] en liste de dicts plats
@@ -1105,8 +1124,18 @@ def parse_events(data: dict, ws_match_id: str, league: str, season: str) -> list
         c_raw = ev.get("cardType")
         card_type = c_raw.get("displayName") if isinstance(c_raw, dict) else c_raw
 
-        # Qualifiers → JSON string
-        qualifiers_json = json.dumps(ev.get("qualifiers", []), ensure_ascii=False)
+        # Qualifiers : liste brute (pour extraire goal_mouth/blocked) + JSON string
+        raw_qualifiers = ev.get("qualifiers", [])
+        qualifiers_json = json.dumps(raw_qualifiers, ensure_ascii=False)
+
+        # Placement : la valeur est tantôt dans les qualifiers (102/103/146/147),
+        # tantôt au niveau event (selon la saison/ligue). On prend le qualifier en
+        # priorité, sinon le champ top-level. Test `is not None` (une valeur 0 est
+        # falsy → `or` serait faux).
+        q_gmy = _qualifier_value(raw_qualifiers, 102)
+        q_gmz = _qualifier_value(raw_qualifiers, 103)
+        q_bx  = _qualifier_value(raw_qualifiers, 146)
+        q_by  = _qualifier_value(raw_qualifiers, 147)
 
         rows.append({
             "ws_match_id":     ws_match_id,
@@ -1135,10 +1164,12 @@ def parse_events(data: dict, ws_match_id: str, league: str, season: str) -> list
             "related_event_id":  ev.get("relatedEventId"),
             "related_player_id": ev.get("relatedPlayerId"),
             "card_type":       card_type,
-            "goal_mouth_y":    ev.get("goalMouthY"),
-            "goal_mouth_z":    ev.get("goalMouthZ"),
-            "blocked_x":       ev.get("blockedX"),
-            "blocked_y":       ev.get("blockedY"),
+            # goalMouthY/Z et blockedX/Y : qualifier (102/103/146/147) en priorité,
+            # sinon champ top-level (les deux sources coexistent selon les matchs).
+            "goal_mouth_y":    q_gmy if q_gmy is not None else ev.get("goalMouthY"),
+            "goal_mouth_z":    q_gmz if q_gmz is not None else ev.get("goalMouthZ"),
+            "blocked_x":       q_bx  if q_bx  is not None else ev.get("blockedX"),
+            "blocked_y":       q_by  if q_by  is not None else ev.get("blockedY"),
             "qualifiers_json": qualifiers_json,
             "scraped_at":      scraped_at,
         })
