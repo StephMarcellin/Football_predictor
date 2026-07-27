@@ -61,6 +61,7 @@ shots AS (
         e.goal_mouth_z,
         e.blocked_x,
         e.blocked_y,
+        e.is_own_goal,                             -- distingue les CSC (type 16 c.s.c.)
         (e.type_id = 16)          AS is_goal,
         (e.type_id IN (15, 16))   AS is_on_target   -- saved + goal
     FROM {{ ref('int_event_enriched') }} e

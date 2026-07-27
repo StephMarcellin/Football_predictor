@@ -908,21 +908,91 @@ models:
       Sources : int_event_enriched, event_values.
     columns:
       - name: match_id
-        description: "Identifiant unifié du match (SHA1)"
+        description: "Identifiant unifié du match (SHA1). Clé de match commune à tout le projet."
         tests:
           - not_null:
               config:
                 severity: warn
+      - name: team_id
+        description: >
+          Id canonique de l'équipe qui tire (converti depuis l'id WhoScored).
+          CAS CSC : pour un but contre son camp, team_id est l'équipe QUI CONCÈDE
+          (celle du joueur marquant c.s.c.), pas celle qui profite du but.
       - name: player_id
-        description: "Joueur qui tire"
+        description: "Identifiant WhoScored du joueur qui tire."
         tests:
           - not_null
+      - name: event_id
+        description: >
+          Identifiant WhoScored de l'événement. ATTENTION : scopé par (match, équipe),
+          PAS unique par match — ne pas joindre dessus sans contraindre l'équipe.
+      - name: row_num
+        description: "Index de l'événement dans le flux du match (ordre chronologique). Unique par match avec match_id."
+      - name: expanded_minute
+        description: "Minute de jeu du tir, temps additionnel inclus (ex. 45+2 → 47)."
+      - name: season
+        description: "Saison du match (ex. 2023-2024)."
+      - name: league_source
+        description: "Championnat / source des données (ex. Bundesliga)."
+      - name: scraped_at
+        description: "Horodatage ISO du scrape de ce match (sert au filtre incrémental)."
+      - name: type_id
+        description: "Type d'événement WhoScored : 13 MissedShots, 14 ShotOnPost, 15 SavedShot, 16 Goal."
+      - name: type_name
+        description: "Libellé du type d'événement (MissedShots / ShotOnPost / SavedShot / Goal)."
+      - name: x
+        description: "Position X de la frappe sur le terrain, échelle 0-100 (x croissant vers le but adverse)."
+      - name: y
+        description: "Position Y de la frappe sur le terrain, échelle 0-100 (largeur, 50 = axe central)."
+      - name: goal_mouth_y
+        description: >
+          Position horizontale (largeur) où le tir franchit ou atteint la ligne de but
+          (qualifier 102 GoalMouthY, définition Opta). Cadre : poteaux à Y≈45.2 et 54.8,
+          centre 50. NULL si non renseigné à la source.
+      - name: goal_mouth_z
+        description: >
+          Hauteur à laquelle le tir franchit/atteint la ligne de but (qualifier 103
+          GoalMouthZ). Barre à Z≈38. NULL si non renseigné à la source.
+      - name: blocked_x
+        description: >
+          Coordonnée X (repère de l'équipe qui tire, 0-100) du point où le tir est STOPPÉ
+          (qualifier 146 BlockedX). Pour un tir arrêté, c'est la position de l'arrêt du
+          gardien (vérifié sur exemple : blocked_x ≈ position du Save adverse converti).
+          Peut aussi marquer un contre défenseur si le qualifier 82 Blocked est présent.
+          Renseigné seulement pour une partie des tirs.
+      - name: blocked_y
+        description: >
+          Coordonnée Y (repère de l'équipe qui tire, 0-100) du point où le tir est stoppé
+          (qualifier 147 BlockedY). Même sémantique que blocked_x.
+      - name: is_goal
+        description: >
+          Booléen : événement de type but (type_id = 16). ⚠️ Inclut 306 buts contre
+          son camp (CSC) rattachés à l'équipe qui CONCÈDE, pas à celle qui marque.
+          Pour « but marqué par l'équipe qui tire », exclure les CSC via is_own_goal.
+          À filtrer aussi pour le xGOT (un CSC n'est pas un tir cadré normal).
+      - name: is_own_goal
+        description: >
+          Booléen : le but est un but contre son camp (CSC). TRUE pour les 306 CSC
+          (type 16), sinon FALSE/NULL. Combiné à is_goal, permet d'isoler les vrais
+          buts de l'équipe qui tire. Propagé depuis int_event_enriched.
       - name: is_on_target
-        description: "Tir cadré (SavedShot ou Goal) — seuls concernés par les dérivés de placement"
+        description: "Booléen : tir cadré (SavedShot ou Goal, type 15/16). Seuls les tirs cadrés portent les dérivés de placement."
+      - name: pre_shot_xg_proxy
+        description: >
+          Proxy de xG pré-tir = chance_creation issu de event_values (baseline du xGOT).
+          Non calibré : sert d'entrée/repère, pas de probabilité exacte.
+      - name: offset_center
+        description: "Écart horizontal au centre du but : ABS(goal_mouth_y - 50). Tirs cadrés uniquement, NULL sinon."
+      - name: height
+        description: "Hauteur du tir dans le but (= goal_mouth_z). Tirs cadrés uniquement, NULL sinon."
+      - name: placement_col
+        description: "Colonne de la grille 3×3 du cadre : left / center / right (selon goal_mouth_y). Tirs cadrés uniquement."
+      - name: placement_row
+        description: "Rangée de la grille 3×3 : low / mid / high (selon goal_mouth_z). Tirs cadrés uniquement."
       - name: placement_zone
-        description: "Zone 3×3 du cadre (rangée_colonne, ex: high_left). NULL si hors cadre / hors champ."
+        description: "Zone 3×3 du cadre (rangée_colonne, ex: high_left = lucarne gauche). Tirs cadrés uniquement, NULL sinon."
       - name: corner_dist
-        description: "Distance normalisée à la lucarne la plus proche (0 = pleine lucarne)"
+        description: "Distance normalisée à la lucarne la plus proche (0 = pleine lucarne, plus grand = plus central/bas). Tirs cadrés uniquement."
     tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns:
