@@ -1,0 +1,54 @@
+version: 2
+
+models:
+  - name: xgot_training
+    description: >
+      Dataset d'entraînement du modèle xGOT (post-shot xG). Un tir cadré éligible
+      par ligne. Cible = label (le tir finit-il au fond). Filtres : tirs cadrés,
+      placement présent, hors CSC, hors penalty. Pas de filtre saison (protection
+      portée par une barrière de couverture avant l'entraînement). Vue → toujours à
+      jour avec int_shot_placement. Schéma : machine_learning.
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1)."
+        tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: row_num
+        description: "Index de l'événement dans le match. Avec match_id, clé unique du tir."
+      - name: season
+        description: "Saison — sert au split temporel et au suivi de couverture (pas au filtrage)."
+      - name: label
+        description: "Cible binaire : 1 = but, 0 = tir cadré arrêté."
+        tests:
+          - not_null
+          - accepted_values:
+              values: [0, 1]
+      - name: offset_center
+        description: "Écart horizontal au centre du but (m dans le cadre) : ABS(goal_mouth_y - 50)."
+      - name: height
+        description: "Hauteur du tir dans le but (= goal_mouth_z)."
+      - name: corner_dist
+        description: "Distance normalisée à la lucarne la plus proche (0 = pleine lucarne)."
+      - name: placement_col
+        description: "Colonne du placement : left / center / right."
+      - name: placement_row
+        description: "Rangée du placement : low / mid / high."
+      - name: placement_zone
+        description: "Zone 3×3 du cadre (ex: high_left = lucarne gauche)."
+      - name: x
+        description: "Position X de la frappe (0-100, croissant vers le but adverse)."
+      - name: y
+        description: "Position Y de la frappe (0-100, 50 = axe central)."
+      - name: shot_distance_m
+        description: "Distance de la frappe au centre du but adverse, en mètres."
+      - name: shot_angle_rad
+        description: "Angle de tir (ouverture du but vu depuis la frappe), en radians. Loi des cosinus, but 7.32 m."
+      - name: pre_shot_xg_proxy
+        description: "Proxy de xG pré-tir (chance_creation, non calibré) — repère/entrée additionnelle."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - match_id
+            - row_num
