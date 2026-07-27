@@ -34,6 +34,49 @@ leagues:
   - "Serie B"
   - "La Liga 2"
 
+# Métadonnées WhoScored par ligue (url / slug / substage éventuel).
+# Une ligue listée dans `leagues:` mais ABSENTE d'ici est ignorée au scraping
+# (avec un warning explicite). Ajouter une ligue = ajouter son bloc ici, sans code.
+whoscored_leagues:
+  "Premier League":
+    url:  "https://www.whoscored.com/regions/252/tournaments/2/england-premier-league"
+    slug: "ENG-Premier-League"
+  "Championship":
+    url:  "https://www.whoscored.com/regions/252/tournaments/7/england-championship"
+    slug: "ENG-Championship"
+    default_substage: "Championship"
+
+  "Ligue 1":
+    url:  "https://www.whoscored.com/regions/74/tournaments/22/france-ligue-1"
+    slug: "FRA-Ligue-1"
+  "Ligue 2":
+    url:  "https://www.whoscored.com/regions/74/tournaments/37/france-ligue-2"
+    slug: "FRA-Ligue-2"
+
+  "Bundesliga":
+    url:  "https://www.whoscored.com/regions/81/tournaments/3/germany-bundesliga"
+    slug: "GER-Bundesliga"
+  "2. Bundesliga":
+    url:  "https://www.whoscored.com/regions/81/tournaments/6/germany-2-bundesliga"
+    slug: "GER-2-Bundesliga"
+
+  "Serie A":
+    url:  "https://www.whoscored.com/regions/108/tournaments/5/italy-serie-a"
+    slug: "ITA-Serie-A"
+    default_substage: "Serie A"
+  "Serie B":
+    url:  "https://www.whoscored.com/regions/108/tournaments/19/italy-serie-b"
+    slug: "ITA-Serie-B"
+    default_substage: "Serie B"
+
+  "La Liga":
+    url:  "https://www.whoscored.com/regions/206/tournaments/4/spain-laliga"
+    slug: "ESP-La-Liga"
+  "La Liga 2":
+    url:  "https://www.whoscored.com/regions/206/tournaments/63/spain-segunda-divisi%C3%B3n"
+    slug: "ESP-La-Liga-2"
+    default_substage: "LaLiga2"
+
 #  Path configuration
 paths:
   raw_data: data/raw/
@@ -48,12 +91,15 @@ paths:
   whoscored_raw: data/raw/whoscored/
 
 # Compétitions
-competitions:
-- ligue_1
-- premier_league
-- liga
-- bundesliga
-- serie_a
+# competitions:
+# - ligue_1
+# - ligue_2
+# - premier_league
+# - championship
+# - La 
+# - bundesliga
+# - serie_a
+
 
 # Pipeline configuration
 pipeline:
