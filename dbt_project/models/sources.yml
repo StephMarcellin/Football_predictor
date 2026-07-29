@@ -1052,6 +1052,50 @@ sources:
             description: "Saison au format YYYY-YYYY"
             tests:
               - not_null
-              
 
-        
+  - name: machine_learning
+    description: >
+      Artefacts ML écrits hors dbt (Python). dbt les lit comme sources pour
+      construire les modèles qui en dépendent.
+    schema: machine_learning
+
+    tables:
+
+      - name: xt_grid
+        description: >
+          Grille Expected Threat (xT) 16×12 = 192 cases, estimée par
+          pipelines/xt_grid.py (itération de valeur / chaîne de Markov) sur
+          int_xt_actions. Étalon global stable : une valeur xT par case,
+          croissante vers le but adverse, pic devant la surface. Lue par
+          int_xt_contributions pour le xT ajouté par déplacement. Réécrite
+          (CREATE OR REPLACE) à chaque run.
+        columns:
+          - name: col
+            description: "Colonne de la case (0-15 ; 0 = son but, 15 = but adverse)."
+            tests:
+              - not_null
+          - name: row
+            description: "Ligne de la case (0-11 ; 6 ≈ axe central)."
+            tests:
+              - not_null
+          - name: shots
+            description: "Nombre de tirs partis de la case."
+          - name: goals
+            description: "Nombre de buts depuis la case."
+          - name: moves
+            description: "Déplacements réussis (avec destination) partis de la case."
+          - name: turnover
+            description: "Pertes de balle dans la case (fin de possession)."
+          - name: shoot_pct
+            description: "P(tir) = shots / (shots + moves + turnover)."
+          - name: goal_prob
+            description: "P(but | tir) = goals / shots."
+          - name: move_pct
+            description: "P(déplacement réussi) = moves / (shots + moves + turnover)."
+          - name: xt
+            description: "Valeur Expected Threat de la case (résultat de l'itération)."
+        tests:
+          - dbt_utils.unique_combination_of_columns:
+              combination_of_columns:
+                - col
+                - row
