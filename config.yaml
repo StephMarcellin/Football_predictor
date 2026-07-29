@@ -29,10 +29,10 @@ leagues:
   - "Serie A"
   - "La Liga"
   - "Championship"
-  - "Ligue 2"
+  # - "Ligue 2"
   - "2. Bundesliga"
-  - "Serie B"
-  - "La Liga 2"
+  # - "Serie B"
+  # - "La Liga 2"
 
 # Métadonnées WhoScored par ligue (url / slug / substage éventuel).
 # Une ligue listée dans `leagues:` mais ABSENTE d'ici est ignorée au scraping
@@ -49,9 +49,11 @@ whoscored_leagues:
   "Ligue 1":
     url:  "https://www.whoscored.com/regions/74/tournaments/22/france-ligue-1"
     slug: "FRA-Ligue-1"
-  "Ligue 2":
-    url:  "https://www.whoscored.com/regions/74/tournaments/37/france-ligue-2"
-    slug: "FRA-Ligue-2"
+
+  # Pas de Match report en Ligue 2
+  # "Ligue 2":
+  #   url:  "https://www.whoscored.com/regions/74/tournaments/37/france-ligue-2"
+  #   slug: "FRA-Ligue-2"
 
   "Bundesliga":
     url:  "https://www.whoscored.com/regions/81/tournaments/3/germany-bundesliga"
@@ -64,18 +66,18 @@ whoscored_leagues:
     url:  "https://www.whoscored.com/regions/108/tournaments/5/italy-serie-a"
     slug: "ITA-Serie-A"
     default_substage: "Serie A"
-  "Serie B":
-    url:  "https://www.whoscored.com/regions/108/tournaments/19/italy-serie-b"
-    slug: "ITA-Serie-B"
-    default_substage: "Serie B"
+  # "Serie B":
+  #   url:  "https://www.whoscored.com/regions/108/tournaments/19/italy-serie-b"
+  #   slug: "ITA-Serie-B"
+  #   default_substage: "Serie B"
 
   "La Liga":
     url:  "https://www.whoscored.com/regions/206/tournaments/4/spain-laliga"
     slug: "ESP-La-Liga"
-  "La Liga 2":
-    url:  "https://www.whoscored.com/regions/206/tournaments/63/spain-segunda-divisi%C3%B3n"
-    slug: "ESP-La-Liga-2"
-    default_substage: "LaLiga2"
+  # "La Liga 2":
+  #   url:  "https://www.whoscored.com/regions/206/tournaments/63/spain-segunda-divisi%C3%B3n"
+  #   slug: "ESP-La-Liga-2"
+  #   default_substage: "LaLiga2"
 
 #  Path configuration
 paths:
