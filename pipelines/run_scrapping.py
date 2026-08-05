@@ -159,7 +159,7 @@ def build_steps(cfg: dict) -> dict:
     tête de module) pour ne charger seleniumbase & co qu'au moment de l'exécution.
     Les scripts sont dans pipelines/scrapping/ → on ajoute ce dossier au sys.path.
     """
-    scrap_dir = ROOT_DIR / "pipelines" / "scrapping"
+    scrap_dir = ROOT_DIR / "pipelines" / "scrapping" / "events"
     if scrap_dir.exists() and str(scrap_dir) not in sys.path:
         sys.path.insert(0, str(scrap_dir))
 

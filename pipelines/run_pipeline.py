@@ -311,6 +311,7 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
         mod_04  = _import_from_path("train_04",     ROOT_DIR / "pipelines" / "04_train.py")
         mod_05  = _import_from_path("predict_05",   ROOT_DIR / "pipelines" / "05_predict.py")
         mod_06  = _import_from_path("backtest_06",  ROOT_DIR / "pipelines" / "06_backtest.py")
+        mod_xt  = _import_from_path("xt_grid_mod",  ROOT_DIR / "pipelines" / "xt_grid.py")
 
     except FileNotFoundError as e:
         logger.error(f"Script introuvable : {e}")
@@ -351,6 +352,28 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
             "fn":       run_dbt_run,
             "kwargs":   {"select": "backbone features_rolling features_whoscored features_draw features_final","full_refresh": full_refresh},
             "critical": True,
+        },
+
+        # ── Chaîne xT : dbt(int_xt_actions) → xt_grid.py → dbt(int_xt_contributions) ──
+        # int_xt_contributions lit source('machine_learning','xt_grid') produit par
+        # xt_grid.py. dbt ne connaît pas cette dépendance Python → l'ordre est imposé
+        # ici. '+int_xt_actions' reconstruit aussi ses upstream. Chaîne auxiliaire
+        # (ne nourrit pas encore train/predict) → critical=False : un échec ne bloque
+        # pas les prédictions du jour.
+        "dbt_xt_actions": {
+            "fn":       run_dbt_run,
+            "kwargs":   {"select": "+int_xt_actions", "full_refresh": full_refresh},
+            "critical": False,
+        },
+        "xt_grid": {
+            "fn":       mod_xt.main,
+            "kwargs":   {},
+            "critical": False,
+        },
+        "dbt_xt_contributions": {
+            "fn":       run_dbt_run,
+            "kwargs":   {"select": "int_xt_contributions"},
+            "critical": False,
         },
 
         "dbt_test": {

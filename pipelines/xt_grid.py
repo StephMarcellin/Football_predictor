@@ -162,15 +162,11 @@ def write_grid(con, grid_df):
     logger.info(f"machine_learning.xt_grid écrit : {n} lignes")
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Estime la grille xT (Markov) et l'écrit dans machine_learning.xt_grid.")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="Calcule et affiche la grille sans l'écrire en base.")
-    args = parser.parse_args()
-
-    logger.info(f"Connexion ({'read-only' if args.dry_run else 'écriture'}) : {DB_PATH}")
-    con = duckdb.connect(str(DB_PATH), read_only=args.dry_run)
+def main(dry_run: bool = False):
+    """Estime la grille xT et l'écrit dans machine_learning.xt_grid.
+    dry_run=True : calcule et affiche sans écrire. Appelable par run_pipeline.py."""
+    logger.info(f"Connexion ({'read-only' if dry_run else 'écriture'}) : {DB_PATH}")
+    con = duckdb.connect(str(DB_PATH), read_only=dry_run)
     try:
         cell_stats, transitions = load_aggregates(con)
         logger.info(f"cell_stats : {cell_stats.shape[0]} cases | transitions : {transitions.shape[0]} paires")
@@ -185,7 +181,7 @@ if __name__ == "__main__":
 
         grid_df = build_grid_frame(shots, goals, moves, turn, shoot_pct, goal_prob, move_pct, xt)
 
-        if args.dry_run:
+        if dry_run:
             logger.info("dry-run : grille NON écrite. xT moyen par colonne :")
             grid = xt.reshape(N_COLS, N_ROWS)
             for c in range(N_COLS):
@@ -194,3 +190,12 @@ if __name__ == "__main__":
             write_grid(con, grid_df)
     finally:
         con.close()
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Estime la grille xT (Markov) et l'écrit dans machine_learning.xt_grid.")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Calcule et affiche la grille sans l'écrire en base.")
+    args = parser.parse_args()
+    main(dry_run=args.dry_run)

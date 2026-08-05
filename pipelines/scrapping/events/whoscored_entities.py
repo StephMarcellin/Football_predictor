@@ -22,7 +22,7 @@ import duckdb
 import pandas as pd
 
 # Source unique du chemin DuckDB et du logger (défini dans le scraper).
-from scrape_whoscored_details import DB_PATH
+from scrape_whoscored_details import DB_PATH, _conn, _close
 from loguru import logger
 
 
@@ -99,7 +99,7 @@ def upsert_players_ref(names: dict) -> int:
     """
     if not names:
         return 0
-    conn = duckdb.connect(str(DB_PATH))
+    conn = _conn()
     try:
         init_ref_tables(conn)
         df = pd.DataFrame(
@@ -115,7 +115,7 @@ def upsert_players_ref(names: dict) -> int:
         logger.info(f"  players_ref : {len(df)} joueurs upsertés")
         return len(df)
     finally:
-        conn.close()
+        _close(conn)
 
 
 def upsert_formations_ref(formations: dict) -> int:
@@ -125,7 +125,7 @@ def upsert_formations_ref(formations: dict) -> int:
     """
     if not formations:
         return 0
-    conn = duckdb.connect(str(DB_PATH))
+    conn = _conn()
     try:
         init_ref_tables(conn)
         df = pd.DataFrame(
@@ -142,7 +142,7 @@ def upsert_formations_ref(formations: dict) -> int:
         logger.info(f"  formations_ref : {len(df)} formations upsertées")
         return len(df)
     finally:
-        conn.close()
+        _close(conn)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -393,7 +393,7 @@ def upsert_match_facts(data: dict, ws_match_id: str) -> None:
     Écrit les 4 tables de fait d'un match en une seule connexion DuckDB.
     Idempotent : recharger un match remplace proprement ses lignes.
     """
-    conn = duckdb.connect(str(DB_PATH))
+    conn = _conn()
     try:
         init_fact_tables(conn)
         _write_fact(
@@ -417,4 +417,4 @@ def upsert_match_facts(data: dict, ws_match_id: str) -> None:
             int_cols=("referee_id", "attendance"),
         )
     finally:
-        conn.close()
+        _close(conn)

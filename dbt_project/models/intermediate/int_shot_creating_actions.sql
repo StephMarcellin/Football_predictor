@@ -8,9 +8,6 @@
     )
 }}
 
-{% if execute %}
-    {% do run_query("SET temp_directory='C:/Users/marce/AppData/Local/Temp/duckdb_dbt'") %}
-{% endif %}
 
 -- Actions créatrices de tir (SCA) et de but (GCA) — standard FBref/StatsBomb.
 -- Pour chaque tir, on crédite les 2 actions offensives qui l'ont précédé DANS LA

@@ -8,9 +8,6 @@
     )
 }}
 
-{% if execute %}
-    {% do run_query("SET temp_directory='C:/Users/marce/AppData/Local/Temp/duckdb_dbt'") %}
-{% endif %}
 
 -- Actions atomiques pour l'expected threat (xT), affectées à la GRILLE FINE 16×12.
 -- Grain : une action de possession (déplacement, tir OU perte de balle). Alimente

@@ -8,9 +8,6 @@
     )
 }}
 
-{% if execute %}
-    {% do run_query("SET temp_directory='C:/Users/marce/AppData/Local/Temp/duckdb_dbt'") %}
-{% endif %}
 
 WITH
 

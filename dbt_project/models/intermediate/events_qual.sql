@@ -10,9 +10,6 @@
 
 -- depends_on: {{ ref('int_whoscored_match_index') }}
 
-{% if execute %}
-    {% do run_query("SET temp_directory='C:/Users/marce/AppData/Local/Temp/duckdb_dbt'") %}
-{% endif %}
 
 SELECT
     e.match_id, e.team_id, e.player_id, e.event_id, e.minute, e.second,

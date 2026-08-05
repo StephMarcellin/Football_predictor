@@ -72,7 +72,7 @@ from selenium.webdriver.support import expected_conditions as EC
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-ROOT_DIR = Path(__file__).resolve().parent.parent.parent
+ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent
 MAIN_CFG = ROOT_DIR / "config.yaml"
 LOG_DIR  = ROOT_DIR / "logs"
 LOG_DIR.mkdir(exist_ok=True)
@@ -97,6 +97,28 @@ TRACKING_CSV = ROOT_DIR / "logs" / "whoscored_details_tracking.csv"
 # tel quel ; sinon on le résout sous la racine du projet.
 _raw_cfg = MAIN_CFG_DATA["paths"].get("whoscored_raw", "data/raw/whoscored/")
 RAW_DIR  = Path(_raw_cfg) if Path(_raw_cfg).is_absolute() else ROOT_DIR / _raw_cfg
+
+# ── Connexion partagée optionnelle (perf) ─────────────────────────────────────
+# load_archive active UNE connexion pour toute sa passe via use_shared_conn(),
+# ce qui évite de rouvrir la base (~42 Go) à chaque upsert. Le scraper ne
+# l'active pas → _SHARED_CONN reste None → comportement inchangé (par appel).
+_SHARED_CONN = None
+
+def use_shared_conn(conn) -> None:
+    """Active (conn) ou désactive (None) la connexion partagée des upserts."""
+    global _SHARED_CONN
+    _SHARED_CONN = conn
+
+def _conn(read_only: bool = False):
+    """Retourne la connexion partagée si active, sinon en ouvre une nouvelle."""
+    if _SHARED_CONN is not None:
+        return _SHARED_CONN
+    return duckdb.connect(str(DB_PATH), read_only=read_only)
+
+def _close(conn) -> None:
+    """Ferme la connexion sauf si c'est la connexion partagée (gérée par l'appelant)."""
+    if conn is not _SHARED_CONN:
+        conn.close()
 
 WS_BASE      = "https://www.whoscored.com"
 MAX_RETRIES  = 3
@@ -250,7 +272,7 @@ def migrate_events_table(conn: duckdb.DuckDBPyConnection):
 
 
 def init_db() -> duckdb.DuckDBPyConnection:
-    conn = duckdb.connect(str(DB_PATH))
+    conn = _conn()
     conn.execute("CREATE SCHEMA IF NOT EXISTS silver")
     conn.execute(CREATE_MATCH_INDEX_TABLE)
     conn.execute(CREATE_EVENTS_TABLE)
@@ -278,9 +300,9 @@ def load_pending_urls(limit: Optional[int] = None,
     """
     for attempt in range(1, retries + 1):
         try:
-            conn = duckdb.connect(str(DB_PATH), read_only=True)
+            conn = _conn(read_only=True)
             rows = conn.execute(query).fetchall()
-            conn.close()
+            _close(conn)
             return [
                 {"ws_match_id": r[0], "url": r[1],
                  "league_source": r[2], "season": r[3]}
@@ -406,7 +428,7 @@ def upsert_events(events: list[dict]) -> bool:
             f"INSERT INTO silver.stg_whoscored_events ({cols}) SELECT {cols} FROM df_events"
         )
         n = len(df)
-        conn.close()
+        _close(conn)
         logger.debug(f"  {n} events insérés pour {ws_id}")
         return True
     except Exception as e:
@@ -432,7 +454,7 @@ def upsert_match_index(row: dict) -> bool:
             f"INSERT INTO silver.stg_whoscored_match_index ({cols}) "
             f"SELECT {cols} FROM df_idx"
         )
-        conn.close()
+        _close(conn)
         return True
     except Exception as e:
         logger.error(f"  Erreur upsert match_index {row.get('ws_match_id')} : {e}")
@@ -442,14 +464,14 @@ def upsert_match_index(row: dict) -> bool:
 def mark_scraped(ws_match_id: str):
     """Met à jour is_scraped=TRUE dans stg_whoscored_urls."""
     try:
-        conn = duckdb.connect(str(DB_PATH))
+        conn = _conn()
         conn.execute("""
             UPDATE silver.stg_whoscored_urls
             SET is_scraped = TRUE,
                 scraped_at = ?
             WHERE ws_match_id = ?
         """, [datetime.now().isoformat(timespec="seconds"), ws_match_id])
-        conn.close()
+        _close(conn)
     except Exception as e:
         logger.warning(f"  Impossible de marquer {ws_match_id} comme scrapé : {e}")
 
@@ -463,7 +485,7 @@ def mark_paywall(ws_match_id: str):
     Ajoute la colonne skip_reason si elle n'existe pas encore (migration auto).
     """
     try:
-        conn = duckdb.connect(str(DB_PATH))
+        conn = _conn()
         # Migration auto : ajouter skip_reason si absente
         cols = [r[0] for r in conn.execute(
             "SELECT column_name FROM information_schema.columns "
@@ -482,7 +504,7 @@ def mark_paywall(ws_match_id: str):
                 skip_reason = 'paywall'
             WHERE ws_match_id = ?
         """, [datetime.now().isoformat(timespec="seconds"), ws_match_id])
-        conn.close()
+        _close(conn)
         logger.info(f"  📌 Match {ws_match_id} marqué paywall dans stg_whoscored_urls")
     except Exception as e:
         logger.warning(f"  Impossible de marquer {ws_match_id} comme paywall : {e}")
@@ -494,7 +516,7 @@ def mark_no_data(ws_match_id: str):
     - skip_reason = 'no_data' → identifiable pour stats / audit
     """
     try:
-        conn = duckdb.connect(str(DB_PATH))
+        conn = _conn()
         cols = [r[0] for r in conn.execute(
             "SELECT column_name FROM information_schema.columns "
             "WHERE table_schema='silver' AND table_name='stg_whoscored_urls'"
@@ -510,7 +532,7 @@ def mark_no_data(ws_match_id: str):
                 skip_reason = 'no_data'
             WHERE ws_match_id = ?
         """, [datetime.now().isoformat(timespec="seconds"), ws_match_id])
-        conn.close()
+        _close(conn)
         logger.info(f"  📭 Match {ws_match_id} marqué no_data dans stg_whoscored_urls")
     except Exception as e:
         logger.warning(f"  Impossible de marquer {ws_match_id} comme no_data : {e}")
@@ -1313,13 +1335,13 @@ def run_scraping(
         pending = [m for m in load_pending_urls() if m["ws_match_id"] == single_id]
         if not pending:
             # Chercher même si déjà scrapé (pour re-scraper un match spécifique)
-            conn = duckdb.connect(str(DB_PATH), read_only=True)
+            conn = _conn(read_only=True)
             rows = conn.execute(
                 "SELECT ws_match_id, url, league_source, season "
                 "FROM silver.stg_whoscored_urls WHERE ws_match_id = ?",
                 [single_id]
             ).fetchall()
-            conn.close()
+            _close(conn)
             pending = [{"ws_match_id": r[0], "url": r[1],
                         "league_source": r[2], "season": r[3]} for r in rows]
     else:
@@ -1555,7 +1577,7 @@ def main():
     if args.raw_only:
         return
     try:
-        conn = duckdb.connect(str(DB_PATH), read_only=True)
+        conn = _conn(read_only=True)
         n_details = conn.execute(
             "SELECT COUNT(DISTINCT ws_match_id) FROM silver.stg_whoscored_events"
         ).fetchone()[0]
@@ -1565,7 +1587,7 @@ def main():
         n_pending = conn.execute(
             "SELECT COUNT(*) FROM silver.stg_whoscored_urls WHERE is_scraped = FALSE"
         ).fetchone()[0]
-        conn.close()
+        _close(conn)
         logger.info(
             f"  DuckDB : {n_details} matchs avec events | "
             f"{n_urls - n_pending}/{n_urls} URLs scrapées | "

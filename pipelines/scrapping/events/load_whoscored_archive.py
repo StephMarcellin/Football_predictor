@@ -35,7 +35,7 @@ from loguru import logger
 # On réutilise les fonctions et constantes du scraper : même schéma, même logique
 # de parsing et d'upsert → aucune duplication de code.
 from scrape_whoscored_details import (
-    RAW_DIR, DB_PATH, init_db,
+    RAW_DIR, DB_PATH, init_db, use_shared_conn,
     parse_events, upsert_events, upsert_match_index, mark_scraped,
 )
 from whoscored_entities import (
@@ -91,7 +91,7 @@ def slots_filled() -> set:
 
 
 def run_load(limit=None, season_filter=None, skip_existing=False,
-             missing_slots_only=False) -> dict:
+             missing_slots_only=False, pending_only=False, only=None) -> dict:
     """
     Parcourt les archives gzip et les charge en base.
 
@@ -101,13 +101,39 @@ def run_load(limit=None, season_filter=None, skip_existing=False,
                          (les faits, dont formation_slots, sont écrits quand même).
     missing_slots_only : ne traiter que les archives dont formation_slots manque
                          encore (reprise d'un backfill interrompu).
+    pending_only       : PROD — ne traiter QUE les matchs pas encore chargés
+                         (is_scraped=FALSE). N'ouvre/écrit rien pour les déjà-faits.
+
+    Toute la passe partage UNE connexion DuckDB (use_shared_conn) : on évite de
+    rouvrir la base (~42 Go) à chaque upsert.
     """
-    init_db()  # garantit tables + migration des colonnes events enrichies
     meta = load_url_meta()
-    done = already_loaded() if skip_existing else set()
+    # Matchs déjà chargés (is_scraped=TRUE) : sert au skip events ET au delta.
+    scraped = already_loaded() if (skip_existing or pending_only) else set()
+    done = scraped if skip_existing else set()
 
     root = RAW_DIR / season_filter if season_filter else RAW_DIR
     files = sorted(root.rglob(f"*{SUFFIX}"))
+
+    # ── Ciblage explicite (--only) : ne (re)charger QUE ces ws_match_id, quel ──
+    #    que soit is_scraped. Les upserts étant idempotents (DELETE+INSERT), on
+    #    remplace proprement. Usage : recharger un match re-scrapé.
+    if only:
+        wanted = {x.strip() for x in only.split(",") if x.strip()}
+        files = [f for f in files if f.name[:-len(SUFFIX)] in wanted]
+        found = {f.name[:-len(SUFFIX)] for f in files}
+        logger.info(f"  --only : {len(files)} archive(s) ciblée(s) sur {len(wanted)} demandée(s)")
+        for m in sorted(wanted - found):
+            logger.warning(f"  --only : aucune archive trouvée pour {m}")
+
+    # ── Mode delta (prod hebdo) : ne garder que les archives non chargées. ──
+    if pending_only:
+        before = len(files)
+        files = [f for f in files if f.name[:-len(SUFFIX)] not in scraped]
+        logger.info(
+            f"  --pending-only : {before - len(files)} déjà chargé(s) ignoré(s), "
+            f"{len(files)} à charger"
+        )
 
     if missing_slots_only:
         filled = slots_filled()
@@ -117,74 +143,84 @@ def run_load(limit=None, season_filter=None, skip_existing=False,
             f"  --missing-slots-only : {before - len(files)} archive(s) déjà "
             f"remplie(s) ignorée(s), {len(files)} à traiter"
         )
+
     summary = {"ok": 0, "failed": 0, "skipped": 0, "total": len(files)}
     logger.info(f"  {len(files)} archive(s) à charger depuis {root}")
 
     # Accumulateurs des dimensions (dédupliquées en mémoire sur tout le run).
-    # On les écrit une seule fois en fin de boucle : les dims sont petites.
     players_acc: dict = {}
     formations_acc: dict = {}
 
-    for n, f in enumerate(files, 1):
-        ws_id = f.name[:-len(SUFFIX)]
+    # ── Connexion unique pour toute la passe ──────────────────────────
+    shared = duckdb.connect(str(DB_PATH))
+    use_shared_conn(shared)
+    try:
+        init_db()  # garantit tables + migration (sur la connexion partagée)
 
-        # Ouvrir l'archive UNE fois. La collecte des dimensions se fait pour
-        # chaque archive, indépendamment du skip events (un match déjà chargé
-        # côté events peut ne jamais avoir alimenté les dims).
-        try:
-            with gzip.open(f, "rt", encoding="utf-8") as fh:
-                data = json.load(fh)
-        except Exception as e:
-            summary["failed"] += 1
-            logger.error(f"  Erreur lecture archive {ws_id} : {e}")
-            continue
+        for n, f in enumerate(files, 1):
+            ws_id = f.name[:-len(SUFFIX)]
 
-        collect_player_names(data, players_acc)
-        collect_formations_ref(data, formations_acc)
-
-        # Tables de fait par match (joueurs, formations, stats équipe, méta).
-        # Écrites pour chaque archive, indépendamment du skip events : un match
-        # déjà chargé côté events peut ne jamais avoir alimenté ces tables.
-        try:
-            upsert_match_facts(data, ws_id)
-        except Exception as e:
-            logger.warning(f"  Faits non écrits pour {ws_id} : {e}")
-
-        # ── Events : on saute si déjà chargé (skip_existing) ──────────────────
-        if skip_existing and ws_id in done:
-            summary["skipped"] += 1
-            continue
-
-        league, season = meta.get(ws_id, (None, None))
-        if league is None:
-            logger.warning(
-                f"  {ws_id} absent de stg_whoscored_urls — league/season inconnus"
-            )
-
-        try:
-            events, match_index = parse_events(data, ws_id, league, season)
-            if events and upsert_events(events) and upsert_match_index(match_index):
-                mark_scraped(ws_id)
-                summary["ok"] += 1
-            else:
+            try:
+                with gzip.open(f, "rt", encoding="utf-8") as fh:
+                    data = json.load(fh)
+            except Exception as e:
                 summary["failed"] += 1
-                logger.warning(f"  Échec chargement {ws_id}")
-        except Exception as e:
-            summary["failed"] += 1
-            logger.error(f"  Erreur chargement {ws_id} : {e}")
+                logger.error(f"  Erreur lecture archive {ws_id} : {e}")
+                continue
 
-        if limit and summary["ok"] >= limit:
-            logger.info(f"  Limite de {limit} atteinte — arrêt")
-            break
-        if n % 100 == 0:
-            logger.info(f"  ... {n}/{len(files)} traités")
+            collect_player_names(data, players_acc)
+            collect_formations_ref(data, formations_acc)
 
-    # ── Écriture des dimensions accumulées (une passe) ────────────────────────
-    upsert_players_ref(players_acc)
-    upsert_formations_ref(formations_acc)
+            try:
+                upsert_match_facts(data, ws_id)
+            except Exception as e:
+                logger.warning(f"  Faits non écrits pour {ws_id} : {e}")
+
+            # Events : on saute si déjà chargé (skip_existing).
+            if skip_existing and ws_id in done:
+                summary["skipped"] += 1
+                continue
+
+            league, season = meta.get(ws_id, (None, None))
+            if league is None:
+                logger.warning(
+                    f"  {ws_id} absent de stg_whoscored_urls — league/season inconnus"
+                )
+
+            try:
+                events, match_index = parse_events(data, ws_id, league, season)
+                if events and upsert_events(events) and upsert_match_index(match_index):
+                    mark_scraped(ws_id)
+                    summary["ok"] += 1
+                    logger.info(
+                        f"  [{n}/{len(files)}] {ws_id} chargé — {len(events)} events"
+                    )
+                else:
+                    summary["failed"] += 1
+                    logger.warning(f"  Échec chargement {ws_id}")
+            except Exception as e:
+                summary["failed"] += 1
+                logger.error(f"  Erreur chargement {ws_id} : {e}")
+
+            if limit and summary["ok"] >= limit:
+                logger.info(f"  Limite de {limit} atteinte — arrêt")
+                break
+
+            # Battement de cœur en mode skip-lourd (jamais aveugle).
+            if n % 500 == 0:
+                logger.info(
+                    f"  ... parcouru {n}/{len(files)} "
+                    f"(chargés: {summary['ok']}, ignorés: {summary['skipped']})"
+                )
+
+        # ── Dimensions accumulées (une passe) ───────────────────────
+        upsert_players_ref(players_acc)
+        upsert_formations_ref(formations_acc)
+    finally:
+        use_shared_conn(None)
+        shared.close()
 
     return summary
-
 
 def main():
     parser = argparse.ArgumentParser(
@@ -198,6 +234,10 @@ def main():
                         help="Ignorer le re-parse events des matchs déjà is_scraped=TRUE")
     parser.add_argument("--missing-slots-only", action="store_true",
                         help="Ne traiter que les archives dont formation_slots manque (résumable)")
+    parser.add_argument("--pending-only", action="store_true",
+                        help="PROD : ne charger QUE les matchs non encore chargés (is_scraped=FALSE)")
+    parser.add_argument("--only", default=None,
+                        help="Ne (re)charger QUE ces ws_match_id (séparés par virgule), quel que soit is_scraped")
     args = parser.parse_args()
 
     logger.info("=== Chargement des archives WhoScored → DuckDB ===")
@@ -206,6 +246,8 @@ def main():
         season_filter=args.season,
         skip_existing=args.skip_existing,
         missing_slots_only=args.missing_slots_only,
+        pending_only=args.pending_only,
+        only=args.only,
     )
     logger.success(
         f"=== Terminé — {summary['ok']}/{summary['total']} chargés | "
