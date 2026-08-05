@@ -22,7 +22,10 @@ Usage :
 
 import sys
 import argparse
+import os
 from pathlib import Path
+
+from dotenv import load_dotenv
 
 import duckdb
 import numpy as np
@@ -45,6 +48,7 @@ import matplotlib.pyplot as plt
 
 # ── Config ────────────────────────────────────────────────────────────────────
 ROOT_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(ROOT_DIR / ".env")
 with open(ROOT_DIR / "config.yaml", encoding="utf-8") as f:
     CFG = yaml.safe_load(f)
 
@@ -64,7 +68,7 @@ MAX_BRIER_OOS     = 0.16   # Brier hors-échantillon max pour valider (base ~0.1
 
 FEATURES_NUM = [
     "offset_center", "height", "corner_dist",
-    "x", "y", "shot_distance_m", "shot_angle_rad", "pre_shot_xg_proxy",
+    "x", "y", "shot_distance_m", "shot_angle_rad",
 ]
 FEATURE_CAT = "placement_zone"   # 9 zones du cadre → one-hot
 
@@ -81,7 +85,7 @@ def coverage_barrier(con, seasons) -> bool:
             CASE WHEN is_goal THEN 'but' ELSE 'arret' END AS classe,
             AVG((goal_mouth_y IS NOT NULL)::INT) AS cov
         FROM intermediate.int_shot_placement
-        WHERE type_id IN (15, 16) AND season IN ({})
+        WHERE is_on_target AND season IN ({})
         GROUP BY 1, 2
     """.format(",".join("?" * len(seasons)))
     cov = con.execute(q, seasons).df()
@@ -99,12 +103,18 @@ def coverage_barrier(con, seasons) -> bool:
     return ok
 
 
-# ── Préparation des features ──────────────────────────────────────────────────
-def prepare(df: pd.DataFrame):
-    """Matrice X (numériques + one-hot de la zone) et cible y."""
+def build_X(df: pd.DataFrame) -> pd.DataFrame:
+    """Matrice de features X : 7 numériques + one-hot de placement_zone.
+    Partagée par l'entraînement (prepare) ET le scoring (xgot_score.py) →
+    features identiques des deux côtés (anti train/serve skew)."""
     X = df[FEATURES_NUM].copy()
     zone = pd.get_dummies(df[FEATURE_CAT], prefix="zone")
-    X = pd.concat([X, zone], axis=1)
+    return pd.concat([X, zone], axis=1)
+
+
+def prepare(df: pd.DataFrame):
+    """Matrice X (via build_X) et cible y."""
+    X = build_X(df)
     y = df["label"].astype(int).values
     return X, y
 
@@ -163,6 +173,9 @@ def run(dry_run: bool = False):
     X_va = X_va.reindex(columns=X_tr.columns, fill_value=0)
     X_te = X_te.reindex(columns=X_tr.columns, fill_value=0)
 
+    if "dagshub" in str(MLFLOW_URI):
+        os.environ["MLFLOW_TRACKING_USERNAME"] = os.getenv("DAGSHUB_USERNAME", "")
+        os.environ["MLFLOW_TRACKING_PASSWORD"] = os.getenv("DAGSHUB_TOKEN", "")
     mlflow.set_tracking_uri(MLFLOW_URI)
     mlflow.set_experiment("xgot")
 
