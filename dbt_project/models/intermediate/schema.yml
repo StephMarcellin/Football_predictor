@@ -1808,7 +1808,7 @@ models:
       - name: ws_away_offsides_pg
         description: "Hors-jeu commis par match à l'extérieur (moyenne saison)."
       - name: ws_away_def_rating
-        description: "Note WhoScored globale de l'équipe (0-10, à l'extérieur). ATTENTION : les 4 colonnes *_rating d'un même côté (def/att/xg_for/xg_against) sont IDENTIQUES sur toutes les lignes — la note globale est dupliquée (quirk scraper à corriger)."
+        description: "Note WhoScored globale de l'équipe (0-10, à l'extérieur). Les 4 colonnes *_rating d'un même côté sont IDENTIQUES par nature : le Rating WhoScored est la note GLOBALE de l'équipe, affichée à l'identique sur les onglets Defensive/Offensive/xG (seules les stats du tableau changent, pas la note). Ce n'est PAS un bug. La note 'overall' du site = moyenne domicile/extérieur."
       - name: ws_home_shots_conceded_pg
         description: "Tirs concédés par match à domicile (moyenne saison)."
       - name: ws_home_tackles_pg
@@ -1820,7 +1820,7 @@ models:
       - name: ws_home_offsides_pg
         description: "Hors-jeu commis par match à domicile (moyenne saison)."
       - name: ws_home_def_rating
-        description: "Note WhoScored globale de l'équipe (0-10, à domicile). ATTENTION : les 4 colonnes *_rating d'un même côté (def/att/xg_for/xg_against) sont IDENTIQUES sur toutes les lignes — la note globale est dupliquée (quirk scraper à corriger)."
+        description: "Note WhoScored globale de l'équipe (0-10, à domicile). Les 4 colonnes *_rating d'un même côté sont IDENTIQUES par nature : le Rating WhoScored est la note GLOBALE de l'équipe, affichée à l'identique sur les onglets Defensive/Offensive/xG (seules les stats du tableau changent, pas la note). Ce n'est PAS un bug. La note 'overall' du site = moyenne domicile/extérieur."
       - name: ws_away_shots_pg
         description: "Tirs tentés par match à l'extérieur."
       - name: ws_away_shots_ot_pg
@@ -1830,7 +1830,7 @@ models:
       - name: ws_away_fouled_pg
         description: "Fautes subies par match à l'extérieur."
       - name: ws_away_att_rating
-        description: "Note WhoScored globale de l'équipe (0-10, à l'extérieur). ATTENTION : les 4 colonnes *_rating d'un même côté (def/att/xg_for/xg_against) sont IDENTIQUES sur toutes les lignes — la note globale est dupliquée (quirk scraper à corriger)."
+        description: "Note WhoScored globale de l'équipe (0-10, à l'extérieur). Les 4 colonnes *_rating d'un même côté sont IDENTIQUES par nature : le Rating WhoScored est la note GLOBALE de l'équipe, affichée à l'identique sur les onglets Defensive/Offensive/xG (seules les stats du tableau changent, pas la note). Ce n'est PAS un bug. La note 'overall' du site = moyenne domicile/extérieur."
       - name: ws_home_shots_pg
         description: "Tirs tentés par match à domicile."
       - name: ws_home_shots_ot_pg
@@ -1840,7 +1840,7 @@ models:
       - name: ws_home_fouled_pg
         description: "Fautes subies par match à domicile."
       - name: ws_home_att_rating
-        description: "Note WhoScored globale de l'équipe (0-10, à domicile). ATTENTION : les 4 colonnes *_rating d'un même côté (def/att/xg_for/xg_against) sont IDENTIQUES sur toutes les lignes — la note globale est dupliquée (quirk scraper à corriger)."
+        description: "Note WhoScored globale de l'équipe (0-10, à domicile). Les 4 colonnes *_rating d'un même côté sont IDENTIQUES par nature : le Rating WhoScored est la note GLOBALE de l'équipe, affichée à l'identique sur les onglets Defensive/Offensive/xG (seules les stats du tableau changent, pas la note). Ce n'est PAS un bug. La note 'overall' du site = moyenne domicile/extérieur."
       - name: ws_away_xg_against
         description: "xG concédé, total saison à l'extérieur."
       - name: ws_away_goals_against
@@ -1852,7 +1852,7 @@ models:
       - name: ws_away_xg_per_shot_against
         description: "xG concédé par tir = xg_against / shots_against (à l'extérieur)."
       - name: ws_away_xg_against_rating
-        description: "Note WhoScored globale de l'équipe (0-10, à l'extérieur). ATTENTION : les 4 colonnes *_rating d'un même côté (def/att/xg_for/xg_against) sont IDENTIQUES sur toutes les lignes — la note globale est dupliquée (quirk scraper à corriger)."
+        description: "Note WhoScored globale de l'équipe (0-10, à l'extérieur). Les 4 colonnes *_rating d'un même côté sont IDENTIQUES par nature : le Rating WhoScored est la note GLOBALE de l'équipe, affichée à l'identique sur les onglets Defensive/Offensive/xG (seules les stats du tableau changent, pas la note). Ce n'est PAS un bug. La note 'overall' du site = moyenne domicile/extérieur."
       - name: ws_away_xg_for
         description: "xG produit, total saison à l'extérieur."
       - name: ws_away_goals_for
@@ -1864,7 +1864,7 @@ models:
       - name: ws_away_xg_per_shot_for
         description: "xG par tir = xg_for / shots_for (à l'extérieur)."
       - name: ws_away_xg_for_rating
-        description: "Note WhoScored globale de l'équipe (0-10, à l'extérieur). ATTENTION : les 4 colonnes *_rating d'un même côté (def/att/xg_for/xg_against) sont IDENTIQUES sur toutes les lignes — la note globale est dupliquée (quirk scraper à corriger)."
+        description: "Note WhoScored globale de l'équipe (0-10, à l'extérieur). Les 4 colonnes *_rating d'un même côté sont IDENTIQUES par nature : le Rating WhoScored est la note GLOBALE de l'équipe, affichée à l'identique sur les onglets Defensive/Offensive/xG (seules les stats du tableau changent, pas la note). Ce n'est PAS un bug. La note 'overall' du site = moyenne domicile/extérieur."
       - name: ws_home_xg_against
         description: "xG concédé, total saison à domicile."
       - name: ws_home_goals_against
@@ -1876,7 +1876,7 @@ models:
       - name: ws_home_xg_per_shot_against
         description: "xG concédé par tir = xg_against / shots_against (à domicile)."
       - name: ws_home_xg_against_rating
-        description: "Note WhoScored globale de l'équipe (0-10, à domicile). ATTENTION : les 4 colonnes *_rating d'un même côté (def/att/xg_for/xg_against) sont IDENTIQUES sur toutes les lignes — la note globale est dupliquée (quirk scraper à corriger)."
+        description: "Note WhoScored globale de l'équipe (0-10, à domicile). Les 4 colonnes *_rating d'un même côté sont IDENTIQUES par nature : le Rating WhoScored est la note GLOBALE de l'équipe, affichée à l'identique sur les onglets Defensive/Offensive/xG (seules les stats du tableau changent, pas la note). Ce n'est PAS un bug. La note 'overall' du site = moyenne domicile/extérieur."
       - name: ws_home_xg_for
         description: "xG produit, total saison à domicile."
       - name: ws_home_goals_for
@@ -1888,7 +1888,7 @@ models:
       - name: ws_home_xg_per_shot_for
         description: "xG par tir = xg_for / shots_for (à domicile)."
       - name: ws_home_xg_for_rating
-        description: "Note WhoScored globale de l'équipe (0-10, à domicile). ATTENTION : les 4 colonnes *_rating d'un même côté (def/att/xg_for/xg_against) sont IDENTIQUES sur toutes les lignes — la note globale est dupliquée (quirk scraper à corriger)."
+        description: "Note WhoScored globale de l'équipe (0-10, à domicile). Les 4 colonnes *_rating d'un même côté sont IDENTIQUES par nature : le Rating WhoScored est la note GLOBALE de l'équipe, affichée à l'identique sur les onglets Defensive/Offensive/xG (seules les stats du tableau changent, pas la note). Ce n'est PAS un bug. La note 'overall' du site = moyenne domicile/extérieur."
       - name: source
         description: "Source des données (WhoScored)."
       - name: scraped_at
@@ -3253,3 +3253,95 @@ models:
           combination_of_columns:
             - match_id
             - row_num
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # SHOT-STOPPING GARDIEN (PSxG+/-)
+  # ════════════════════════════════════════════════════════════════════════════
+
+  - name: int_keeper_shots
+    description: >
+      Attribution du gardien à chaque tir cadré subi — brique de int_keeper_psxg.
+      Grain : un tir cadré (SavedShot + Goal, hors CSC/penalty), avec son xGOT
+      (machine_learning.xgot_predictions) et le gardien qui l'a subi.
+      Deux voies : tirs arrêtés → Save miroir relié au tir par le qualifier 233
+      (related_event_id est NULL) ; buts → GK (slot=1) de l'équipe qui défend,
+      période de formation active. keeper_id = COALESCE(save, lineup). Matérialisé
+      en table.
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1)."
+        tests:
+          - not_null
+      - name: row_num
+        description: "Index du tir dans le match. Avec match_id, clé unique."
+      - name: season
+        description: "Saison du match (ex. 2023-2024)."
+      - name: league_source
+        description: "Championnat / source des données."
+      - name: type_id
+        description: "Type du tir : 15 SavedShot, 16 Goal."
+      - name: is_goal
+        description: "Booléen : le tir a fini au fond."
+      - name: xgot
+        description: "Post-Shot xG (xGOT) du tir, calibré, dans [0,1] (propagé de xgot_predictions)."
+      - name: def_team
+        description: "Id canonique de l'équipe qui défend (subit le tir)."
+      - name: keeper_id
+        description: >
+          Gardien qui subit le tir (player_id WhoScored). COALESCE(Save miroir,
+          GK lineup). NULL si non identifié (~lineup manquant) → exclu du PSxG.
+      - name: attribution_method
+        description: "Voie d'attribution : 'save' (qual 233), 'lineup' (GK de la période), 'none' (non identifié)."
+        tests:
+          - accepted_values:
+              values: ['save', 'lineup', 'none']
+      - name: def_gk_available
+        description: >
+          Booléen : l'équipe qui défend a un GK lineup dans ce match (donc buts
+          ET arrêts attribuables). Garde-fou symétrique consommé par int_keeper_psxg
+          — FALSE = tirs non fiables (arrêts sans risque de but), exclus de l'agrégat.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - match_id
+            - row_num
+
+  - name: int_keeper_psxg
+    description: >
+      Post-Shot Expected Goals +/- (PSxG+/-) par gardien = mesure de shot-stopping.
+      Grain : gardien × saison × championnat. Source : int_keeper_shots.
+      psxg_plus_minus = Σ xGOT subi − buts encaissés ; > 0 = le gardien arrête plus
+      que la qualité des tirs ne le prédit (surperformance). Garde-fou symétrique :
+      uniquement les tirs des matchs où def_gk_available (pas d'arrêt sans but
+      possible). Hors CSC/penalty par construction amont. Matérialisé en table.
+    columns:
+      - name: keeper_id
+        description: "Gardien (player_id WhoScored)."
+        tests:
+          - not_null
+      - name: season
+        description: "Saison (ex. 2023-2024)."
+        tests:
+          - not_null
+      - name: league_source
+        description: "Championnat / source des données."
+        tests:
+          - not_null
+      - name: shots_faced
+        description: "Nombre de tirs cadrés subis (hors CSC/penalty, matchs couverts)."
+      - name: goals_conceded
+        description: "Buts encaissés (hors CSC/penalty)."
+      - name: saves
+        description: "Arrêts = shots_faced − goals_conceded."
+      - name: psxg_faced
+        description: "Σ xGOT des tirs subis = qualité cumulée des tirs affrontés."
+      - name: psxg_plus_minus
+        description: "psxg_faced − goals_conceded. Positif = surperformance (bon shot-stopper)."
+      - name: save_pct
+        description: "Taux d'arrêt brut = saves / shots_faced (ne tient pas compte de la difficulté)."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - keeper_id
+            - season
+            - league_source
