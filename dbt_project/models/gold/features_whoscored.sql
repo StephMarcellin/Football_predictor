@@ -22,9 +22,6 @@
     'ws_defensive_line_height', 'ws_flank_exposure_asymm'
 ] %}
 
-{% if execute %}
-    {% do run_query("SET temp_directory='C:/Users/marce/AppData/Local/Temp/duckdb_dbt'") %}
-{% endif %}
 
 WITH
 

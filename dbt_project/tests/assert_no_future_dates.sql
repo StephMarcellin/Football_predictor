@@ -2,6 +2,6 @@
 -- Un match futur dans les données d'entraînement = leakage potentiel
 {{ config(severity='warn') }}
 
-SELECT match_id, team, date
+SELECT match_id, team_id, date
 FROM {{ ref('backbone') }}
 WHERE date > CURRENT_DATE

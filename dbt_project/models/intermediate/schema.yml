@@ -291,60 +291,63 @@ models:
 
   - name: events_qual
     description: >
-      Explosion des qualifiers JSON de stg_whoscored_events.
-      1 ligne par action par qualifier — base de tous les modèles WhoScored.
-      Produit par dbt en mode incremental depuis silver.stg_whoscored_events.
-
+      Éclatement des qualifiers de int_whoscored_events (via qualifiers_json) :
+      1 ligne par (événement × qualifier). Base de tous les modèles WhoScored.
+      Incrémentale. Les colonnes d'événement sont reprises telles quelles de
+      int_whoscored_events ; qual_type_id/name/value sont la transformation (unnest).
     columns:
-      - name: ws_match_id
-        description: "Identifiant WhoScored du match"
-        tests:
-          - not_null
-
+      # ── Colonnes héritées de int_whoscored_events (mêmes définitions) ──────────
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1), résolu via int_whoscored_match_index."
       - name: team_id
-        description: "Identifiant WhoScored de l'équipe"
-        tests:
-          - not_null
-
+        description: "Id canonique de l'équipe de l'événement (converti depuis l'id WhoScored via int_whoscored_match_index)."
       - name: player_id
-        description: "Identifiant WhoScored du joueur (NULL si anonyme)"
-
-      - name: row_num
-        description: "Numéro de ligne de l'action dans le match"
-        tests:
-          - not_null
-
-      - name: qual_type_id
-        description: "Identifiant du qualifier (ex: 210 = key pass)"
-
-      - name: qual_type_name
-        description: "Nom lisible du qualifier"
-
-      - name: qual_value
-        description: "Valeur du qualifier"
-
-      - name: type_id
-        description: "Type d'action WhoScored (16=tir, 1=passe...)"
-        tests:
-          - not_null
-
-      - name: is_shot
-        description: "Booléen — l'action est-elle un tir ?"
-
-      - name: x
-        description: "Coordonnée X de l'action sur le terrain (0-100)"
-
-      - name: y
-        description: "Coordonnée Y de l'action sur le terrain (0-100)"
-
-      - name: minute
-        description: "Minute de l'action"
-        tests:
-          - not_null
+        description: "Identifiant WhoScored du joueur auteur de l'action. NULL possible sur certains événements."
       - name: event_id
-        description: "Identifiant de l'action dans le match"
+        description: >
+          Identifiant WhoScored de l'événement. ATTENTION : scopé par (match, équipe),
+          PAS unique par match — ne pas joindre dessus sans contraindre l'équipe.
         tests:
           - not_null
+      - name: minute
+        description: "Minute de jeu brute (hors temps additionnel)."
+      - name: second
+        description: "Seconde dans la minute."
+      - name: expanded_minute
+        description: "Minute cumulée, temps additionnel inclus (ex. 45+2 → 47)."
+      - name: period
+        description: "Période : 1 = 1re mi-temps, 2 = 2e mi-temps, 16 = pré-match (FormationSet), 14 = fin de match (End)."
+      - name: x
+        description: "Position X de l'action sur le terrain (0-100, croissant vers le but adverse ; repère relatif à l'équipe)."
+      - name: y
+        description: "Position Y de l'action (0-100, largeur, 50 = axe central)."
+      - name: end_x
+        description: "Position X de fin de l'action (surtout les passes ; NULL pour les événements ponctuels)."
+      - name: end_y
+        description: "Position Y de fin de l'action (surtout les passes ; NULL pour les événements ponctuels)."
+      - name: type_id
+        description: "Type d'événement WhoScored (cf. docs/Event_type_definition.txt ; ex. 1 Pass, 3 TakeOn, 4 Foul, 13-16 tirs)."
+        tests:
+          - not_null
+      - name: type_name
+        description: "Libellé du type d'événement (Pass, TakeOn, Foul, Goal…)."
+      - name: outcome_id
+        description: "Résultat de l'action : 1 = réussi, 0 = raté."
+      - name: is_touch
+        description: "Booléen : le joueur a touché le ballon (flag WhoScored isTouch)."
+      - name: is_shot
+        description: "Booléen : l'événement est un tir (flag WhoScored isShot)."
+      - name: row_num
+        description: "Index de l'événement dans le flux du match (ordre chronologique)."
+        tests:
+          - not_null
+      # ── Transformation propre à events_qual : éclatement du qualifiers_json ────
+      - name: qual_type_id
+        description: "Id du type de qualifier (cf. docs/Qualifier_type_definition.txt ; ex. 9 Penalty, 102 GoalMouthY, 233 OppositeRelatedEvent)."
+      - name: qual_type_name
+        description: "Libellé du qualifier (displayName WhoScored)."
+      - name: qual_value
+        description: "Valeur du qualifier (chaîne). NULL pour un qualifier-drapeau sans valeur."
 
   - name: player_match_stats
     description: >
@@ -380,6 +383,534 @@ models:
         description: "Ligue source"
         tests:
           - not_null
+      - name: n_touches
+        description: "Touches de balle."
+      - name: pct_z1_c1
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central)."
+      - name: pct_z1_c2
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central)."
+      - name: pct_z1_c3
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central)."
+      - name: pct_z1_c4
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central)."
+      - name: pct_z1_c5
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central)."
+      - name: pct_z2_c1
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central)."
+      - name: pct_z2_c2
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central)."
+      - name: pct_z2_c3
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central)."
+      - name: pct_z2_c4
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central)."
+      - name: pct_z2_c5
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central)."
+      - name: pct_z3_c1
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central)."
+      - name: pct_z3_c2
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central)."
+      - name: pct_z3_c3
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central)."
+      - name: pct_z3_c4
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central)."
+      - name: pct_z3_c5
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central)."
+      - name: pct_z4_c1
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central)."
+      - name: pct_z4_c2
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central)."
+      - name: pct_z4_c3
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central)."
+      - name: pct_z4_c4
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central)."
+      - name: pct_z4_c5
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central)."
+      - name: pct_z5_c1
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central)."
+      - name: pct_z5_c2
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central)."
+      - name: pct_z5_c3
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central)."
+      - name: pct_z5_c4
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central)."
+      - name: pct_z5_c5
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central)."
+      - name: blank_pct_z1_c1
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0."
+      - name: blank_pct_z1_c2
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0."
+      - name: blank_pct_z1_c3
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0."
+      - name: blank_pct_z1_c4
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0."
+      - name: blank_pct_z1_c5
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0."
+      - name: blank_pct_z2_c1
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0."
+      - name: blank_pct_z2_c2
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0."
+      - name: blank_pct_z2_c3
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0."
+      - name: blank_pct_z2_c4
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0."
+      - name: blank_pct_z2_c5
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0."
+      - name: blank_pct_z3_c1
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0."
+      - name: blank_pct_z3_c2
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0."
+      - name: blank_pct_z3_c3
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0."
+      - name: blank_pct_z3_c4
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0."
+      - name: blank_pct_z3_c5
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0."
+      - name: blank_pct_z4_c1
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0."
+      - name: blank_pct_z4_c2
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0."
+      - name: blank_pct_z4_c3
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0."
+      - name: blank_pct_z4_c4
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0."
+      - name: blank_pct_z4_c5
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0."
+      - name: blank_pct_z5_c1
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0."
+      - name: blank_pct_z5_c2
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0."
+      - name: blank_pct_z5_c3
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0."
+      - name: blank_pct_z5_c4
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0."
+      - name: blank_pct_z5_c5
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0."
+      - name: n_actions_blank_late
+        description: "Nombre de actions du joueur quand l'équipe est à 0-0 en fin de match (≥75')."
+      - name: n_progressive_passes_blank_late
+        description: "Nombre de passes progressives du joueur quand l'équipe est à 0-0 en fin de match (≥75')."
+      - name: n_defensive_actions_blank_late
+        description: "Nombre de actions défensives du joueur quand l'équipe est à 0-0 en fin de match (≥75')."
+      - name: n_shots_blank_late
+        description: "Nombre de tirs du joueur quand l'équipe est à 0-0 en fin de match (≥75')."
+      - name: blank_late_pct_z1_c1
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0 en fin de match (≥75')."
+      - name: blank_late_pct_z1_c2
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0 en fin de match (≥75')."
+      - name: blank_late_pct_z1_c3
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0 en fin de match (≥75')."
+      - name: blank_late_pct_z1_c4
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0 en fin de match (≥75')."
+      - name: blank_late_pct_z1_c5
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0 en fin de match (≥75')."
+      - name: blank_late_pct_z2_c1
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0 en fin de match (≥75')."
+      - name: blank_late_pct_z2_c2
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0 en fin de match (≥75')."
+      - name: blank_late_pct_z2_c3
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0 en fin de match (≥75')."
+      - name: blank_late_pct_z2_c4
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0 en fin de match (≥75')."
+      - name: blank_late_pct_z2_c5
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0 en fin de match (≥75')."
+      - name: blank_late_pct_z3_c1
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0 en fin de match (≥75')."
+      - name: blank_late_pct_z3_c2
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0 en fin de match (≥75')."
+      - name: blank_late_pct_z3_c3
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0 en fin de match (≥75')."
+      - name: blank_late_pct_z3_c4
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0 en fin de match (≥75')."
+      - name: blank_late_pct_z3_c5
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0 en fin de match (≥75')."
+      - name: blank_late_pct_z4_c1
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0 en fin de match (≥75')."
+      - name: blank_late_pct_z4_c2
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0 en fin de match (≥75')."
+      - name: blank_late_pct_z4_c3
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0 en fin de match (≥75')."
+      - name: blank_late_pct_z4_c4
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0 en fin de match (≥75')."
+      - name: blank_late_pct_z4_c5
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0 en fin de match (≥75')."
+      - name: blank_late_pct_z5_c1
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0 en fin de match (≥75')."
+      - name: blank_late_pct_z5_c2
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0 en fin de match (≥75')."
+      - name: blank_late_pct_z5_c3
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0 en fin de match (≥75')."
+      - name: blank_late_pct_z5_c4
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0 en fin de match (≥75')."
+      - name: blank_late_pct_z5_c5
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à 0-0 en fin de match (≥75')."
+      - name: drawing_pct_z1_c1
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts)."
+      - name: drawing_pct_z1_c2
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts)."
+      - name: drawing_pct_z1_c3
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts)."
+      - name: drawing_pct_z1_c4
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts)."
+      - name: drawing_pct_z1_c5
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts)."
+      - name: drawing_pct_z2_c1
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts)."
+      - name: drawing_pct_z2_c2
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts)."
+      - name: drawing_pct_z2_c3
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts)."
+      - name: drawing_pct_z2_c4
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts)."
+      - name: drawing_pct_z2_c5
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts)."
+      - name: drawing_pct_z3_c1
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts)."
+      - name: drawing_pct_z3_c2
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts)."
+      - name: drawing_pct_z3_c3
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts)."
+      - name: drawing_pct_z3_c4
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts)."
+      - name: drawing_pct_z3_c5
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts)."
+      - name: drawing_pct_z4_c1
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts)."
+      - name: drawing_pct_z4_c2
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts)."
+      - name: drawing_pct_z4_c3
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts)."
+      - name: drawing_pct_z4_c4
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts)."
+      - name: drawing_pct_z4_c5
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts)."
+      - name: drawing_pct_z5_c1
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts)."
+      - name: drawing_pct_z5_c2
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts)."
+      - name: drawing_pct_z5_c3
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts)."
+      - name: drawing_pct_z5_c4
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts)."
+      - name: drawing_pct_z5_c5
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts)."
+      - name: n_actions_drawing_late
+        description: "Nombre de actions du joueur quand l'équipe est à égalité (avec buts) en fin de match (≥75')."
+      - name: n_progressive_passes_drawing_late
+        description: "Nombre de passes progressives du joueur quand l'équipe est à égalité (avec buts) en fin de match (≥75')."
+      - name: n_defensive_actions_drawing_late
+        description: "Nombre de actions défensives du joueur quand l'équipe est à égalité (avec buts) en fin de match (≥75')."
+      - name: n_shots_drawing_late
+        description: "Nombre de tirs du joueur quand l'équipe est à égalité (avec buts) en fin de match (≥75')."
+      - name: drawing_late_pct_z1_c1
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts) en fin de match (≥75')."
+      - name: drawing_late_pct_z1_c2
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts) en fin de match (≥75')."
+      - name: drawing_late_pct_z1_c3
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts) en fin de match (≥75')."
+      - name: drawing_late_pct_z1_c4
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts) en fin de match (≥75')."
+      - name: drawing_late_pct_z1_c5
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts) en fin de match (≥75')."
+      - name: drawing_late_pct_z2_c1
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts) en fin de match (≥75')."
+      - name: drawing_late_pct_z2_c2
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts) en fin de match (≥75')."
+      - name: drawing_late_pct_z2_c3
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts) en fin de match (≥75')."
+      - name: drawing_late_pct_z2_c4
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts) en fin de match (≥75')."
+      - name: drawing_late_pct_z2_c5
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts) en fin de match (≥75')."
+      - name: drawing_late_pct_z3_c1
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts) en fin de match (≥75')."
+      - name: drawing_late_pct_z3_c2
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts) en fin de match (≥75')."
+      - name: drawing_late_pct_z3_c3
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts) en fin de match (≥75')."
+      - name: drawing_late_pct_z3_c4
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts) en fin de match (≥75')."
+      - name: drawing_late_pct_z3_c5
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts) en fin de match (≥75')."
+      - name: drawing_late_pct_z4_c1
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts) en fin de match (≥75')."
+      - name: drawing_late_pct_z4_c2
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts) en fin de match (≥75')."
+      - name: drawing_late_pct_z4_c3
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts) en fin de match (≥75')."
+      - name: drawing_late_pct_z4_c4
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts) en fin de match (≥75')."
+      - name: drawing_late_pct_z4_c5
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts) en fin de match (≥75')."
+      - name: drawing_late_pct_z5_c1
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts) en fin de match (≥75')."
+      - name: drawing_late_pct_z5_c2
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts) en fin de match (≥75')."
+      - name: drawing_late_pct_z5_c3
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts) en fin de match (≥75')."
+      - name: drawing_late_pct_z5_c4
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts) en fin de match (≥75')."
+      - name: drawing_late_pct_z5_c5
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est à égalité (avec buts) en fin de match (≥75')."
+      - name: winning_pct_z1_c1
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score."
+      - name: winning_pct_z1_c2
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score."
+      - name: winning_pct_z1_c3
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score."
+      - name: winning_pct_z1_c4
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score."
+      - name: winning_pct_z1_c5
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score."
+      - name: winning_pct_z2_c1
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score."
+      - name: winning_pct_z2_c2
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score."
+      - name: winning_pct_z2_c3
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score."
+      - name: winning_pct_z2_c4
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score."
+      - name: winning_pct_z2_c5
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score."
+      - name: winning_pct_z3_c1
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score."
+      - name: winning_pct_z3_c2
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score."
+      - name: winning_pct_z3_c3
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score."
+      - name: winning_pct_z3_c4
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score."
+      - name: winning_pct_z3_c5
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score."
+      - name: winning_pct_z4_c1
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score."
+      - name: winning_pct_z4_c2
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score."
+      - name: winning_pct_z4_c3
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score."
+      - name: winning_pct_z4_c4
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score."
+      - name: winning_pct_z4_c5
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score."
+      - name: winning_pct_z5_c1
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score."
+      - name: winning_pct_z5_c2
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score."
+      - name: winning_pct_z5_c3
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score."
+      - name: winning_pct_z5_c4
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score."
+      - name: winning_pct_z5_c5
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score."
+      - name: n_actions_winning_late
+        description: "Nombre de actions du joueur quand l'équipe mène au score en fin de match (≥75')."
+      - name: n_progressive_passes_winning_late
+        description: "Nombre de passes progressives du joueur quand l'équipe mène au score en fin de match (≥75')."
+      - name: n_defensive_actions_winning_late
+        description: "Nombre de actions défensives du joueur quand l'équipe mène au score en fin de match (≥75')."
+      - name: n_shots_winning_late
+        description: "Nombre de tirs du joueur quand l'équipe mène au score en fin de match (≥75')."
+      - name: winning_late_pct_z1_c1
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score en fin de match (≥75')."
+      - name: winning_late_pct_z1_c2
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score en fin de match (≥75')."
+      - name: winning_late_pct_z1_c3
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score en fin de match (≥75')."
+      - name: winning_late_pct_z1_c4
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score en fin de match (≥75')."
+      - name: winning_late_pct_z1_c5
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score en fin de match (≥75')."
+      - name: winning_late_pct_z2_c1
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score en fin de match (≥75')."
+      - name: winning_late_pct_z2_c2
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score en fin de match (≥75')."
+      - name: winning_late_pct_z2_c3
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score en fin de match (≥75')."
+      - name: winning_late_pct_z2_c4
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score en fin de match (≥75')."
+      - name: winning_late_pct_z2_c5
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score en fin de match (≥75')."
+      - name: winning_late_pct_z3_c1
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score en fin de match (≥75')."
+      - name: winning_late_pct_z3_c2
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score en fin de match (≥75')."
+      - name: winning_late_pct_z3_c3
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score en fin de match (≥75')."
+      - name: winning_late_pct_z3_c4
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score en fin de match (≥75')."
+      - name: winning_late_pct_z3_c5
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score en fin de match (≥75')."
+      - name: winning_late_pct_z4_c1
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score en fin de match (≥75')."
+      - name: winning_late_pct_z4_c2
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score en fin de match (≥75')."
+      - name: winning_late_pct_z4_c3
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score en fin de match (≥75')."
+      - name: winning_late_pct_z4_c4
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score en fin de match (≥75')."
+      - name: winning_late_pct_z4_c5
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score en fin de match (≥75')."
+      - name: winning_late_pct_z5_c1
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score en fin de match (≥75')."
+      - name: winning_late_pct_z5_c2
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score en fin de match (≥75')."
+      - name: winning_late_pct_z5_c3
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score en fin de match (≥75')."
+      - name: winning_late_pct_z5_c4
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score en fin de match (≥75')."
+      - name: winning_late_pct_z5_c5
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe mène au score en fin de match (≥75')."
+      - name: losing_pct_z1_c1
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score."
+      - name: losing_pct_z1_c2
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score."
+      - name: losing_pct_z1_c3
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score."
+      - name: losing_pct_z1_c4
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score."
+      - name: losing_pct_z1_c5
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score."
+      - name: losing_pct_z2_c1
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score."
+      - name: losing_pct_z2_c2
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score."
+      - name: losing_pct_z2_c3
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score."
+      - name: losing_pct_z2_c4
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score."
+      - name: losing_pct_z2_c5
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score."
+      - name: losing_pct_z3_c1
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score."
+      - name: losing_pct_z3_c2
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score."
+      - name: losing_pct_z3_c3
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score."
+      - name: losing_pct_z3_c4
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score."
+      - name: losing_pct_z3_c5
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score."
+      - name: losing_pct_z4_c1
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score."
+      - name: losing_pct_z4_c2
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score."
+      - name: losing_pct_z4_c3
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score."
+      - name: losing_pct_z4_c4
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score."
+      - name: losing_pct_z4_c5
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score."
+      - name: losing_pct_z5_c1
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score."
+      - name: losing_pct_z5_c2
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score."
+      - name: losing_pct_z5_c3
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score."
+      - name: losing_pct_z5_c4
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score."
+      - name: losing_pct_z5_c5
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score."
+      - name: n_actions_losing_late
+        description: "Nombre de actions du joueur quand l'équipe est menée au score en fin de match (≥75')."
+      - name: n_progressive_passes_losing_late
+        description: "Nombre de passes progressives du joueur quand l'équipe est menée au score en fin de match (≥75')."
+      - name: n_defensive_actions_losing_late
+        description: "Nombre de actions défensives du joueur quand l'équipe est menée au score en fin de match (≥75')."
+      - name: n_shots_losing_late
+        description: "Nombre de tirs du joueur quand l'équipe est menée au score en fin de match (≥75')."
+      - name: losing_late_pct_z1_c1
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score en fin de match (≥75')."
+      - name: losing_late_pct_z1_c2
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score en fin de match (≥75')."
+      - name: losing_late_pct_z1_c3
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score en fin de match (≥75')."
+      - name: losing_late_pct_z1_c4
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score en fin de match (≥75')."
+      - name: losing_late_pct_z1_c5
+        description: "Part des touches du joueur dans la case longueur z1 (x 0-20) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score en fin de match (≥75')."
+      - name: losing_late_pct_z2_c1
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score en fin de match (≥75')."
+      - name: losing_late_pct_z2_c2
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score en fin de match (≥75')."
+      - name: losing_late_pct_z2_c3
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score en fin de match (≥75')."
+      - name: losing_late_pct_z2_c4
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score en fin de match (≥75')."
+      - name: losing_late_pct_z2_c5
+        description: "Part des touches du joueur dans la case longueur z2 (x 20-40) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score en fin de match (≥75')."
+      - name: losing_late_pct_z3_c1
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score en fin de match (≥75')."
+      - name: losing_late_pct_z3_c2
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score en fin de match (≥75')."
+      - name: losing_late_pct_z3_c3
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score en fin de match (≥75')."
+      - name: losing_late_pct_z3_c4
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score en fin de match (≥75')."
+      - name: losing_late_pct_z3_c5
+        description: "Part des touches du joueur dans la case longueur z3 (x 40-60) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score en fin de match (≥75')."
+      - name: losing_late_pct_z4_c1
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score en fin de match (≥75')."
+      - name: losing_late_pct_z4_c2
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score en fin de match (≥75')."
+      - name: losing_late_pct_z4_c3
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score en fin de match (≥75')."
+      - name: losing_late_pct_z4_c4
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score en fin de match (≥75')."
+      - name: losing_late_pct_z4_c5
+        description: "Part des touches du joueur dans la case longueur z4 (x 60-80) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score en fin de match (≥75')."
+      - name: losing_late_pct_z5_c1
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c1 (y 0-20) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score en fin de match (≥75')."
+      - name: losing_late_pct_z5_c2
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c2 (y 20-40) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score en fin de match (≥75')."
+      - name: losing_late_pct_z5_c3
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c3 (y 40-60) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score en fin de match (≥75')."
+      - name: losing_late_pct_z5_c4
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c4 (y 60-80) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score en fin de match (≥75')."
+      - name: losing_late_pct_z5_c5
+        description: "Part des touches du joueur dans la case longueur z5 (x 80-100) × couloir c5 (y 80-100) de la grille 5×5 (z1 = tiers défensif → z5 = zone offensive ; c3 = axe central). Restreint aux moments où l'équipe est menée au score en fin de match (≥75')."
+      - name: n_aerial_duels
+        description: "Nombre de duels aériens disputés."
+      - name: scraped_at
+        description: "Horodatage ISO du scrape."
+      - name: n_actions_blank
+        description: "Nombre de actions du joueur quand l'équipe est à 0-0."
+      - name: n_progressive_passes_blank
+        description: "Nombre de passes progressives du joueur quand l'équipe est à 0-0."
+      - name: n_defensive_actions_blank
+        description: "Nombre de actions défensives du joueur quand l'équipe est à 0-0."
+      - name: n_shots_blank
+        description: "Nombre de tirs du joueur quand l'équipe est à 0-0."
+      - name: n_actions_drawing
+        description: "Nombre de actions du joueur quand l'équipe est à égalité (avec buts)."
+      - name: n_progressive_passes_drawing
+        description: "Nombre de passes progressives du joueur quand l'équipe est à égalité (avec buts)."
+      - name: n_defensive_actions_drawing
+        description: "Nombre de actions défensives du joueur quand l'équipe est à égalité (avec buts)."
+      - name: n_shots_drawing
+        description: "Nombre de tirs du joueur quand l'équipe est à égalité (avec buts)."
+      - name: n_actions_winning
+        description: "Nombre de actions du joueur quand l'équipe mène au score."
+      - name: n_progressive_passes_winning
+        description: "Nombre de passes progressives du joueur quand l'équipe mène au score."
+      - name: n_defensive_actions_winning
+        description: "Nombre de actions défensives du joueur quand l'équipe mène au score."
+      - name: n_shots_winning
+        description: "Nombre de tirs du joueur quand l'équipe mène au score."
+      - name: n_actions_losing
+        description: "Nombre de actions du joueur quand l'équipe est menée au score."
+      - name: n_progressive_passes_losing
+        description: "Nombre de passes progressives du joueur quand l'équipe est menée au score."
+      - name: n_defensive_actions_losing
+        description: "Nombre de actions défensives du joueur quand l'équipe est menée au score."
+      - name: n_shots_losing
+        description: "Nombre de tirs du joueur quand l'équipe est menée au score."
+      - name: n_aerial_won
+        description: "Duels aériens gagnés par le joueur dans le match."
+      - name: aerial_win_rate
+        description: "Taux de duels aériens gagnés (n_aerial_won / total des duels aériens)."
+      - name: n_errors_lead_to_goal
+        description: "Nombre d'erreurs du joueur ayant mené à un but."
+      - name: n_errors_lead_to_shot
+        description: "Nombre d'erreurs du joueur ayant mené à un tir."
 
       # ── Métriques générales ──────────────────────────────────────
       - name: n_actions
@@ -392,10 +923,6 @@ models:
           géométrique au centre du but adverse.
         tests:
           - is_positive
-      - name: zone_dominance
-        description: >
-          Position moyenne X des touches (hors actions gardien).
-          0 = zone défensive, 100 = zone offensive.
 
       # ── Métriques offensives ─────────────────────────────────────
       - name: n_shots
@@ -513,10 +1040,6 @@ models:
       Calculées depuis silver.stg_whoscored_events et intermediate.events_qual.
       32 métriques couvrant le pressing, les zones d'attaque, la structure défensive.
     columns:
-      - name: ws_match_id
-        description: "Identifiant WhoScored du match"
-        tests:
-          - not_null
       - name: team_id
         description: "Identifiant WhoScored de l'équipe"
         tests:
@@ -535,6 +1058,54 @@ models:
         description: "Hauteur moyenne de la ligne défensive (position X)"
       - name: ws_flank_exposure_asymm
         description: "Asymétrie d'exposition sur les flancs — différentiel gauche/droite"
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1)."
+      - name: ws_high_turnover_rate
+        description: "Taux de pertes de balle en zone haute = turnovers_high_zone / total_passes."
+      - name: ws_deep_completion_rt
+        description: "Taux de passes complétées en zone profonde (deep completions) = deep_completions / total_passes."
+      - name: ws_counter_shot_rate
+        description: "Part des tirs issus de contre-attaque = shots_counter_attack / total_shots."
+      - name: ws_set_piece_pressure
+        description: "Part des actions offensives issues de coups de pied arrêtés = set_pieces_offensive / offensive_actions."
+      - name: ws_attack_left_pct
+        description: "Part des touches offensives sur le flanc gauche = att_touches_left / att_touches_total."
+      - name: ws_attack_center_pct
+        description: "Part des touches offensives dans l'axe = att_touches_center / att_touches_total."
+      - name: ws_attack_right_pct
+        description: "Part des touches offensives sur le flanc droit = att_touches_right / att_touches_total."
+      - name: ws_zone_def_pct
+        description: "Part des touches de l'équipe en zone défensive = zone_def_touches / total_touches."
+      - name: ws_zone_mid_pct
+        description: "Part des touches en zone médiane = zone_mid_touches / total_touches."
+      - name: ws_shot_six_yard_pct
+        description: "Part des tirs pris dans les 6 mètres = shots_six_yard / total_shots."
+      - name: ws_shot_penalty_pct
+        description: "Part des tirs pris dans la surface = shots_penalty_area / total_shots."
+      - name: ws_shot_oob_pct
+        description: "Part des tirs pris hors de la surface = shots_out_of_box / total_shots."
+      - name: ws_shot_open_play_pct
+        description: "Part des tirs en jeu ouvert = shots_open_play / total_shots."
+      - name: ws_shot_set_piece_pct
+        description: "Part des tirs sur coup de pied arrêté = shots_set_piece / total_shots."
+      - name: ws_shot_penalty_att_pct
+        description: "Part des tirs qui sont des penalties = shots_penalty / total_shots."
+      - name: ws_conversion_rate
+        description: "Taux de conversion = buts marqués / total_shots."
+      - name: ws_cross_rate
+        description: "Part des passes qui sont des centres = passes_cross / total_passes."
+      - name: ws_through_ball_rate
+        description: "Part des passes en profondeur (through balls) = passes_through_ball / total_passes."
+      - name: ws_long_ball_rate
+        description: "Part des longs ballons = passes_long_ball / total_passes."
+      - name: ws_short_pass_rate
+        description: "Part des passes courtes = 1 − (cross + through_ball + long_ball) / total_passes."
+      - name: ws_def_exposed_left_pct
+        description: "Part des attaques adverses subies sur le flanc gauche = opp_att_left / opp_att_total."
+      - name: ws_def_exposed_center_pct
+        description: "Part des attaques adverses subies dans l'axe = opp_att_center / opp_att_total."
+      - name: ws_def_exposed_right_pct
+        description: "Part des attaques adverses subies sur le flanc droit = opp_att_right / opp_att_total."
 
   - name: h2h_history
     description: "Registre brut des confrontations directes entre équipes. Une ligne par match."
@@ -542,15 +1113,67 @@ models:
       - name: match_id
         tests:
           - not_null
-      - name: home_team_id
-        tests:
-          - not_null
-      - name: away_team_id
-        tests:
-          - not_null
       - name: date
         tests:
           - not_null
+      - name: team_id
+        description: "Id canonique de l'équipe (perspective de la ligne)."
+      - name: opponent_id
+        description: "Id canonique de l'adversaire."
+      - name: season
+        description: "Saison du match (ex. 2023-2024)."
+      - name: league_source
+        description: "Championnat / source des données."
+      - name: venue
+        description: "Lieu du match pour l'équipe : Home / Away / Neutral."
+      - name: gf
+        description: "Buts marqués par l'équipe dans ce match (goals for)."
+      - name: ga
+        description: "Buts encaissés par l'équipe (goals against)."
+      - name: result_1n2
+        description: "Résultat brut du match : H (victoire domicile) / D (nul) / A (victoire extérieur). NULL si indéterminé."
+      - name: np_xg
+        description: "xG hors penalty de l'équipe dans ce match."
+      - name: np_xg_conceded
+        description: "xG hors penalty concédé par l'équipe."
+      - name: h2h_played
+        description: "Nombre de confrontations directes antérieures entre les deux équipes (cumul avant ce match)."
+      - name: h2h_wins
+        description: "Victoires de l'équipe dans l'historique des confrontations directes."
+      - name: h2h_draws
+        description: "Nuls dans l'historique des confrontations directes."
+      - name: h2h_losses
+        description: "Défaites dans l'historique des confrontations directes."
+      - name: h2h_home_played
+        description: "Confrontations directes jouées à domicile (historique)."
+      - name: h2h_home_wins
+        description: "Victoires à domicile en confrontation directe."
+      - name: h2h_home_draws
+        description: "Nuls à domicile en confrontation directe."
+      - name: h2h_home_losses
+        description: "Défaites à domicile en confrontation directe."
+      - name: h2h_away_played
+        description: "Confrontations directes jouées à l'extérieur (historique)."
+      - name: h2h_away_wins
+        description: "Victoires à l'extérieur en confrontation directe."
+      - name: h2h_away_draws
+        description: "Nuls à l'extérieur en confrontation directe."
+      - name: h2h_away_losses
+        description: "Défaites à l'extérieur en confrontation directe."
+      - name: h2h_played_10
+        description: "Confrontations directes sur les 10 dernières."
+      - name: h2h_wins_10
+        description: "Victoires sur les 10 dernières confrontations directes."
+      - name: h2h_draws_10
+        description: "Nuls sur les 10 dernières confrontations directes."
+      - name: h2h_losses_10
+        description: "Défaites sur les 10 dernières confrontations directes."
+      - name: h2h_avg_gf_10
+        description: "Moyenne de buts marqués sur les 10 dernières confrontations directes."
+      - name: h2h_avg_ga_10
+        description: "Moyenne de buts encaissés sur les 10 dernières confrontations directes."
+      - name: h2h_avg_xg_diff_10
+        description: "Différentiel xG moyen sur les 10 dernières confrontations directes."
   - name: player_possession_chains
     description: >
       Segmente le flux d'événements WhoScored en chaînes de possession.
@@ -562,15 +1185,69 @@ models:
       Brique de base de corner_profiles, player_passes_raw et player_xg_chain.
       Une ligne par action.
     columns:
+      # ── Héritées de int_event_enriched (mêmes définitions) ─────────────────────
       - name: match_id
+        description: "Identifiant unifié du match (SHA1), résolu via int_whoscored_match_index."
         tests:
           - not_null
+      - name: season
+        description: "Saison du match (ex. 2023-2024)."
+      - name: league_source
+        description: "Championnat / source des données (ex. Bundesliga)."
+      - name: team_id
+        description: "Id canonique de l'équipe de l'action (converti depuis l'id WhoScored via int_whoscored_match_index)."
+      - name: player_id
+        description: "Identifiant WhoScored du joueur auteur de l'action. NULL possible sur certains événements."
+      - name: event_id
+        description: >
+          Identifiant WhoScored de l'événement. ATTENTION : scopé par (match, équipe),
+          PAS unique par match — ne pas joindre dessus sans contraindre l'équipe.
       - name: row_num
+        description: "Index de l'événement dans le flux du match (ordre chronologique)."
         tests:
           - not_null
-          - unique:
-              config:
-                severity: error
+      - name: expanded_minute
+        description: "Minute cumulée, temps additionnel inclus (ex. 45+2 → 47)."
+      - name: second
+        description: "Seconde dans la minute."
+      - name: period
+        description: "Période : 1 = 1re mi-temps, 2 = 2e mi-temps, 16 = pré-match (FormationSet), 14 = fin de match (End)."
+      - name: type_id
+        description: "Type d'événement WhoScored (cf. docs/Event_type_definition.txt ; ex. 1 Pass, 3 TakeOn, 4 Foul, 13-16 tirs)."
+      - name: type_name
+        description: "Libellé du type d'événement (Pass, TakeOn, Foul, Goal…)."
+      - name: outcome_id
+        description: "Résultat de l'action : 1 = réussi, 0 = raté."
+      - name: is_shot
+        description: "Booléen : l'événement est un tir (flag WhoScored isShot)."
+      - name: x
+        description: "Position X de l'action sur le terrain (0-100, croissant vers le but adverse ; repère relatif à l'équipe)."
+      - name: y
+        description: "Position Y de l'action (0-100, largeur, 50 = axe central)."
+      - name: scraped_at
+        description: "Horodatage ISO du scrape du match."
+      # ── Transformation : segmentation en chaînes de possession ────────────────
+      - name: chain_id
+        description: "Identifiant de la chaîne de possession = match_id || '_' || numéro de chaîne. Regroupe les actions d'une même possession."
+      - name: chain_number
+        description: "Numéro séquentiel de la chaîne de possession dans le match."
+      - name: chain_team_id
+        description: >
+          Id canonique de l'équipe EN POSSESSION durant la chaîne (possesseur résolu).
+          ≠ team_id : team_id est l'équipe de l'action précise (ex. un dégagement
+          adverse peut appartenir à la chaîne de l'équipe qui attaque).
+      - name: is_rupture
+        description: "Flag (0/1) : l'événement clôt la chaîne (le possesseur change juste après)."
+      - name: chain_trigger
+        description: "Déclencheur de la chaîne : recovery / corner / goal_kick / throw_in / free_kick / open_play."
+      - name: certain_possessor
+        description: "Id de l'équipe si la possession est certaine à cet événement ; NULL si possession indéterminée (duel / ballon libre)."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - match_id
+            - row_num
+
   - name: freekick_profiles
     description: >
       Profils de coups francs par chaîne. Caractérise chaque coup franc par
@@ -596,6 +1273,52 @@ models:
           - accepted_values:
               arguments:
                 values: ['goal', 'shot_saved', 'shot_off_target', 'offside', 'foul_won', 'corner_won', 'open_play', 'turnover']
+      - name: chain_id
+        description: "Identifiant de la chaîne de possession = match_id || '_' || numéro de chaîne (propagé de player_possession_chains)."
+      - name: chain_number
+        description: "Numéro séquentiel de la chaîne de possession dans le match (propagé de player_possession_chains)."
+      - name: chain_team_id
+        description: "Id de l'équipe en possession (attaquante) sur le coup franc (propagé de player_possession_chains)."
+      - name: freekick_taker_id
+        description: "Identifiant du joueur qui tire le coup franc."
+      - name: event_id
+        description: "event_id WhoScored de l'événement d'ancrage (scopé match+équipe)."
+      - name: expanded_minute
+        description: "Minute (expanded_minute) du coup franc."
+      - name: second
+        description: "Seconde dans la minute."
+      - name: type_id
+        description: "type_id de l'événement d'ancrage (13-16 pour un tir direct ; 1/2 pour une passe / OffsidePass)."
+      - name: outcome_id
+        description: "Résultat de l'événement d'ancrage (1 = réussi, 0 = raté)."
+      - name: x
+        description: "Position X du coup franc (0-100, repère équipe)."
+      - name: y
+        description: "Position Y du coup franc (0-100, 50 = axe central)."
+      - name: is_offside
+        description: "Booléen : la passe de coup franc a été signalée hors-jeu (OffsidePass, type 2). FALSE pour les coups francs directs."
+      - name: fk_zone_type
+        description: "Nature de la livraison : 'direct_shot' (frappe directe), 'own_box' (jouée dans sa propre surface, x<17), 'crossed' (centrée) ou 'too_far' (sinon)."
+      - name: chain_danger_total
+        description: "Somme du danger (action_value de event_values) généré par l'équipe sur la chaîne issue du coup franc."
+      - name: chain_danger_momentum
+        description: "Part du danger accumulée AVANT le dernier tir / danger total de la chaîne. NULL si aucun tir."
+      - name: shot_body_part
+        description: "Partie du corps du tir résultant (head / right_foot / left_foot / other, via qualifiers 15/20/72/21) — renseigné pour les coups francs centrés ('crossed')."
+      - name: clearance_player_id
+        description: "Identifiant du défenseur qui dégage (type 12), pour les coups francs centrés (NULL sinon)."
+      - name: clearance_quality
+        description: "Qualité du dégagement : 'perfect' (l'équipe qui dégage récupère), 'failed' (récupération adverse haut, recovery_x>=83), 'poor' (>=75), 'good' (sinon). NULL si pas de dégagement."
+      - name: is_headed_clearance
+        description: "Booléen : dégagement de la tête (qual 15) plutôt qu'autre (qual 21)."
+      - name: x_m
+        description: "Position X convertie en mètres = x * 1.05 (longueur terrain 105 m)."
+      - name: y_m
+        description: "Position Y convertie en mètres = y * 0.68 (largeur terrain 68 m)."
+      - name: distance_to_goal
+        description: "Distance en mètres du point du coup franc au centre du but adverse (105, 34)."
+      - name: angle
+        description: "Angle d'ouverture du but vu depuis le point du coup franc, en radians (loi des cosinus avec les poteaux à y=30.34 et 37.66 m)."
     tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns:
@@ -614,59 +1337,566 @@ models:
       Stats gardien FBref (tirs cadrés subis, arrêts, save%) rematchées sur
       match_id unifié et team_id normalisé. Alimente les colonnes gardien
       de backbone.
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1), rattaché via match_registry."
+      - name: team_id
+        description: "Id canonique de l'équipe (converti depuis le nom de club FBref via team_mapping)."
+      - name: opponent_id
+        description: "Id canonique de l'équipe adverse (via team_mapping)."
+      - name: date
+        description: "Date du match"
+      - name: time
+        description: "Heure du match"
+      - name: league_source
+        description: "Nom de la compétition source"
+      - name: day
+        description: "Jour de la semaine"
+      - name: venue
+        description: "Lieu du match : Home ou Away"
+      - name: result
+        description: "Résultat brut FBref : W, D, L"
+      - name: gf
+        description: "Buts marqués"
+      - name: ga
+        description: "Buts encaissés"
+      - name: sota
+        description: "Shots on target against — tirs cadrés subis par le gardien"
+      - name: ga_keeper
+        description: "Buts encaissés par le gardien (hors CSC)"
+      - name: saves
+        description: "Arrêts du gardien"
+      - name: save_pct
+        description: "Pourcentage d'arrêts (saves / sota)"
+      - name: cs
+        description: "Clean sheet — 1 si aucun but encaissé, 0 sinon"
+      - name: pk_att
+        description: "Penaltys tentés contre le gardien"
+      - name: pk_allowed
+        description: "Penaltys accordés (transformés contre)"
+      - name: pk_saved
+        description: "Penaltys arrêtés"
+      - name: pk_missed
+        description: "Penaltys manqués par l'attaquant adverse"
+      - name: season
+        description: "Saison au format YYYY-YYYY"
+      - name: source
+        description: "Source de la donnée (fbref)"
+      - name: scraped_at
+        description: "Timestamp du scraping"
+      - name: comp_category
+        description: "Catégorie de compétition : Big5, Cup, Europe"
+      - name: result_1n2
+        description: "Résultat encodé : H, D, A"
 
   - name: int_fbref_misc
     description: >
       Stats disciplinaires et défensives FBref (cartons, fautes commises,
       interceptions, tacles gagnés) rematchées sur match_id + team_id.
       Alimente le bloc disciplinaire de backbone.
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1), rattaché via match_registry."
+      - name: team_id
+        description: "Id canonique de l'équipe (converti depuis le nom de club FBref via team_mapping)."
+      - name: opponent_id
+        description: "Id canonique de l'équipe adverse (via team_mapping)."
+      - name: date
+        description: "Date du match"
+      - name: time
+        description: "Heure du match"
+      - name: league_source
+        description: "Nom de la compétition source"
+      - name: day
+        description: "Jour de la semaine"
+      - name: venue
+        description: "Lieu du match : Home ou Away"
+      - name: result
+        description: "Résultat brut FBref : W, D, L"
+      - name: gf
+        description: "Buts marqués"
+      - name: ga
+        description: "Buts encaissés"
+      - name: crdy
+        description: "Cartons jaunes reçus"
+      - name: crdr
+        description: "Cartons rouges directs reçus"
+      - name: crdy2
+        description: "Deuxièmes cartons jaunes (expulsion indirecte)"
+      - name: fls
+        description: "Fautes commises"
+      - name: fld
+        description: "Fautes subies"
+      - name: "off"
+        description: "Hors-jeux"
+      - name: crosses
+        description: "Centres tentés"
+      - name: int
+        description: "Interceptions"
+      - name: tklw
+        description: "Tacles remportés"
+      - name: pkwon
+        description: "Penaltys obtenus"
+      - name: pkcon
+        description: "Penaltys concédés"
+      - name: og
+        description: "Buts contre son camp"
+      - name: season
+        description: "Saison au format YYYY-YYYY"
+      - name: source
+        description: "Source de la donnée (fbref)"
+      - name: scraped_at
+        description: "Timestamp du scraping"
+      - name: comp_category
+        description: "Catégorie de compétition : Big5, Cup, Europe"
+      - name: result_1n2
+        description: "Résultat encodé : H, D, A"
 
   - name: int_fbref_schedule
     description: >
       Feuille de match FBref (résultat, buts marqués/encaissés, possession,
       formation) rematchée sur match_id + team_id. Source des résultats bruts
       et de la possession dans backbone.
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1), rattaché via match_registry."
+      - name: team_id
+        description: "Id canonique de l'équipe (converti depuis le nom de club FBref via team_mapping)."
+      - name: opponent_id
+        description: "Id canonique de l'équipe adverse (via team_mapping)."
+      - name: date
+        description: "Date du match"
+      - name: time
+        description: "Heure du match"
+      - name: league_source
+        description: "Nom de la compétition source (ex: Premier League, Ligue 1)"
+      - name: day
+        description: "Jour de la semaine"
+      - name: venue
+        description: "Lieu du match du point de vue de l'équipe : Home ou Away"
+      - name: result
+        description: "Résultat brut FBref : W (victoire), D (nul), L (défaite)"
+      - name: gf
+        description: "Buts marqués par l'équipe"
+      - name: ga
+        description: "Buts encaissés par l'équipe"
+      - name: poss
+        description: "Possession en pourcentage (VARCHAR — castée en DOUBLE dans gold)"
+      - name: formation
+        description: "Formation tactique de l'équipe (ex: 4-3-3)"
+      - name: opp_formation
+        description: "Formation tactique de l'adversaire"
+      - name: season
+        description: "Saison au format YYYY-YYYY"
+      - name: source
+        description: "Source de la donnée (fbref)"
+      - name: scraped_at
+        description: "Timestamp du scraping"
+      - name: comp_category
+        description: "Catégorie de compétition : Big5, Cup, Europe"
+      - name: result_1n2
+        description: "Résultat encodé du point de vue de l'équipe : H (victoire domicile), D (nul), A (victoire extérieur)"
 
   - name: int_fbref_shooting
     description: >
       Volume de tirs FBref (tirs totaux, tirs cadrés, buts par tir) rematché
       sur match_id + team_id. Alimente le bloc tirs de backbone.
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1), rattaché via match_registry."
+      - name: team_id
+        description: "Id canonique de l'équipe (converti depuis le nom de club FBref via team_mapping)."
+      - name: opponent_id
+        description: "Id canonique de l'équipe adverse (via team_mapping)."
+      - name: date
+        description: "Date du match"
+      - name: time
+        description: "Heure du match"
+      - name: league_source
+        description: "Nom de la compétition source"
+      - name: day
+        description: "Jour de la semaine"
+      - name: venue
+        description: "Lieu du match : Home ou Away"
+      - name: result
+        description: "Résultat brut FBref : W, D, L"
+      - name: gf
+        description: "Buts marqués"
+      - name: ga
+        description: "Buts encaissés"
+      - name: standard_gls
+        description: "Buts marqués (hors pénaltys)"
+      - name: standard_sh
+        description: "Total de tirs tentés"
+      - name: standard_sot
+        description: "Tirs cadrés"
+      - name: standard_sot_pct
+        description: "Pourcentage de tirs cadrés (standard_sot / standard_sh)"
+      - name: standard_g_sh
+        description: "Buts par tir (efficacité offensive brute)"
+      - name: standard_g_sot
+        description: "Buts par tir cadré (efficacité offensive sur les tirs dangereux)"
+      - name: standard_pk
+        description: "Buts sur penalty"
+      - name: standard_pkatt
+        description: "Penaltys tentés"
+      - name: season
+        description: "Saison au format YYYY-YYYY"
+      - name: source
+        description: "Source de la donnée (fbref)"
+      - name: scraped_at
+        description: "Timestamp du scraping"
+      - name: comp_category
+        description: "Catégorie de compétition : Big5, Cup, Europe"
+      - name: result_1n2
+        description: "Résultat encodé : H, D, A"
 
   - name: int_odds
     description: >
       Cotes bookmakers (Pinnacle et moyennes marché) rematchées sur match_id
       + team_id/opponent_id. Alimente les colonnes odds_* et les probabilités
       implicites de backbone.
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1), rattaché via match_registry."
+      - name: team_id
+        description: "Id canonique de l'équipe à DOMICILE (via team_mapping sur home_team)."
+      - name: opponent_id
+        description: "Id canonique de l'équipe à l'EXTÉRIEUR (via team_mapping sur away_team)."
+      - name: date
+        description: "Date du match"
+      - name: season
+        description: "Saison au format YYYY-YYYY"
+      - name: league_source
+        description: "Nom de la compétition source"
+      - name: result_fdc
+        description: "Résultat réel du match (H/D/A) — utilisé pour calculer l'edge en backtest"
+      - name: odds_pinnacle_h
+        description: "Cote Pinnacle victoire domicile"
+      - name: odds_pinnacle_d
+        description: "Cote Pinnacle match nul"
+      - name: odds_pinnacle_a
+        description: "Cote Pinnacle victoire extérieur"
+      - name: odds_avg_h
+        description: "Cote moyenne du marché victoire domicile"
+      - name: odds_avg_d
+        description: "Cote moyenne du marché match nul"
+      - name: odds_avg_a
+        description: "Cote moyenne du marché victoire extérieur"
+      - name: odds_max_h
+        description: "Meilleure cote disponible sur le marché victoire domicile"
+      - name: odds_max_d
+        description: "Meilleure cote disponible match nul"
+      - name: odds_max_a
+        description: "Meilleure cote disponible victoire extérieur"
+      - name: pinnacle_prob_h
+        description: "Probabilité implicite Pinnacle victoire domicile (1/cote, marginée)"
+      - name: pinnacle_prob_d
+        description: "Probabilité implicite Pinnacle match nul"
+      - name: pinnacle_prob_a
+        description: "Probabilité implicite Pinnacle victoire extérieur"
+      - name: market_prob_h
+        description: "Probabilité implicite marché moyen victoire domicile"
+      - name: market_prob_d
+        description: "Probabilité implicite marché moyen match nul"
+      - name: market_prob_a
+        description: "Probabilité implicite marché moyen victoire extérieur"
 
   - name: int_understat_schedule
     description: >
       Calendrier Understat rematché sur le match_id unifié. Conserve
       us_match_id (id Understat d'origine) et produit la correspondance
       us_match_id ↔ match_id réutilisée par int_understat_stats.
+    columns:
+      - name: league_source
+        description: "Nom de la compétition source"
+      - name: home_goals
+        description: "Buts marqués par l'équipe domicile"
+      - name: away_goals
+        description: "Buts marqués par l'équipe extérieur"
+      - name: home_xg
+        description: "Expected goals équipe domicile"
+      - name: away_xg
+        description: "Expected goals équipe extérieur"
+      - name: is_result
+        description: "Indique si le match a un résultat définitif (1) ou est à venir (0)"
+      - name: match_url
+        description: "URL Understat du match"
+      - name: season
+        description: "Saison au format YYYY-YYYY"
+      - name: source
+        description: "Source des données (Understat)."
+      - name: scraped_at
+        description: "Horodatage ISO du scrape."
+      - name: comp_category
+        description: "Catégorie de compétition : Big5, Cup, Europe"
+      - name: us_match_id
+        description: "Identifiant du match côté Understat (source), conservé avant résolution en match_id canonique."
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1), rattaché via match_registry."
+      - name: team_id
+        description: "Id canonique de l'équipe à domicile (via team_mapping sur home_team)."
+      - name: opponent_id
+        description: "Id canonique de l'équipe à l'extérieur (via team_mapping sur away_team)."
 
   - name: int_understat_stats
     description: >
       Stats Understat par match (npxG, npxG concédés, PPDA) rattachées au
       match_id unifié via int_understat_schedule. Alimente les colonnes xG
       et pressing de backbone.
+    columns:
+      - name: home_xpts
+        description: "Expected points domicile — points attendus selon les xG du match"
+      - name: away_xpts
+        description: "Expected points extérieur"
+      - name: home_np_xg
+        description: "Expected goals sans pénalties — équipe domicile"
+      - name: away_np_xg
+        description: "Expected goals sans pénalties — équipe extérieur"
+      - name: home_np_xg_diff
+        description: "Différentiel npxG domicile (home_np_xg - away_np_xg)"
+      - name: away_np_xg_diff
+        description: "Différentiel npxG extérieur (away_np_xg - home_np_xg)"
+      - name: home_ppda
+        description: "PPDA domicile — passes adverses autorisées par action défensive (mesure l'intensité du pressing)"
+      - name: away_ppda
+        description: "PPDA extérieur"
+      - name: home_deep
+        description: "Passes complétées dans les 18 derniers mètres adverses — domicile (mesure la pression offensive)"
+      - name: away_deep
+        description: "Passes complétées dans les 18 derniers mètres adverses — extérieur"
+      - name: season
+        description: "Saison au format YYYY-YYYY"
+      - name: league_source
+        description: "Nom de la compétition source"
+      - name: source
+        description: "Source des données (Understat)."
+      - name: scraped_at
+        description: "Horodatage ISO du scrape."
+      - name: comp_category
+        description: "Catégorie de compétition : Big5, Cup, Europe"
+      - name: us_match_id
+        description: "Identifiant du match côté Understat (source)."
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1), rattaché via int_understat_schedule (us_match_id -> match_id)."
 
   - name: int_whoscored_match_index
     description: >
       Pont d'identité entre l'univers WhoScored (ws_match_id, ws_home/away_team_id)
       et les clés unifiées (match_id, team_id normalisé). Table de résolution
       d'identité centrale pour toute la chaîne événementielle WhoScored.
+      Grain : une ligne par match.
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1), résolu via match_registry. NULL si le match n'est pas résolu au registre."
+      - name: team_id
+        description: "Id canonique de l'équipe À DOMICILE (résolu via team_mapping sur home_team_name)."
+      - name: opponent_id
+        description: "Id canonique de l'équipe À L'EXTÉRIEUR (résolu via team_mapping sur away_team_name)."
+      - name: ws_match_id
+        description: "Identifiant WhoScored du match (brut, depuis silver.stg_whoscored_match_index)."
+      - name: match_date
+        description: "Date du match."
+      - name: league_source
+        description: "Championnat / source des données (ex. Bundesliga)."
+      - name: season
+        description: "Saison du match (ex. 2023-2024)."
+      - name: scraped_at
+        description: "Horodatage ISO du scrape du match."
+      - name: comp_category
+        description: "Catégorie de compétition. Valeur actuelle : Big5 (les 5 grands championnats européens)."
+      - name: ws_home_team_id
+        description: "Id WhoScored (brut) de l'équipe à domicile — sert de clé pour mapper vers team_id."
+      - name: ws_away_team_id
+        description: "Id WhoScored (brut) de l'équipe à l'extérieur — sert de clé pour mapper vers opponent_id."
 
   - name: int_whoscored_events
     description: >
       Événements bruts WhoScored (silver.stg_whoscored_events) avec team_id
       normalisé et match_id unifié, résolus via int_whoscored_match_index.
-      Point d'entrée de la chaîne événementielle.
+      Point d'entrée de la chaîne événementielle. Grain : un événement.
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1), résolu via int_whoscored_match_index. NULL si le match n'est pas résolu au registre."
+      - name: team_id
+        description: "Id canonique de l'équipe de l'événement (converti depuis l'id WhoScored via int_whoscored_match_index)."
+      - name: event_id
+        description: >
+          Identifiant WhoScored de l'événement. ATTENTION : scopé par (match, équipe),
+          PAS unique par match — ne pas joindre dessus sans contraindre l'équipe.
+      - name: league_source
+        description: "Championnat / source des données (ex. Bundesliga)."
+      - name: season
+        description: "Saison du match (ex. 2023-2024)."
+      - name: minute
+        description: "Minute de jeu brute (hors temps additionnel)."
+      - name: second
+        description: "Seconde dans la minute."
+      - name: expanded_minute
+        description: "Minute cumulée, temps additionnel inclus (ex. 45+2 → 47)."
+      - name: period
+        description: "Période : 1 = 1re mi-temps, 2 = 2e mi-temps, 16 = pré-match (FormationSet), 14 = fin de match (End)."
+      - name: player_id
+        description: "Identifiant WhoScored du joueur auteur de l'action. NULL possible sur certains événements."
+      - name: x
+        description: "Position X de l'action sur le terrain (0-100, croissant vers le but adverse ; repère relatif à l'équipe)."
+      - name: y
+        description: "Position Y de l'action (0-100, largeur, 50 = axe central)."
+      - name: end_x
+        description: "Position X de fin de l'action (surtout les passes ; NULL pour les événements ponctuels)."
+      - name: end_y
+        description: "Position Y de fin de l'action (surtout les passes ; NULL pour les événements ponctuels)."
+      - name: type_id
+        description: "Type d'événement WhoScored (cf. docs/Event_type_definition.txt ; ex. 1 Pass, 3 TakeOn, 4 Foul, 13-16 tirs)."
+      - name: type_name
+        description: "Libellé du type d'événement (Pass, TakeOn, Foul, Goal…)."
+      - name: outcome_id
+        description: "Résultat de l'action : 1 = réussi, 0 = raté."
+      - name: outcome_name
+        description: "Libellé du résultat : Successful / Unsuccessful."
+      - name: is_touch
+        description: "Booléen : le joueur a touché le ballon (flag WhoScored isTouch)."
+      - name: is_shot
+        description: "Booléen : l'événement est un tir (flag WhoScored isShot)."
+      - name: qualifiers_json
+        description: "Tableau JSON brut des qualifiers de l'événement — SOURCE DE VÉRITÉ des qualifiers (éclaté dans events_qual)."
+      - name: scraped_at
+        description: "Horodatage ISO du scrape du match."
+      - name: row_num
+        description: "Index de l'événement dans le flux du match (ordre chronologique)."
+      - name: is_goal
+        description: "Booléen : l'événement est un but (flag WhoScored isGoal). TRUE aussi pour les CSC (voir is_own_goal)."
+      - name: is_own_goal
+        description: "Booléen : but contre son camp (CSC)."
+      - name: related_event_id
+        description: "Champ WhoScored relatedEventId (haut niveau de l'event). Souvent NULL — le lien réel entre events miroirs passe par le qualifier 233."
+      - name: related_player_id
+        description: "Champ WhoScored relatedPlayerId (haut niveau de l'event). Souvent NULL."
+      - name: card_type
+        description: "Type de carton : Yellow / Red / SecondYellow. NULL hors événements Card."
+      - name: goal_mouth_y
+        description: >
+          Position horizontale où le tir atteint la ligne de but (qualifier 102 GoalMouthY).
+          Cadre : poteaux à Y≈45.2 et 54.8, centre 50. NULL hors tirs / non renseigné.
+      - name: goal_mouth_z
+        description: "Hauteur où le tir atteint la ligne de but (qualifier 103 GoalMouthZ). Barre à Z≈38. NULL hors tirs / non renseigné."
+      - name: blocked_x
+        description: "Coordonnée X (repère équipe, 0-100) du point où le tir est stoppé (qualifier 146 BlockedX). Renseigné pour une partie des tirs."
+      - name: blocked_y
+        description: "Coordonnée Y (repère équipe, 0-100) du point où le tir est stoppé (qualifier 147 BlockedY)."
 
   - name: int_whoscored_team_season
     description: >
       Ratings agrégés de saison WhoScored par équipe (attaque/défense, dribbles,
       tirs cadrés par match, différenciés Home/Away). Alimente les colonnes
       season_*/ws_* de backbone.
+    columns:
+      - name: team_id
+        description: "Id canonique de l'équipe (via team_mapping sur le nom WhoScored 'team')."
+      - name: season
+        description: "Saison (ex. 2023-2024)."
+      - name: league_source
+        description: "Championnat / source (ex. Bundesliga)."
+      - name: ws_away_shots_conceded_pg
+        description: "Tirs concédés par match à l'extérieur (moyenne saison)."
+      - name: ws_away_tackles_pg
+        description: "Tacles par match à l'extérieur."
+      - name: ws_away_interceptions_pg
+        description: "Interceptions par match à l'extérieur."
+      - name: ws_away_fouls_pg
+        description: "Fautes commises par match à l'extérieur."
+      - name: ws_away_offsides_pg
+        description: "Hors-jeu commis par match à l'extérieur (moyenne saison)."
+      - name: ws_away_def_rating
+        description: "Note WhoScored globale de l'équipe (0-10, à l'extérieur). Les 4 colonnes *_rating d'un même côté sont IDENTIQUES par nature : le Rating WhoScored est la note GLOBALE de l'équipe, affichée à l'identique sur les onglets Defensive/Offensive/xG (seules les stats du tableau changent, pas la note). Ce n'est PAS un bug. La note 'overall' du site = moyenne domicile/extérieur."
+      - name: ws_home_shots_conceded_pg
+        description: "Tirs concédés par match à domicile (moyenne saison)."
+      - name: ws_home_tackles_pg
+        description: "Tacles par match à domicile."
+      - name: ws_home_interceptions_pg
+        description: "Interceptions par match à domicile."
+      - name: ws_home_fouls_pg
+        description: "Fautes commises par match à domicile."
+      - name: ws_home_offsides_pg
+        description: "Hors-jeu commis par match à domicile (moyenne saison)."
+      - name: ws_home_def_rating
+        description: "Note WhoScored globale de l'équipe (0-10, à domicile). Les 4 colonnes *_rating d'un même côté sont IDENTIQUES par nature : le Rating WhoScored est la note GLOBALE de l'équipe, affichée à l'identique sur les onglets Defensive/Offensive/xG (seules les stats du tableau changent, pas la note). Ce n'est PAS un bug. La note 'overall' du site = moyenne domicile/extérieur."
+      - name: ws_away_shots_pg
+        description: "Tirs tentés par match à l'extérieur."
+      - name: ws_away_shots_ot_pg
+        description: "Tirs cadrés par match à l'extérieur."
+      - name: ws_away_dribbles_pg
+        description: "Dribbles réussis par match à l'extérieur."
+      - name: ws_away_fouled_pg
+        description: "Fautes subies par match à l'extérieur."
+      - name: ws_away_att_rating
+        description: "Note WhoScored globale de l'équipe (0-10, à l'extérieur). Les 4 colonnes *_rating d'un même côté sont IDENTIQUES par nature : le Rating WhoScored est la note GLOBALE de l'équipe, affichée à l'identique sur les onglets Defensive/Offensive/xG (seules les stats du tableau changent, pas la note). Ce n'est PAS un bug. La note 'overall' du site = moyenne domicile/extérieur."
+      - name: ws_home_shots_pg
+        description: "Tirs tentés par match à domicile."
+      - name: ws_home_shots_ot_pg
+        description: "Tirs cadrés par match à domicile."
+      - name: ws_home_dribbles_pg
+        description: "Dribbles réussis par match à domicile."
+      - name: ws_home_fouled_pg
+        description: "Fautes subies par match à domicile."
+      - name: ws_home_att_rating
+        description: "Note WhoScored globale de l'équipe (0-10, à domicile). Les 4 colonnes *_rating d'un même côté sont IDENTIQUES par nature : le Rating WhoScored est la note GLOBALE de l'équipe, affichée à l'identique sur les onglets Defensive/Offensive/xG (seules les stats du tableau changent, pas la note). Ce n'est PAS un bug. La note 'overall' du site = moyenne domicile/extérieur."
+      - name: ws_away_xg_against
+        description: "xG concédé, total saison à l'extérieur."
+      - name: ws_away_goals_against
+        description: "Buts concédés, total saison à l'extérieur."
+      - name: ws_away_xg_diff_against
+        description: "Différentiel défensif = buts concédés − xG concédé, total saison à l'extérieur (positif = plus encaissé que la qualité des tirs)."
+      - name: ws_away_shots_against
+        description: "Tirs concédés, total saison à l'extérieur."
+      - name: ws_away_xg_per_shot_against
+        description: "xG concédé par tir = xg_against / shots_against (à l'extérieur)."
+      - name: ws_away_xg_against_rating
+        description: "Note WhoScored globale de l'équipe (0-10, à l'extérieur). Les 4 colonnes *_rating d'un même côté sont IDENTIQUES par nature : le Rating WhoScored est la note GLOBALE de l'équipe, affichée à l'identique sur les onglets Defensive/Offensive/xG (seules les stats du tableau changent, pas la note). Ce n'est PAS un bug. La note 'overall' du site = moyenne domicile/extérieur."
+      - name: ws_away_xg_for
+        description: "xG produit, total saison à l'extérieur."
+      - name: ws_away_goals_for
+        description: "Buts marqués, total saison à l'extérieur."
+      - name: ws_away_xg_diff_for
+        description: "Différentiel offensif = buts marqués − xG produit, total saison à l'extérieur (positif = sur-performance à la finition)."
+      - name: ws_away_shots_for
+        description: "Tirs tentés, total saison à l'extérieur."
+      - name: ws_away_xg_per_shot_for
+        description: "xG par tir = xg_for / shots_for (à l'extérieur)."
+      - name: ws_away_xg_for_rating
+        description: "Note WhoScored globale de l'équipe (0-10, à l'extérieur). Les 4 colonnes *_rating d'un même côté sont IDENTIQUES par nature : le Rating WhoScored est la note GLOBALE de l'équipe, affichée à l'identique sur les onglets Defensive/Offensive/xG (seules les stats du tableau changent, pas la note). Ce n'est PAS un bug. La note 'overall' du site = moyenne domicile/extérieur."
+      - name: ws_home_xg_against
+        description: "xG concédé, total saison à domicile."
+      - name: ws_home_goals_against
+        description: "Buts concédés, total saison à domicile."
+      - name: ws_home_xg_diff_against
+        description: "Différentiel défensif = buts concédés − xG concédé, total saison à domicile (positif = plus encaissé que la qualité des tirs)."
+      - name: ws_home_shots_against
+        description: "Tirs concédés, total saison à domicile."
+      - name: ws_home_xg_per_shot_against
+        description: "xG concédé par tir = xg_against / shots_against (à domicile)."
+      - name: ws_home_xg_against_rating
+        description: "Note WhoScored globale de l'équipe (0-10, à domicile). Les 4 colonnes *_rating d'un même côté sont IDENTIQUES par nature : le Rating WhoScored est la note GLOBALE de l'équipe, affichée à l'identique sur les onglets Defensive/Offensive/xG (seules les stats du tableau changent, pas la note). Ce n'est PAS un bug. La note 'overall' du site = moyenne domicile/extérieur."
+      - name: ws_home_xg_for
+        description: "xG produit, total saison à domicile."
+      - name: ws_home_goals_for
+        description: "Buts marqués, total saison à domicile."
+      - name: ws_home_xg_diff_for
+        description: "Différentiel offensif = buts marqués − xG produit, total saison à domicile (positif = sur-performance à la finition)."
+      - name: ws_home_shots_for
+        description: "Tirs tentés, total saison à domicile."
+      - name: ws_home_xg_per_shot_for
+        description: "xG par tir = xg_for / shots_for (à domicile)."
+      - name: ws_home_xg_for_rating
+        description: "Note WhoScored globale de l'équipe (0-10, à domicile). Les 4 colonnes *_rating d'un même côté sont IDENTIQUES par nature : le Rating WhoScored est la note GLOBALE de l'équipe, affichée à l'identique sur les onglets Defensive/Offensive/xG (seules les stats du tableau changent, pas la note). Ce n'est PAS un bug. La note 'overall' du site = moyenne domicile/extérieur."
+      - name: source
+        description: "Source des données (WhoScored)."
+      - name: scraped_at
+        description: "Horodatage ISO du scrape."
+      - name: comp_category
+        description: "Catégorie de compétition ; ici uniquement 'Big5' (les 5 grands championnats)."
+      - name: raw_team
+        description: "Nom d'équipe brut WhoScored, avant normalisation via team_mapping."
 
   # ════════════════════════════════════════════════════════════════════════════
   # CHAÎNE ÉVÉNEMENTIELLE — enrichissement et valorisation par action
@@ -678,14 +1908,153 @@ models:
       la hiérarchie chance_creation (leading_to_goal, intentional_assist,
       big_chance_created, key_pass, shot_assist...). Table socle de event_values,
       player_possession_chains, player_network_duels et player_zone_transitions.
-      Incrémentale sur scraped_at.
+      Incrémentale sur scraped_at. Filtre : player_id IS NOT NULL.
+    columns:
+      # ── Héritées de int_whoscored_events (mêmes définitions) ───────────────────
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1), résolu via int_whoscored_match_index."
+      - name: team_id
+        description: "Id canonique de l'équipe de l'événement (converti depuis l'id WhoScored via int_whoscored_match_index)."
+      - name: player_id
+        description: "Identifiant WhoScored du joueur auteur de l'action. (Ici jamais NULL : la table filtre player_id IS NOT NULL.)"
+      - name: event_id
+        description: >
+          Identifiant WhoScored de l'événement. ATTENTION : scopé par (match, équipe),
+          PAS unique par match — ne pas joindre dessus sans contraindre l'équipe.
+      - name: row_num
+        description: "Index de l'événement dans le flux du match (ordre chronologique)."
+      - name: expanded_minute
+        description: "Minute cumulée, temps additionnel inclus (ex. 45+2 → 47)."
+      - name: second
+        description: "Seconde dans la minute."
+      - name: period
+        description: "Période : 1 = 1re mi-temps, 2 = 2e mi-temps, 16 = pré-match (FormationSet), 14 = fin de match (End)."
+      - name: type_id
+        description: "Type d'événement WhoScored (cf. docs/Event_type_definition.txt ; ex. 1 Pass, 3 TakeOn, 4 Foul, 13-16 tirs)."
+      - name: type_name
+        description: "Libellé du type d'événement (Pass, TakeOn, Foul, Goal…)."
+      - name: outcome_id
+        description: "Résultat de l'action : 1 = réussi, 0 = raté."
+      - name: is_shot
+        description: "Booléen : l'événement est un tir (flag WhoScored isShot)."
+      - name: is_touch
+        description: "Booléen : le joueur a touché le ballon (flag WhoScored isTouch)."
+      - name: x
+        description: "Position X de l'action sur le terrain (0-100, croissant vers le but adverse ; repère relatif à l'équipe)."
+      - name: y
+        description: "Position Y de l'action (0-100, largeur, 50 = axe central)."
+      - name: end_x
+        description: "Position X de fin de l'action (surtout les passes ; NULL pour les événements ponctuels)."
+      - name: end_y
+        description: "Position Y de fin de l'action (surtout les passes ; NULL pour les événements ponctuels)."
+      - name: is_own_goal
+        description: "Booléen : but contre son camp (CSC)."
+      - name: related_event_id
+        description: "Champ WhoScored relatedEventId. Souvent NULL — le lien réel entre events miroirs passe par le qualifier 233."
+      - name: related_player_id
+        description: "Champ WhoScored relatedPlayerId. Souvent NULL."
+      - name: card_type
+        description: "Type de carton : Yellow / Red / SecondYellow. NULL hors événements Card."
+      - name: goal_mouth_y
+        description: >
+          Position horizontale où le tir atteint la ligne de but (qualifier 102 GoalMouthY).
+          Cadre : poteaux à Y≈45.2 et 54.8, centre 50. NULL hors tirs / non renseigné.
+      - name: goal_mouth_z
+        description: "Hauteur où le tir atteint la ligne de but (qualifier 103 GoalMouthZ). Barre à Z≈38. NULL hors tirs / non renseigné."
+      - name: blocked_x
+        description: "Coordonnée X (repère équipe, 0-100) du point où le tir est stoppé (qualifier 146 BlockedX)."
+      - name: blocked_y
+        description: "Coordonnée Y (repère équipe, 0-100) du point où le tir est stoppé (qualifier 147 BlockedY)."
+      - name: season
+        description: "Saison du match (ex. 2023-2024)."
+      - name: league_source
+        description: "Championnat / source des données (ex. Bundesliga)."
+      - name: scraped_at
+        description: "Horodatage ISO du scrape du match."
+      # ── Héritée de int_whoscored_match_index ──────────────────────────────────
+      - name: match_date
+        description: "Date du match (rattachée via int_whoscored_match_index)."
+      # ── Transformation : flags de qualifiers pivotés (0/1) ────────────────────
+      - name: is_leading_to_goal
+        description: "Flag (0/1) : l'action mène à un but (qualifier 170 LeadingToGoal)."
+      - name: is_intentional_goal_assist
+        description: "Flag (0/1) : passe décisive intentionnelle (qualifier 11111 IntentionalGoalAssist)."
+      - name: is_intentional_assist
+        description: "Flag (0/1) : passe intentionnelle vers une occasion (qualifier 154 IntentionalAssist)."
+      - name: is_big_chance_created
+        description: "Flag (0/1) : grosse occasion créée (qualifier 11112 BigChanceCreated)."
+      - name: is_key_pass
+        description: "Flag (0/1) : passe clé — mène à un tir (qualifier 11113 KeyPass)."
+      - name: is_shot_assist
+        description: "Flag (0/1) : passe précédant directement un tir (qualifier 210 ShotAssist)."
+      - name: is_leading_to_attempt
+        description: "Flag (0/1) : l'action mène à une tentative de tir (qualifier 169 LeadingToAttempt)."
+      - name: has_defensive_qual
+        description: "Flag (0/1) : l'action porte le qualifier 285 Defensive (côté défensif d'un duel)."
+      - name: has_offensive_qual
+        description: "Flag (0/1) : l'action porte le qualifier 286 Offensive (côté offensif d'un duel)."
+      - name: has_opposite_event
+        description: "Flag (0/1) : l'action porte le qualifier 233 OppositeRelatedEvent (lien vers l'event miroir adverse)."
+      # ── Transformation : score cumulé reconstruit ─────────────────────────────
+      - name: team_score
+        description: "Buts cumulés de l'équipe de l'événement à cet instant du match (reconstruit)."
+      - name: opp_score
+        description: "Buts cumulés de l'équipe adverse à cet instant du match (reconstruit)."
 
   - name: event_values
     description: >
-      Valorise chaque événement individuel selon deux axes : danger_position
-      (localisation terrain pondérée offensif/défensif) et chance_creation
-      (proxy xG hiérarchisé). Couche "value par action" consommée par les
-      modèles de chaînes. Source : int_event_enriched. Incrémentale.
+      Valorise chaque événement individuel via cinq axes indépendants
+      (danger_position, chance_creation, def_execution_quality, pressure_context,
+      context_weight) combinés en une note globale action_value. Couche "value par
+      action" consommée par les modèles de chaînes. Source : int_event_enriched.
+      Incrémentale (clé match_id + team_id + player_id + row_num).
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1), résolu via int_whoscored_match_index."
+      - name: team_id
+        description: "Id canonique de l'équipe de l'événement (converti depuis l'id WhoScored via int_whoscored_match_index)."
+      - name: player_id
+        description: "Identifiant WhoScored du joueur auteur de l'action (jamais NULL : la source filtre player_id IS NOT NULL)."
+      - name: event_id
+        description: "Identifiant WhoScored de l'événement. ATTENTION : scopé par (match, équipe), PAS unique par match — ne pas joindre dessus sans contraindre l'équipe."
+      - name: row_num
+        description: "Index de l'événement dans le flux du match (ordre chronologique)."
+      - name: expanded_minute
+        description: "Minute cumulée, temps additionnel inclus (ex. 45+2 -> 47)."
+      - name: period
+        description: "Période : 1 = 1re mi-temps, 2 = 2e mi-temps, 16 = pré-match (FormationSet), 14 = fin de match (End)."
+      - name: type_id
+        description: "Type d'événement WhoScored (cf. docs/Event_type_definition.txt ; ex. 1 Pass, 3 TakeOn, 4 Foul, 13-16 tirs)."
+      - name: type_name
+        description: "Libellé du type d'événement (Pass, TakeOn, Foul, Goal…)."
+      - name: outcome_id
+        description: "Résultat de l'action : 1 = réussi, 0 = raté."
+      - name: is_shot
+        description: "Booléen : l'événement est un tir (flag WhoScored isShot)."
+      - name: x
+        description: "Position X de l'action (0-100, croissant vers le but adverse ; repère relatif à l'équipe)."
+      - name: y
+        description: "Position Y de l'action (0-100, largeur, 50 = axe central)."
+      - name: match_date
+        description: "Date du match (rattachée via int_whoscored_match_index)."
+      - name: season
+        description: "Saison du match (ex. 2023-2024)."
+      - name: league_source
+        description: "Championnat / source des données (ex. Bundesliga)."
+      - name: scraped_at
+        description: "Horodatage ISO du scrape du match."
+      - name: danger_position
+        description: "Dangerosité de la position de l'action, normalisée 0-1. Offensif (type 1,3,13-16,42) = x/100 ; défensif (7,8,12,45,49,74) = (100-x)/100 ; duels purs (44,4,50) routés via qualifier défensif 285 / offensif 286. NULL si x manquant."
+      - name: chance_creation
+        description: "Score 0-1 de création d'occasion, par hiérarchie décroissante : but=1.00, mène au but=0.90, assist intentionnel=0.85, assist large=0.80, grosse occasion=0.75, passe clé=0.65, passe->tir=0.55, mène à un tir=0.50, tir cadré=0.40, tir raté/poteau=0.10, TakeOn réussi=0.30, GoodSkill=0.25, TakeOn raté=0.05, sinon 0.00."
+      - name: def_execution_quality
+        description: "Qualité d'exécution d'une action défensive, 0-1 : action défensive réussie (7,8,12,49,74)=1.00, Challenge (45)=0.60, tentative ratée=0.30 ; duels purs défensifs (qual 285) idem. NULL pour les actions offensives (axe non applicable)."
+      - name: pressure_context
+        description: "Proxy 0-1 de duel/pression physique : l'action est un duel (44,4,45,50,7)=0.80 ; liée à un duel via qual 233=0.60 ; +0.20 si dans sa propre moitié (x<50) ; plafonné à 1.0. Proxy limité par l'absence de tracking."
+      - name: context_weight
+        description: "Criticité narrative selon le score et la minute, calibrée à la main : >=75' menée=1.00, menant=0.85, nul-avec-buts=0.75, 0-0=0.60 ; avant 75' menée=0.70, nul-avec-buts=0.50, menant=0.40, 0-0=0.30."
+      - name: action_value
+        description: "Note globale combinant les axes. Offensif (1,3,13-16,42 + duels offensifs) = SQRT(danger_position * chance_creation) * (0.5 + 0.3*pressure_context + 0.2*context_weight) ; défensif (7,8,12,45,49,74 + duels défensifs) = danger_position * def_execution_quality * (...). NULL si x manquant."
 
   # ════════════════════════════════════════════════════════════════════════════
   # COUPS DE PIED ARRÊTÉS
@@ -696,6 +2065,37 @@ models:
       Profils de corners. Pour chaque chaîne déclenchée par un corner,
       caractérise la livraison (end_x/end_y, joueur, via qualifier CornerTaken=6)
       et l'issue de la séquence. Source : player_possession_chains. Incrémentale.
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1)."
+      - name: team_id
+        description: "Id de l'équipe qui tire le corner."
+      - name: corner_taker_id
+        description: "Identifiant du joueur qui tire le corner."
+      - name: corner_row_num
+        description: "row_num de l'événement du corner dans le match."
+      - name: expanded_minute
+        description: "Minute (expanded_minute) du corner."
+      - name: corner_side
+        description: "Côté du corner déduit du y de départ : 'right' si corner_start_y < 50, sinon 'left'."
+      - name: landing_zone
+        description: "Zone d'atterrissage relative au côté : 'short' (livraison courte, end_x<83), 'center' (end_y 45-55), 'near_post' ou 'far_post' selon le côté."
+      - name: n_aerial_duels
+        description: "Nombre de duels aériens disputés sur la chaîne issue du corner."
+      - name: shot_body_part
+        description: "Partie du corps du tir issu du corner : right_foot, left_foot, head ou 'other' (NULL si pas de tir)."
+      - name: clearance_player_id
+        description: "Identifiant du défenseur qui dégage (NULL si pas de dégagement)."
+      - name: clearance_quality
+        description: "Qualité du dégagement défensif : perfect / good / poor / failed (NULL si pas de dégagement)."
+      - name: is_headed_clearance
+        description: "Booléen : le dégagement est effectué de la tête."
+      - name: outcome
+        description: "Issue de la chaîne du corner : 'goal' (tir 16), 'shot_saved' (15), 'shot_off_target' (13/14), 'clearance' (dégagement), 'retained' (possession conservée sinon)."
+      - name: chain_danger_total
+        description: "Somme du danger (action_value de event_values) généré par l'équipe attaquante sur toute la chaîne issue du corner."
+      - name: chain_danger_momentum
+        description: "Part du danger accumulée AVANT le dernier tir / danger total de la chaîne (danger_before_shot / chain_danger_total). NULL si aucun tir."
 
   # ════════════════════════════════════════════════════════════════════════════
   # RÉSEAU DE PASSES JOUEUR
@@ -709,30 +2109,187 @@ models:
       possession (LEAD sur les événements de l'équipe en possession, sans sauter
       les événements adverses). Porte les flags is_progressive/is_creative/
       is_buildup et le chain_trigger. Brique de base du réseau de passes.
+      Grain : une passe réussie (type 1, outcome 1, avec receveur).
+    columns:
+      # ── Héritées ───────────────────────────────────────────────────────────────
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1), résolu via int_whoscored_match_index."
+        tests:
+          - not_null
+      - name: chain_id
+        description: "Identifiant de la chaîne de possession (repris de player_possession_chains)."
+      - name: chain_trigger
+        description: "Déclencheur de la chaîne : recovery / corner / goal_kick / throw_in / free_kick / open_play (repris de player_possession_chains)."
+      - name: team_id
+        description: "Id canonique de l'équipe qui fait la passe (= chain_team_id, l'équipe en possession)."
+      - name: row_num
+        description: "Index de l'événement (la passe) dans le flux du match (ordre chronologique)."
+      - name: expanded_minute
+        description: "Minute cumulée, temps additionnel inclus (ex. 45+2 → 47)."
+      - name: second
+        description: "Seconde dans la minute."
+      - name: x
+        description: "Position X de départ de la passe (0-100, croissant vers le but adverse ; repère relatif à l'équipe)."
+      - name: y
+        description: "Position Y de départ de la passe (0-100, largeur, 50 = axe central)."
+      - name: end_x
+        description: "Position X de fin de la passe (repris de int_event_enriched)."
+      - name: end_y
+        description: "Position Y de fin de la passe (repris de int_event_enriched)."
+      - name: is_key_pass
+        description: "Flag (0/1) : passe clé — mène à un tir (qualifier 11113 KeyPass, repris de int_event_enriched)."
+      - name: is_shot_assist
+        description: "Flag (0/1) : passe précédant directement un tir (qualifier 210 ShotAssist, repris de int_event_enriched)."
+      - name: season
+        description: "Saison du match (ex. 2023-2024)."
+      - name: league_source
+        description: "Championnat / source des données (ex. Bundesliga)."
+      # ── Transformations propres à player_passes_raw ───────────────────────────
+      - name: passer_id
+        description: "Joueur qui effectue la passe (= player_id de l'événement Pass)."
+      - name: receiver_id
+        description: "Joueur qui reçoit = prochain joueur de la MÊME équipe dans la chaîne (LEAD sur les événements de l'équipe en possession)."
+      - name: is_progressive
+        description: "Booléen : la passe avance le ballon d'au moins 10 unités (≈10 m) vers le but adverse (end_x > x + 10)."
+      - name: is_creative
+        description: "Booléen : la passe mène directement à un tir (is_key_pass OU is_shot_assist)."
+      - name: is_buildup
+        description: "Booléen : la passe est jouée dans la moitié défensive (x < 50)."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - match_id
+            - row_num
 
   - name: player_network_passes
     description: >
       Arêtes du graphe de passes agrégées par (match, équipe, passeur, receveur) :
       volume total et ventilé par contexte (contre-attaque, open play, recovery,
       autre), passes progressives/créatives/buildup. Source : player_passes_raw.
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1)."
+      - name: team_id
+        description: "Id canonique de l'équipe."
+      - name: passer_id
+        description: "Identifiant WhoScored du joueur passeur (nœud source de l'arête du réseau de passes)."
+      - name: receiver_id
+        description: "Identifiant WhoScored du joueur receveur (nœud cible de l'arête)."
+      - name: season
+        description: "Saison du match (ex. 2023-2024)."
+      - name: league_source
+        description: "Championnat / source des données (ex. Bundesliga)."
+      - name: n_passes
+        description: "Nombre total de passes réussies passeur -> receveur dans le match (poids de l'arête)."
+      - name: n_passes_counter_attack
+        description: "Parmi n_passes, celles dont la chaîne est une contre-attaque (chain_trigger = 'counter_attack')."
+      - name: n_passes_open_play
+        description: "Parmi n_passes, celles en jeu ouvert (chain_trigger = 'open_play')."
+      - name: n_passes_recovery
+        description: "Parmi n_passes, celles issues d'une récupération (chain_trigger = 'recovery')."
+      - name: n_passes_other
+        description: "Parmi n_passes, celles sur coup de pied arrêté (chain_trigger dans corner / free_kick / throw_in / goal_kick)."
+      - name: n_progressive
+        description: "Nombre de passes progressives (flag is_progressive de player_passes_raw)."
+      - name: n_creative
+        description: "Nombre de passes créatives (flag is_creative de player_passes_raw)."
+      - name: n_buildup
+        description: "Nombre de passes de construction (flag is_buildup de player_passes_raw)."
 
   - name: player_network_centrality
     description: >
       Centralité de chaque joueur dans le réseau de passes : degrés entrant et
       sortant (bruts et pondérés par le volume), passes créatives/progressives
       émises et reçues. Source : player_network_passes.
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1)."
+      - name: team_id
+        description: "Id canonique de l'équipe."
+      - name: player_id
+        description: "Identifiant WhoScored du joueur (nœud du réseau de passes de l'équipe)."
+      - name: season
+        description: "Saison du match (ex. 2023-2024)."
+      - name: league_source
+        description: "Championnat / source des données (ex. Bundesliga)."
+      - name: degree_out
+        description: "Degré sortant : nombre de receveurs DISTINCTS du joueur dans le match."
+      - name: degree_in
+        description: "Degré entrant : nombre de passeurs DISTINCTS vers le joueur."
+      - name: weighted_degree_out
+        description: "Volume total de passes émises par le joueur (somme des n_passes sortantes)."
+      - name: weighted_degree_in
+        description: "Volume total de passes reçues par le joueur (somme des n_passes entrantes)."
+      - name: n_creative_out
+        description: "Nombre de passes créatives émises par le joueur (somme n_creative sortantes)."
+      - name: n_progressive_out
+        description: "Nombre de passes progressives émises par le joueur (somme n_progressive sortantes)."
+      - name: pass_share
+        description: "Part des passes de l'équipe portées par le joueur = weighted_degree_out / total passes équipe (arrondi 4 déc.)."
+      - name: creative_rate
+        description: "Taux de passes créatives parmi ses passes émises = n_creative_out / weighted_degree_out (arrondi 4 déc.)."
+      - name: betweenness_proxy
+        description: "Proxy de centralité d'intermédiarité = (degree_out × degree_in) / (n_players × (n_players − 1)) : diversité entrante × sortante normalisée par les paires possibles (arrondi 4 déc.)."
 
   - name: player_network_betweenness
     description: >
       Modèle Python (dbt-python). Calcule la betweenness centrality exacte par
       (match, équipe) avec networkx sur le graphe pondéré de passes (normalized=True,
       weight=n_passes). Identifie les joueurs-ponts. Source : player_network_passes.
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1)."
+      - name: team_id
+        description: "Id canonique de l'équipe."
+      - name: player_id
+        description: "Identifiant WhoScored du joueur (nœud du réseau de passes de l'équipe)."
+      - name: season
+        description: "Saison du match (ex. 2023-2024)."
+      - name: league_source
+        description: "Championnat / source des données (ex. Bundesliga)."
+      - name: betweenness_exact
+        description: "Centralité d'intermédiarité EXACTE du joueur, calculée par NetworkX (betweenness_centrality) sur le réseau de passes DIRIGÉ de l'équipe (arêtes passeur->receveur pondérées par n_passes), normalisée dans [0,1], arrondie à 6 décimales. Modèle dbt Python."
 
   - name: player_network_duels
     description: >
       Apparie les duels adverses via le qualifier 233 (miroir d'événement) pour
       relier le joueur A et son vis-à-vis B sur le même affrontement. Matière
       première des duels individuels. Sources : events_qual, int_event_enriched.
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1)."
+      - name: season
+        description: "Saison du match (ex. 2023-2024)."
+      - name: league_source
+        description: "Championnat / source des données (ex. Bundesliga)."
+      - name: expanded_minute
+        description: "Minute cumulée du duel (temps additionnel inclus)."
+      - name: second
+        description: "Seconde dans la minute."
+      - name: duel_type_id
+        description: "type_id de l'événement de duel (côté A) — ex. Aerial, Tackle, Foul, Dispossessed."
+      - name: duel_type
+        description: "Libellé du type de duel (type_name côté A)."
+      - name: x
+        description: "Position X du duel sur le terrain (côté A, repère de l'équipe A ; 0-100)."
+      - name: y
+        description: "Position Y du duel (côté A ; 0-100, 50 = axe central)."
+      - name: event_id_a
+        description: "event_id WhoScored du côté A du duel."
+      - name: team_id_a
+        description: "Id de l'équipe du côté A."
+      - name: player_id_a
+        description: "Identifiant du joueur du côté A."
+      - name: outcome_a
+        description: "Résultat du côté A (1 = réussi, 0 = raté)."
+      - name: event_id_b
+        description: "event_id du côté B, adverse, apparié via OppositeRelatedEvent (qualifier 233)."
+      - name: team_id_b
+        description: "Id de l'équipe du côté B (adverse à A)."
+      - name: player_id_b
+        description: "Identifiant du joueur du côté B."
+      - name: outcome_b
+        description: "Résultat du côté B (1 = réussi, 0 = raté)."
 
   - name: team_network_features
     description: >
@@ -740,6 +2297,35 @@ models:
       de joueurs et d'arêtes actifs, dépendance au top créateur (top_creator_share),
       betweenness moyenne, entropie de Shannon du réseau (network_entropy).
       Source : player_network_centrality.
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1)."
+      - name: team_id
+        description: "Id canonique de l'équipe."
+      - name: season
+        description: "Saison du match (ex. 2023-2024)."
+      - name: league_source
+        description: "Championnat / source des données (ex. Bundesliga)."
+      - name: n_players
+        description: "Nombre de joueurs (nœuds) du réseau de passes de l'équipe (depuis player_network_centrality)."
+      - name: n_edges
+        description: "Nombre d'arêtes dirigées du réseau = somme des degree_out des joueurs."
+      - name: network_density
+        description: "Densité du réseau = n_edges / (n_players × (n_players − 1)) : proportion des connexions possibles réalisées (arrondi 4 déc.)."
+      - name: top_creator_share
+        description: "Part de passes du plus gros contributeur = MAX(pass_share) parmi les joueurs (arrondi 4 déc.)."
+      - name: avg_betweenness
+        description: "Moyenne du betweenness_proxy des joueurs de l'équipe (arrondi 4 déc.)."
+      - name: network_entropy
+        description: "Entropie de Shannon normalisée de la distribution des passes : −Σ(pass_share·ln(pass_share)) / ln(n_players). 0 = jeu concentré sur un joueur, proche de 1 = passes réparties uniformément (arrondi 4 déc.)."
+      - name: centroid_x
+        description: "Centroïde X des passes (moyenne des x de départ des passes réussies) : proche de 100 = équipe qui joue haut, proche de 0 = joue bas (arrondi 2 déc.)."
+      - name: centroid_y
+        description: "Centroïde Y des passes (moyenne des y de départ) : ~50 = jeu axial, décalé = jeu sur un côté (arrondi 2 déc.)."
+      - name: centroid_x_progressive
+        description: "Centroïde X des seules passes progressives (arrondi 2 déc.)."
+      - name: centroid_y_progressive
+        description: "Centroïde Y des seules passes progressives (arrondi 2 déc.)."
 
   # ════════════════════════════════════════════════════════════════════════════
   # xG / MENACE / ZONES
@@ -750,18 +2336,131 @@ models:
       Attribue une valeur xG (proxy via chance_creation du tir terminal) aux
       joueurs impliqués dans une chaîne se terminant par un tir — crédit offensif
       réparti sur la chaîne. Source : player_possession_chains. Incrémentale.
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1)."
+      - name: chain_id
+        description: "Identifiant de la chaîne de possession = match_id || '_' || numéro de chaîne (propagé de player_possession_chains). Regroupe les actions d'une même possession."
+      - name: chain_number
+        description: "Numéro séquentiel de la chaîne de possession dans le match (propagé de player_possession_chains)."
+      - name: chain_team_id
+        description: "Id canonique de l'équipe EN POSSESSION durant la chaîne (propagé de player_possession_chains). C'est l'équipe attaquante ; team_id peut différer (action d'un autre joueur)."
+      - name: player_id
+        description: "Identifiant du joueur de l'équipe en possession présent dans la chaîne (participant à la construction)."
+      - name: season
+        description: "Saison du match (ex. 2023-2024)."
+      - name: league_source
+        description: "Championnat / source des données (ex. Bundesliga)."
+      - name: shot_event_id
+        description: "event_id WhoScored du tir terminal (dernier tir) de la chaîne."
+      - name: shot_type_id
+        description: "type_id du tir terminal (13 MissedShots, 14 ShotOnPost, 15 SavedShot, 16 Goal)."
+      - name: shot_minute
+        description: "Minute (expanded_minute) du tir terminal de la chaîne."
+      - name: xg_proxy
+        description: "Proxy xG du tir terminal de la chaîne = chance_creation de event_values pour ce tir (0-1)."
+      - name: is_counter_attack
+        description: "Booléen : la chaîne contient un tir en contre-attaque (qualifier 23 FastBreak) — propriété de la chaîne entière, pas du seul tir."
+      - name: position_in_chain
+        description: "Rang chronologique du joueur dans la chaîne (1 = premier), déduplication sur sa DERNIÈRE apparition (la plus proche du tir)."
+      - name: chain_length
+        description: "Nombre total de participations (touches) de l'équipe en possession dans la chaîne, avant déduplication par joueur."
+      - name: position_weight
+        description: "Poids de proximité au tir = position_in_chain / chain_length (0-1) : plus le joueur agit tard (près du tir), plus le poids est élevé."
+      - name: is_shooter
+        description: "Booléen : le joueur est le tireur terminal de la chaîne."
+      - name: is_assister
+        description: "Booléen : le joueur est le passeur décisif du tir (résolu via RelatedEventId, qualifier 55)."
+      - name: xgchain
+        description: "xGChain : crédit uniforme = xg_proxy du tir terminal, attribué à chaque joueur de la chaîne."
+      - name: xgchain_weighted
+        description: "xGChain pondéré = xg_proxy × position_weight (crédit croissant vers le tir)."
+      - name: xgbuildup
+        description: "xGBuildup : = xgchain pour les joueurs de construction ; NULL pour le tireur et le passeur décisif (isole l'apport hors finition)."
+      - name: xgbuildup_weighted
+        description: "xGBuildup pondéré : = xgchain_weighted pour les joueurs de construction ; NULL pour le tireur et le passeur décisif."
 
   - name: threat_conceded
     description: >
       Symétrique défensif de player_xg_chain : attribue la menace concédée sur
       les chaînes adverses terminées par un tir (penalty exclu), pour mesurer la
       responsabilité défensive. Source : player_xg_chain. Incrémentale.
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1)."
+      - name: chain_id
+        description: "Identifiant de la chaîne de possession = match_id || '_' || numéro de chaîne (propagé de player_possession_chains). Regroupe les actions d'une même possession."
+      - name: chain_number
+        description: "Numéro séquentiel de la chaîne de possession dans le match (propagé de player_possession_chains)."
+      - name: chain_team_id
+        description: "Id canonique de l'équipe EN POSSESSION durant la chaîne (propagé de player_possession_chains). C'est l'équipe attaquante ; team_id peut différer (action d'un autre joueur)."
+      - name: player_id
+        description: "Identifiant du joueur DÉFENSEUR adverse présent dans la chaîne (team_id != chain_team_id) — celui qui concède la menace."
+      - name: team_id
+        description: "Id de l'équipe du défenseur (équipe qui concède, adverse à chain_team_id)."
+      - name: season
+        description: "Saison du match (ex. 2023-2024)."
+      - name: league_source
+        description: "Championnat / source des données (ex. Bundesliga)."
+      - name: xg_proxy
+        description: "Proxy xG du tir terminal de la chaîne (propagé de player_xg_chain) = chance_creation de event_values pour ce tir (0-1)."
+      - name: is_penalty
+        description: "Booléen : le tir terminal de la chaîne est un penalty (qualifier 9). Si TRUE, le gardien n'est pas sanctionné."
+      - name: position_in_chain
+        description: "Rang chronologique du défenseur dans la chaîne (1 = première intervention défensive), par expanded_minute/second/row_num."
+      - name: chain_length
+        description: "Nombre total d'interventions défensives adverses dans la chaîne."
+      - name: position_weight
+        description: "Poids de responsabilité = position_in_chain / chain_length (0-1) : plus le défenseur intervient tard (proche du tir), plus le poids est élevé."
+      - name: is_keeper
+        description: "Booléen : le défenseur est le gardien (a réalisé Save/Claim/Punch/KeeperPickup — type 10/11/41/52 — dans la chaîne)."
+      - name: has_error_leading_to_goal
+        description: "Booléen : le gardien a commis une Error menant au but (type 51 + qualifier 170) dans la chaîne."
+      - name: threat_conceded
+        description: "Menace concédée brute = xg_proxy du tir de la chaîne (non pondérée)."
+      - name: threat_conceded_weighted
+        description: "Menace concédée pondérée + règles gardien : penalty -> gardien = 0 ; erreur du gardien -> sanction pleine (xg_proxy × position_weight) ; défense trouée (gardien sans erreur) -> 0 ; défenseur non-gardien -> xg_proxy × position_weight."
 
   - name: player_zone_transitions
     description: >
       Compte les transitions de zone (zone_from → zone_to) par joueur, ventilées
       par période, état au score (score_state) et formation. Décrit les patterns
-      de circulation du ballon. Source : int_event_enriched. Incrémentale.
+      de circulation du ballon. Source : int_event_enriched (via player_passes_raw
+      pour les passes + TakeOns réussis). Incrémentale.
+      Grain : (match, équipe, joueur, zone_from, zone_to, période, score_state, formation).
+      Les « déplacements » = passes réussies + dribbles (TakeOn) réussis.
+    columns:
+      # ── Héritées ───────────────────────────────────────────────────────────────
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1), résolu via int_whoscored_match_index."
+      - name: team_id
+        description: "Id canonique de l'équipe du joueur (converti depuis l'id WhoScored via int_whoscored_match_index)."
+      - name: player_id
+        description: "Identifiant WhoScored du joueur auteur des déplacements."
+      - name: season
+        description: "Saison du match (ex. 2023-2024)."
+      - name: league_source
+        description: "Championnat / source des données (ex. Bundesliga)."
+      - name: period
+        description: "Période : 1 = 1re mi-temps, 2 = 2e mi-temps, 16 = pré-match, 14 = fin de match."
+      # ── Transformations ───────────────────────────────────────────────────────
+      - name: score_state
+        description: "État au score au moment des déplacements : winning / losing / drawing (buts cumulés équipe vs adverse)."
+      - name: formation
+        description: "Code de la formation active de l'équipe à cet instant (via FormationSet/FormationChange, qualifier 130)."
+      - name: zone_from
+        description: >
+          Cellule de DÉPART (grille 3×5). Bande latérale sur y : A (y<33.3), B (33.3–66.6),
+          C (≥66.6) ; bande longitudinale sur x : 1 (x≥80, près du but adverse), 2 (≥60),
+          3 (≥40), 4 (≥20), 5 (<20, près de son but). Ex. B1 = axe central, tiers offensif.
+      - name: zone_to
+        description: "Cellule d'ARRIVÉE du déplacement, même encodage 3×5, calculée depuis end_x / end_y."
+      - name: n_transitions
+        description: "Nombre de déplacements (passes + dribbles réussis) dans le groupe zone_from → zone_to."
+      - name: pct_transitions
+        description: "Part de ces déplacements sur l'ensemble des déplacements du joueur dans le contexte (match, période, score_state, formation)."
+      - name: progressive_rate
+        description: "Part des déplacements progressifs (end_x > x + 10, ≈10 m vers le but adverse) dans le groupe."
 
   - name: int_whoscored_player_match
     description: >
@@ -787,6 +2486,92 @@ models:
         description: "Note WhoScored finale du joueur sur le match"
       - name: stats_json
         description: "Stats du joueur par minute (JSON brut) — totaux calculés plus tard"
+      - name: shirt_no
+        description: "Numéro de maillot du joueur."
+      - name: position
+        description: "Position WhoScored du joueur (ex. GK, DC, DR/DL, DMC/DML, MC/ML, AMR/AML, FW/FWL/FWR, Sub)."
+      - name: is_first_eleven
+        description: "Booléen : le joueur est titulaire."
+      - name: is_man_of_the_match
+        description: "Booléen : le joueur est l'homme du match."
+      - name: height
+        description: "Taille du joueur (cm)."
+      - name: weight
+        description: "Poids du joueur (kg)."
+      - name: age
+        description: "Âge du joueur (années)."
+      - name: touches
+        description: "Nombre de touches de balle."
+      - name: possession
+        description: "Nombre de possessions de balle du joueur (comptage WhoScored, pas un pourcentage)."
+      - name: passes_total
+        description: "Passes tentées."
+      - name: passes_accurate
+        description: "Passes réussies."
+      - name: passes_key
+        description: "Passes clés (menant à un tir)."
+      - name: shots_total
+        description: "Tirs tentés."
+      - name: shots_on_target
+        description: "Tirs cadrés."
+      - name: shots_off_target
+        description: "Tirs non cadrés."
+      - name: shots_blocked
+        description: "Tirs contrés."
+      - name: shots_on_post
+        description: "Tirs sur le poteau/la barre."
+      - name: dribbles_attempted
+        description: "Dribbles tentés."
+      - name: dribbles_won
+        description: "Dribbles réussis."
+      - name: dribbles_lost
+        description: "Dribbles ratés."
+      - name: dribbled_past
+        description: "Nombre de fois où le joueur s'est fait éliminer par un dribble adverse."
+      - name: dispossessed
+        description: "Ballons perdus (dépossessions)."
+      - name: tackles_total
+        description: "Tacles tentés."
+      - name: tackle_successful
+        description: "Tacles réussis."
+      - name: tackle_unsuccesful
+        description: "Tacles ratés (orthographe de colonne conservée : 'unsuccesful')."
+      - name: interceptions
+        description: "Interceptions."
+      - name: clearances
+        description: "Dégagements."
+      - name: aerials_total
+        description: "Duels aériens disputés."
+      - name: aerials_won
+        description: "Duels aériens gagnés."
+      - name: offensive_aerials
+        description: "Duels aériens offensifs."
+      - name: defensive_aerials
+        description: "Duels aériens défensifs."
+      - name: fouls_commited
+        description: "Fautes commises (orthographe de colonne conservée : 'commited')."
+      - name: offsides_caught
+        description: "Nombre de fois où le joueur a été pris hors-jeu."
+      - name: errors
+        description: "Erreurs menant à un tir/but."
+      - name: corners_total
+        description: "Corners tirés."
+      - name: corners_accurate
+        description: "Corners réussis (trouvant un partenaire)."
+      - name: throw_ins_total
+        description: "Touches (remises en jeu) effectuées."
+      - name: throw_ins_accurate
+        description: "Touches réussies."
+      - name: total_saves
+        description: "Arrêts (gardien)."
+      - name: parried_safe
+        description: "Ballons repoussés en zone sûre (gardien)."
+      - name: parried_danger
+        description: "Ballons repoussés en zone dangereuse (gardien)."
+      - name: claims_high
+        description: "Sorties aériennes captées (gardien)."
+      - name: collected
+        description: "Ballons captés/récupérés (gardien)."
 
   - name: int_whoscored_formations
     description: >
@@ -805,6 +2590,20 @@ models:
         description: "Id canonique de l'équipe (converti depuis l'id WhoScored)"
       - name: formation_id
         description: "Identifiant de la formation (FK vers stg_whoscored_formations_ref)"
+      - name: formation_seq
+        description: "Index de la formation dans la liste de l'équipe (0, 1, 2...)"
+      - name: start_minute
+        description: "Minute étendue de début de la formation"
+      - name: end_minute
+        description: "Minute étendue de fin de la formation"
+      - name: captain_player_id
+        description: "Identifiant du capitaine sur cette période"
+      - name: player_ids
+        description: "JSON — ordre des joueurs sur la grille tactique"
+      - name: formation_positions
+        description: "JSON — coordonnées vertical/horizontal de chaque poste"
+      - name: period
+        description: "Période du match où s'applique la formation : 1 = 1re mi-temps, 2 = 2e mi-temps, 16 = pré-match (FormationSet), 14 = fin de match (End)."
     tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns:
@@ -828,6 +2627,14 @@ models:
         description: "Id canonique de l'équipe (converti depuis l'id WhoScored)"
       - name: stats_json
         description: "Stats équipe par minute (JSON brut) — totaux calculés plus tard"
+      - name: field
+        description: "Côté : home ou away"
+      - name: manager_name
+        description: "Nom de l'entraîneur"
+      - name: average_age
+        description: "Âge moyen de l'équipe"
+      - name: country_name
+        description: "Nom du pays de l'équipe (ex. France, England, Italy, Germany, Wales)."
     tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns:
@@ -852,6 +2659,10 @@ models:
         description: "Id canonique de l'équipe"
       - name: player_name
         description: "Nom du joueur (depuis la table de référence)"
+      - name: height
+        description: "Taille du joueur (cm, depuis la table de référence)"
+      - name: weight
+        description: "Poids du joueur (kg, depuis la table de référence)"
       - name: n_matchs
         description: "Nombre de matchs joués pour cette équipe cette saison"
     tests:
@@ -890,6 +2701,16 @@ models:
         description: "Coordonnée horizontale sur la grille tactique (5 = axe central)"
       - name: is_captain
         description: "Vrai si ce joueur est le capitaine sur cette période"
+      - name: formation_seq
+        description: "Numéro de séquence de la formation dans le match (chaque changement de formation incrémente la séquence)."
+      - name: formation_id
+        description: "Identifiant WhoScored du schéma tactique (formation, ex. 442, 433)."
+      - name: period
+        description: "Période du match de la séquence : 1 = 1re mi-temps, 2 = 2e mi-temps, 16 = pré-match, 14 = fin de match."
+      - name: start_minute
+        description: "Minute de début de la séquence de formation."
+      - name: end_minute
+        description: "Minute de fin de la séquence de formation."
     tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns:
@@ -1023,6 +2844,12 @@ models:
         description: "Position horizontale moyenne (5 = axe central)"
       - name: primary_slot
         description: "Slot de formation dominant (1..11, 1 = gardien)"
+      - name: team_id
+        description: "Id canonique de l'équipe."
+      - name: is_captain
+        description: "Booléen : le joueur a été capitaine sur au moins une période."
+      - name: n_formation_periods
+        description: "Nombre de périodes tactiques distinctes du joueur dans le match (proxy de repositionnement)."
     tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns:
@@ -1066,6 +2893,28 @@ models:
         tests:
           - accepted_values:
               values: ['scored', 'saved', 'post', 'off_target']
+      - name: row_num
+        description: "row_num du tir du penalty. Avec match_id, clé unique."
+      - name: season
+        description: "Saison du match (ex. 2023-2024)."
+      - name: league_source
+        description: "Championnat / source des données (ex. Bundesliga)."
+      - name: scraped_at
+        description: "Horodatage ISO du scrape."
+      - name: expanded_minute
+        description: "Minute (expanded_minute) du penalty."
+      - name: is_goal
+        description: "Booléen : penalty marqué."
+      - name: is_saved
+        description: "Booléen : penalty arrêté par le gardien."
+      - name: is_post
+        description: "Booléen : penalty sur le poteau/la barre."
+      - name: is_off_target
+        description: "Booléen : penalty non cadré."
+      - name: goal_mouth_y
+        description: "Position horizontale du penalty dans le cadre du but (qualifier 102)."
+      - name: goal_mouth_z
+        description: "Hauteur du penalty dans le cadre (qualifier 103)."
     tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns:
@@ -1098,6 +2947,24 @@ models:
         description: "Faute subie dans le tiers offensif (x > 66.7) — coup franc dangereux. NULL si x absent."
       - name: leads_to_penalty
         description: "Vrai si la faute donne un penalty (qual 9 présent)"
+      - name: row_num
+        description: "row_num de la faute subie. Avec match_id, clé unique."
+      - name: event_id
+        description: "event_id WhoScored (scopé match+équipe)."
+      - name: season
+        description: "Saison du match (ex. 2023-2024)."
+      - name: league_source
+        description: "Championnat / source des données (ex. Bundesliga)."
+      - name: scraped_at
+        description: "Horodatage ISO du scrape."
+      - name: expanded_minute
+        description: "Minute (expanded_minute) de la faute."
+      - name: x
+        description: "Position X de la faute (0-100)."
+      - name: y
+        description: "Position Y de la faute (0-100)."
+      - name: foul_zone
+        description: "Zone de la faute (qualifiers Opta) : Left / Center / Right = couloir latéral (gauche / axe / droite) ; Back = zone défensive/arrière. NULL si indéterminé."
     tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns:
@@ -1133,6 +3000,22 @@ models:
         description: "Joueur dont la passe/action est bloquée (via qual 233). NULL <1 %."
       - name: blocked_type
         description: "Type d'action bloquée (surtout Pass)"
+      - name: row_num
+        description: "row_num du contre. Avec match_id, clé unique."
+      - name: event_id
+        description: "event_id WhoScored (scopé match+équipe)."
+      - name: season
+        description: "Saison du match (ex. 2023-2024)."
+      - name: league_source
+        description: "Championnat / source des données (ex. Bundesliga)."
+      - name: scraped_at
+        description: "Horodatage ISO du scrape."
+      - name: expanded_minute
+        description: "Minute (expanded_minute) du contre."
+      - name: block_x
+        description: "Position X du contre (0-100)."
+      - name: block_y
+        description: "Position Y du contre (0-100)."
     tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns:
@@ -1167,6 +3050,22 @@ models:
         description: "Type de l'action créatrice (Pass, TakeOn, tir…)"
       - name: is_gca
         description: "Vrai si le tir est un but → ce crédit compte aussi en GCA"
+      - name: shot_row_num
+        description: "row_num du tir crédité."
+      - name: shot_event_id
+        description: "event_id du tir."
+      - name: chain_id
+        description: "Identifiant de la chaîne de possession (propagé de player_possession_chains)."
+      - name: season
+        description: "Saison du match (ex. 2023-2024)."
+      - name: league_source
+        description: "Championnat / source des données (ex. Bundesliga)."
+      - name: scraped_at
+        description: "Horodatage ISO du scrape."
+      - name: shot_taker_player_id
+        description: "Joueur qui tire."
+      - name: action_row_num
+        description: "row_num de l'action créatrice."
     tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns:
@@ -1201,6 +3100,26 @@ models:
         description: "Gain de distance vers le but adverse (m). NULL si pas de touche suivante en chaîne."
       - name: is_progressive
         description: "Vrai si la conduite gagne ≥ 5 m vers le but"
+      - name: row_num
+        description: "row_num du dribble (TakeOn). Avec match_id, clé unique."
+      - name: event_id
+        description: "event_id WhoScored du dribble (scopé match+équipe)."
+      - name: season
+        description: "Saison du match (ex. 2023-2024)."
+      - name: league_source
+        description: "Championnat / source des données (ex. Bundesliga)."
+      - name: scraped_at
+        description: "Horodatage ISO du scrape."
+      - name: expanded_minute
+        description: "Minute (expanded_minute) du dribble."
+      - name: dribble_x
+        description: "Position X du dribble (0-100)."
+      - name: dribble_y
+        description: "Position Y du dribble (0-100)."
+      - name: next_x
+        description: "Position X de la touche suivante du joueur (fin de la conduite)."
+      - name: next_y
+        description: "Position Y de la touche suivante."
     tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns:
@@ -1235,8 +3154,194 @@ models:
         description: "Minute du changement (temps additionnel inclus)"
       - name: sub_number
         description: "k-ième changement de l'équipe dans le match"
+      - name: off_row_num
+        description: "row_num de l'événement de sortie (SubstitutionOff). Clé avec match_id."
+      - name: season
+        description: "Saison du match (ex. 2023-2024)."
+      - name: league_source
+        description: "Championnat / source des données (ex. Bundesliga)."
+      - name: scraped_at
+        description: "Horodatage ISO du scrape."
     tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns:
             - match_id
             - off_row_num
+
+  - name: int_xt_actions
+    description: >
+      Actions atomiques pour l'expected threat (xT), affectées à la grille fine
+      16×12. Grain : une action de possession (déplacement, tir OU perte de balle).
+      L'affectation (x,y)→case est définie UNIQUEMENT ici (col/row) et relue telle
+      quelle par xt_grid.py et int_xt_contributions. Déplacements = passes réussies
+      (player_passes_raw) + dribbles TakeOn réussis. Tirs = int_shot_placement, hors
+      CSC. Pertes = fin de possession (passe/dribble ratés, contrôle manqué,
+      Dispossessed, OffsidePass) depuis int_event_enriched.
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1)."
+        tests:
+          - not_null
+      - name: row_num
+        description: "Index de l'événement dans le match (ordre chronologique)."
+      - name: season
+        description: "Saison du match (ex. 2023-2024)."
+      - name: league_source
+        description: "Championnat / source des données (ex. Bundesliga)."
+      - name: team_id
+        description: "Id canonique de l'équipe de l'action."
+      - name: player_id
+        description: "Identifiant WhoScored du joueur (passeur, dribbleur ou tireur)."
+      - name: action_kind
+        description: "Type d'action : 'move' (passe/dribble réussi, avec destination), 'shot' (tir), ou 'turnover' (perte de balle, sans destination)."
+      - name: is_shot
+        description: "Booléen : l'action est un tir."
+      - name: is_goal
+        description: "Booléen : le tir est un but (renseigné pour les tirs ; NULL pour déplacements et pertes)."
+      - name: col_from
+        description: "Colonne (0-15) de la case de DÉPART sur la grille 16×12 (0 = son but, 15 = but adverse). = GREATEST(0, LEAST(15, INT(x/100·16)))."
+      - name: row_from
+        description: "Ligne (0-11) de la case de départ (largeur, ~6 = axe central). = GREATEST(0, LEAST(11, INT(y/100·12)))."
+      - name: col_to
+        description: "Colonne (0-15) de la case d'ARRIVÉE (déplacements). NULL pour les tirs et les dribbles sans touche suivante."
+      - name: row_to
+        description: "Ligne (0-11) de la case d'arrivée (déplacements). NULL pour les tirs et les dribbles sans touche suivante."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - match_id
+            - row_num
+
+  - name: int_xt_contributions
+    description: >
+      Contributions Expected Threat (xT) : xT ajouté par déplacement. Grain :
+      1 ligne par déplacement (int_xt_actions action_kind='move' avec destination).
+      xT_ajouté = xT(case d'arrivée) − xT(case de départ), attribué au joueur/équipe ;
+      positif = progression vers le but adverse. Grille lue depuis
+      machine_learning.xt_grid (étalon global). Matérialisé en table.
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1)."
+        tests:
+          - not_null
+      - name: row_num
+        description: "Index de l'événement dans le match. Avec match_id, clé unique."
+      - name: season
+        description: "Saison du match."
+      - name: league_source
+        description: "Championnat / source des données."
+      - name: team_id
+        description: "Équipe qui effectue le déplacement."
+      - name: player_id
+        description: "Joueur qui effectue le déplacement (passeur ou dribbleur)."
+      - name: col_from
+        description: "Colonne (0-15) de la case de départ."
+      - name: row_from
+        description: "Ligne (0-11) de la case de départ."
+      - name: col_to
+        description: "Colonne (0-15) de la case d'arrivée."
+      - name: row_to
+        description: "Ligne (0-11) de la case d'arrivée."
+      - name: xt_from
+        description: "Valeur xT de la case de départ (machine_learning.xt_grid)."
+      - name: xt_to
+        description: "Valeur xT de la case d'arrivée (machine_learning.xt_grid)."
+      - name: xt_added
+        description: "xT ajouté = xt_to − xt_from. Positif = progression vers le but."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - match_id
+            - row_num
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # SHOT-STOPPING GARDIEN (PSxG+/-)
+  # ════════════════════════════════════════════════════════════════════════════
+
+  - name: int_keeper_shots
+    description: >
+      Attribution du gardien à chaque tir cadré subi — brique de int_keeper_psxg.
+      Grain : un tir cadré (SavedShot + Goal, hors CSC/penalty), avec son xGOT
+      (machine_learning.xgot_predictions) et le gardien qui l'a subi.
+      Deux voies : tirs arrêtés → Save miroir relié au tir par le qualifier 233
+      (related_event_id est NULL) ; buts → GK (slot=1) de l'équipe qui défend,
+      période de formation active. keeper_id = COALESCE(save, lineup). Matérialisé
+      en table.
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1)."
+        tests:
+          - not_null
+      - name: row_num
+        description: "Index du tir dans le match. Avec match_id, clé unique."
+      - name: season
+        description: "Saison du match (ex. 2023-2024)."
+      - name: league_source
+        description: "Championnat / source des données."
+      - name: type_id
+        description: "Type du tir : 15 SavedShot, 16 Goal."
+      - name: is_goal
+        description: "Booléen : le tir a fini au fond."
+      - name: xgot
+        description: "Post-Shot xG (xGOT) du tir, calibré, dans [0,1] (propagé de xgot_predictions)."
+      - name: def_team
+        description: "Id canonique de l'équipe qui défend (subit le tir)."
+      - name: keeper_id
+        description: >
+          Gardien qui subit le tir (player_id WhoScored). COALESCE(Save miroir,
+          GK lineup). NULL si non identifié (~lineup manquant) → exclu du PSxG.
+      - name: attribution_method
+        description: "Voie d'attribution : 'save' (qual 233), 'lineup' (GK de la période), 'none' (non identifié)."
+        tests:
+          - accepted_values:
+              values: ['save', 'lineup', 'none']
+      - name: def_gk_available
+        description: >
+          Booléen : l'équipe qui défend a un GK lineup dans ce match (donc buts
+          ET arrêts attribuables). Garde-fou symétrique consommé par int_keeper_psxg
+          — FALSE = tirs non fiables (arrêts sans risque de but), exclus de l'agrégat.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - match_id
+            - row_num
+
+  - name: int_keeper_psxg
+    description: >
+      Post-Shot Expected Goals +/- (PSxG+/-) par gardien = mesure de shot-stopping.
+      Grain : gardien × saison × championnat. Source : int_keeper_shots.
+      psxg_plus_minus = Σ xGOT subi − buts encaissés ; > 0 = le gardien arrête plus
+      que la qualité des tirs ne le prédit (surperformance). Garde-fou symétrique :
+      uniquement les tirs des matchs où def_gk_available (pas d'arrêt sans but
+      possible). Hors CSC/penalty par construction amont. Matérialisé en table.
+    columns:
+      - name: keeper_id
+        description: "Gardien (player_id WhoScored)."
+        tests:
+          - not_null
+      - name: season
+        description: "Saison (ex. 2023-2024)."
+        tests:
+          - not_null
+      - name: league_source
+        description: "Championnat / source des données."
+        tests:
+          - not_null
+      - name: shots_faced
+        description: "Nombre de tirs cadrés subis (hors CSC/penalty, matchs couverts)."
+      - name: goals_conceded
+        description: "Buts encaissés (hors CSC/penalty)."
+      - name: saves
+        description: "Arrêts = shots_faced − goals_conceded."
+      - name: psxg_faced
+        description: "Σ xGOT des tirs subis = qualité cumulée des tirs affrontés."
+      - name: psxg_plus_minus
+        description: "psxg_faced − goals_conceded. Positif = surperformance (bon shot-stopper)."
+      - name: save_pct
+        description: "Taux d'arrêt brut = saves / shots_faced (ne tient pas compte de la difficulté)."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - keeper_id
+            - season
+            - league_source

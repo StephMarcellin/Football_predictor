@@ -29,10 +29,10 @@ leagues:
   - "Serie A"
   - "La Liga"
   - "Championship"
-  - "Ligue 2"
+  # - "Ligue 2"
   - "2. Bundesliga"
-  - "Serie B"
-  - "La Liga 2"
+  # - "Serie B"
+  # - "La Liga 2"
 
 # Métadonnées WhoScored par ligue (url / slug / substage éventuel).
 # Une ligue listée dans `leagues:` mais ABSENTE d'ici est ignorée au scraping
@@ -49,9 +49,11 @@ whoscored_leagues:
   "Ligue 1":
     url:  "https://www.whoscored.com/regions/74/tournaments/22/france-ligue-1"
     slug: "FRA-Ligue-1"
-  "Ligue 2":
-    url:  "https://www.whoscored.com/regions/74/tournaments/37/france-ligue-2"
-    slug: "FRA-Ligue-2"
+
+  # Pas de Match report en Ligue 2
+  # "Ligue 2":
+  #   url:  "https://www.whoscored.com/regions/74/tournaments/37/france-ligue-2"
+  #   slug: "FRA-Ligue-2"
 
   "Bundesliga":
     url:  "https://www.whoscored.com/regions/81/tournaments/3/germany-bundesliga"
@@ -64,18 +66,62 @@ whoscored_leagues:
     url:  "https://www.whoscored.com/regions/108/tournaments/5/italy-serie-a"
     slug: "ITA-Serie-A"
     default_substage: "Serie A"
-  "Serie B":
-    url:  "https://www.whoscored.com/regions/108/tournaments/19/italy-serie-b"
-    slug: "ITA-Serie-B"
-    default_substage: "Serie B"
+  # "Serie B":
+  #   url:  "https://www.whoscored.com/regions/108/tournaments/19/italy-serie-b"
+  #   slug: "ITA-Serie-B"
+  #   default_substage: "Serie B"
 
   "La Liga":
     url:  "https://www.whoscored.com/regions/206/tournaments/4/spain-laliga"
     slug: "ESP-La-Liga"
-  "La Liga 2":
-    url:  "https://www.whoscored.com/regions/206/tournaments/63/spain-segunda-divisi%C3%B3n"
-    slug: "ESP-La-Liga-2"
-    default_substage: "LaLiga2"
+  # "La Liga 2":
+  #   url:  "https://www.whoscored.com/regions/206/tournaments/63/spain-segunda-divisi%C3%B3n"
+  #   slug: "ESP-La-Liga-2"
+  #   default_substage: "LaLiga2"
+
+# Métadonnées Transfermarkt par ligue (slug / code compétition / tm_slug pour le cache).
+# Même principe que whoscored_leagues : une ligue de `leagues:` absente ici est ignorée.
+transfermarkt_leagues:
+  "Premier League":
+    slug: "premier-league"
+    code: "GB1"
+    tm_slug: "ENG-Premier-League"
+  "Ligue 1":
+    slug: "ligue-1"
+    code: "FR1"
+    tm_slug: "FRA-Ligue-1"
+  "Bundesliga":
+    slug: "bundesliga"
+    code: "L1"
+    tm_slug: "GER-Bundesliga"
+  "Serie A":
+    slug: "serie-a"
+    code: "IT1"
+    tm_slug: "ITA-Serie-A"
+  "La Liga":
+    slug: "laliga"
+    code: "ES1"
+    tm_slug: "ESP-La-Liga"
+  "Championship":
+    slug: "championship"
+    code: "GB2"
+    tm_slug: "ENG-Championship"
+  "2. Bundesliga":
+    slug: "2-bundesliga"
+    code: "L2"
+    tm_slug: "GER-Bundesliga-2"
+  # "Ligue 2":
+  #   slug: "ligue-2"
+  #   code: "FR2"
+  #   tm_slug: "FRA-Ligue-2"
+  # "Serie B":
+  #   slug: "serie-b"
+  #   code: "IT2"
+  #   tm_slug: "ITA-Serie-B"
+  # "La Liga 2":
+  #   slug: "laliga2"
+  #   code: "ES2"
+  #   tm_slug: "ESP-La-Liga-2"
 
 #  Path configuration
 paths:

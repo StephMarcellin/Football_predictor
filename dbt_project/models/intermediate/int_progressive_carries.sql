@@ -8,9 +8,6 @@
     )
 }}
 
-{% if execute %}
-    {% do run_query("SET temp_directory='C:/Users/marce/AppData/Local/Temp/duckdb_dbt'") %}
-{% endif %}
 
 -- Conduites (dribbles) au grain « un dribble réussi ».
 -- WhoScored/Opta ne loggue AUCUN event « carry » : le seul événement de conduite

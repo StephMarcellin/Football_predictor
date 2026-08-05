@@ -30,7 +30,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-ROOT_DIR = Path(__file__).resolve().parent.parent.parent
+ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent
 CFG_PATH = ROOT_DIR / "config.yaml"
 MAIN_CFG = ROOT_DIR / "config.yaml"
 LOG_DIR  = ROOT_DIR / "logs"
@@ -58,58 +58,9 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 # Format : https://www.transfermarkt.fr/{slug}/startseite/wettbewerb/{code}/plus/?saison_id={year}
 # {year} = première année de la saison (ex: 2022 pour 2022-2023)
 
-LEAGUE_CONFIG = {
-    "Premier League": {
-        "slug": "premier-league",
-        "code": "GB1",
-        "tm_slug": "ENG-Premier-League",
-    },
-    "Ligue 1": {
-        "slug": "ligue-1",
-        "code": "FR1",
-        "tm_slug": "FRA-Ligue-1",
-    },
-    "Bundesliga": {
-        "slug": "bundesliga",
-        "code": "L1",
-        "tm_slug": "GER-Bundesliga",
-    },
-    "Serie A": {
-        "slug": "serie-a",
-        "code": "IT1",
-        "tm_slug": "ITA-Serie-A",
-    },
-    "La Liga": {
-        "slug": "laliga",
-        "code": "ES1",
-        "tm_slug": "ESP-La-Liga",
-    },
-    "Championship": {
-        "slug": "championship",
-        "code": "GB2",
-        "tm_slug": "ENG-Championship",
-    },
-    "Ligue 2": {
-        "slug": "ligue-2",
-        "code": "FR2",
-        "tm_slug": "FRA-Ligue-2",
-    },
-    "2. Bundesliga": {
-        "slug": "2-bundesliga",
-        "code": "L2",
-        "tm_slug": "GER-Bundesliga-2",
-    },
-    "Serie B": {
-        "slug": "serie-b",
-        "code": "IT2",
-        "tm_slug": "ITA-Serie-B",
-    },
-    "La Liga 2": {
-        "slug": "laliga2",
-        "code": "ES2",
-        "tm_slug": "ESP-La-Liga-2",
-    },
-}
+# Métadonnées par ligue lues depuis config.yaml (transfermarkt_leagues) —
+# ajouter/retirer une ligue = éditer le config, pas ce script.
+LEAGUE_CONFIG = SCRAP_CFG.get("transfermarkt_leagues", {})
 
 BASE_URL = "https://www.transfermarkt.fr"
 

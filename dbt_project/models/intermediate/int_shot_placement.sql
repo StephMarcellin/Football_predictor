@@ -42,6 +42,14 @@ new_matches AS (
 ),
 {% endif %}
 
+-- Tirs contrés par un défenseur (qualifier 82) : jamais cadrés, pas de placement.
+-- On les repère pour les EXCLURE du périmètre xGOT.
+blocked AS (
+    SELECT DISTINCT match_id, row_num
+    FROM {{ ref('events_qual') }}
+    WHERE qual_type_id = 82
+),
+
 shots AS (
     SELECT
         e.match_id,
@@ -63,8 +71,12 @@ shots AS (
         e.blocked_y,
         e.is_own_goal,                             -- distingue les CSC (type 16 c.s.c.)
         (e.type_id = 16)          AS is_goal,
-        (e.type_id IN (15, 16))   AS is_on_target   -- saved + goal
+        (b.match_id IS NOT NULL)  AS is_blocked,     -- contré par un défenseur
+        (e.type_id IN (15, 16) AND b.match_id IS NULL)
+                                  AS is_on_target     -- saved + goal, HORS contre
     FROM {{ ref('int_event_enriched') }} e
+    LEFT JOIN blocked b
+        ON b.match_id = e.match_id AND b.row_num = e.row_num
     WHERE e.type_id IN (13, 14, 15, 16)
       AND e.match_id IN (SELECT match_id FROM new_matches)
     -- int_event_enriched contient ~94 doublons (match_id, row_num) sur les tirs
