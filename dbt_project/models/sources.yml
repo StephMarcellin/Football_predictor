@@ -1099,3 +1099,21 @@ sources:
               combination_of_columns:
                 - col
                 - row
+
+      - name: xgot_predictions
+        description: >
+                xGOT par tir cadré, écrit par pipelines/xgot_score.py (application de
+                models/xgot.joblib à machine_learning.xgot_features). Réécrite
+                (CREATE OR REPLACE) à chaque run. Lue par int_keeper_shots. Grain :
+                (match_id, row_num).
+        columns:
+            - name: match_id
+              description: "Identifiant unifié du match (SHA1)."
+            - name: row_num
+              description: "Index de l'événement de tir dans le flux du match. Avec match_id, clé unique."
+            - name: season
+              description: "Saison du match (ex. 2023-2024)."
+            - name: is_goal
+              description: "Booléen : le tir cadré a fini au fond."
+            - name: xgot
+              description: "Post-Shot xG (xGOT) du tir, calibré, dans [0,1]."
