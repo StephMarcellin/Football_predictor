@@ -23,6 +23,7 @@ import duckdb as _duckdb  # pour éviter conflit avec le paramètre duckdb dans 
 import pandas as pd
 import yaml
 from loguru import logger
+from logging_config import setup_logging
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
@@ -34,18 +35,6 @@ with open(ROOT_DIR / "config.yaml", encoding="utf-8") as f:
 DB_PATH      = ROOT_DIR / CFG["paths"]["duckdb"]
 BETS_DIR     = ROOT_DIR / CFG["paths"]["raw_data"]/ "bets"
 
-
-# ── Logs ──────────────────────────────────────────────────────────────────────
-Path("logs").mkdir(exist_ok=True)
-logger.remove()  # supprime le sink terminal par défaut
-logger.add(
-    "logs/odds.log",
-    level="DEBUG",
-    encoding="utf-8",
-    rotation="5 MB",
-    retention=10,
-    format="{time:YYYY-MM-DD HH:mm:ss} | {level:<8} | {message}",
-)
 
 # ── Mapping fichier → league_source canonical ─────────────────────────────────
 
@@ -439,6 +428,7 @@ def main(reset: bool = False):
 
 
 if __name__ == "__main__":
+    setup_logging("odds")
     parser = argparse.ArgumentParser()
     parser.add_argument("--reset", action="store_true",
                         help="Supprime et recrée silver.odds")

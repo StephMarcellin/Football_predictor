@@ -24,6 +24,7 @@ import numpy as np
 import pandas as pd
 import yaml
 from loguru import logger
+from logging_config import setup_logging
 import mlflow
 import os
 
@@ -37,18 +38,7 @@ with open(ROOT_DIR / "config.yaml", encoding="utf-8") as f:
 DB_PATH    = ROOT_DIR / CFG["paths"]["duckdb"]
 MODEL_PATH = ROOT_DIR / "models" / "football_stacking_v1.joblib"
 OUTPUT_DIR = ROOT_DIR / "models"
-# MLFLOW_URI = ROOT_DIR / CFG["mlflow"]["tracking_uri"]
 MLFLOW_URI = CFG["mlflow"]["tracking_uri"]
-
-Path("logs").mkdir(exist_ok=True)
-logger.add(
-    "logs/backtest.log",
-    level="DEBUG",
-    encoding="utf-8",
-    rotation="5 MB",
-    retention=10,
-    format="{time:YYYY-MM-DD HH:mm:ss} | {level:<8} | {message}",
-)
 
 # ── Paramètres stratégie ──────────────────────────────────────────────────────
 
@@ -546,6 +536,7 @@ def main(seasons: list[str]       = None,
 
 
 if __name__ == "__main__":
+    setup_logging("backtest")
     parser = argparse.ArgumentParser()
     parser.add_argument("--seasons",        nargs="+", default=None)
     parser.add_argument("--edge-min",       type=float, default=EDGE_MIN)
