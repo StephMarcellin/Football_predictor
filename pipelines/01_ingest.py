@@ -69,6 +69,7 @@ import pyarrow.parquet as pq
 import yaml
 from bs4 import BeautifulSoup
 from loguru import logger
+from logging_config import setup_logging
 import duckdb as _duckdb
 import dotenv
 
@@ -115,19 +116,6 @@ def _load_team_mapping() -> dict[str, str]:
         return {}
 
 TEAM_MAPPING: dict[str, str] = _load_team_mapping()
-
-# ── Logs ──────────────────────────────────────────────────────────────────────
-Path("logs").mkdir(exist_ok=True)
-logger.remove()  # supprime le sink terminal par défaut
-logger.add(
-    "logs/ingest.log",
-    level="DEBUG",
-    encoding="utf-8",
-    rotation="5 MB",
-    retention=10,
-    format="{time:YYYY-MM-DD HH:mm:ss} | {level:<8} | {message}",
-)
-
 
 # ── Utilitaires ───────────────────────────────────────────────────────────────
 
@@ -813,6 +801,7 @@ def main(reset: bool = False, source: Optional[str] = None, file: Optional[str] 
 
 
 if __name__ == "__main__":
+    setup_logging("ingest")
     parser = argparse.ArgumentParser(description="Ingest multi-source → Parquet")
     parser.add_argument("--reset",  action="store_true",
                         help="Supprime tous les Parquets et recrée")

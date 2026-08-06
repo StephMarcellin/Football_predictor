@@ -47,6 +47,7 @@ from prefect.client.schemas.objects import State as PrefectState
 from prefect.results import ResultRecord
 from prefect.states import Failed
 from prefect.cache_policies import NO_CACHE
+from prefect.logging import get_run_logger
 
 import mlflow
 from prefect.artifacts import create_markdown_artifact
@@ -255,6 +256,18 @@ def make_run_step_task(retries: int, retry_delay_seconds: int):
         # qui utilise des chemins relatifs comme "db/football.duckdb")
         os.chdir(ROOT_DIR)
 
+        # ── Passerelle loguru → Prefect ───────────────────────────────────────
+        # get_run_logger() renvoie le logger de la task courante (contexte Prefect).
+        # Le sink lambda réémet chaque enregistrement loguru des scripts vers ce
+        # logger → visible dans l'UI Prefect ET la console. Sink temporaire, retiré
+        # dans le finally pour ne pas fuiter entre étapes.
+        prefect_logger = get_run_logger()
+        sink_id = logger.add(
+            lambda msg: prefect_logger.log(msg.record["level"].no, msg.record["message"]),
+            level="INFO",
+            format="{message}",
+        )
+
         try:
             fn(**kwargs)
             duration = time.perf_counter() - start
@@ -269,6 +282,7 @@ def make_run_step_task(retries: int, retry_delay_seconds: int):
 
         finally:
             # Restauration du contexte — toujours exécuté, même si exception
+            logger.remove(sink_id)
             os.chdir(saved_cwd)
             sys.path = saved_path
 
@@ -312,6 +326,7 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
         mod_05  = _import_from_path("predict_05",   ROOT_DIR / "pipelines" / "05_predict.py")
         mod_06  = _import_from_path("backtest_06",  ROOT_DIR / "pipelines" / "06_backtest.py")
         mod_xt  = _import_from_path("xt_grid_mod",  ROOT_DIR / "pipelines" / "xt_grid.py")
+        mod_xgot = _import_from_path("xgot_score_mod", ROOT_DIR / "pipelines" / "xgot_score.py")
 
     except FileNotFoundError as e:
         logger.error(f"Script introuvable : {e}")
@@ -373,6 +388,28 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
         "dbt_xt_contributions": {
             "fn":       run_dbt_run,
             "kwargs":   {"select": "int_xt_contributions"},
+            "critical": False,
+        },
+
+        # ── Chaîne PSxG gardien : dbt(xgot_features) → xgot_score.py → dbt(keeper) ──
+        # Même problème que la chaîne xT : xgot_score.py (Python) lit xgot_features
+        # (dbt) et écrit machine_learning.xgot_predictions, relu comme source par
+        # int_keeper_shots. dbt ignore cette dépendance Python → ordre imposé ici.
+        # '+xgot_features' reconstruit aussi ses upstream. Chaîne auxiliaire (ne
+        # nourrit pas encore train/predict) → critical=False.
+        "dbt_xgot_features": {
+            "fn":       run_dbt_run,
+            "kwargs":   {"select": "xgot_features", "full_refresh": full_refresh},
+            "critical": False,
+        },
+        "xgot_score": {
+            "fn":       mod_xgot.main,
+            "kwargs":   {},
+            "critical": False,
+        },
+        "dbt_keeper_psxg": {
+            "fn":       run_dbt_run,
+            "kwargs":   {"select": "int_keeper_shots int_keeper_psxg"},
             "critical": False,
         },
 
@@ -642,6 +679,12 @@ STEP_NAMES = ["dbt_seed",
               "process",
               "validate_silver",
               "dbt_run",
+              "dbt_xt_actions",
+              "xt_grid",
+              "dbt_xt_contributions",
+              "dbt_xgot_features",
+              "xgot_score",
+              "dbt_keeper_psxg",
               "dbt_test",
               "dbt_test_check",
               "validate_gold",

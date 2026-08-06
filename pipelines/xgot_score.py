@@ -43,7 +43,7 @@ PRED_SCHEMA = "machine_learning"
 PRED_TABLE  = "xgot_predictions"
 
 
-def run():
+def main():
     # 1. Charger le modèle promu : modèle LightGBM + calibrateur + colonnes d'entraînement
     if not MODEL_PATH.exists():
         logger.error(f"{MODEL_PATH} introuvable — lance d'abord xgot_train.py.")
@@ -89,4 +89,4 @@ if __name__ == "__main__":
     logger.add("logs/xgot_score.log", level="DEBUG", rotation="5 MB", retention=10,
                encoding="utf-8",
                format="{time:YYYY-MM-DD HH:mm:ss} | {level:<8} | {message}")
-    run()
+    main()

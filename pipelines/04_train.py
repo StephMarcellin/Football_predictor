@@ -37,6 +37,7 @@ import mlflow
 import mlflow.sklearn
 import mlflow.lightgbm
 from loguru import logger
+from logging_config import setup_logging
 
 from sklearn.linear_model import LogisticRegression
 from sklearn.impute import SimpleImputer
@@ -70,16 +71,6 @@ DIAG_DIR.mkdir(exist_ok=True)
 
 MLFLOW_URI = CFG["mlflow"]["tracking_uri"]
 TARGET     = "result_1n2"
-
-Path("logs").mkdir(exist_ok=True)
-logger.add(
-    "logs/train.log",
-    level="DEBUG",
-    encoding="utf-8",
-    rotation="5 MB",
-    retention=10,
-    format="{time:YYYY-MM-DD HH:mm:ss} | {level:<8} | {message}",
-)
 
 TRAIN_SEASONS = CFG["train"]["TRAIN_SEASONS"]
 VAL_SEASONS = CFG["train"]["VAL_SEASONS"]
@@ -1200,6 +1191,7 @@ def main(step: int = 2, use_shap: bool = True, n_trials: int = 50):
 
 
 if __name__ == "__main__":
+    setup_logging("train")
     parser = argparse.ArgumentParser()
     parser.add_argument("--step",    type=int, default=2)
     parser.add_argument("--no-shap", action="store_true")

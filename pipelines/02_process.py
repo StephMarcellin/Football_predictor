@@ -67,6 +67,7 @@ import polars as pl
 import yaml
 import hashlib
 from loguru import logger
+from logging_config import setup_logging
 
 # ── Config ────────────────────────────────────────────────────────────────────
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -190,25 +191,6 @@ def _init_match_registry(con: duckdb.DuckDBPyConnection) -> None:
         )
     """)
     logger.info("  match_registry initialisé")
-# ── Logs ──────────────────────────────────────────────────────────────────────
-Path("logs").mkdir(exist_ok=True)
-logger.add(
-    "logs/process.log",
-    level="DEBUG",
-    encoding="utf-8",
-    rotation="5 MB",
-    retention=10,
-    format="{time:YYYY-MM-DD HH:mm:ss} | {level:<8} | {message}",
-)
-# Log d'audit séparé pour les entités non normalisées
-logger.add(
-    "logs/audit_unmapped.log",
-    level="WARNING",
-    encoding="utf-8",
-    rotation="2 MB",
-    filter=lambda record: "AUDIT" in record["message"],
-    format="{time:YYYY-MM-DD HH:mm:ss} | {message}",
-)
 
 # Registre global des entités non mappées (accumulé sur toute la run)
 _UNMAPPED_REGISTRY: dict[str, set[str]] = defaultdict(set)
@@ -1198,6 +1180,17 @@ def main(source: str = None, reset: bool = False, audit_only: bool = False) -> N
     
 
     logger.info("=== Démarrage process Bronze → Silver ===")
+    # Sink d'audit dédié : route les WARNING "AUDIT" (entités non normalisées) vers
+    # un fichier séparé. Placé dans main() — et non dans __main__ — pour rester actif
+    # quand l'orchestrateur appelle main() sans passer par le bloc __main__.
+    logger.add(
+        "logs/audit_unmapped.log",
+        level="WARNING",
+        encoding="utf-8",
+        rotation="2 MB",
+        filter=lambda record: "AUDIT" in record["message"],
+        format="{time:YYYY-MM-DD HH:mm:ss} | {message}",
+    )
 
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect(str(DB_PATH))
@@ -1243,6 +1236,7 @@ def main(source: str = None, reset: bool = False, audit_only: bool = False) -> N
 
 
 if __name__ == "__main__":
+    setup_logging("process")
     parser = argparse.ArgumentParser(
         description="Process Bronze Parquet → Silver DuckDB silver.*"
     )
