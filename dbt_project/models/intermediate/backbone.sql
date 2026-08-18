@@ -169,12 +169,23 @@ whoscored_features AS (
 odds_base AS (
     SELECT
         match_id,
-        team_id, opponent_id, 
+        team_id, opponent_id,
 
         odds_pinnacle_h, odds_pinnacle_d, odds_pinnacle_a,
         odds_avg_h, odds_avg_d, odds_avg_a,
         pinnacle_prob_h, pinnacle_prob_d, pinnacle_prob_a,
-        market_prob_h, market_prob_d, market_prob_a
+        market_prob_h, market_prob_d, market_prob_a,
+
+        -- 1N2 clôture (Pinnacle + marché) — probas no-vig
+        pinnacle_prob_close_h, pinnacle_prob_close_d, pinnacle_prob_close_a,
+        market_prob_close_h,   market_prob_close_d,   market_prob_close_a,
+
+        -- Drift ouverture→clôture (Pinnacle)
+        pinnacle_drift_h, pinnacle_drift_d, pinnacle_drift_a,
+
+        -- Over/Under 2.5 (Pinnacle) — neutre au venue, pas de pivot
+        pinnacle_prob_over25,       pinnacle_prob_under25,
+        pinnacle_prob_close_over25, pinnacle_prob_close_under25
 
     FROM {{ ref('int_odds') }}
     WHERE pinnacle_prob_h IS NOT NULL
@@ -217,6 +228,23 @@ final AS (
         CASE WHEN f.venue='Home' THEN o.market_prob_h   ELSE o.market_prob_a   END AS market_prob_team,
         o.market_prob_d AS market_prob_draw,
         CASE WHEN f.venue='Home' THEN o.market_prob_a   ELSE o.market_prob_h   END AS market_prob_opp,
+
+        -- Cotes de clôture (Pinnacle) — probas no-vig, pivotées par venue
+        CASE WHEN f.venue='Home' THEN o.pinnacle_prob_close_h ELSE o.pinnacle_prob_close_a END AS pinnacle_prob_close_team,
+        o.pinnacle_prob_close_d AS pinnacle_prob_close_draw,
+        CASE WHEN f.venue='Home' THEN o.pinnacle_prob_close_a ELSE o.pinnacle_prob_close_h END AS pinnacle_prob_close_opp,
+        CASE WHEN f.venue='Home' THEN o.market_prob_close_h   ELSE o.market_prob_close_a   END AS market_prob_close_team,
+        o.market_prob_close_d AS market_prob_close_draw,
+        CASE WHEN f.venue='Home' THEN o.market_prob_close_a   ELSE o.market_prob_close_h   END AS market_prob_close_opp,
+
+        -- Drift ouverture→clôture (Pinnacle), pivoté par venue
+        CASE WHEN f.venue='Home' THEN o.pinnacle_drift_h ELSE o.pinnacle_drift_a END AS pinnacle_drift_team,
+        o.pinnacle_drift_d AS pinnacle_drift_draw,
+        CASE WHEN f.venue='Home' THEN o.pinnacle_drift_a ELSE o.pinnacle_drift_h END AS pinnacle_drift_opp,
+
+        -- Over/Under 2.5 (Pinnacle) — identique pour les deux équipes du match
+        o.pinnacle_prob_over25,       o.pinnacle_prob_under25,
+        o.pinnacle_prob_close_over25, o.pinnacle_prob_close_under25,
 
     FROM fbref_understat f
     LEFT JOIN whoscored_features wf

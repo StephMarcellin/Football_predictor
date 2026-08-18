@@ -36,6 +36,7 @@ SELECT
         ELSE NULL
     END AS team_id,
 
-    f.* EXCLUDE (ws_match_id, team_id)
+    GREATEST(f.start_minute, IF(f.end_minute > 150, f.start_minute, f.end_minute)) AS end_minute,
+    f.* EXCLUDE (ws_match_id, team_id,end_minute)
 FROM source f
 LEFT JOIN match_index idx ON f.ws_match_id = idx.ws_match_id

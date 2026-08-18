@@ -78,6 +78,7 @@ h2h_cumul AS (
 
         AVG(CAST(gf AS DOUBLE))           OVER w_10 AS h2h_avg_gf_10,
         AVG(CAST(ga AS DOUBLE))           OVER w_10 AS h2h_avg_ga_10,
+        AVG(CAST(np_xg - np_xg_conceded AS DOUBLE)) OVER w_10 AS h2h_avg_xg_diff_10,
 
     FROM match_flags
     WINDOW

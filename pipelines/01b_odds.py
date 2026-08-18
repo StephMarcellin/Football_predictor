@@ -139,18 +139,148 @@ def implied_proba(h: float, d: float, a: float) -> tuple[float, float, float]:
         return None, None, None
 
 
+# ── Décodage des colonnes football-data → snake_case ──────────────────────────
+#
+# Les CSV football-data.co.uk ont un schéma variable selon la saison (jusqu'à
+# 180 colonnes distinctes). On décode chaque colonne par MOTIF plutôt qu'à la
+# main, selon la grammaire :  {bookmaker}[C]{marché+issue}
+#   ex. B365CAHH = bet365 + Close + Asian Handicap Home → bet365_close_ah_home
+#
+# Trois blocs :
+#   - STATS    : statistiques de match (buts, tirs, cartons…) — renommage direct
+#   - BOOK     : préfixes bookmakers (testés du plus long au plus court)
+#   - SPECIAL  : cas irréguliers (compteurs Betbrain, tailles de handicap,
+#                ambiguïté Betfair `BFD` vs Betfred `BFD*`)
+
+# Colonnes d'identité gérées explicitement dans parse_odds_file (jamais décodées)
+_IDENTITY_RAW = {"Div", "Date", "Time", "HomeTeam", "AwayTeam", "FTR"}
+
+# Statistiques de match → nom lisible
+STATS_MAP = {
+    "FTHG": "ft_home_goals", "FTAG": "ft_away_goals",
+    "HTHG": "ht_home_goals", "HTAG": "ht_away_goals", "HTR": "ht_result",
+    "Referee": "referee",
+    "HS": "home_shots", "AS": "away_shots",
+    "HST": "home_shots_target", "AST": "away_shots_target",
+    "HF": "home_fouls", "AF": "away_fouls",
+    "HC": "home_corners", "AC": "away_corners",
+    "HY": "home_yellows", "AY": "away_yellows",
+    "HR": "home_reds", "AR": "away_reds",
+}
+
+# Préfixes bookmakers → nom canonique
+BOOK_MAP = {
+    "B365": "bet365", "BFD": "betfred", "BMGM": "betmgm", "1XB": "onexbet",
+    "BFE": "betfair_exch", "BF": "betfair", "BW": "betwin", "IW": "interwetten",
+    "LB": "ladbrokes", "PS": "pinnacle", "WH": "william_hill", "VC": "vcbet",
+    "BV": "betvictor", "CL": "coral", "GB": "gamebookers", "SB": "sportingbet",
+    "SJ": "stanjames", "SY": "stanleybet", "BS": "bluesquare", "SO": "sporting_odds",
+    "Max": "market_max", "Avg": "market_avg", "P": "pinnacle", "Bb": "betbrain",
+}
+# Test des préfixes du plus long au plus court (évite que "P" capture "PSH")
+_BOOK_ORDER = sorted(BOOK_MAP, key=len, reverse=True)
+
+_OUTCOME = {"H": "home", "D": "draw", "A": "away"}
+
+# Cas irréguliers : compteurs, tailles de handicap, et BFD seul = Betfair draw
+SPECIAL_MAP = {
+    "BFD": "betfair_1x2_draw",          # 2425 : BFH/BFD/BFA = Betfair (≠ Betfred BFD*)
+    "Bb1X2": "betbrain_n_1x2",          # nb de bookmakers agrégés (1X2)
+    "BbOU": "betbrain_n_ou25",          # nb de bookmakers agrégés (over/under)
+    "BbAH": "betbrain_n_ah",            # nb de bookmakers agrégés (handicap)
+    "BbAHh": "betbrain_ah_line",        # taille du handicap Betbrain
+    "AHh": "ah_line",                   # taille du handicap marché (ouverture)
+    "AHCh": "ah_line_close",            # taille du handicap marché (clôture)
+    "GBAH": "gamebookers_ah_line",
+    "LBAH": "ladbrokes_ah_line",
+    "B365AH": "bet365_ah_line",
+}
+
+# Colonnes décodées qui restent du TEXTE (le reste = cotes numériques DOUBLE)
+_TEXT_DECODED = {"referee", "ht_result"}
+
+
+def _market_tag(rest: str) -> str | None:
+    """Traduit le suffixe marché+issue d'une colonne odds. None si non reconnu."""
+    if rest in _OUTCOME:
+        return f"1x2_{_OUTCOME[rest]}"
+    if rest == ">2.5":
+        return "ou25_over"
+    if rest == "<2.5":
+        return "ou25_under"
+    if rest == "AHH":
+        return "ah_home"
+    if rest == "AHA":
+        return "ah_away"
+    # Agrégats Betbrain : Mx = maximum, Av = average, suivis de l'issue
+    m = re.match(r"^(Mx|Av)(H|D|A|AHH|AHA|>2\.5|<2\.5)$", rest)
+    if m:
+        agg = {"Mx": "max", "Av": "avg"}[m.group(1)]
+        sub = m.group(2)
+        if sub in _OUTCOME:
+            return f"{agg}_1x2_{_OUTCOME[sub]}"
+        return {
+            "AHH": f"{agg}_ah_home", "AHA": f"{agg}_ah_away",
+            ">2.5": f"{agg}_ou25_over", "<2.5": f"{agg}_ou25_under",
+        }[sub]
+    return None
+
+
+def decode_column(col: str) -> str | None:
+    """
+    Traduit un nom de colonne source en snake_case, ou None si non décodable
+    (colonne d'identité, ou colonne inconnue à ignorer).
+    """
+    if col in STATS_MAP:
+        return STATS_MAP[col]
+    if col in SPECIAL_MAP:
+        return SPECIAL_MAP[col]
+    for prefix in _BOOK_ORDER:
+        if col.startswith(prefix):
+            rest = col[len(prefix):]
+            close = False
+            if rest.startswith("C") and rest != "C":   # 'C' = cote de clôture
+                close = True
+                rest = rest[1:]
+            tag = _market_tag(rest)
+            if tag is None:
+                return None
+            return f"{BOOK_MAP[prefix]}{'_close' if close else ''}_{tag}"
+    return None
+
+
+# Colonnes legacy conservées à l'identique pour ne pas casser backbone.sql / gold
+# (propagation ultérieure : gold consommera les colonnes riches puis on supprimera
+#  ces doublons). Chaque legacy pointe vers la colonne décodée équivalente.
+LEGACY_ALIASES = {
+    "odds_pinnacle_h": "pinnacle_1x2_home",
+    "odds_pinnacle_d": "pinnacle_1x2_draw",
+    "odds_pinnacle_a": "pinnacle_1x2_away",
+    "odds_avg_h":      "market_avg_1x2_home",
+    "odds_avg_d":      "market_avg_1x2_draw",
+    "odds_avg_a":      "market_avg_1x2_away",
+    "odds_max_h":      "market_max_1x2_home",
+    "odds_max_d":      "market_max_1x2_draw",
+    "odds_max_a":      "market_max_1x2_away",
+}
+
+
 # ── Parsing d'un fichier CSV ──────────────────────────────────────────────────
 
 def parse_odds_file(filepath: Path, league_source: str, season: str) -> pd.DataFrame:
     """
-    Charge un CSV football-data.co.uk et retourne un DataFrame normalisé avec :
-      - date, season, league_source
-      - home_team, away_team (normalisés)
-      - cotes brutes Pinnacle + Average
-      - probabilités implicites Pinnacle + Average
+    Charge un CSV football-data.co.uk et retourne un DataFrame wide-union :
+      - bloc identité (date, season, league_source, home_team, away_team, …)
+      - bloc statistiques de match (buts, tirs, cartons, arbitre…)
+      - TOUTES les cotes du fichier, renommées en snake_case (decode_column)
+      - colonnes legacy (compat backbone.sql) + probabilités implicites dérivées
+
+    Les colonnes absentes d'un fichier ne sont pas créées ici : le remplissage
+    à NULL se fait à la concaténation dans load_all_odds (union des colonnes).
     """
+    # utf-8-sig retire le BOM présent sur les fichiers récents (﻿Div → Div)
     try:
-        df = pd.read_csv(filepath, encoding="utf-8", low_memory=False)
+        df = pd.read_csv(filepath, encoding="utf-8-sig", low_memory=False)
     except UnicodeDecodeError:
         df = pd.read_csv(filepath, encoding="latin-1", low_memory=False)
 
@@ -158,87 +288,65 @@ def parse_odds_file(filepath: Path, league_source: str, season: str) -> pd.DataF
         logger.warning(f"  Fichier vide : {filepath.name}")
         return pd.DataFrame()
 
+    df.columns = [c.strip() for c in df.columns]
+
     # Parsing date — football-data utilise dd/mm/yy ou dd/mm/yyyy
     df["Date"] = pd.to_datetime(df["Date"], dayfirst=True, errors="coerce")
     df = df.dropna(subset=["Date", "HomeTeam", "AwayTeam"])
 
-    # Normalisation équipes
-    df["home_team"] = df["HomeTeam"].apply(normalize_team, source = 'odds')
-    df["away_team"] = df["AwayTeam"].apply(normalize_team, source = 'odds')
+    # ── Bloc identité ─────────────────────────────────────────────────────────
+    out = pd.DataFrame(index=df.index)
+    out["date"]          = df["Date"]
+    out["season"]        = season
+    out["league_source"] = league_source
+    out["home_team"]     = df["HomeTeam"].apply(normalize_team, source="odds")
+    out["away_team"]     = df["AwayTeam"].apply(normalize_team, source="odds")
+    out["result_fdc"]    = df["FTR"].map({"H": "H", "D": "D", "A": "A"})
+    if "Div"  in df.columns:
+        out["div"]  = df["Div"]
+    if "Time" in df.columns:
+        out["time"] = df["Time"]
 
-    # Résultat réel (vérification cohérence)
-    df["result_fdc"] = df["FTR"].map({"H": "H", "D": "D", "A": "A"})
+    # ── Décodage de toutes les autres colonnes (stats + cotes) ────────────────
+    for raw in df.columns:
+        if raw in _IDENTITY_RAW:
+            continue
+        snake = decode_column(raw)
+        if snake is None:
+            continue  # colonne inconnue → ignorée
+        if snake in _TEXT_DECODED:
+            out[snake] = df[raw].astype("string")
+        else:
+            out[snake] = pd.to_numeric(df[raw], errors="coerce")
 
-    # ── Cotes brutes ──────────────────────────────────────────────────────────
+    # ── Colonnes legacy (compat backbone.sql) ─────────────────────────────────
+    # Pointent vers la colonne décodée équivalente si présente, sinon NaN.
+    for legacy, decoded in LEGACY_ALIASES.items():
+        # float('nan') (et non pd.NA) : garde un dtype float64 même si la colonne
+        # décodée est absente, ce qui évite un FutureWarning au concat (colonnes
+        # tout-NA de type object).
+        out[legacy] = out[decoded] if decoded in out.columns else float("nan")
 
-    # Pinnacle (source de référence — le plus sharp)
-    for col in ["PSH", "PSD", "PSA"]:
-        if col not in df.columns:
-            df[col] = None
-        df[col] = pd.to_numeric(df[col], errors="coerce")
-
-    # Average marché
-    for col in ["AvgH", "AvgD", "AvgA"]:
-        if col not in df.columns:
-            df[col] = None
-        df[col] = pd.to_numeric(df[col], errors="coerce")
-
-    # Maximum marché
-    for col in ["MaxH", "MaxD", "MaxA"]:
-        if col not in df.columns:
-            df[col] = None
-        df[col] = pd.to_numeric(df[col], errors="coerce")
-
-    # ── Probabilités implicites ───────────────────────────────────────────────
-
-    # Pinnacle
-    pinnacle_proba = df.apply(
-        lambda r: implied_proba(r["PSH"], r["PSD"], r["PSA"]), axis=1
+    # ── Probabilités implicites dérivées (Pinnacle + moyenne marché) ──────────
+    pin = out.apply(
+        lambda r: implied_proba(r.get("pinnacle_1x2_home"),
+                                r.get("pinnacle_1x2_draw"),
+                                r.get("pinnacle_1x2_away")), axis=1
     )
-    df["pinnacle_prob_h"] = [x[0] for x in pinnacle_proba]
-    df["pinnacle_prob_d"] = [x[1] for x in pinnacle_proba]
-    df["pinnacle_prob_a"] = [x[2] for x in pinnacle_proba]
+    out["pinnacle_prob_h"] = [x[0] for x in pin]
+    out["pinnacle_prob_d"] = [x[1] for x in pin]
+    out["pinnacle_prob_a"] = [x[2] for x in pin]
 
-    # Average marché
-    avg_proba = df.apply(
-        lambda r: implied_proba(r["AvgH"], r["AvgD"], r["AvgA"]), axis=1
+    avg = out.apply(
+        lambda r: implied_proba(r.get("market_avg_1x2_home"),
+                                r.get("market_avg_1x2_draw"),
+                                r.get("market_avg_1x2_away")), axis=1
     )
-    df["market_prob_h"] = [x[0] for x in avg_proba]
-    df["market_prob_d"] = [x[1] for x in avg_proba]
-    df["market_prob_a"] = [x[2] for x in avg_proba]
+    out["market_prob_h"] = [x[0] for x in avg]
+    out["market_prob_d"] = [x[1] for x in avg]
+    out["market_prob_a"] = [x[2] for x in avg]
 
-    # ── Assemblage final ──────────────────────────────────────────────────────
-
-    result = pd.DataFrame({
-        "date":           df["Date"],
-        "season":         season,
-        "league_source":  league_source,
-        "home_team":      df["home_team"],
-        "away_team":      df["away_team"],
-        "result_fdc":     df["result_fdc"],
-        # Cotes brutes Pinnacle
-        "odds_pinnacle_h": df["PSH"],
-        "odds_pinnacle_d": df["PSD"],
-        "odds_pinnacle_a": df["PSA"],
-        # Cotes brutes Average
-        "odds_avg_h":     df["AvgH"],
-        "odds_avg_d":     df["AvgD"],
-        "odds_avg_a":     df["AvgA"],
-        # Cotes brutes Max
-        "odds_max_h":     df["MaxH"],
-        "odds_max_d":     df["MaxD"],
-        "odds_max_a":     df["MaxA"],
-        # Probabilités implicites Pinnacle
-        "pinnacle_prob_h": df["pinnacle_prob_h"],
-        "pinnacle_prob_d": df["pinnacle_prob_d"],
-        "pinnacle_prob_a": df["pinnacle_prob_a"],
-        # Probabilités implicites Average
-        "market_prob_h":  df["market_prob_h"],
-        "market_prob_d":  df["market_prob_d"],
-        "market_prob_a":  df["market_prob_a"],
-    })
-
-    return result.dropna(subset=["date", "home_team", "away_team"])
+    return out.dropna(subset=["date", "home_team", "away_team"])
 
 
 # ── Chargement de tous les fichiers ──────────────────────────────────────────
@@ -287,53 +395,68 @@ def load_all_odds() -> pd.DataFrame:
     if not all_dfs:
         raise RuntimeError("Aucun fichier chargé — vérifier BETS_DIR")
 
+    # Union des colonnes : concat aligne par nom, NaN là où un fichier ne
+    # possède pas la colonne (bookmaker inexistant à cette saison).
     df_all = pd.concat(all_dfs, ignore_index=True)
-    logger.info(f"  Total : {len(df_all):,} matchs | {df_all['league_source'].nunique()} ligues")
+
+    # Ordre de colonnes déterministe (schéma stable d'un run à l'autre) :
+    #   identité → legacy → probas dérivées → reste (stats + cotes) trié
+    identity = ["date", "season", "league_source", "home_team", "away_team",
+                "result_fdc", "div", "time"]
+    legacy   = list(LEGACY_ALIASES.keys())
+    derived  = ["pinnacle_prob_h", "pinnacle_prob_d", "pinnacle_prob_a",
+                "market_prob_h", "market_prob_d", "market_prob_a"]
+    fixed    = identity + legacy + derived
+    rest     = sorted(c for c in df_all.columns if c not in fixed)
+    df_all   = df_all.reindex(columns=fixed + rest)
+
+    logger.info(f"  Total : {len(df_all):,} matchs | {df_all['league_source'].nunique()} ligues "
+                f"| {len(df_all.columns)} colonnes")
     return df_all
 
 
 # ── Écriture dans DuckDB ──────────────────────────────────────────────────────
 
+# Colonnes texte du DDL (le reste = DOUBLE ; 'date' = DATE)
+_DDL_TEXT_COLS = {
+    "season", "league_source", "home_team", "away_team", "result_fdc",
+    "div", "time", "referee", "ht_result",
+}
+
+
+def _ddl_type(col: str) -> str:
+    """Type DuckDB d'une colonne selon son nom (schéma wide auto-généré)."""
+    if col == "date":
+        return "DATE"
+    if col in _DDL_TEXT_COLS:
+        return "VARCHAR"
+    return "DOUBLE"
+
+
 def write_to_duckdb(df: pd.DataFrame, conn: _duckdb.DuckDBPyConnection, reset: bool = False):
-    """Crée silver.odds et insère les données."""
+    """
+    (Re)crée silver.odds avec un DDL généré dynamiquement depuis les colonnes du
+    DataFrame, puis insère les données.
+
+    Le schéma est reconstruit à chaque run (DROP + CREATE) : silver.odds est une
+    table de full-refresh entièrement dérivée des CSV, et le jeu de colonnes peut
+    évoluer si football-data ajoute un bookmaker. `reset` est donc redondant mais
+    conservé pour compatibilité de l'interface.
+    """
     conn.execute("CREATE SCHEMA IF NOT EXISTS silver")
 
-    if reset:
-        conn.execute("DROP TABLE IF EXISTS silver.odds")
-        logger.info("  Table silver.odds supprimée")
+    # Schéma wide : on repart d'une table neuve pour épouser les colonnes courantes
+    conn.execute("DROP TABLE IF EXISTS silver.odds")
 
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS silver.odds (
-            date             DATE,
-            season           VARCHAR,
-            league_source    VARCHAR,
-            home_team        VARCHAR,
-            away_team        VARCHAR,
-            result_fdc       VARCHAR,
-            odds_pinnacle_h  DOUBLE,
-            odds_pinnacle_d  DOUBLE,
-            odds_pinnacle_a  DOUBLE,
-            odds_avg_h       DOUBLE,
-            odds_avg_d       DOUBLE,
-            odds_avg_a       DOUBLE,
-            odds_max_h       DOUBLE,
-            odds_max_d       DOUBLE,
-            odds_max_a       DOUBLE,
-            pinnacle_prob_h  DOUBLE,
-            pinnacle_prob_d  DOUBLE,
-            pinnacle_prob_a  DOUBLE,
-            market_prob_h    DOUBLE,
-            market_prob_d    DOUBLE,
-            market_prob_a    DOUBLE
-        )
-    """)
+    cols_ddl = ",\n            ".join(f'"{c}" {_ddl_type(c)}' for c in df.columns)
+    conn.execute(f"CREATE TABLE silver.odds (\n            {cols_ddl}\n        )")
 
-    conn.execute("DELETE FROM silver.odds")
     conn.register("df_odds", df)
-    conn.execute("INSERT INTO silver.odds SELECT * FROM df_odds")
+    # BY NAME : insertion robuste à l'ordre des colonnes
+    conn.execute("INSERT INTO silver.odds BY NAME SELECT * FROM df_odds")
 
     n = conn.execute("SELECT COUNT(*) FROM silver.odds").fetchone()[0]
-    logger.info(f"  silver.odds : {n:,} lignes insérées")
+    logger.info(f"  silver.odds : {n:,} lignes | {len(df.columns)} colonnes")
 
 
 # ── Audit jointure ────────────────────────────────────────────────────────────

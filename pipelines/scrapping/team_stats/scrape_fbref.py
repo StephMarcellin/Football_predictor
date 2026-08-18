@@ -360,9 +360,8 @@ def main():
     # Charger le référentiel pour construire la liste ligue × saison
     conn = duckdb.connect(str(DB_PATH))
     referentiel = conn.execute("""
-        SELECT DISTINCT season, league FROM referentiel.club_D1
-        UNION
-        SELECT DISTINCT season, league FROM referentiel.club_D2
+        SELECT DISTINCT season, league
+        FROM referentiel.transfermarkt_clubs
         ORDER BY league, season
     """).df()
     conn.close()

@@ -23,7 +23,12 @@ SELECT
     r.match_id,
     tm_team.team_id,
     tm_opp.team_id AS opponent_id,
-    s.* EXCLUDE (team, opponent, raw_team, raw_opponent)
+    s.* EXCLUDE (team, opponent, raw_team, raw_opponent, cs),
+    -- Garde-fou clean_sheet : la source silver.fbref_keeper.cs est salie
+    -- (106 valeurs = 2, plus des clean sheets étiquetés 0, et 18 « clean sheets »
+    -- avec buts encaissés). On dérive cs du champ autoritaire LOCAL ga_keeper
+    -- (concorde à 99,9 % avec le ga du schedule). Corrige les ~300 étiquettes fausses.
+    CASE WHEN s.ga_keeper = 0 THEN 1 WHEN s.ga_keeper IS NULL THEN NULL ELSE 0 END AS cs
 FROM source s
 
 LEFT JOIN team_mapping tm_team ON s.team     = tm_team.club_name
