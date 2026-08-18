@@ -1,0 +1,52 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Modèles de prédiction — Projet 3-Étoiles
+# Un mart par modèle, entièrement consommé. Les colonnes à retirer a posteriori
+# se déclarent ici (clé `exclude`) ; le mart reste complet.
+#
+# Features REPORTÉES (données sources manquantes, à construire plus tard) :
+#   - Famille 4 : lineup_avg_rating / lineup_avg_age / lineup_avg_minutes_experience
+#                 / n_key_starters_missing  (notes, âges, def. "titulaire habituel")
+#   - Famille 9 : keeper_distribution_lag   (qualité de relance gardien, jamais bâtie)
+# ══════════════════════════════════════════════════════════════════════════════
+
+models:
+
+  resultat_1n2:
+    mart: mart_1n2
+    grain: [match_id, team_id]
+    target: result_1n2            # V/N/D — source backbone
+    task: multiclass
+    n_class: 3
+    exclude: []
+
+  buts_equipe:
+    mart: mart_goals
+    grain: [match_id, team_id]
+    target: team_goals           # buts marqués par l'équipe — source backbone.gf
+    task: multiclass             # 0 / 1 / 2 / 3+
+    n_class: 4
+    derives: [over_under_2_5, over_under_3_5, btts, clean_sheet, team_over_under]
+    exclude: []
+
+  evenements:
+    mart: mart_events
+    grain: [match_id]
+    targets:                     # seuils à aligner sur les lignes Winamax réelles
+      cartons: "total_cards >= 2"     # backbone yellow+red, 2 équipes
+      corners: "total_corners >= 6"   # int_whoscored_player_match.corners_total agrégé
+    task: binary
+    exclude: []
+
+  buteurs:
+    mart: mart_scorers
+    grain: [match_id, player_id]
+    target: scored               # a marqué ≥1 — source events is_goal
+    task: binary
+    exclude: []
+
+  passeurs:
+    mart: mart_assists
+    grain: [match_id, player_id]
+    target: assisted             # n_assists >= 1 — source player_match_stats
+    task: binary
+    exclude: []

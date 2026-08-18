@@ -1,0 +1,8 @@
+int_whoscored_lineup:
+  end_minute:   {min: 0, max: 130}
+  start_minute: {min: 0, max: 130}
+int_fbref_keeper:
+  save_pct:     {min: 0, max: 100}
+backbone:
+  np_xg:        {min: 0}
+  opponent_id:  {not_null: true}
