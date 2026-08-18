@@ -192,3 +192,26 @@ blob.upload_from_filename(str(local_path))
 **Symptôme** : healthcheck Docker échoue sur le service Prefect  
 **Cause** : `curl` n'est pas installé dans l'image officielle Prefect  
 **Solution** : désactiver le healthcheck dans `docker-compose.yml` : `disable: true`
+
+---
+
+## Data quality — à investiguer (détecté 2026-08-06, construction couche Gold)
+
+### `int_whoscored_team_season` : couverture partielle / trous par saison
+**Symptôme** : la feature season-lag `season_xg_per_shot_*_lag` de `gold.equipe_match` n'a une couverture correcte (~65-85 %) qu'à partir de 2022-2023. Saisons présentes dans la source : 2019-2020, **2021-2022**, 2022-2023, 2023-2024, 2024-2025 — la saison **2020-2021 manque entièrement**, et 2017-2018 / 2018-2019 sont absentes.  
+**Cause** : à confirmer. Deux pistes non tranchées : (1) 2019-2020 tronquée/décalée par le **Covid** (Ligue 1 arrêtée, autres championnats finis à l'été 2020) → agrégats de saison peut-être partiels ou mal datés ; (2) le trou complet de 2020-2021 ressemble davantage à un **problème de scraping** de la source WhoScored season.  
+**Solution** : vérifier le scraper `int_whoscored_team_season` sur 2020-2021 et la datation des saisons Covid. En attendant, les features xG roulées (famille 2) portent le signal ; la feature season-lag reste NULL sans casser le modèle (imputation famille 11 / sélection).
+
+---
+
+### `h2h_history` : décalage d'un match (off-by-one) sur ~3 % des lignes
+**Symptôme** : sur ~3 % des lignes avec `h2h_played > 0`, on a `h2h_wins + h2h_draws + h2h_losses = h2h_played − 1` (les taux dérivés dans `gold.equipe_adversaire_match` somment alors à un peu moins de 1).  
+**Cause** : erreur probable dans la construction de la table intermediate `h2h_history` — une confrontation historique comptée dans `h2h_played` mais non classée en W/D/L (résultat manquant, ou décompte du premier match).  
+**Solution** : à corriger dans le modèle `h2h_history` en amont (ne pas masquer dans le Gold). Candidat pour un check Great Expectations : `h2h_wins + h2h_draws + h2h_losses = h2h_played`.
+
+---
+
+### `backbone.clean_sheet` : colonne salie (valeurs 2, incohérences avec ga)
+**Symptôme** : le test `accepted_range [0,1]` sur `clean_sheet_rate_rolling_{3,5,10}` de `gold.equipe_match` remonte des valeurs > 1 (warnings dbt).  
+**Cause** : la colonne `cs` de `silver.fbref_keeper` (→ `int_fbref_keeper.cs` → `backbone.clean_sheet`) n'est pas un flag 0/1 propre. Valeurs : 0 (33069), 1 (12877), **2 (106)**. Les 106 `cs=2` ont toutes `ga_keeper=0` (vrais clean sheets mal étiquetés) ; en plus, 176 clean sheets sont étiquetés 0 et 18 « clean sheets » ont des buts encaissés. Ce n'est PAS un bug de grain (int_fbref_keeper : 0 doublon).  
+**Solution** : garde-fou à la **racine**, dans `intermediate/int_fbref_keeper.sql` — `cs` est dérivé du champ autoritaire **local** `ga_keeper` (`CASE WHEN ga_keeper=0 THEN 1 ...`), qui concorde à 99,9 % avec le `ga` du schedule. Corrige les ~300 étiquettes fausses pour TOUS les consommateurs de la table, pas seulement backbone. Gold consomme sans recalculer. Ordre de reconstruction : `dbt run --select int_fbref_keeper` (table, rebuild complet), puis `dbt run --full-refresh --select backbone` (incrémental → full-refresh pour réécrire l'historique), puis les tables gold. Candidat check Great Expectations : `cs = (ga_keeper = 0)`.

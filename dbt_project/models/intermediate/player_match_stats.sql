@@ -438,6 +438,7 @@ SELECT
     dis.* EXCLUDE (match_id, team_id, player_id),
     COALESCE(cr.n_assists, 0)         AS n_assists,
     COALESCE(cr.n_chances_created, 0) AS n_chances_created,
+    pm.minutes_played,
     d.match_date AS date,
     d.season,
     d.league_source,
@@ -483,6 +484,12 @@ LEFT JOIN creation_agg cr
     ON cr.match_id   = b.match_id
     AND cr.team_id   = b.team_id
     AND cr.player_id = b.player_id
+
+-- Propagation des minutes jouées (base du per-90 en Gold)
+LEFT JOIN {{ ref('int_player_minutes') }} pm
+    ON pm.match_id   = b.match_id
+    AND pm.team_id   = b.team_id
+    AND pm.player_id = b.player_id
 
 JOIN match_dates d
     ON d.match_id = b.match_id

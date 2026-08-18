@@ -19,8 +19,8 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 with open(ROOT_DIR / "config.yaml", encoding="utf-8") as f:
     CFG = yaml.safe_load(f)
 
-DB_PATH  = Path(CFG["paths"]["duckdb"])
-RAW_DIR  = Path(CFG["paths"]["raw_data"])
+DB_PATH = ROOT_DIR / CFG["paths"]["duckdb"]
+RAW_DIR = ROOT_DIR / CFG["paths"]["raw_data"]
 
 # Chargement dynamique depuis config.yaml
 SEASON_FORMAT: str = CFG.get("season_format", "YYYY-YYYY")
@@ -861,9 +861,58 @@ def run_quality_check(con: duckdb.DuckDBPyConnection) -> None:
                     f"(équipes de Coupe/Europe hors mapping)"
                 )
 
+
+    # ── 6. Garde-fous sur les valeurs (config/data_rules.yml) ──────────────────
+    check_data_rules(con)
     logger.info("══════════════════════════════════════")
 
+def check_data_rules(con: duckdb.DuckDBPyConnection,
+                     rules_path: Path = ROOT_DIR / "config" / "data_rules.yml") -> None:
+    """
+    Garde-fous sur les VALEURS, définis en config (config/data_rules.yml).
+    Format : {table: {colonne: {min?, max?, not_null?, severity?}}}.
+    Chaque règle → une requête de comptage des violations. Violation :
+    'warn' par défaut (log), ou 'fail' (lève une exception) si severity=fail.
+    Le schéma de chaque table est résolu dynamiquement ; une table absente
+    est ignorée (le check marche donc avant OU après dbt).
+    """
+    if not rules_path.exists():
+        logger.warning(f"  Pas de fichier de règles : {rules_path}")
+        return
+    rules = yaml.safe_load(open(rules_path, encoding="utf-8")) or {}
 
+    logger.info("── GARDE-FOUS VALEURS (data_rules.yml) ──")
+
+    # table_name → schema (pour ne pas coder le schéma en dur)
+    loc = {r[1]: r[0] for r in con.execute(
+        "SELECT table_schema, table_name FROM information_schema.tables"
+    ).fetchall()}
+
+    n_viol = 0
+    for table, cols in rules.items():
+        schema = loc.get(table)
+        if not schema:
+            logger.debug(f"  ⏩ Table absente, ignorée : {table}")
+            continue
+        for col, rule in cols.items():
+            checks = []
+            if "min" in rule:        checks.append((f'"{col}" < {rule["min"]}',  f"< {rule['min']}"))
+            if "max" in rule:        checks.append((f'"{col}" > {rule["max"]}',  f"> {rule['max']}"))
+            if rule.get("not_null"): checks.append((f'"{col}" IS NULL',          "NULL"))
+            for cond, label in checks:
+                bad = con.execute(
+                    f'SELECT COUNT(*) FROM {schema}.{table} WHERE {cond}'
+                ).fetchone()[0]
+                if bad:
+                    n_viol += 1
+                    msg = f"  ⚠️  {table}.{col} : {bad} valeur(s) {label}"
+                    if rule.get("severity") == "fail":
+                        logger.error(msg)
+                        raise ValueError(f"Règle violée (fail) : {table}.{col} {label}")
+                    logger.warning(msg)
+
+    if n_viol == 0:
+        logger.success("  ✅ Toutes les règles de valeurs respectées")
 # ══════════════════════════════════════════════════════════════════════════════
 # ÉCRITURE DUCKDB + RAPPORT
 # ══════════════════════════════════════════════════════════════════════════════

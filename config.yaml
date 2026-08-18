@@ -13,6 +13,7 @@ seasons:
   - "2022-2023"
   - "2023-2024"
   - "2024-2025"
+  - "2025-2026"
 
 # Types de stats FBref à scraper
 stat_types:
@@ -233,6 +234,48 @@ backtest:
   MAX_MISE_PCT   : 0.05     # mise max = 5% de la bankroll (protection)
   MIN_MISE       : 1.0      # mise minimale en unités
   BACKTEST_SEASONS_DEFAULT : ["2023-2024", "2024-2025"]
+
+# ── Famille 11 : clusters de style (76/77) + imputation KNN (78) ──────────────
+# Paramètres figés par le diagnostic du 16/08 (cf. Concepts_Session_2026-08-16_KNN).
+# On modifie un seuil ICI, jamais dans le code.
+knn:
+  n_clusters: 3            # clusters de style par côté (silhouette/elbow)
+  min_apps: 10             # seuil de fiabilité du profil (split-half r≈0.70)
+  gk_vertical_max: 0.3     # gv <= seuil → gardien, exclu du clustering
+  k_neighbors: 30  # grille Optuna pour K (imputation 78, plus tard)
+  features:
+    offensive:
+      - scorer_xg_per90_lag
+      - scorer_shots_per90_lag
+      - off_xg_per_shot_lag
+      - scorer_team_shot_share_lag
+      - off_chances_created_per90_lag
+      - off_key_passes_per90_lag
+      - off_xgchain_per90_lag
+      - off_xgbuildup_per90_lag
+      - scorer_xgot_overperformance_lag
+    defensive:
+      - def_aerial_win_rate_lag
+      - def_actions_per90_lag
+      - def_errors_per90_lag
+      - def_threat_conceded_per90_lag
+    # Espaces de similarité : chaque cible zonale est imputée sur des coordonnées
+  # JOUEUR fiables (jamais sur elle-même) + le cluster du bon côté.
+  coordinate_sets:
+    finishing: [scorer_xg_per90_lag, scorer_shots_per90_lag, off_xg_per_shot_lag,
+                scorer_xgot_overperformance_lag, scorer_team_shot_share_lag]
+    creation:  [off_chances_created_per90_lag, off_key_passes_per90_lag,
+                off_xgchain_per90_lag, off_xgbuildup_per90_lag]
+    defense:   [def_aerial_win_rate_lag, def_actions_per90_lag,
+                def_errors_per90_lag, def_threat_conceded_per90_lag]
+  zonal_targets:
+    - {feature: off_shot_volume_by_zone_lag,         coords: finishing, side: offensive, method: knn}
+    - {feature: off_danger_by_zone_lag,              coords: finishing, side: offensive, method: knn}
+    - {feature: off_cross_volume_by_zone_lag,        coords: creation,  side: offensive, method: knn}
+    - {feature: off_progressive_actions_by_zone_lag, coords: creation,  side: offensive, method: knn}
+    - {feature: off_touch_share_by_zone_lag,         coords: creation,  side: offensive, method: knn}
+    - {feature: def_duel_win_rate_by_zone_lag,       coords: defense,   side: defensive, method: cluster}
+    - {feature: def_actions_by_zone_lag,             coords: defense,   side: defensive, method: knn}
 
 season_format: YYYY-YYYY
 

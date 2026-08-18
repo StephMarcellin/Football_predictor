@@ -363,6 +363,8 @@ models:
         description: "Identifiant du match (SHA1)"
         tests:
           - not_null
+      - name: minutes_played
+        description: "Minutes jouées par le joueur dans ce match (propagé depuis int_player_minutes). Base du per-90 en Gold. NULL = joueur avec événements mais sans ligne de lineup (~0,4 %)."
       - name: team_id
         description: "Identifiant WhoScored de l'équipe"
         tests:
@@ -1337,6 +1339,11 @@ models:
       Stats gardien FBref (tirs cadrés subis, arrêts, save%) rematchées sur
       match_id unifié et team_id normalisé. Alimente les colonnes gardien
       de backbone.
+    tests:
+      # Garde-fou clean_sheet : cs doit refléter ga_keeper (champ autoritaire).
+      # ga_keeper NULL → cs NULL toléré.
+      - dbt_utils.expression_is_true:
+          expression: "(ga_keeper IS NULL) OR (cs = CASE WHEN ga_keeper = 0 THEN 1 ELSE 0 END)"
     columns:
       - name: match_id
         description: "Identifiant unifié du match (SHA1), rattaché via match_registry."
@@ -1369,7 +1376,11 @@ models:
       - name: save_pct
         description: "Pourcentage d'arrêts (saves / sota)"
       - name: cs
-        description: "Clean sheet — 1 si aucun but encaissé, 0 sinon"
+        description: "Clean sheet — 1 si aucun but encaissé, 0 sinon. Dérivé du champ autoritaire ga_keeper (garde-fou : la colonne silver.cs est salie, valeurs 2 + incohérences, cf. troubleshooting)."
+        tests:
+          - accepted_values:
+              values: [0, 1]
+              quote: false
       - name: pk_att
         description: "Penaltys tentés contre le gardien"
       - name: pk_allowed
@@ -1601,6 +1612,53 @@ models:
         description: "Probabilité implicite marché moyen match nul"
       - name: market_prob_a
         description: "Probabilité implicite marché moyen victoire extérieur"
+      # ── Nouveaux marchés propagés (clôture, drift, over/under 2.5) ──────────
+      - name: pinnacle_prob_close_h
+        description: "Proba implicite Pinnacle CLÔTURE — domicile (no-vig). NULL si cote de clôture absente."
+        tests:
+          - is_valid_probability: {config: {severity: warn}}
+      - name: pinnacle_prob_close_d
+        description: "Proba implicite Pinnacle CLÔTURE — nul (no-vig)."
+        tests:
+          - is_valid_probability: {config: {severity: warn}}
+      - name: pinnacle_prob_close_a
+        description: "Proba implicite Pinnacle CLÔTURE — extérieur (no-vig)."
+        tests:
+          - is_valid_probability: {config: {severity: warn}}
+      - name: market_prob_close_h
+        description: "Proba implicite marché moyen CLÔTURE — domicile (no-vig)."
+        tests:
+          - is_valid_probability: {config: {severity: warn}}
+      - name: market_prob_close_d
+        description: "Proba implicite marché moyen CLÔTURE — nul (no-vig)."
+        tests:
+          - is_valid_probability: {config: {severity: warn}}
+      - name: market_prob_close_a
+        description: "Proba implicite marché moyen CLÔTURE — extérieur (no-vig)."
+        tests:
+          - is_valid_probability: {config: {severity: warn}}
+      - name: pinnacle_drift_h
+        description: "Drift ouverture→clôture (proba clôture − proba ouverture), domicile. Plage [-1,1], pas une probabilité."
+      - name: pinnacle_drift_d
+        description: "Drift ouverture→clôture, nul."
+      - name: pinnacle_drift_a
+        description: "Drift ouverture→clôture, extérieur."
+      - name: pinnacle_prob_over25
+        description: "Proba implicite Pinnacle Over 2.5 buts (ouverture, no-vig 2-way)."
+        tests:
+          - is_valid_probability: {config: {severity: warn}}
+      - name: pinnacle_prob_under25
+        description: "Proba implicite Pinnacle Under 2.5 buts (ouverture, no-vig 2-way)."
+        tests:
+          - is_valid_probability: {config: {severity: warn}}
+      - name: pinnacle_prob_close_over25
+        description: "Proba implicite Pinnacle Over 2.5 buts (clôture, no-vig 2-way)."
+        tests:
+          - is_valid_probability: {config: {severity: warn}}
+      - name: pinnacle_prob_close_under25
+        description: "Proba implicite Pinnacle Under 2.5 buts (clôture, no-vig 2-way)."
+        tests:
+          - is_valid_probability: {config: {severity: warn}}
 
   - name: int_understat_schedule
     description: >
@@ -3345,3 +3403,88 @@ models:
             - keeper_id
             - season
             - league_source
+
+  - name: int_player_minutes
+    description: >
+      Minutes jouées par joueur et par match, dérivées de la timeline de formation
+      WhoScored (int_whoscored_lineup) — Σ des durées de segments, minutes expanded
+      (absolues). Base du per-90 en couche Gold. Garde-fous : match_id non NULL
+      (exclut les orphelins D2), segments bornés 0..130 (exclut la sentinelle 32767),
+      GREATEST(end-start,0).
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1)."
+        tests:
+          - not_null
+      - name: team_id
+        description: "Id canonique de l'équipe du joueur pour ce match."
+        tests:
+          - not_null
+      - name: player_id
+        description: "Identifiant WhoScored du joueur."
+        tests:
+          - not_null
+      - name: minutes_played
+        description: "Minutes jouées dans le match (0..~128, temps additionnel inclus). 0 = présent mais non entré. Aucun plafond appliqué : le test ci-dessous ALERTE si la source redevient aberrante (sentinelle 32767), au lieu de la masquer."
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 140
+              config:
+                severity: warn
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - match_id
+            - team_id
+            - player_id
+
+  - name: int_player_zone_season
+    description: >
+      Agrégat zonal 5×5 offensif par (joueur, cellule, saison jouée) : part
+      moyenne des touches (grille pct_zX_cY remise en tall) et tirs pris dans la
+      cellule (int_shot_placement binné, CSC exclus). Base de gold.joueur_zone_saison.
+      Scindé + matérialisé pour contourner un bug du planner DuckDB 1.5.1.
+    columns:
+      - name: player_id
+        description: "Identifiant du joueur."
+        tests:
+          - not_null
+      - name: zone_5x5
+        description: "Cellule 5×5 (zX_cY) : z = profondeur (x), c = couloir (y), bornes tous les 20."
+        tests:
+          - not_null
+      - name: season
+        description: "Saison jouée (ex. 2023-2024)."
+        tests:
+          - not_null
+      - name: avg_touch_share
+        description: "Part moyenne des touches du joueur dans la cellule sur la saison."
+      - name: n_matches
+        description: "Nombre de matchs du joueur dans la saison (compteur d'observations)."
+      - name: total_shots
+        description: "Tirs pris par le joueur dans la cellule sur la saison (CSC exclus)."
+      - name: n_duels
+        description: "Duels défensifs disputés par le joueur dans la cellule (repère retourné vers sa cage)."
+      - name: duels_won
+        description: "Duels défensifs gagnés dans la cellule (outcome_b = 1)."
+      - name: total_danger
+        description: "Σ danger_position des actions OFFENSIVES du joueur dans la cellule (event_values, feature 35)."
+      - name: total_progressive
+        description: "Passes progressives du joueur dans la cellule sur la saison (player_passes_raw.is_progressive, feature 41)."
+      - name: total_crosses
+        description: >
+          Centres délivrés depuis la cellule (feature 37). Définition géométrique :
+          passe du dernier tiers sur un flanc (x≥66 et y<20 ou y>80) vers la surface
+          centrale (end_x≥83, end_y∈[21,79]). is_creative écarté (piquait au centre).
+      - name: total_def_actions
+        description: >
+          Actions défensives du joueur dans la cellule (event_values,
+          def_execution_quality non NULL ; coords dans le repère du camp du défenseur,
+          pas de retournement). Brique de def_actions_by_zone_lag (feature 55).
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - player_id
+            - zone_5x5
+            - season

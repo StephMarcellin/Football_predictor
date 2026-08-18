@@ -174,8 +174,10 @@ CREATE TABLE IF NOT EXISTS silver.stg_whoscored_formations (
     formation_seq       INTEGER,   -- index de la formation dans la liste de l'équipe
     formation_id        INTEGER,
     period              INTEGER,
-    start_minute        INTEGER,   -- startMinuteExpanded (peut se répéter → hors clé)
+    start_minute        INTEGER,   -- startMinuteExpanded (temps réel — valeur de travail)
     end_minute          INTEGER,   -- endMinuteExpanded
+    start_minute_reg    INTEGER,   -- startMinute (temps réglementaire — recalcul période)
+    end_minute_reg      INTEGER,   -- endMinute
     captain_player_id   INTEGER,
     player_ids          VARCHAR,   -- JSON : ordre des joueurs (18, titulaires + banc)
     formation_slots     VARCHAR,   -- JSON : slot 1..11 par joueur (0 = banc)
@@ -313,6 +315,8 @@ def parse_formations(data: dict, ws_match_id: str) -> list:
                 "period":              fo.get("period"),
                 "start_minute":        fo.get("startMinuteExpanded"),
                 "end_minute":          fo.get("endMinuteExpanded"),
+                "start_minute_reg":    fo.get("startMinute"),
+                "end_minute_reg":      fo.get("endMinute"),
                 "captain_player_id":   fo.get("captainPlayerId"),
                 "player_ids":          json.dumps(fo.get("playerIds", []), ensure_ascii=False),
                 "formation_slots":     json.dumps(fo.get("formationSlots", []), ensure_ascii=False),
@@ -405,7 +409,8 @@ def upsert_match_facts(data: dict, ws_match_id: str) -> None:
         _write_fact(
             conn, "stg_whoscored_formations", parse_formations(data, ws_match_id),
             int_cols=("team_id", "formation_seq", "formation_id", "period",
-                      "start_minute", "end_minute", "captain_player_id"),
+                      "start_minute", "end_minute",
+                      "start_minute_reg", "end_minute_reg", "captain_player_id"),
         )
         _write_fact(
             conn, "stg_whoscored_team_match", parse_team_match(data, ws_match_id),

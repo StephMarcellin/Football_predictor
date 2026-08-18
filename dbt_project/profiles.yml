@@ -5,4 +5,8 @@ football_prediction:
       type: duckdb
       path: "../db/football.duckdb"
       schema: gold
-      threads: 2
+      threads: 4
+      settings:
+        preserve_insertion_order: false
+        memory_limit: '10GB'
+        max_temp_directory_size: '100GB'
