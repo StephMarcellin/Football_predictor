@@ -958,6 +958,10 @@ sources:
             description: "Minute étendue de début de la formation"
           - name: end_minute
             description: "Minute étendue de fin de la formation"
+          - name: start_minute_reg
+            description: "Minute réglementaire de début de la formation"
+          - name: end_minute_reg
+            description: "Minute réglementaire de fin de la formation"
           - name: captain_player_id
             description: "Identifiant du capitaine sur cette période"
           - name: player_ids
@@ -1117,3 +1121,46 @@ sources:
               description: "Booléen : le tir cadré a fini au fond."
             - name: xgot
               description: "Post-Shot xG (xGOT) du tir, calibré, dans [0,1]."
+      - name: player_style_clusters
+        description: >
+          Clusters de style par (player_id, season), écrits par
+          pipelines/03_knn_impute.py (KMeans standardisé sur profil + position,
+          3 clusters/côté, labels sémantiques ; gardiens = 'GK'). Réécrite
+          (CREATE OR REPLACE) à chaque run. Pré-restreint le vivier de voisins du
+          KNN et sert de repli. Grain : (player_id, season).
+        columns:
+          - name: player_id
+            description: "Identifiant joueur."
+          - name: season
+            description: "Saison (ex. 2023-2024)."
+          - name: cluster_offensive
+            description: "Style offensif : off_finisher / off_creator / off_low / GK."
+          - name: cluster_defensive
+            description: "Style défensif : def_aerial / def_recuperator / def_low / GK."
+        tests:
+          - dbt_utils.unique_combination_of_columns:
+              combination_of_columns:
+                - player_id
+                - season
+
+      - name: zonal_profiles_imputed
+        description: >
+          Profils zonaux imputés (famille 11), écrits par
+          pipelines/03_knn_impute.py. Même grain que gold.joueur_zone_saison : les
+          cellules fiables (flag high/medium) sont conservées, les autres imputées
+          par KNN action-spécifique (repli cluster). Un flag <feature>_imputed par
+          colonne. Réécrite (CREATE OR REPLACE) à chaque run.
+          Grain : (player_id, season, zone_5x5).
+        columns:
+          - name: player_id
+            description: "Identifiant joueur."
+          - name: season
+            description: "Saison (ex. 2023-2024)."
+          - name: zone_5x5
+            description: "Cellule zonale z{1..5}_c{1..5} (25 cases)."
+        tests:
+          - dbt_utils.unique_combination_of_columns:
+              combination_of_columns:
+                - player_id
+                - season
+                - zone_5x5
