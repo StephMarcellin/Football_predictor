@@ -335,15 +335,15 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
     # On est obligé de passer par cette méthode car les noms des scripts commencent par un chiffre
     # Si un script est introuvable, on lève une erreur claire
     try:
-        mod_01  = _import_from_path("ingest_01",    ROOT_DIR / "pipelines" / "01_ingest.py")
-        mod_01b = _import_from_path("odds_01b",     ROOT_DIR / "pipelines" / "01b_odds.py")
-        mod_02  = _import_from_path("process_02",   ROOT_DIR / "pipelines" / "02_process.py")
-        # mod_04  = _import_from_path("",             ROOT_DIR / "pipelines" / "04_train.py")
-        mod_04  = _import_from_path("train_04",     ROOT_DIR / "pipelines" / "04_train.py")
-        mod_05  = _import_from_path("predict_05",   ROOT_DIR / "pipelines" / "05_predict.py")
-        mod_06  = _import_from_path("backtest_06",  ROOT_DIR / "pipelines" / "06_backtest.py")
-        mod_xt  = _import_from_path("xt_grid_mod",  ROOT_DIR / "pipelines" / "xt_grid.py")
-        mod_xgot = _import_from_path("xgot_score_mod", ROOT_DIR / "pipelines" / "xgot_score.py")
+        mod_01  = _import_from_path("ingest_01",    ROOT_DIR / "pipelines" / "ingest" / "01_ingest.py")
+        mod_01b = _import_from_path("odds_01b",     ROOT_DIR / "pipelines" / "ingest" / "01b_odds.py")
+        mod_02  = _import_from_path("process_02",   ROOT_DIR / "pipelines" / "ingest" / "02_process.py")
+        # mod_04  = _import_from_path("",             ROOT_DIR / "pipelines" / "legacy" / "04_train.py")
+        mod_04  = _import_from_path("train_04",     ROOT_DIR / "pipelines" / "legacy" / "04_train.py")
+        mod_05  = _import_from_path("predict_05",   ROOT_DIR / "pipelines" / "legacy" / "05_predict.py")
+        mod_06  = _import_from_path("backtest_06",  ROOT_DIR / "pipelines" / "legacy" / "06_backtest.py")
+        mod_xt  = _import_from_path("xt_grid_mod",  ROOT_DIR / "pipelines" / "features" / "xt_grid.py")
+        mod_xgot = _import_from_path("xgot_score_mod", ROOT_DIR / "pipelines" / "features" / "xgot_score.py")
 
     except FileNotFoundError as e:
         logger.error(f"Script introuvable : {e}")
@@ -490,9 +490,9 @@ def build_table_steps(cfg: dict, full_refresh: bool = False) -> dict:
     """Catalogue des steps de construction des tables. Les frontières de phase
     autour du KNN/xgot viennent du DAG dbt (opérateur '+' : int_keeper_shots+ =
     la chaîne gardien jusqu'aux marts ; joueur_match+ = jusqu'à mart_scorers)."""
-    mod_xgot = _import_from_path("xgot_score_mod", ROOT_DIR / "pipelines" / "xgot_score.py")
-    mod_knn  = _import_from_path("knn_mod",        ROOT_DIR / "pipelines" / "03_knn_impute.py")
-    mod_xt   = _import_from_path("xt_grid_mod",    ROOT_DIR / "pipelines" / "xt_grid.py")
+    mod_xgot = _import_from_path("xgot_score_mod", ROOT_DIR / "pipelines" / "features" / "xgot_score.py")
+    mod_knn  = _import_from_path("knn_mod",        ROOT_DIR / "pipelines" / "features" / "03_knn_impute.py")
+    mod_xt   = _import_from_path("xt_grid_mod",    ROOT_DIR / "pipelines" / "features" / "xt_grid.py")
     mod_xgt = _import_from_path("xgot_train_mod", ROOT_DIR / "pipelines" / "xgot_train.py")
     return {
         # ── tables_update ────────────────────────────────────────────────────
@@ -544,10 +544,10 @@ def build_flow_steps(cfg: dict, full_refresh: bool = False) -> dict:
     prédiction, backtest. Les flux (FLOWS) piochent dedans par nom — l'ordre de
     construction des tables n'est défini qu'à un seul endroit."""
     steps = build_table_steps(cfg, full_refresh)
-    mod_t1 = _import_from_path("train_1n2_mod",    ROOT_DIR / "pipelines" / "train_1n2.py")
-    mod_tg = _import_from_path("train_goals_mod",  ROOT_DIR / "pipelines" / "train_goals.py")
-    mod_pe = _import_from_path("predict_ens_mod",  ROOT_DIR / "pipelines" / "predict_ensemble.py")
-    mod_bt = _import_from_path("backtest_1n2_mod", ROOT_DIR / "pipelines" / "backtest_1n2.py")
+    mod_t1 = _import_from_path("train_1n2_mod",    ROOT_DIR / "pipelines" / "models" / "train_1n2.py")
+    mod_tg = _import_from_path("train_goals_mod",  ROOT_DIR / "pipelines" / "models" / "train_goals.py")
+    mod_pe = _import_from_path("predict_ens_mod",  ROOT_DIR / "pipelines" / "models" / "predict_ensemble.py")
+    mod_bt = _import_from_path("backtest_1n2_mod", ROOT_DIR / "pipelines" / "models" / "backtest_1n2.py")
     current_season = cfg.get("predict", {}).get("current_season", "2025-2026")
     steps.update({
         "train_1n2":   {"fn": mod_t1.main, "kwargs": {}, "critical": True},
