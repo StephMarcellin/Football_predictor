@@ -7,6 +7,8 @@ exclusions config, encode booléens/objets), entraînement LightGBM avec early
 stopping, évaluation, et helpers MLflow/sauvegarde.
 """
 from pathlib import Path
+import os
+from dotenv import load_dotenv
 
 import yaml
 import duckdb
@@ -101,3 +103,26 @@ def evaluate(model, X, y, mask, name):
     line = " | ".join(f"{k} {v:.4f}" for k, v in metrics.items())
     print(f"  {name:5} {line} | n={int(mask.sum()):,}")
     return metrics
+
+def setup_mlflow(cfg):
+    """Configure MLflow depuis config.yaml et retourne l'URI effective.
+
+    - Charge .env (sans quoi DAGSHUB_* n'est pas dans l'environnement quand on
+      lance le script en direct).
+    - Si l'URI est un remote dagshub, traduit DAGSHUB_* → MLFLOW_TRACKING_* :
+      c'est ce couple que le client HTTP de MLflow lit pour s'authentifier.
+      Sans cette traduction, la requête part sans auth → 403.
+    - Pose le tracking_uri. Import mlflow local : on ne le charge que si un
+      trainer en a besoin.
+
+    À appeler dans un try/except côté trainer (best-effort : un remote KO ne
+    doit pas bloquer l'entraînement, le modèle est déjà sauvé sur disque).
+    """
+    import mlflow
+    load_dotenv(ROOT_DIR / ".env")
+    uri = cfg["mlflow"]["tracking_uri"]
+    if "dagshub" in str(uri):
+        os.environ["MLFLOW_TRACKING_USERNAME"] = os.getenv("DAGSHUB_USERNAME", "")
+        os.environ["MLFLOW_TRACKING_PASSWORD"] = os.getenv("DAGSHUB_TOKEN", "")
+    mlflow.set_tracking_uri(uri)
+    return uri

@@ -5,6 +5,9 @@ pandas==2.3.3
 pyarrow==23.0.1
 
 # ── Machine Learning ───────────────────────────────────────────────────────
+# ⚠️ scikit-learn / lightgbm / joblib : versions FIGÉES = celles qui ont sérialisé
+#    models/resultat_1n2.joblib. Un écart de version → probas calibrées uniformes
+#    (0.333) EN SILENCE. Ne pas bumper sans ré-entraîner ET re-sérialiser le modèle.
 scikit-learn==1.8.0
 lightgbm==4.6.0
 imbalanced-learn==0.14.1

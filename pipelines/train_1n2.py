@@ -49,7 +49,8 @@ def main(n_estimators=600, learning_rate=0.03):
     print(f"Modèle sauvegardé : {out}")
 
     try:
-        mlflow.set_tracking_uri(cfg["mlflow"]["tracking_uri"])
+        # mlflow.set_tracking_uri(cfg["mlflow"]["tracking_uri"])
+        mc.setup_mlflow(cfg)
         mlflow.set_experiment("marts_" + MODEL_KEY)
         with mlflow.start_run():
             mlflow.log_params({**params, "n_features": X.shape[1]})
