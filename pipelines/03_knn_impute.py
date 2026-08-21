@@ -256,18 +256,13 @@ def write_imputed(con, df, table="machine_learning.zonal_profiles_imputed"):
     con.unregister("tmp_imputed")
     print(f"Écrit : {table} ({len(df):,} lignes)")
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Clusters de style + KNN (famille 11).")
-    parser.add_argument("--db", default=str(DB_PATH))
-    parser.add_argument("--write", action="store_true",
-                        help="Écrit la table (sinon read-only, diagnostic seul).")
-    parser.add_argument("--validate", action="store_true",
-                        help="Valide le KNN par masquage (RMSE), sans écrire.")
-    args = parser.parse_args()
-
-    con = duckdb.connect(args.db, read_only=not args.write)
+def main(write=False, validate=False, db=None):
+    """Clusters de style + imputation KNN (famille 11).
+    write=True écrit player_style_clusters + zonal_profiles_imputed.
+    Ferme la connexion à la fin — indispensable quand l'orchestrateur enchaîne
+    d'autres steps (DuckDB = un seul writer)."""
+    con = duckdb.connect(db or str(DB_PATH), read_only=not write)
     df = load_player_profiles(con)
-
     print(f"Profils joueur-saison : {len(df):,} | avec position : {df['gv'].notna().sum():,}")
 
     off_int, _, _, _ = fit_style_clusters(df, OFFENSIVE_FEATURES, "offensive")
@@ -278,12 +273,12 @@ if __name__ == "__main__":
     def_canon = to_canonical(df, def_int, "defensive")
     characterize(df, def_canon, DEFENSIVE_FEATURES, "defensive")
 
-    if args.write:
+    if write:
         write_clusters(con, df, off_canon, def_canon)
         coords_df, zon = load_impute_context(con)
         write_imputed(con, impute_zonal_table(con, coords_df, zon))
 
-    if args.validate:
+    if validate:
         coords_df, zon = load_impute_context(con)
         csets = KNN_CFG["coordinate_sets"]
         print(f"\n{'cible':40}{'KNN':>8}{'cluster':>9}{'global':>8}{'n':>10}")
@@ -292,3 +287,16 @@ if __name__ == "__main__":
                                             t["feature"], csets[t["coords"]], t["side"])
             best = "KNN" if rk < rc and rk < rg else ("cluster" if rc < rg else "global")
             print(f"{t['feature']:40}{rk:8.3f}{rc:9.3f}{rg:8.3f}{n:10,}  -> {best}")
+
+    con.close()
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Clusters de style + KNN (famille 11).")
+    parser.add_argument("--db", default=str(DB_PATH))
+    parser.add_argument("--write", action="store_true",
+                        help="Écrit la table (sinon read-only, diagnostic seul).")
+    parser.add_argument("--validate", action="store_true",
+                        help="Valide le KNN par masquage (RMSE), sans écrire.")
+    args = parser.parse_args()
+    main(write=args.write, validate=args.validate, db=args.db)

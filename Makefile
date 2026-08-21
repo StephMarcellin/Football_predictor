@@ -72,6 +72,20 @@ pipeline-refresh: check-env
 	$(PYTHON) $(PIPELINE) --full-refresh
 
 # ============================================================
+#  FLUX COMPOSES (daily / weekly / rare)
+# ============================================================
+daily: check-env
+	$(PYTHON) $(PIPELINE) --flow daily
+
+daily-dry: check-env
+	$(PYTHON) $(PIPELINE) --flow daily --dry-run
+
+weekly: check-env
+	$(PYTHON) $(PIPELINE) --flow weekly
+
+rare: check-env
+	$(PYTHON) $(PIPELINE) --flow rare
+# ============================================================
 #  ETAPES BRONZE / SILVER (lancées directement, pas via orchestrateur)
 # ============================================================
 ingest: check-env
