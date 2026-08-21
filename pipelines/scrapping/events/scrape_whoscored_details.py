@@ -556,7 +556,7 @@ def human_delay(min_s: float = 2.0, max_s: float = 5.0):
 
 def wait_for_loading(driver, timeout: int = 10):
     try:
-        WebDriverWait(driver, 2).until(
+        WebDriverWait(driver, random.uniform(2, 4)).until(
             EC.presence_of_element_located((By.CLASS_NAME, "loading-mask"))
         )
         WebDriverWait(driver, timeout).until(
