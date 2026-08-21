@@ -1,0 +1,99 @@
+version: 2
+
+models:
+  # ── grain (match_id, team_id) ───────────────────────────────────────────────
+  - name: mart_1n2
+    description: >
+      Mart du modèle 1N2 — grain (match_id, team_id). Pure sélection des features
+      match-équipe + cible result_1n2 (H/D/A). result_1n2 est NULL pour les matchs
+      à venir (servis par predict_1n2), d'où accepted_values plutôt que not_null.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [match_id, team_id]
+    columns:
+      - name: match_id
+        tests: [not_null]
+      - name: team_id
+        tests: [not_null]
+      - name: result_1n2
+        description: "Cible : résultat vu de l'équipe. NULL = match à venir."
+        tests:
+          - accepted_values:
+              values: ['H', 'D', 'A']
+
+  - name: mart_goals
+    description: "Mart buts marqués — grain (match_id, team_id). Cible team_goals."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [match_id, team_id]
+    columns:
+      - name: match_id
+        tests: [not_null]
+      - name: team_id
+        tests: [not_null]
+      - name: team_goals
+        description: "Cible : buts marqués par l'équipe dans le match."
+        tests: [not_null]
+
+  # ── grain (match_id, team_id, player_id) ────────────────────────────────────
+  - name: mart_scorers
+    description: "Mart buteurs — grain (match_id, team_id, player_id). Cible scored (0/1, hors csc)."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [match_id, team_id, player_id]
+    columns:
+      - name: match_id
+        tests: [not_null]
+      - name: team_id
+        tests: [not_null]
+      - name: player_id
+        tests: [not_null]
+      - name: scored
+        description: "Cible binaire : 1 = a marqué ≥1 but (hors csc)."
+        tests:
+          - not_null
+          - accepted_values:
+              values: [0, 1]
+
+  - name: mart_assists
+    description: "Mart passeurs — grain (match_id, team_id, player_id). Cible assisted (0/1)."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [match_id, team_id, player_id]
+    columns:
+      - name: match_id
+        tests: [not_null]
+      - name: team_id
+        tests: [not_null]
+      - name: player_id
+        tests: [not_null]
+      - name: assisted
+        description: "Cible binaire : 1 = ≥1 passe décisive dans le match."
+        tests:
+          - not_null
+          - accepted_values:
+              values: [0, 1]
+
+  # ── grain (match_id) ────────────────────────────────────────────────────────
+  - name: mart_events
+    description: >
+      Mart cartons/corners — grain (match_id). Cibles total_cards, total_corners.
+      NULLs actuels = couverture compos 2025-26 incomplète → not_null en warn.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [match_id]
+    columns:
+      - name: match_id
+        tests:
+          - not_null
+          - unique
+      - name: total_cards
+        description: "Cible : total cartons (jaunes + rouges) des deux équipes."
+        tests:
+          - not_null:
+              config: {severity: warn}
+      - name: total_corners
+        description: "Cible : total corners du match (dépend des lineups WhoScored)."
+        tests:
+          - not_null:
+              config: {severity: warn}

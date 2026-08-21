@@ -630,3 +630,33 @@ models:
         description: "Part des coups francs obtenus centrés dans la surface, sur 10 matchs"
       - name: freekick_zone_crossed_rate_against_10
         description: "Part des coups francs concédés centrés dans la surface par l'adversaire, sur 10 matchs"
+  - name: equipe_confrontation_zone
+    description: >
+        Confrontations zonales pivotées au grain (match_id, team_id) : perspective
+        offensive + défensive par couloir. Consommé par les marts.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [match_id, team_id]
+    columns:
+      - name: match_id
+        tests: [not_null]
+      - name: team_id
+        tests: [not_null]
+
+  - name: equipe_gardien_match
+    description: >
+      Profil de saison décalé du gardien titulaire rattaché à l'équipe —
+      grain (match_id, team_id). Clés NULL résiduelles = compos manquantes
+      (scraping 2025-26), tracées en warn le temps de compléter la couverture.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [match_id, team_id]
+    columns:
+      - name: match_id
+        tests:
+          - not_null:
+              config: {severity: warn}
+      - name: team_id
+        tests:
+          - not_null:
+              config: {severity: warn}
