@@ -337,7 +337,8 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
     try:
         mod_01  = _import_from_path("ingest_01",    ROOT_DIR / "pipelines" / "ingest" / "01_ingest.py")
         mod_01b = _import_from_path("odds_01b",     ROOT_DIR / "pipelines" / "ingest" / "01b_odds.py")
-        mod_02  = _import_from_path("process_02",   ROOT_DIR / "pipelines" / "ingest" / "02_process.py")
+        mod_pe  = _import_from_path("process_events_mod",     ROOT_DIR / "pipelines" / "ingest" / "process_events.py")
+        mod_pts = _import_from_path("process_team_stats_mod", ROOT_DIR / "pipelines" / "ingest" / "process_team_stats.py")
         # mod_04  = _import_from_path("",             ROOT_DIR / "pipelines" / "legacy" / "04_train.py")
         mod_04  = _import_from_path("train_04",     ROOT_DIR / "pipelines" / "legacy" / "04_train.py")
         mod_05  = _import_from_path("predict_05",   ROOT_DIR / "pipelines" / "legacy" / "05_predict.py")
@@ -370,8 +371,13 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
             "kwargs":   {},
             "critical": True,
         },
-        "process": {
-            "fn":       mod_02.main,
+        "process_events": {
+            "fn":       mod_pe.main,
+            "kwargs":   {},
+            "critical": True,
+        },
+        "process_team_stats": {
+            "fn":       mod_pts.main,
             "kwargs":   {},
             "critical": True,
         },
@@ -779,7 +785,8 @@ def create_prefect_artifacts(cfg: dict) -> None:
 STEP_NAMES = ["dbt_seed",
               "ingest",
               "odds",
-              "process",
+              "process_events",
+              "process_team_stats",
               "validate_silver",
               "dbt_run",
               "dbt_xt_actions",
