@@ -65,7 +65,7 @@ if sys.platform == "win32":
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 # ── Racine du projet (dossier qui contient config.yaml, pipelines/, etc.) ──────
-ROOT_DIR = Path(__file__).resolve().parent.parent
+ROOT_DIR = next(p for p in Path(__file__).resolve().parents if (p / "config.yaml").exists())
 
 
 # ══════════════════════════════════════════════════════════════════════════════
