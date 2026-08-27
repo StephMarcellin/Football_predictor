@@ -43,11 +43,11 @@ OUTPUT
 
 USAGE
 ──────
-  python pipelines/scrape_whoscored_details.py
-  python pipelines/scrape_whoscored_details.py --limit 50
-  python pipelines/scrape_whoscored_details.py --ws-id 1901082
-  python pipelines/scrape_whoscored_details.py --headless
-  python pipelines/scrape_whoscored_details.py --dry-run
+  python scrape_whoscored_details.py
+  python scrape_whoscored_details.py --limit 50
+  python scrape_whoscored_details.py --ws-id 1741059
+  python scrape_whoscored_details.py --headless
+  python scrape_whoscored_details.py --dry-run
 """
 
 import json
