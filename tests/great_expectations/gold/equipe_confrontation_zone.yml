@@ -1,0 +1,139 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — gold.equipe_confrontation_zone
+# Rôle : SIGNAL & DISTRIBUTIONS (les tests de STRUCTURE sont dans dbt schema.yml)
+# Contrainte spatiotemporelle : WhoScored ≥ 2017-2018 → JOIN match_registry pour
+#   récupérer `season` et filtrer.
+# Lu et exécuté par tests/great_expectations/runner.py
+# ══════════════════════════════════════════════════════════════════════════════
+
+suite_name: gold.equipe_confrontation_zone
+description: >
+  Signal statistique de la table pivot des confrontations zonales par équipe/match.
+  Cette table étant issue à 100 % de la chaîne WhoScored, elle est filtrée aux
+  saisons ≥ 2017-2018 via une jointure sur intermediate.match_registry.
+
+source:
+  duckdb_path: db/football.duckdb
+  # NB : on projette explicitement pour éviter les colonnes techniques dbt_backup
+  query: |
+    SELECT
+      ecz.match_id, ecz.team_id, mr.season,
+      ecz.off_danger_gauche, ecz.off_danger_axe, ecz.off_danger_droit,
+      ecz.off_cross_gauche,  ecz.off_cross_droit,
+      ecz.off_dribble_gauche, ecz.off_dribble_droit,
+      ecz.off_central_axe,
+      ecz.def_danger_gauche, ecz.def_danger_axe, ecz.def_danger_droit,
+      ecz.def_cross_gauche,  ecz.def_cross_droit,
+      ecz.def_dribble_gauche, ecz.def_dribble_droit,
+      ecz.def_central_axe
+    FROM gold.equipe_confrontation_zone ecz
+    JOIN intermediate.match_registry   mr USING (match_id)
+    WHERE mr.season >= '2017-2018'
+
+# Colonnes zonales couvertes par la règle "NULL interdit + pas 100% zéros"
+_columns_zonales: &columns_zonales
+  - off_danger_gauche
+  - off_danger_axe
+  - off_danger_droit
+  - off_cross_gauche
+  - off_cross_droit
+  - off_dribble_gauche
+  - off_dribble_droit
+  - off_central_axe
+  - def_danger_gauche
+  - def_danger_axe
+  - def_danger_droit
+  - def_cross_gauche
+  - def_cross_droit
+  - def_dribble_gauche
+  - def_dribble_droit
+  - def_central_axe
+
+expectations:
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 1. VOLUMÉTRIE — la table doit contenir des lignes après filtre saisonnier
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 30000, max_value: 100000 }
+    severity: error
+    meta: { description: "Volumétrie totale post-2017 attendue entre 30k et 100k lignes." }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 2. COMPLÉTION — NULL INTERDIT sur toutes les colonnes zonales
+  #    Règle métier validée : chaque équipe attaque ET défend dans chaque match.
+  #    Cette assertion détecte le bug actuel (100 % NULL) — échec attendu.
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_column_values_to_not_be_null
+    for_each_column: *columns_zonales
+    kwargs: { mostly: 1.00 }
+    severity: error
+    meta:
+      description: "NULL interdit — toute équipe a un profil off ET def pour chaque match."
+      fires_on_current_bug: true
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 3. MATRICE DE ZÉROS — pas plus de 40 % des valeurs à zéro par colonne
+  #    Signal typique de perte de branche de calcul (aggrégat qui ne matche pas).
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_column_value_zero_ratio_to_be_below
+    for_each_column: *columns_zonales
+    kwargs: { max_ratio: 0.40 }
+    severity: error
+    meta: { description: "Une colonne >40 % zéros signale un pipeline en silence." }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 4. BORNES STATISTIQUES — moyennes cohérentes avec la nature de la métrique
+  #    Les valeurs sont des produits normalisés dans [0, ~3]. Une moyenne
+  #    proche de 0 ou explosive = régression de calcul.
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_column_mean_to_be_between
+    for_each_column:
+      - off_danger_gauche
+      - off_danger_axe
+      - off_danger_droit
+      - def_danger_gauche
+      - def_danger_axe
+      - def_danger_droit
+    kwargs: { min_value: 0.05, max_value: 2.0 }
+    severity: error
+
+  - type: expect_column_mean_to_be_between
+    for_each_column:
+      - off_cross_gauche
+      - off_cross_droit
+      - def_cross_gauche
+      - def_cross_droit
+      - off_dribble_gauche
+      - off_dribble_droit
+      - def_dribble_gauche
+      - def_dribble_droit
+    kwargs: { min_value: 0.01, max_value: 1.5 }
+    severity: warn   # zones fines → tolérance plus large
+
+  - type: expect_column_mean_to_be_between
+    for_each_column: [off_central_axe, def_central_axe]
+    kwargs: { min_value: 0.1, max_value: 5.0 }
+    severity: warn   # ratio de contrôle, borne large
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 5. BORNES DE VALEURS — pas de valeur négative (produit de proba × ratio > 0)
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_column_values_to_be_between
+    for_each_column: *columns_zonales
+    kwargs: { min_value: 0, max_value: 10, allow_cross_type_comparisons: true }
+    severity: warn
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 6. DÉRIVE VOLUMÉTRIQUE INTER-SAISONS
+  #    On compare la saison en cours (la plus récente non vide) à la moyenne
+  #    des 2 saisons pleines précédentes. Écart >20 % = warn, >40 % = error.
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.20
+      max_deviation_error: 0.40
+      min_seasons_history: 2
+    severity: warn
+    meta: { description: "Détecte une perte de matches dans la dernière saison." }
