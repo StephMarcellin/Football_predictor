@@ -26,6 +26,9 @@ Scheduling Prefect :
         deployment_name   — nom affiché dans l'UI Prefect
         retries           — tentatives automatiques par étape
         retry_delay_seconds — délai entre tentatives
+
+    tables_update suppose que models/xgot.joblib et la table xt_grid existent déjà (xgot_score et int_xt_contributions les consomment). 
+    Sur une base neuve, lance --refit d'abord.
 """
 
 from __future__ import annotations
@@ -66,6 +69,18 @@ if sys.platform == "win32":
 # ROOT_DIR = le dossier qui contient run_pipeline.py, config.yaml, pipelines/, etc.
 ROOT_DIR = Path(__file__).resolve().parent.parent
 
+TABLES_UPDATE = ["dbt_transform", "xgot_score", "knn_impute",
+                 "dbt_transform_downstream", "dbt_test"]
+TABLES_REFIT = ["xt_grid", "xgot_train"]
+
+FLOWS = {
+    # transform + prédiction, PAS d'entraînement
+    "daily":  TABLES_UPDATE + ["predict_ensemble"],
+    # ré-entraînement des modèles + backtest
+    "weekly": ["train_1n2", "train_goals", "backtest_1n2"],
+    # refit des artefacts coûteux (grille xT ; xGOT à venir)
+    "rare":   TABLES_REFIT,
+}
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SECTION 1 — Configuration
@@ -163,7 +178,7 @@ def run_dbt_seed(refresh: bool = False) -> None:
     if result.returncode != 0:
         raise RuntimeError(f"dbt seed a échoué :\n{result.stderr[-1000:]}")
 
-def run_dbt_run(select: str = None,full_refresh: bool = False) -> None:
+def run_dbt_run(select: str = None, exclude: str = None, full_refresh: bool = False) -> None:
     """
     Lance dbt run depuis dbt_project/.
     Exécute les modèles dbt.
@@ -177,6 +192,8 @@ def run_dbt_run(select: str = None,full_refresh: bool = False) -> None:
     cmd = ["dbt", "run", "--profiles-dir", str(Path.home() / ".dbt")]
     if select:
         cmd += ["--select", select]
+    if exclude:
+        cmd += ["--exclude", exclude]
     if full_refresh:
         cmd += ["--full-refresh"]
     result = subprocess.run(
@@ -318,15 +335,16 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
     # On est obligé de passer par cette méthode car les noms des scripts commencent par un chiffre
     # Si un script est introuvable, on lève une erreur claire
     try:
-        mod_01  = _import_from_path("ingest_01",    ROOT_DIR / "pipelines" / "01_ingest.py")
-        mod_01b = _import_from_path("odds_01b",     ROOT_DIR / "pipelines" / "01b_odds.py")
-        mod_02  = _import_from_path("process_02",   ROOT_DIR / "pipelines" / "02_process.py")
-        # mod_04  = _import_from_path("",             ROOT_DIR / "pipelines" / "04_train.py")
-        mod_04  = _import_from_path("train_04",     ROOT_DIR / "pipelines" / "04_train.py")
-        mod_05  = _import_from_path("predict_05",   ROOT_DIR / "pipelines" / "05_predict.py")
-        mod_06  = _import_from_path("backtest_06",  ROOT_DIR / "pipelines" / "06_backtest.py")
-        mod_xt  = _import_from_path("xt_grid_mod",  ROOT_DIR / "pipelines" / "xt_grid.py")
-        mod_xgot = _import_from_path("xgot_score_mod", ROOT_DIR / "pipelines" / "xgot_score.py")
+        mod_01  = _import_from_path("ingest_01",    ROOT_DIR / "pipelines" / "ingest" / "01_ingest.py")
+        mod_01b = _import_from_path("odds_01b",     ROOT_DIR / "pipelines" / "ingest" / "01b_odds.py")
+        mod_pe  = _import_from_path("process_events_mod",     ROOT_DIR / "pipelines" / "ingest" / "process_events.py")
+        mod_pts = _import_from_path("process_team_stats_mod", ROOT_DIR / "pipelines" / "ingest" / "process_team_stats.py")
+        # mod_04  = _import_from_path("",             ROOT_DIR / "pipelines" / "legacy" / "04_train.py")
+        mod_04  = _import_from_path("train_04",     ROOT_DIR / "pipelines" / "legacy" / "04_train.py")
+        mod_05  = _import_from_path("predict_05",   ROOT_DIR / "pipelines" / "legacy" / "05_predict.py")
+        mod_06  = _import_from_path("backtest_06",  ROOT_DIR / "pipelines" / "legacy" / "06_backtest.py")
+        mod_xt  = _import_from_path("xt_grid_mod",  ROOT_DIR / "pipelines" / "features" / "xt_grid.py")
+        mod_xgot = _import_from_path("xgot_score_mod", ROOT_DIR / "pipelines" / "features" / "xgot_score.py")
 
     except FileNotFoundError as e:
         logger.error(f"Script introuvable : {e}")
@@ -353,8 +371,13 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
             "kwargs":   {},
             "critical": True,
         },
-        "process": {
-            "fn":       mod_02.main,
+        "process_events": {
+            "fn":       mod_pe.main,
+            "kwargs":   {},
+            "critical": True,
+        },
+        "process_team_stats": {
+            "fn":       mod_pts.main,
             "kwargs":   {},
             "critical": True,
         },
@@ -462,6 +485,92 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
             "critical": False,
         },
     }
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Blocs réutilisables de construction des tables
+#   tables_update : rafraîchit toutes les tables "appliquées" (dbt + xgot + KNN)
+#   tables_refit  : refit des artefacts coûteux (grille xT ; modèle xGOT à venir)
+# L'ordre est défini UNE fois ici ; les flux (daily/weekly) composeront ces blocs.
+# ══════════════════════════════════════════════════════════════════════════════
+def build_table_steps(cfg: dict, full_refresh: bool = False) -> dict:
+    """Catalogue des steps de construction des tables. Les frontières de phase
+    autour du KNN/xgot viennent du DAG dbt (opérateur '+' : int_keeper_shots+ =
+    la chaîne gardien jusqu'aux marts ; joueur_match+ = jusqu'à mart_scorers)."""
+    mod_xgot = _import_from_path("xgot_score_mod", ROOT_DIR / "pipelines" / "features" / "xgot_score.py")
+    mod_knn  = _import_from_path("knn_mod",        ROOT_DIR / "pipelines" / "features" / "03_knn_impute.py")
+    mod_xt   = _import_from_path("xt_grid_mod",    ROOT_DIR / "pipelines" / "features" / "xt_grid.py")
+    mod_xgt = _import_from_path("xgot_train_mod", ROOT_DIR / "pipelines" / "xgot_train.py")
+    return {
+        # ── tables_update ────────────────────────────────────────────────────
+        # Phase 1 : TOUT sauf les 8 modèles en aval des sorties Python.
+        "dbt_transform": {
+            "fn":       run_dbt_run,
+            "kwargs":   {"exclude": "int_keeper_shots+ joueur_match+",
+                         "full_refresh": full_refresh},
+            "critical": True,
+        },
+        # Applique le modèle xGOT existant → machine_learning.xgot_predictions.
+        "xgot_score": {
+            "fn":       mod_xgot.main,
+            "kwargs":   {},
+            "critical": False,
+        },
+        # Imputation KNN → zonal_profiles_imputed (+ player_style_clusters).
+        "knn_impute": {
+            "fn":       mod_knn.main,
+            "kwargs":   {"write": True},
+            "critical": True,
+        },
+        # Phase 2 : les 8 modèles en aval (chaîne gardien → marts ; joueur_match → mart_scorers).
+        "dbt_transform_downstream": {
+            "fn":       run_dbt_run,
+            "kwargs":   {"select": "int_keeper_shots+ joueur_match+"},
+            "critical": True,
+        },
+        "dbt_test": {
+            "fn":       run_dbt_test,
+            "kwargs":   {},
+            "critical": False,
+        },
+        # ── tables_refit (rare) ──────────────────────────────────────────────
+        "xt_grid": {   # refit de la grille xT → machine_learning.xt_grid
+            "fn":       mod_xt.main,
+            "kwargs":   {},
+            "critical": False,
+        },
+        "xgot_train": {   # refit du modèle xGOT → models/xgot.joblib
+            "fn":       mod_xgt.run,
+            "kwargs":   {},              # dry_run=False par défaut → entraîne + écrit
+            "critical": False,
+        },
+    }
+
+def build_flow_steps(cfg: dict, full_refresh: bool = False) -> dict:
+    """Catalogue complet : steps de tables (build_table_steps) + entraînement,
+    prédiction, backtest. Les flux (FLOWS) piochent dedans par nom — l'ordre de
+    construction des tables n'est défini qu'à un seul endroit."""
+    steps = build_table_steps(cfg, full_refresh)
+    mod_t1 = _import_from_path("train_1n2_mod",    ROOT_DIR / "pipelines" / "models" / "train_1n2.py")
+    mod_tg = _import_from_path("train_goals_mod",  ROOT_DIR / "pipelines" / "models" / "train_goals.py")
+    mod_pe = _import_from_path("predict_ens_mod",  ROOT_DIR / "pipelines" / "models" / "predict_ensemble.py")
+    mod_bt = _import_from_path("backtest_1n2_mod", ROOT_DIR / "pipelines" / "models" / "backtest_1n2.py")
+    current_season = cfg.get("predict", {}).get("current_season", "2025-2026")
+    steps.update({
+        "train_1n2":   {"fn": mod_t1.main, "kwargs": {}, "critical": True},
+        "train_goals": {"fn": mod_tg.main, "kwargs": {}, "critical": True},
+        "predict_ensemble": {
+            "fn":       mod_pe.main,
+            "kwargs":   {"season": current_season, "write": True},
+            "critical": False,
+        },
+        "backtest_1n2": {
+            "fn":       mod_bt.main,
+            "kwargs":   {"season": cfg["train"]["TEST_SEASON"]},
+            "critical": False,
+        },
+    })
+    return steps
+
 
 def _import_from_path(module_name: str, path: Path):
     """
@@ -676,7 +785,8 @@ def create_prefect_artifacts(cfg: dict) -> None:
 STEP_NAMES = ["dbt_seed",
               "ingest",
               "odds",
-              "process",
+              "process_events",
+              "process_team_stats",
               "validate_silver",
               "dbt_run",
               "dbt_xt_actions",
@@ -738,6 +848,14 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Affiche les étapes disponibles et quitte",
     )
+
+    parser.add_argument("--tables", action="store_true",
+                        help="Bloc tables_update : dbt transform → xgot → KNN → downstream → test")
+    parser.add_argument("--refit", action="store_true",
+                        help="Bloc tables_refit : refit grille xT (xGOT à venir)")
+    parser.add_argument("--flow", choices=["daily", "weekly", "rare"],
+                        help="Flux composé : daily=tables+predict, weekly=train+backtest, rare=refit")
+    
     parser.add_argument(
         "--serve",
         action="store_true",
@@ -777,6 +895,23 @@ def main() -> None:
         retries=pipeline_cfg.get("retries", 2),
         retry_delay_seconds=pipeline_cfg.get("retry_delay_seconds", 30),
     )
+
+        # ── Blocs réutilisables de construction des tables ────────────────────────
+    if args.tables or args.refit:
+        table_steps  = build_table_steps(cfg, full_refresh=args.full_refresh)
+        block        = TABLES_UPDATE if args.tables else TABLES_REFIT
+        steps_to_run = {n: table_steps[n] for n in block}
+        results = run_pipeline(steps_to_run, dry_run=args.dry_run, run_step_task=run_step_task)
+        print_summary(results)
+        sys.exit(1 if [r for r in results if r["status"] == "FAILED"] else 0)
+
+        # ── Flux composés (daily / weekly / rare) ─────────────────────────────────
+    if args.flow:
+        catalog      = build_flow_steps(cfg, full_refresh=args.full_refresh)
+        steps_to_run = {n: catalog[n] for n in FLOWS[args.flow]}
+        results = run_pipeline(steps_to_run, dry_run=args.dry_run, run_step_task=run_step_task)
+        print_summary(results)
+        sys.exit(1 if [r for r in results if r["status"] == "FAILED"] else 0)
 
     # ── Mode --serve : démarre le scheduler Prefect (bloquant) ───────────────
     # Ce mode ne lance pas le pipeline immédiatement.

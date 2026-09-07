@@ -46,7 +46,7 @@ prof AS (
         CAST(substr(jz.zone_5x5, 2, 1) AS INTEGER) AS z,
         CAST(substr(jz.zone_5x5, 5, 1) AS INTEGER) AS c
     FROM xi x
-    JOIN {{ source('machine_learning', 'zonal_profiles_imputed') }} jz
+    JOIN {{ ref('joueur_zone_saison') }} jz
         ON jz.player_id = x.player_id AND jz.season = x.season
 )
 

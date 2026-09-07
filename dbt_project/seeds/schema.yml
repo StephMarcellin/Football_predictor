@@ -1,0 +1,124 @@
+version: 2
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Tests dbt sur les seeds du projet
+# ─ team_mapping        : correspondance alias → club_name canonique + team_id
+# ─ competition_mapping : correspondance alias → competition_name + catégorie
+# ─ transfermarkt_clubs : valeurs de marché par (club, saison)
+#
+# Rappel de la charte : dbt = STRUCTURE (clés, FK, valeurs autorisées, cohérence
+# fonctionnelle). Le signal statistique (bornes market_value, dérive) va en GE.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+seeds:
+
+  # ───────────────────────────────────────────────────────────────────────────
+  - name: team_mapping
+    description: >
+      Table de correspondance orthographe brute → nom canonique + team_id.
+      Contraintes métier :
+        • chaque alias résout à un seul mapping (unique)
+        • un team_id a un seul club_name canonique (dépendance fonctionnelle)
+        • un club_name a un seul team_id (réciproque)
+        • aucune paire de team_id distincts ne doit avoir des noms suspects
+          proches par normalisation tokens (warn heuristique)
+    columns:
+      - name: alias
+        description: "Orthographe brute d'un club rencontrée dans une source (FBref, Understat, WhoScored, Pinnacle)."
+        tests:
+          - not_null
+          - unique
+      - name: club_name
+        description: "Nom canonique du club (référence unique par team_id)."
+        tests:
+          - not_null
+      - name: team_id
+        description: "Identifiant canonique de l'équipe."
+        tests:
+          - not_null
+    tests:
+      - one_value_per_key:
+          arguments:
+            key_column: team_id
+            value_column: club_name
+      - one_value_per_key:
+          arguments:
+            key_column: club_name
+            value_column: team_id
+      - no_suspicious_similar_names:
+          arguments:
+            key_column: team_id
+            name_column: club_name
+          config:
+            severity: warn
+
+  # ───────────────────────────────────────────────────────────────────────────
+  - name: competition_mapping
+    description: >
+      Table de correspondance orthographe brute → competition_name + catégorie.
+      Contraintes métier :
+        • chaque alias résout à un seul mapping (unique)
+        • un competition_name a une seule catégorie (dépendance fonctionnelle)
+        • category ∈ {Big5, Cup, Europe, D2, Other}
+    columns:
+      - name: alias
+        description: "Orthographe brute d'une compétition rencontrée dans une source."
+        tests:
+          - not_null
+          - unique
+      - name: competition_name
+        description: "Nom canonique de la compétition."
+        tests:
+          - not_null
+      - name: category
+        description: "Catégorie métier : Big5 / Cup / Europe / D2 / Other."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Big5', 'Cup', 'Europe', 'D2', 'Other']
+    tests:
+      - one_value_per_key:
+          arguments:
+            key_column: competition_name
+            value_column: category
+
+  # ───────────────────────────────────────────────────────────────────────────
+  - name: transfermarkt_clubs
+    description: >
+      Valeurs de marché Transfermarkt par (club, saison).
+      Contraintes métier :
+        • grain (club_tm_id, season) unique
+        • season au format YYYY-YYYY
+        • market_value_m strictement positif
+      Note : club_tm_id est propre à Transfermarkt et n'est PAS relié à team_mapping.team_id.
+    columns:
+      - name: club_name
+        description: "Nom du club selon Transfermarkt (peut différer du club_name canonique)."
+        tests:
+          - not_null
+      - name: club_tm_id
+        description: "Identifiant Transfermarkt (référentiel externe indépendant)."
+        tests:
+          - not_null
+      - name: league
+        description: "Championnat d'appartenance selon Transfermarkt."
+        tests:
+          - not_null
+      - name: season
+        description: "Saison au format YYYY-YYYY."
+        tests:
+          - not_null
+          - matches_regex:
+              arguments:
+                pattern: '^\d{4}-\d{4}$'
+      - name: market_value_m
+        description: "Valeur marchande de l'effectif en millions d'euros."
+        tests:
+          - not_null
+          - is_positive
+      - name: club_url
+        description: "URL Transfermarkt du club. Non testée (peut évoluer)."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [club_tm_id, season]

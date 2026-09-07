@@ -43,11 +43,11 @@ OUTPUT
 
 USAGE
 ──────
-  python pipelines/scrape_whoscored_details.py
-  python pipelines/scrape_whoscored_details.py --limit 50
-  python pipelines/scrape_whoscored_details.py --ws-id 1901082
-  python pipelines/scrape_whoscored_details.py --headless
-  python pipelines/scrape_whoscored_details.py --dry-run
+  python scrape_whoscored_details.py
+  python scrape_whoscored_details.py --limit 50
+  python scrape_whoscored_details.py --ws-id 1741059
+  python scrape_whoscored_details.py --headless
+  python scrape_whoscored_details.py --dry-run
 """
 
 import json
@@ -556,7 +556,7 @@ def human_delay(min_s: float = 2.0, max_s: float = 5.0):
 
 def wait_for_loading(driver, timeout: int = 10):
     try:
-        WebDriverWait(driver, 2).until(
+        WebDriverWait(driver, random.uniform(2, 4)).until(
             EC.presence_of_element_located((By.CLASS_NAME, "loading-mask"))
         )
         WebDriverWait(driver, timeout).until(

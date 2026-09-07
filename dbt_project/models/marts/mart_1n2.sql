@@ -37,9 +37,12 @@ base as (
 
 -- Profil d'équipe : forme/style (equipe_match) + qualité du onze (equipe_lineup_match).
 team_profile as (
-    select em.*, lu.* exclude (match_id, team_id)
+    select em.*,
+           lu.* exclude (match_id, team_id),
+           fm.* exclude (match_id, team_id, formation_id)   -- features formation Phase 4
     from {{ ref('equipe_match') }} em
-    left join {{ ref('equipe_lineup_match') }} lu using (match_id, team_id)
+    left join {{ ref('equipe_lineup_match') }}  lu using (match_id, team_id)
+    left join {{ ref('int_lineup_formation') }} fm using (match_id, team_id)
 ),
 
 -- Le même profil, toutes colonnes préfixées opp_ (pour l'adversaire).
@@ -50,9 +53,12 @@ team_profile_opp as (
 
 -- Directionnel soi↔adversaire : H2H + pressing vs relance. Grain (match, team).
 directional as (
-    select h2h.*, conf.* exclude (match_id, team_id, opponent_id)
+    select h2h.*,
+           conf.* exclude (match_id, team_id, opponent_id),
+           fmu.*  exclude (match_id, team_id, opponent_id)   -- matchup formation Phase 4B
     from {{ ref('equipe_adversaire_match') }} h2h
-    left join {{ ref('equipe_confrontation_match') }} conf using (match_id, team_id)
+    left join {{ ref('equipe_confrontation_match') }}    conf using (match_id, team_id)
+    left join {{ ref('int_formation_matchup_match') }}   fmu  using (match_id, team_id)
 )
 
 

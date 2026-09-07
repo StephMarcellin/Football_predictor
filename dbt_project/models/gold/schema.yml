@@ -1,632 +1,1095 @@
+# Documentation + tests dbt des tables Gold (spec CDC).
+# Généré pour la couche gold-features. Chaque feature est décrite ; tests : unicité de clé,
+# not_null sur les clés, accepted_range [0,1] sur les taux.
+
 version: 2
-
 models:
-  - name: features_rolling
-    description: >
-      Rolling windows W=3/5/10 depuis intermediate.backbone.
-      1 ligne par équipe par match — consommée par features_draw et features_whoscored.
-    config:
-      alias: features_rolling
-
-    columns:
-      - name: date
-        description: "Date du match"
-        tests:
-          - not_null
-      - name: team
-        description: "Nom de l'équipe"
-        tests:
-          - not_null
-      - name: opponent
-        description: "Nom de l'adversaire"
-        tests:
-          - not_null
-      - name: match_id
-        description: "ID unique du match provenant du backbone"
-      - name: days_since_last_match
-        description: "Nombre de jours depuis le dernier match"
-      - name: is_short_rest
-        description: "Flag (1/0) si le repos est inférieur à 4 jours"
-      - name: is_return_from_break
-        description: "Flag (1/0) si le dernier match remonte à plus de 20 jours"
-      - name: formation
-        description: "Système de jeu annoncé (ex: 4-3-3)"
-      - name: form_n_defenders
-        description: "Nombre de défenseurs extrait de la formation"
-      - name: form_familiarity_5
-        description: "Stabilité du système sur les 5 derniers matchs (0 à 1)"
-      - name: form_change_flag
-        description: "1 si l'équipe a changé de système par rapport au match précédent"
-      - name: pinnacle_prob_team
-        description: "Probabilité implicite de victoire de l'équipe (Pinnacle)"
-      - name: market_prob_team
-        description: "Probabilité moyenne du marché pour la victoire de l'équipe"
-      - name: season_att_rating
-        description: "Rating offensif de la saison précédente"
-      - name: season_def_rating
-        description: "Rating défensif de la saison précédente"
-      - name: np_xg_roll_3
-        description: "Moyenne npxG sur les 3 derniers matchs"
-      - name: np_xg_roll_5
-        description: "Moyenne npxG sur les 5 derniers matchs"
-      - name: np_xg_roll_10
-        description: "Moyenne npxG sur les 10 derniers matchs"
-      - name: xg_net_roll_5
-        description: "Différentiel xG moyen sur 5 matchs (produit - concédé)"
-      - name: shot_quality_ratio_5
-        description: "Qualité moyenne des tirs (npxG / shots_total) sur 5 matchs"
-      - name: ppda_ratio_roll_5
-        description: "Ratio pressing (PPDA / PPDA allowed) sur 5 matchs"
-      - name: sterility_index_5
-        description: "Indice de possession stérile sur 5 matchs"
-      - name: shield_efficiency_5
-        description: "Efficacité défensive pondérée par les xG concédés sur 5 matchs"
-      - name: win_rate_roll_5
-        description: "Taux de victoire sur les 5 derniers matchs"
-      - name: points_pg_roll_5
-        description: "Points par match sur les 5 derniers matchs"
-      - name: draw_rate_5
-        description: "Taux de nul sur les 5 derniers matchs"
-      - name: home_win_rate_hist
-        description: "Taux de victoire à domicile sur toute l'histoire du club"
-
-  - name: features_draw
-    description: >
-      20 features (F1-F20) de détection de match nul + features comparatives équipe vs adversaire.
-      Calculées depuis intermediate.backbone et gold.features_rolling.
-      Certaines features WhoScored (F6, F13, F14) sont NULL en attente de migration whoscored.py.
-
-    columns:
-      - name: date
-        description: "Date du match"
-        tests:
-          - not_null
-      - name: team
-        description: "Nom de l'équipe"
-        tests:
-          - not_null
-      - name: league_source
-        description: "Compétition source"
-        tests:
-          - not_null
-
-      # ── AXE 1 — Détecteurs de match bloqué ──────────────────────────────────
-      - name: f1_mutual_cancel_idx
-        description: "Index d'annulation mutuelle — stérilité × stérilité adverse / (save_rate + save_rate adverse)"
-      - name: f2_defensive_mirror
-        description: "Symétrie défensive — 1 - |zone_att_pct - zone_att_pct adverse|"
-      - name: f3_draw_market_dev
-        description: "Déviation cote nul vs taux de nul historique de la ligue"
-      - name: f4_momentum_convergence
-        description: "Convergence de momentum — 1 - |ws_momentum_delta - ws_momentum_delta adverse|"
-
-      - name: f5_cs_mutual_rate
-        description: "Taux de clean sheet mutuel — cs_rate × cs_rate adverse"
-      - name: f6_ht_draw_tendency
-        description: "Tendance au nul à la mi-temps (WhoScored) — NULL en attente migration whoscored.py"
-
-      # ── AXE 2 — Domination relative ─────────────────────────────────────────
-      - name: f7_off_def_mismatch
-        description: "Écart rating offensif équipe vs rating défensif adverse"
-      - name: f7_def_off_mismatch
-        description: "Écart rating offensif adverse vs rating défensif équipe"
-      - name: f8_press_dominance_ratio
-        description: "Ratio de domination du pressing (ln(PPDA adverse / PPDA équipe))"
-      - name: f9_chance_quality_gap
-        description: "Écart de qualité des occasions (sqr équipe - sqr adverse)"
-      - name: f10_venue_power_adj
-        description: "Ajustement de puissance venue (xg_venue_5 - xg_global_5)"
-
-      # ── AXE 3 — Résilience & psychologie ────────────────────────────────────
-      - name: f11_comeback_rate
-        description: "Taux de remontée au score sur les 5 derniers matchs"
-      - name: f12_red_card_resilience
-        description: "Points par match quand l'équipe a reçu un carton rouge"
-      - name: f13_late_goal_tendency
-        description: "Tendance aux buts tardifs (WhoScored) — NULL en attente migration"
-      - name: f14_goal_timing_variance
-        description: "Variance du timing des buts (WhoScored) — NULL en attente migration"
-
-      # ── AXE 4 — Efficacité / yield ───────────────────────────────────────────
-      - name: f15_xg_yield_ratio
-        description: "Ratio buts / xG (surperformance offensive)"
-      - name: f16_def_yield_ratio
-        description: "Ratio buts concédés / xG concédé (surperformance défensive)"
-      - name: f17_shots_to_goal_eff
-        description: "Efficacité tirs → buts (gf / shots_total)"
-      - name: f18_sot_conversion
-        description: "Conversion tirs cadrés → buts (gf / sot)"
-
-      # ── AXE 5 — Composites signatures ───────────────────────────────────────
-      - name: f19_tactical_lock_idx
-        description: "Index de verrouillage tactique — stérilité mutuelle × équilibre pressing × symétrie zone"
-      - name: f20_upset_composite
-        description: "Index d'upset — (1/prob_victoire) × surperformance adverse × comeback_rate adverse"
-
-  - name: features_whoscored
-    description: >
-      Features WhoScored par équipe par match — anti-leakage LAG(1).
-      Jointure de intermediate.team_features_ws × intermediate.backbone
-      via referentiel.team_mapping. Inclut les squad features rolling 5 matchs.
-
-    columns:
-      - name: date
-        description: "Date du match"
-        tests:
-          - not_null
-      - name: team
-        description: "Nom normalisé de l'équipe"
-        tests:
-          - not_null
-      - name: league_source
-        description: "Compétition source"
-        tests:
-          - not_null
-      - name: has_ws_events
-        description: "1 si des données WhoScored sont disponibles pour ce match, 0 sinon"
-      - name: ws_field_tilt_actions
-        description: "Tilt de terrain — proportion de touches en zone offensive (dernier match connu)"
-      - name: ws_momentum_delta
-        description: "Delta de momentum après avoir encaissé un but"
-      - name: ws_zone_att_pct
-        description: "Pourcentage de touches en zone offensive"
-      - name: ws_counter_attack_dna
-        description: "ADN contre-attaque — proportion de tirs issus d'une récupération rapide"
-      - name: ws_midfield_control_idx
-        description: "Contrôle du milieu de terrain"
-      - name: squad_avg_form_5
-        description: "Forme moyenne des joueurs du squad sur les 5 derniers matchs"
-      - name: squad_xg_quality_5
-        description: "Qualité xG moyenne du squad sur les 5 derniers matchs"
-      - name: squad_regularity
-        description: "Stabilité du squad — proportion de joueurs présents au match précédent"
-      - name: squad_top3_share
-        description: "Part des actions portées par les 3 meilleurs joueurs (concentration)"
-
-  - name: features_final
-    description: >
-      Table finale ML — 1 ligne par équipe par match.
-      Jointure de features_rolling × features_whoscored × features_draw.
-      Inclut les différentiels équipe vs adversaire, H2H, Giant Killer,
-      league_draw_rate et final_match_id.
-
-    columns:
-      - name: date
-        description: "Date du match"
-        tests:
-          - not_null
-      - name: team
-        description: "Nom normalisé de l'équipe"
-        tests:
-          - not_null
-      - name: opponent
-        description: "Nom normalisé de l'adversaire"
-        tests:
-          - not_null
-      - name: league_source
-        description: "Compétition source"
-        tests:
-          - not_null
-      - name: match_id
-        description: "Identifiant Understat du match"
-      - name: ws_match_id
-        description: "Identifiant unique canonique — hash md5 sur date|team|opponent|league"
-        tests:
-          - not_null
-      - name: result_1n2
-        description: "Résultat du point de vue de l'équipe : H, D, A"
-        tests:
-          - accepted_values:
-              config:
-                severity: warn
-              arguments:
-                values: ['H', 'D', 'A']
-      - name: is_home
-        description: "1 si l'équipe joue à domicile, 0 sinon"
-      - name: xg_net_diff
-        description: "Différentiel xg_net W=5 équipe vs adversaire"
-      - name: tactical_advantage
-        description: "Écart rating offensif équipe vs rating défensif adversaire"
-      - name: h2h_win_rate
-        description: "Taux de victoire H2H sur les 10 derniers matchs"
-      - name: h2h_draw_rate
-        description: "Taux de nul H2H sur les 10 derniers matchs"
-      - name: h2h_xg_diff
-        description: "Différentiel xG moyen en H2H"
-      - name: h2h_n_matches
-        description: "Nombre de matchs H2H disponibles"
-      - name: league_draw_rate
-        description: "Taux de nul historique de la ligue (saisons précédentes)"
-      - name: rating_ratio_att
-        description: "Ratio rating offensif équipe / rating offensif adversaire (Giant Killer)"
-      - name: rating_ratio_def
-        description: "Ratio rating défensif équipe / rating défensif adversaire"
-      - name: upset_risk_index
-        description: "Index de surprise — GREATEST(ratio_att, ratio_def) × is_home"
-      - name: pinnacle_edge
-        description: "Edge Pinnacle — prob_victoire - prob_défaite"
-      - name: market_edge
-        description: "Edge marché moyen"
-      - name: has_ws_events
-        description: "1 si données WhoScored disponibles pour ce match"
-      - name: squad_avg_form_5
-        description: "Forme moyenne du squad sur 5 matchs"
-      - name: squad_regularity
-        description: "Stabilité du squad"
-      - name: f1_mutual_cancel_idx
-        description: "Index d'annulation mutuelle (draw signal)"
-      - name: f19_tactical_lock_idx
-        description: "Index de verrouillage tactique (draw signal composite)"
-      - name: f20_upset_composite
-        description: "Index d'upset composite (draw signal)"
-
-  - name: features_players
-    description: >
-      Étape 6.1 — Profil de forme par joueur AVANT chaque match : moyenne des
-      métriques sur les 5 apparitions précédentes de la saison (match courant
-      exclu, anti-leakage strict). 1 ligne par (match_id, team_id, player_id).
-      Peuplé uniquement pour les 4 championnats couverts par WhoScored.
-    config:
-      alias: features_players
+- name: equipe_match
+  description: 'Grain (match_id, team_id). Familles CDC 1 (pré-match), 2 (forme), 3 (style), 8 (partie
+    native backbone). Familles 4 et 8-agrégée ajoutées ultérieurement. Anti-leakage : fenêtres ROWS BETWEEN
+    w PRECEDING AND 1 PRECEDING (match courant exclu).'
+  tests:
+  - dbt_utils.unique_combination_of_columns:
+      combination_of_columns:
+      - match_id
+      - team_id
+  columns:
+  - name: match_id
+    description: Identifiant unifié du match (SHA1).
     tests:
-      - dbt_utils.unique_combination_of_columns:
-          combination_of_columns:
-            - match_id
-            - team_id
-            - player_id
-    columns:
-      - name: match_id
-        description: "ID du match"
-        tests:
-          - not_null
-      - name: team_id
-        description: "ID de l'équipe du joueur pour ce match"
-        tests:
-          - not_null
-      - name: player_id
-        description: "ID du joueur"
-        tests:
-          - not_null
-      - name: date
-        description: "Date du match cible"
-        tests:
-          - not_null
-      - name: season
-        description: "Saison — clé de partition de la fenêtre rolling"
-      - name: league_source
-        description: "Championnat source (WhoScored)"
-      - name: avg_xg_chain_5
-        description: "xG-chain moyen (somme du crédit des chaînes où le joueur est impliqué), 5 matchs précédents"
-      - name: avg_xg_contribution_5
-        description: "Proxy xG issu des tirs, moyenne 5 matchs précédents"
-      - name: avg_progressive_passes_5
-        description: "Passes progressives moyennes, 5 matchs précédents"
-      - name: avg_key_passes_5
-        description: "Passes clés moyennes, 5 matchs précédents"
-      - name: avg_shots_5
-        description: "Tirs moyens, 5 matchs précédents"
-      - name: avg_pass_share_5
-        description: "Part moyenne des passes de l'équipe portées par le joueur, 5 matchs précédents"
-      - name: avg_betweenness_5
-        description: "Proxy de centralité de passage moyen, 5 matchs précédents"
-      - name: avg_creative_rate_5
-        description: "Taux moyen de passes créatives, 5 matchs précédents"
-      - name: avg_aerial_win_rate_5
-        description: "Taux moyen de duels aériens gagnés, 5 matchs précédents"
-      - name: avg_tackle_win_rate_5
-        description: "Taux moyen de tacles réussis, 5 matchs précédents"
-      - name: avg_defensive_actions_5
-        description: "Actions défensives moyennes (tacles gagnés + interceptions + dégagements + récupérations), 5 matchs précédents"
-      - name: avg_clearances_5
-        description: "Dégagements moyens, 5 matchs précédents"
-      - name: avg_zone_x_5
-        description: "Position longueur moyenne approximée depuis les 25 zones, 5 matchs précédents"
-      - name: avg_zone_y_5
-        description: "Position largeur moyenne approximée depuis les 25 zones, 5 matchs précédents"
-      - name: avg_touches_5
-        description: "Touches moyennes, 5 matchs précédents"
-      - name: n_matchs_window
-        description: "Nombre de matchs réellement utilisés dans la fenêtre (0 à 5) ; 0 = première apparition de la saison, toutes les moyennes sont NULL"
-
-  - name: rolling_corners
-    description: >
-      Rolling windows W=3/5/10 sur les corners, depuis intermediate.corner_profiles.
-      1 ligne par équipe par match — "for" (corners obtenus) et "against" (corners
-      concédés), jointes via intermediate.backbone (team_id / opponent_id).
-      Action dangereuse = corner ayant produit un tir (outcome IN goal/shot_saved/
-      shot_off_target). Ratio de sommes sur la fenêtre, pas moyenne de taux par match.
-      Enrichi (Vague 5.4) : intensite de danger continue (xG/corner), profil aerien
-      (tetes sur tirs/buts), tendance corner court, et bataille du degagement defensif.
-    config:
-      alias: rolling_corners
-
-    columns:
-      - name: match_id
-        description: "ID unique du match provenant du backbone"
-        tests:
-          - not_null
-      - name: team_id
-        description: "ID de l'équipe"
-        tests:
-          - not_null
-      - name: date
-        description: "Date du match"
-        tests:
-          - not_null
-      - name: season
-        description: "Saison"
-      - name: league_source
-        description: "Compétition source"
-      - name: corners_for_3
-        description: "Nombre de corners obtenus sur les 3 derniers matchs"
-      - name: corner_danger_rate_for_3
-        description: "Taux de corners obtenus ayant produit une action dangereuse, sur 3 matchs"
-      - name: corner_conversion_rate_for_3
-        description: "Taux de conversion en but des actions dangereuses issues de corner, sur 3 matchs"
-      - name: corners_against_3
-        description: "Nombre de corners concédés sur les 3 derniers matchs"
-      - name: corner_danger_rate_against_3
-        description: "Taux de corners concédés ayant produit une action dangereuse, sur 3 matchs"
-      - name: corner_conversion_rate_against_3
-        description: "Taux de conversion en but des corners concédés, sur 3 matchs"
-      - name: corner_danger_intensity_for_3
-        description: "Danger continu généré par corner obtenu (somme chain_danger_total / nb corners), sur 3 matchs — équivalent xG par corner"
-      - name: corner_danger_intensity_against_3
-        description: "Danger continu concédé par corner concédé, sur 3 matchs"
-      - name: corner_header_share_for_3
-        description: "Part des tirs issus de corners obtenus qui sont des têtes, sur 3 matchs"
-      - name: corner_header_share_against_3
-        description: "Part des tirs issus de corners concédés qui sont des têtes, sur 3 matchs"
-      - name: corner_header_goal_share_for_3
-        description: "Part des buts sur corner obtenu marqués de la tête, sur 3 matchs"
-      - name: corner_header_goal_share_against_3
-        description: "Part des buts sur corner concédé marqués de la tête, sur 3 matchs"
-      - name: corner_short_rate_for_3
-        description: "Part des corners obtenus joués courts plutôt que centrés, sur 3 matchs"
-      - name: corner_short_rate_against_3
-        description: "Part des corners concédés joués courts par l'adversaire, sur 3 matchs"
-      - name: corner_forced_bad_clearance_rate_for_3
-        description: "Part des dégagements adverses mal exécutés (poor/failed) face à nos corners, sur 3 matchs — capacité à créer du chaos en seconde balle"
-      - name: corner_clearance_fail_rate_against_3
-        description: "Part de nos propres dégagements mal exécutés (poor/failed) face aux corners concédés, sur 3 matchs — solidité défensive"
-      - name: corner_headed_clearance_rate_against_3
-        description: "Part de nos dégagements défensifs faits de la tête, sur 3 matchs"
-      - name: corners_for_5
-        description: "Nombre de corners obtenus sur les 5 derniers matchs"
-      - name: corner_danger_rate_for_5
-        description: "Taux de corners obtenus ayant produit une action dangereuse, sur 5 matchs"
-      - name: corner_conversion_rate_for_5
-        description: "Taux de conversion en but des actions dangereuses issues de corner, sur 5 matchs"
-      - name: corners_against_5
-        description: "Nombre de corners concédés sur les 5 derniers matchs"
-      - name: corner_danger_rate_against_5
-        description: "Taux de corners concédés ayant produit une action dangereuse, sur 5 matchs"
-      - name: corner_conversion_rate_against_5
-        description: "Taux de conversion en but des corners concédés, sur 5 matchs"
-      - name: corner_danger_intensity_for_5
-        description: "Danger continu généré par corner obtenu, sur 5 matchs — équivalent xG par corner"
-      - name: corner_danger_intensity_against_5
-        description: "Danger continu concédé par corner concédé, sur 5 matchs"
-      - name: corner_header_share_for_5
-        description: "Part des tirs issus de corners obtenus qui sont des têtes, sur 5 matchs"
-      - name: corner_header_share_against_5
-        description: "Part des tirs issus de corners concédés qui sont des têtes, sur 5 matchs"
-      - name: corner_header_goal_share_for_5
-        description: "Part des buts sur corner obtenu marqués de la tête, sur 5 matchs"
-      - name: corner_header_goal_share_against_5
-        description: "Part des buts sur corner concédé marqués de la tête, sur 5 matchs"
-      - name: corner_short_rate_for_5
-        description: "Part des corners obtenus joués courts plutôt que centrés, sur 5 matchs"
-      - name: corner_short_rate_against_5
-        description: "Part des corners concédés joués courts par l'adversaire, sur 5 matchs"
-      - name: corner_forced_bad_clearance_rate_for_5
-        description: "Part des dégagements adverses mal exécutés face à nos corners, sur 5 matchs"
-      - name: corner_clearance_fail_rate_against_5
-        description: "Part de nos propres dégagements mal exécutés face aux corners concédés, sur 5 matchs"
-      - name: corner_headed_clearance_rate_against_5
-        description: "Part de nos dégagements défensifs faits de la tête, sur 5 matchs"
-      - name: corners_for_10
-        description: "Nombre de corners obtenus sur les 10 derniers matchs"
-      - name: corner_danger_rate_for_10
-        description: "Taux de corners obtenus ayant produit une action dangereuse, sur 10 matchs"
-      - name: corner_conversion_rate_for_10
-        description: "Taux de conversion en but des actions dangereuses issues de corner, sur 10 matchs"
-      - name: corners_against_10
-        description: "Nombre de corners concédés sur les 10 derniers matchs"
-      - name: corner_danger_rate_against_10
-        description: "Taux de corners concédés ayant produit une action dangereuse, sur 10 matchs"
-      - name: corner_conversion_rate_against_10
-        description: "Taux de conversion en but des corners concédés, sur 10 matchs"
-      - name: corner_danger_intensity_for_10
-        description: "Danger continu généré par corner obtenu, sur 10 matchs — équivalent xG par corner"
-      - name: corner_danger_intensity_against_10
-        description: "Danger continu concédé par corner concédé, sur 10 matchs"
-      - name: corner_header_share_for_10
-        description: "Part des tirs issus de corners obtenus qui sont des têtes, sur 10 matchs"
-      - name: corner_header_share_against_10
-        description: "Part des tirs issus de corners concédés qui sont des têtes, sur 10 matchs"
-      - name: corner_header_goal_share_for_10
-        description: "Part des buts sur corner obtenu marqués de la tête, sur 10 matchs"
-      - name: corner_header_goal_share_against_10
-        description: "Part des buts sur corner concédé marqués de la tête, sur 10 matchs"
-      - name: corner_short_rate_for_10
-        description: "Part des corners obtenus joués courts plutôt que centrés, sur 10 matchs"
-      - name: corner_short_rate_against_10
-        description: "Part des corners concédés joués courts par l'adversaire, sur 10 matchs"
-      - name: corner_forced_bad_clearance_rate_for_10
-        description: "Part des dégagements adverses mal exécutés face à nos corners, sur 10 matchs"
-      - name: corner_clearance_fail_rate_against_10
-        description: "Part de nos propres dégagements mal exécutés face aux corners concédés, sur 10 matchs"
-      - name: corner_headed_clearance_rate_against_10
-        description: "Part de nos dégagements défensifs faits de la tête, sur 10 matchs"
-
-  - name: rolling_freekicks
-    description: >
-      Rolling windows W=3/5/10 sur les coups francs, depuis intermediate.freekick_profiles.
-      1 ligne par équipe par match — "for" (coups francs obtenus) et "against" (concédés),
-      jointes via intermediate.backbone (team_id / opponent_id). Filtré sur
-      fk_zone_type IN (crossed, direct_shot) : les coups francs too_far/own_box sont
-      exclus, ils n'ont pas de danger réel et diluent le signal.
-      Action dangereuse = coup franc ayant produit un tir. Ratio de sommes sur la
-      fenêtre, pas moyenne de taux par match.
-      Enrichi (Vague 5.4) : intensité de danger continue, profil aérien, bataille du
-      dégagement, répartition tactique par zone (direct/crossed/own_box/too_far,
-      non filtrée) et qualité de position (distance/angle) des coups francs directs.
-    config:
-      alias: rolling_freekicks
-
-    columns:
-      - name: match_id
-        description: "ID unique du match provenant du backbone"
-        tests:
-          - not_null
-      - name: team_id
-        description: "ID de l'équipe"
-        tests:
-          - not_null
-      - name: date
-        description: "Date du match"
-        tests:
-          - not_null
-      - name: season
-        description: "Saison"
-      - name: league_source
-        description: "Compétition source"
-      - name: freekicks_for_3
-        description: "Nombre de coups francs crossés/directs obtenus sur les 3 derniers matchs"
-      - name: freekick_danger_rate_for_3
-        description: "Taux de coups francs obtenus ayant produit une action dangereuse, sur 3 matchs"
-      - name: freekick_conversion_rate_for_3
-        description: "Taux de conversion en but des actions dangereuses issues de coup franc, sur 3 matchs"
-      - name: freekicks_against_3
-        description: "Nombre de coups francs crossés/directs concédés sur les 3 derniers matchs"
-      - name: freekick_danger_rate_against_3
-        description: "Taux de coups francs concédés ayant produit une action dangereuse, sur 3 matchs"
-      - name: freekick_conversion_rate_against_3
-        description: "Taux de conversion en but des coups francs concédés, sur 3 matchs"
-      - name: freekick_danger_intensity_for_3
-        description: "Danger continu généré par coup franc obtenu (somme chain_danger_total / nb coups francs), sur 3 matchs"
-      - name: freekick_danger_intensity_against_3
-        description: "Danger continu concédé par coup franc concédé, sur 3 matchs"
-      - name: freekick_header_share_for_3
-        description: "Part des tirs issus de coups francs obtenus qui sont des têtes, sur 3 matchs"
-      - name: freekick_header_share_against_3
-        description: "Part des tirs issus de coups francs concédés qui sont des têtes, sur 3 matchs"
-      - name: freekick_header_goal_share_for_3
-        description: "Part des buts sur coup franc obtenu marqués de la tête, sur 3 matchs"
-      - name: freekick_header_goal_share_against_3
-        description: "Part des buts sur coup franc concédé marqués de la tête, sur 3 matchs"
-      - name: freekick_forced_bad_clearance_rate_for_3
-        description: "Part des dégagements adverses mal exécutés face à nos coups francs centrés, sur 3 matchs"
-      - name: freekick_clearance_fail_rate_against_3
-        description: "Part de nos propres dégagements mal exécutés face aux coups francs centrés concédés, sur 3 matchs"
-      - name: freekick_headed_clearance_rate_against_3
-        description: "Part de nos dégagements défensifs de la tête sur coup franc centré concédé, sur 3 matchs"
-      - name: freekick_direct_distance_avg_for_3
-        description: "Distance moyenne (m) des coups francs directs obtenus, sur 3 matchs"
-      - name: freekick_direct_distance_avg_against_3
-        description: "Distance moyenne (m) des coups francs directs concédés, sur 3 matchs — discipline défensive"
-      - name: freekick_direct_angle_avg_for_3
-        description: "Angle moyen (rad) vers le but des coups francs directs obtenus, sur 3 matchs"
-      - name: freekick_direct_angle_avg_against_3
-        description: "Angle moyen (rad) vers le but des coups francs directs concédés, sur 3 matchs"
-      - name: freekick_zone_direct_rate_for_3
-        description: "Part des coups francs obtenus joués en tir direct, sur 3 matchs"
-      - name: freekick_zone_direct_rate_against_3
-        description: "Part des coups francs concédés joués en tir direct par l'adversaire, sur 3 matchs"
-      - name: freekick_zone_crossed_rate_for_3
-        description: "Part des coups francs obtenus centrés dans la surface, sur 3 matchs"
-      - name: freekick_zone_crossed_rate_against_3
-        description: "Part des coups francs concédés centrés dans la surface par l'adversaire, sur 3 matchs"
-      - name: freekicks_for_5
-        description: "Nombre de coups francs crossés/directs obtenus sur les 5 derniers matchs"
-      - name: freekick_danger_rate_for_5
-        description: "Taux de coups francs obtenus ayant produit une action dangereuse, sur 5 matchs"
-      - name: freekick_conversion_rate_for_5
-        description: "Taux de conversion en but des actions dangereuses issues de coup franc, sur 5 matchs"
-      - name: freekicks_against_5
-        description: "Nombre de coups francs crossés/directs concédés sur les 5 derniers matchs"
-      - name: freekick_danger_rate_against_5
-        description: "Taux de coups francs concédés ayant produit une action dangereuse, sur 5 matchs"
-      - name: freekick_conversion_rate_against_5
-        description: "Taux de conversion en but des coups francs concédés, sur 5 matchs"
-      - name: freekick_danger_intensity_for_5
-        description: "Danger continu généré par coup franc obtenu, sur 5 matchs"
-      - name: freekick_danger_intensity_against_5
-        description: "Danger continu concédé par coup franc concédé, sur 5 matchs"
-      - name: freekick_header_share_for_5
-        description: "Part des tirs issus de coups francs obtenus qui sont des têtes, sur 5 matchs"
-      - name: freekick_header_share_against_5
-        description: "Part des tirs issus de coups francs concédés qui sont des têtes, sur 5 matchs"
-      - name: freekick_header_goal_share_for_5
-        description: "Part des buts sur coup franc obtenu marqués de la tête, sur 5 matchs"
-      - name: freekick_header_goal_share_against_5
-        description: "Part des buts sur coup franc concédé marqués de la tête, sur 5 matchs"
-      - name: freekick_forced_bad_clearance_rate_for_5
-        description: "Part des dégagements adverses mal exécutés face à nos coups francs centrés, sur 5 matchs"
-      - name: freekick_clearance_fail_rate_against_5
-        description: "Part de nos propres dégagements mal exécutés face aux coups francs centrés concédés, sur 5 matchs"
-      - name: freekick_headed_clearance_rate_against_5
-        description: "Part de nos dégagements défensifs de la tête sur coup franc centré concédé, sur 5 matchs"
-      - name: freekick_direct_distance_avg_for_5
-        description: "Distance moyenne (m) des coups francs directs obtenus, sur 5 matchs"
-      - name: freekick_direct_distance_avg_against_5
-        description: "Distance moyenne (m) des coups francs directs concédés, sur 5 matchs"
-      - name: freekick_direct_angle_avg_for_5
-        description: "Angle moyen (rad) vers le but des coups francs directs obtenus, sur 5 matchs"
-      - name: freekick_direct_angle_avg_against_5
-        description: "Angle moyen (rad) vers le but des coups francs directs concédés, sur 5 matchs"
-      - name: freekick_zone_direct_rate_for_5
-        description: "Part des coups francs obtenus joués en tir direct, sur 5 matchs"
-      - name: freekick_zone_direct_rate_against_5
-        description: "Part des coups francs concédés joués en tir direct par l'adversaire, sur 5 matchs"
-      - name: freekick_zone_crossed_rate_for_5
-        description: "Part des coups francs obtenus centrés dans la surface, sur 5 matchs"
-      - name: freekick_zone_crossed_rate_against_5
-        description: "Part des coups francs concédés centrés dans la surface par l'adversaire, sur 5 matchs"
-      - name: freekicks_for_10
-        description: "Nombre de coups francs crossés/directs obtenus sur les 10 derniers matchs"
-      - name: freekick_danger_rate_for_10
-        description: "Taux de coups francs obtenus ayant produit une action dangereuse, sur 10 matchs"
-      - name: freekick_conversion_rate_for_10
-        description: "Taux de conversion en but des actions dangereuses issues de coup franc, sur 10 matchs"
-      - name: freekicks_against_10
-        description: "Nombre de coups francs crossés/directs concédés sur les 10 derniers matchs"
-      - name: freekick_danger_rate_against_10
-        description: "Taux de coups francs concédés ayant produit une action dangereuse, sur 10 matchs"
-      - name: freekick_conversion_rate_against_10
-        description: "Taux de conversion en but des coups francs concédés, sur 10 matchs"
-      - name: freekick_danger_intensity_for_10
-        description: "Danger continu généré par coup franc obtenu, sur 10 matchs"
-      - name: freekick_danger_intensity_against_10
-        description: "Danger continu concédé par coup franc concédé, sur 10 matchs"
-      - name: freekick_header_share_for_10
-        description: "Part des tirs issus de coups francs obtenus qui sont des têtes, sur 10 matchs"
-      - name: freekick_header_share_against_10
-        description: "Part des tirs issus de coups francs concédés qui sont des têtes, sur 10 matchs"
-      - name: freekick_header_goal_share_for_10
-        description: "Part des buts sur coup franc obtenu marqués de la tête, sur 10 matchs"
-      - name: freekick_header_goal_share_against_10
-        description: "Part des buts sur coup franc concédé marqués de la tête, sur 10 matchs"
-      - name: freekick_forced_bad_clearance_rate_for_10
-        description: "Part des dégagements adverses mal exécutés face à nos coups francs centrés, sur 10 matchs"
-      - name: freekick_clearance_fail_rate_against_10
-        description: "Part de nos propres dégagements mal exécutés face aux coups francs centrés concédés, sur 10 matchs"
-      - name: freekick_headed_clearance_rate_against_10
-        description: "Part de nos dégagements défensifs de la tête sur coup franc centré concédé, sur 10 matchs"
-      - name: freekick_direct_distance_avg_for_10
-        description: "Distance moyenne (m) des coups francs directs obtenus, sur 10 matchs"
-      - name: freekick_direct_distance_avg_against_10
-        description: "Distance moyenne (m) des coups francs directs concédés, sur 10 matchs"
-      - name: freekick_direct_angle_avg_for_10
-        description: "Angle moyen (rad) vers le but des coups francs directs obtenus, sur 10 matchs"
-      - name: freekick_direct_angle_avg_against_10
-        description: "Angle moyen (rad) vers le but des coups francs directs concédés, sur 10 matchs"
-      - name: freekick_zone_direct_rate_for_10
-        description: "Part des coups francs obtenus joués en tir direct, sur 10 matchs"
-      - name: freekick_zone_direct_rate_against_10
-        description: "Part des coups francs concédés joués en tir direct par l'adversaire, sur 10 matchs"
-      - name: freekick_zone_crossed_rate_for_10
-        description: "Part des coups francs obtenus centrés dans la surface, sur 10 matchs"
-      - name: freekick_zone_crossed_rate_against_10
-        description: "Part des coups francs concédés centrés dans la surface par l'adversaire, sur 10 matchs"
+    - not_null:
+        config:
+          severity: warn
+  - name: team_id
+    description: Id canonique de l'équipe (perspective de la ligne).
+    tests:
+    - not_null
+  - name: opponent_id
+    description: Id canonique de l'adversaire.
+  - name: date
+    description: Date du match.
+  - name: season
+    description: Saison (ex. 2023-2024). Usage technique (split temporel), pas prédicteur direct.
+  - name: league_source
+    description: Championnat / compétition source.
+  - name: venue
+    description: 'Lieu du match : Home / Away / Neutral.'
+  - name: comp_category
+    description: '[Famille 1] Catégorie de compétition (Big5 / Cup / Europe) — proxy d''enjeu. PRE-MATCH
+      CONNU.'
+  - name: is_home
+    description: '[Famille 1] 1 si l''équipe joue à domicile. PRE-MATCH CONNU.'
+  - name: days_since_last_game
+    description: '[Famille 1] Jours de repos depuis le dernier match officiel (tous matchs, ordre chronologique).
+      PRE-MATCH CONNU, aucun leakage.'
+  - name: avg_gf_rolling_3
+    description: '[Famille 2, ROLLING(3)] Moyenne de buts marqués sur les 3 derniers matchs strictement
+      antérieurs.'
+  - name: avg_gf_rolling_5
+    description: '[Famille 2, ROLLING(5)] Moyenne de buts marqués sur les 5 derniers matchs strictement
+      antérieurs.'
+  - name: avg_gf_rolling_10
+    description: '[Famille 2, ROLLING(10)] Moyenne de buts marqués sur les 10 derniers matchs strictement
+      antérieurs.'
+  - name: avg_ga_rolling_3
+    description: '[Famille 2, ROLLING(3)] Moyenne de buts encaissés sur les 3 derniers matchs strictement
+      antérieurs.'
+  - name: avg_ga_rolling_5
+    description: '[Famille 2, ROLLING(5)] Moyenne de buts encaissés sur les 5 derniers matchs strictement
+      antérieurs.'
+  - name: avg_ga_rolling_10
+    description: '[Famille 2, ROLLING(10)] Moyenne de buts encaissés sur les 10 derniers matchs strictement
+      antérieurs.'
+  - name: avg_np_xg_rolling_3
+    description: '[Famille 2, ROLLING(3)] Moyenne de xG hors penalty produits (domination offensive réelle)
+      sur les 3 derniers matchs strictement antérieurs.'
+  - name: avg_np_xg_rolling_5
+    description: '[Famille 2, ROLLING(5)] Moyenne de xG hors penalty produits (domination offensive réelle)
+      sur les 5 derniers matchs strictement antérieurs.'
+  - name: avg_np_xg_rolling_10
+    description: '[Famille 2, ROLLING(10)] Moyenne de xG hors penalty produits (domination offensive réelle)
+      sur les 10 derniers matchs strictement antérieurs.'
+  - name: avg_np_xg_conceded_rolling_3
+    description: '[Famille 2, ROLLING(3)] Moyenne de xG hors penalty concédés sur les 3 derniers matchs
+      strictement antérieurs.'
+  - name: avg_np_xg_conceded_rolling_5
+    description: '[Famille 2, ROLLING(5)] Moyenne de xG hors penalty concédés sur les 5 derniers matchs
+      strictement antérieurs.'
+  - name: avg_np_xg_conceded_rolling_10
+    description: '[Famille 2, ROLLING(10)] Moyenne de xG hors penalty concédés sur les 10 derniers matchs
+      strictement antérieurs.'
+  - name: avg_np_xg_diff_rolling_3
+    description: '[Famille 2, ROLLING(3)] Moyenne du différentiel de xG hors penalty (produit − concédé)
+      sur les 3 derniers matchs strictement antérieurs.'
+  - name: avg_np_xg_diff_rolling_5
+    description: '[Famille 2, ROLLING(5)] Moyenne du différentiel de xG hors penalty (produit − concédé)
+      sur les 5 derniers matchs strictement antérieurs.'
+  - name: avg_np_xg_diff_rolling_10
+    description: '[Famille 2, ROLLING(10)] Moyenne du différentiel de xG hors penalty (produit − concédé)
+      sur les 10 derniers matchs strictement antérieurs.'
+  - name: points_rolling_3
+    description: '[Famille 2, ROLLING(3)] Moyenne de points (3 victoire / 1 nul / 0 défaite) sur les 3
+      derniers matchs strictement antérieurs.'
+  - name: points_rolling_5
+    description: '[Famille 2, ROLLING(5)] Moyenne de points (3 victoire / 1 nul / 0 défaite) sur les 5
+      derniers matchs strictement antérieurs.'
+  - name: points_rolling_10
+    description: '[Famille 2, ROLLING(10)] Moyenne de points (3 victoire / 1 nul / 0 défaite) sur les
+      10 derniers matchs strictement antérieurs.'
+  - name: win_rate_rolling_3
+    description: '[Famille 2, ROLLING(3)] Taux de victoire sur les 3 derniers matchs strictement antérieurs.'
+    tests:
+    - dbt_utils.accepted_range:
+        min_value: 0
+        max_value: 1
+        config:
+          severity: warn
+  - name: win_rate_rolling_5
+    description: '[Famille 2, ROLLING(5)] Taux de victoire sur les 5 derniers matchs strictement antérieurs.'
+    tests:
+    - dbt_utils.accepted_range:
+        min_value: 0
+        max_value: 1
+        config:
+          severity: warn
+  - name: win_rate_rolling_10
+    description: '[Famille 2, ROLLING(10)] Taux de victoire sur les 10 derniers matchs strictement antérieurs.'
+    tests:
+    - dbt_utils.accepted_range:
+        min_value: 0
+        max_value: 1
+        config:
+          severity: warn
+  - name: draw_rate_rolling_3
+    description: '[Famille 2, ROLLING(3)] Taux de match nul sur les 3 derniers matchs strictement antérieurs.'
+    tests:
+    - dbt_utils.accepted_range:
+        min_value: 0
+        max_value: 1
+        config:
+          severity: warn
+  - name: draw_rate_rolling_5
+    description: '[Famille 2, ROLLING(5)] Taux de match nul sur les 5 derniers matchs strictement antérieurs.'
+    tests:
+    - dbt_utils.accepted_range:
+        min_value: 0
+        max_value: 1
+        config:
+          severity: warn
+  - name: draw_rate_rolling_10
+    description: '[Famille 2, ROLLING(10)] Taux de match nul sur les 10 derniers matchs strictement antérieurs.'
+    tests:
+    - dbt_utils.accepted_range:
+        min_value: 0
+        max_value: 1
+        config:
+          severity: warn
+  - name: loss_rate_rolling_3
+    description: '[Famille 2, ROLLING(3)] Taux de défaite sur les 3 derniers matchs strictement antérieurs.'
+    tests:
+    - dbt_utils.accepted_range:
+        min_value: 0
+        max_value: 1
+        config:
+          severity: warn
+  - name: loss_rate_rolling_5
+    description: '[Famille 2, ROLLING(5)] Taux de défaite sur les 5 derniers matchs strictement antérieurs.'
+    tests:
+    - dbt_utils.accepted_range:
+        min_value: 0
+        max_value: 1
+        config:
+          severity: warn
+  - name: loss_rate_rolling_10
+    description: '[Famille 2, ROLLING(10)] Taux de défaite sur les 10 derniers matchs strictement antérieurs.'
+    tests:
+    - dbt_utils.accepted_range:
+        min_value: 0
+        max_value: 1
+        config:
+          severity: warn
+  - name: clean_sheet_rate_rolling_3
+    description: '[Famille 2, ROLLING(3)] Taux de clean sheet (0 but encaissé) sur les 3 derniers matchs
+      strictement antérieurs.'
+    tests:
+    - dbt_utils.accepted_range:
+        min_value: 0
+        max_value: 1
+        config:
+          severity: warn
+  - name: clean_sheet_rate_rolling_5
+    description: '[Famille 2, ROLLING(5)] Taux de clean sheet (0 but encaissé) sur les 5 derniers matchs
+      strictement antérieurs.'
+    tests:
+    - dbt_utils.accepted_range:
+        min_value: 0
+        max_value: 1
+        config:
+          severity: warn
+  - name: clean_sheet_rate_rolling_10
+    description: '[Famille 2, ROLLING(10)] Taux de clean sheet (0 but encaissé) sur les 10 derniers matchs
+      strictement antérieurs.'
+    tests:
+    - dbt_utils.accepted_range:
+        min_value: 0
+        max_value: 1
+        config:
+          severity: warn
+  - name: failed_to_score_rate_rolling_3
+    description: '[Famille 2, ROLLING(3)] Taux de matchs sans marquer sur les 3 derniers matchs strictement
+      antérieurs.'
+    tests:
+    - dbt_utils.accepted_range:
+        min_value: 0
+        max_value: 1
+        config:
+          severity: warn
+  - name: failed_to_score_rate_rolling_5
+    description: '[Famille 2, ROLLING(5)] Taux de matchs sans marquer sur les 5 derniers matchs strictement
+      antérieurs.'
+    tests:
+    - dbt_utils.accepted_range:
+        min_value: 0
+        max_value: 1
+        config:
+          severity: warn
+  - name: failed_to_score_rate_rolling_10
+    description: '[Famille 2, ROLLING(10)] Taux de matchs sans marquer sur les 10 derniers matchs strictement
+      antérieurs.'
+    tests:
+    - dbt_utils.accepted_range:
+        min_value: 0
+        max_value: 1
+        config:
+          severity: warn
+  - name: shots_rolling_3
+    description: '[Famille 2, ROLLING(3)] Moyenne de tirs sur les 3 derniers matchs strictement antérieurs.'
+  - name: shots_rolling_5
+    description: '[Famille 2, ROLLING(5)] Moyenne de tirs sur les 5 derniers matchs strictement antérieurs.'
+  - name: shots_rolling_10
+    description: '[Famille 2, ROLLING(10)] Moyenne de tirs sur les 10 derniers matchs strictement antérieurs.'
+  - name: shots_ot_rolling_3
+    description: '[Famille 2, ROLLING(3)] Moyenne de tirs cadrés sur les 3 derniers matchs strictement
+      antérieurs.'
+  - name: shots_ot_rolling_5
+    description: '[Famille 2, ROLLING(5)] Moyenne de tirs cadrés sur les 5 derniers matchs strictement
+      antérieurs.'
+  - name: shots_ot_rolling_10
+    description: '[Famille 2, ROLLING(10)] Moyenne de tirs cadrés sur les 10 derniers matchs strictement
+      antérieurs.'
+  - name: ppda_rolling_3
+    description: '[Famille 2, ROLLING(3)] Moyenne de PPDA (plus bas = pressing plus intense) sur les 3
+      derniers matchs strictement antérieurs.'
+  - name: ppda_rolling_5
+    description: '[Famille 2, ROLLING(5)] Moyenne de PPDA (plus bas = pressing plus intense) sur les 5
+      derniers matchs strictement antérieurs.'
+  - name: ppda_rolling_10
+    description: '[Famille 2, ROLLING(10)] Moyenne de PPDA (plus bas = pressing plus intense) sur les
+      10 derniers matchs strictement antérieurs.'
+  - name: ppda_allowed_rolling_3
+    description: '[Famille 2, ROLLING(3)] Moyenne de PPDA concédé (pressing subi) sur les 3 derniers matchs
+      strictement antérieurs.'
+  - name: ppda_allowed_rolling_5
+    description: '[Famille 2, ROLLING(5)] Moyenne de PPDA concédé (pressing subi) sur les 5 derniers matchs
+      strictement antérieurs.'
+  - name: ppda_allowed_rolling_10
+    description: '[Famille 2, ROLLING(10)] Moyenne de PPDA concédé (pressing subi) sur les 10 derniers
+      matchs strictement antérieurs.'
+  - name: field_tilt_rolling_3
+    description: '[Famille 3, ROLLING(3)] Field tilt : domination territoriale (part des actions dans
+      le tiers offensif) — moyenne sur les 3 derniers matchs antérieurs.'
+  - name: field_tilt_rolling_5
+    description: '[Famille 3, ROLLING(5)] Field tilt : domination territoriale (part des actions dans
+      le tiers offensif) — moyenne sur les 5 derniers matchs antérieurs.'
+  - name: field_tilt_rolling_10
+    description: '[Famille 3, ROLLING(10)] Field tilt : domination territoriale (part des actions dans
+      le tiers offensif) — moyenne sur les 10 derniers matchs antérieurs.'
+  - name: counter_attack_dna_rolling_3
+    description: '[Famille 3, ROLLING(3)] Propension à la contre-attaque (ADN de jeu en transition) —
+      moyenne sur les 3 derniers matchs antérieurs.'
+  - name: counter_attack_dna_rolling_5
+    description: '[Famille 3, ROLLING(5)] Propension à la contre-attaque (ADN de jeu en transition) —
+      moyenne sur les 5 derniers matchs antérieurs.'
+  - name: counter_attack_dna_rolling_10
+    description: '[Famille 3, ROLLING(10)] Propension à la contre-attaque (ADN de jeu en transition) —
+      moyenne sur les 10 derniers matchs antérieurs.'
+  - name: attack_left_pct_rolling_3
+    description: '[Famille 3, ROLLING(3)] Part des attaques par le côté gauche — moyenne sur les 3 derniers
+      matchs antérieurs.'
+  - name: attack_left_pct_rolling_5
+    description: '[Famille 3, ROLLING(5)] Part des attaques par le côté gauche — moyenne sur les 5 derniers
+      matchs antérieurs.'
+  - name: attack_left_pct_rolling_10
+    description: '[Famille 3, ROLLING(10)] Part des attaques par le côté gauche — moyenne sur les 10 derniers
+      matchs antérieurs.'
+  - name: attack_center_pct_rolling_3
+    description: '[Famille 3, ROLLING(3)] Part des attaques par l''axe — moyenne sur les 3 derniers matchs
+      antérieurs.'
+  - name: attack_center_pct_rolling_5
+    description: '[Famille 3, ROLLING(5)] Part des attaques par l''axe — moyenne sur les 5 derniers matchs
+      antérieurs.'
+  - name: attack_center_pct_rolling_10
+    description: '[Famille 3, ROLLING(10)] Part des attaques par l''axe — moyenne sur les 10 derniers
+      matchs antérieurs.'
+  - name: attack_right_pct_rolling_3
+    description: '[Famille 3, ROLLING(3)] Part des attaques par le côté droit — moyenne sur les 3 derniers
+      matchs antérieurs.'
+  - name: attack_right_pct_rolling_5
+    description: '[Famille 3, ROLLING(5)] Part des attaques par le côté droit — moyenne sur les 5 derniers
+      matchs antérieurs.'
+  - name: attack_right_pct_rolling_10
+    description: '[Famille 3, ROLLING(10)] Part des attaques par le côté droit — moyenne sur les 10 derniers
+      matchs antérieurs.'
+  - name: def_exposed_left_pct_rolling_3
+    description: '[Famille 3, ROLLING(3)] Exposition défensive côté gauche (part du danger concédé) —
+      moyenne sur les 3 derniers matchs antérieurs.'
+  - name: def_exposed_left_pct_rolling_5
+    description: '[Famille 3, ROLLING(5)] Exposition défensive côté gauche (part du danger concédé) —
+      moyenne sur les 5 derniers matchs antérieurs.'
+  - name: def_exposed_left_pct_rolling_10
+    description: '[Famille 3, ROLLING(10)] Exposition défensive côté gauche (part du danger concédé) —
+      moyenne sur les 10 derniers matchs antérieurs.'
+  - name: def_exposed_center_pct_rolling_3
+    description: '[Famille 3, ROLLING(3)] Exposition défensive dans l''axe — moyenne sur les 3 derniers
+      matchs antérieurs.'
+  - name: def_exposed_center_pct_rolling_5
+    description: '[Famille 3, ROLLING(5)] Exposition défensive dans l''axe — moyenne sur les 5 derniers
+      matchs antérieurs.'
+  - name: def_exposed_center_pct_rolling_10
+    description: '[Famille 3, ROLLING(10)] Exposition défensive dans l''axe — moyenne sur les 10 derniers
+      matchs antérieurs.'
+  - name: def_exposed_right_pct_rolling_3
+    description: '[Famille 3, ROLLING(3)] Exposition défensive côté droit — moyenne sur les 3 derniers
+      matchs antérieurs.'
+  - name: def_exposed_right_pct_rolling_5
+    description: '[Famille 3, ROLLING(5)] Exposition défensive côté droit — moyenne sur les 5 derniers
+      matchs antérieurs.'
+  - name: def_exposed_right_pct_rolling_10
+    description: '[Famille 3, ROLLING(10)] Exposition défensive côté droit — moyenne sur les 10 derniers
+      matchs antérieurs.'
+  - name: cross_rate_rolling_3
+    description: '[Famille 3, ROLLING(3)] Taux de centres — moyenne sur les 3 derniers matchs antérieurs.'
+  - name: cross_rate_rolling_5
+    description: '[Famille 3, ROLLING(5)] Taux de centres — moyenne sur les 5 derniers matchs antérieurs.'
+  - name: cross_rate_rolling_10
+    description: '[Famille 3, ROLLING(10)] Taux de centres — moyenne sur les 10 derniers matchs antérieurs.'
+  - name: through_ball_rate_rolling_3
+    description: '[Famille 3, ROLLING(3)] Taux de passes en profondeur — moyenne sur les 3 derniers matchs
+      antérieurs.'
+  - name: through_ball_rate_rolling_5
+    description: '[Famille 3, ROLLING(5)] Taux de passes en profondeur — moyenne sur les 5 derniers matchs
+      antérieurs.'
+  - name: through_ball_rate_rolling_10
+    description: '[Famille 3, ROLLING(10)] Taux de passes en profondeur — moyenne sur les 10 derniers
+      matchs antérieurs.'
+  - name: long_ball_rate_rolling_3
+    description: '[Famille 3, ROLLING(3)] Taux de jeu long — moyenne sur les 3 derniers matchs antérieurs.'
+  - name: long_ball_rate_rolling_5
+    description: '[Famille 3, ROLLING(5)] Taux de jeu long — moyenne sur les 5 derniers matchs antérieurs.'
+  - name: long_ball_rate_rolling_10
+    description: '[Famille 3, ROLLING(10)] Taux de jeu long — moyenne sur les 10 derniers matchs antérieurs.'
+  - name: shot_six_yard_pct_rolling_3
+    description: '[Famille 3, ROLLING(3)] Part des tirs pris dans les 6 mètres — moyenne sur les 3 derniers
+      matchs antérieurs.'
+  - name: shot_six_yard_pct_rolling_5
+    description: '[Famille 3, ROLLING(5)] Part des tirs pris dans les 6 mètres — moyenne sur les 5 derniers
+      matchs antérieurs.'
+  - name: shot_six_yard_pct_rolling_10
+    description: '[Famille 3, ROLLING(10)] Part des tirs pris dans les 6 mètres — moyenne sur les 10 derniers
+      matchs antérieurs.'
+  - name: shot_open_play_pct_rolling_3
+    description: '[Famille 3, ROLLING(3)] Part des tirs dans le jeu — moyenne sur les 3 derniers matchs
+      antérieurs.'
+  - name: shot_open_play_pct_rolling_5
+    description: '[Famille 3, ROLLING(5)] Part des tirs dans le jeu — moyenne sur les 5 derniers matchs
+      antérieurs.'
+  - name: shot_open_play_pct_rolling_10
+    description: '[Famille 3, ROLLING(10)] Part des tirs dans le jeu — moyenne sur les 10 derniers matchs
+      antérieurs.'
+  - name: shot_set_piece_pct_rolling_3
+    description: '[Famille 3, ROLLING(3)] Part des tirs sur coup de pied arrêté — moyenne sur les 3 derniers
+      matchs antérieurs.'
+  - name: shot_set_piece_pct_rolling_5
+    description: '[Famille 3, ROLLING(5)] Part des tirs sur coup de pied arrêté — moyenne sur les 5 derniers
+      matchs antérieurs.'
+  - name: shot_set_piece_pct_rolling_10
+    description: '[Famille 3, ROLLING(10)] Part des tirs sur coup de pied arrêté — moyenne sur les 10
+      derniers matchs antérieurs.'
+  - name: set_piece_reliance_rolling_3
+    description: '[Famille 3, ROLLING(3)] Dépendance aux coups de pied arrêtés (set-piece pressure) —
+      moyenne sur les 3 derniers matchs antérieurs.'
+  - name: set_piece_reliance_rolling_5
+    description: '[Famille 3, ROLLING(5)] Dépendance aux coups de pied arrêtés (set-piece pressure) —
+      moyenne sur les 5 derniers matchs antérieurs.'
+  - name: set_piece_reliance_rolling_10
+    description: '[Famille 3, ROLLING(10)] Dépendance aux coups de pied arrêtés (set-piece pressure) —
+      moyenne sur les 10 derniers matchs antérieurs.'
+  - name: defensive_line_height_rolling_3
+    description: '[Famille 3, ROLLING(3)] Hauteur de la ligne défensive — moyenne sur les 3 derniers matchs
+      antérieurs.'
+  - name: defensive_line_height_rolling_5
+    description: '[Famille 3, ROLLING(5)] Hauteur de la ligne défensive — moyenne sur les 5 derniers matchs
+      antérieurs.'
+  - name: defensive_line_height_rolling_10
+    description: '[Famille 3, ROLLING(10)] Hauteur de la ligne défensive — moyenne sur les 10 derniers
+      matchs antérieurs.'
+  - name: yellow_cards_rolling_3
+    description: '[Famille 8, ROLLING(3)] Moyenne de cartons jaunes (2es jaunes inclus) sur les 3 derniers
+      matchs antérieurs.'
+  - name: yellow_cards_rolling_5
+    description: '[Famille 8, ROLLING(5)] Moyenne de cartons jaunes (2es jaunes inclus) sur les 5 derniers
+      matchs antérieurs.'
+  - name: yellow_cards_rolling_10
+    description: '[Famille 8, ROLLING(10)] Moyenne de cartons jaunes (2es jaunes inclus) sur les 10 derniers
+      matchs antérieurs.'
+  - name: fouls_committed_rolling_3
+    description: '[Famille 8, ROLLING(3)] Moyenne de fautes commises sur les 3 derniers matchs antérieurs.'
+  - name: fouls_committed_rolling_5
+    description: '[Famille 8, ROLLING(5)] Moyenne de fautes commises sur les 5 derniers matchs antérieurs.'
+  - name: fouls_committed_rolling_10
+    description: '[Famille 8, ROLLING(10)] Moyenne de fautes commises sur les 10 derniers matchs antérieurs.'
+  - name: fouls_drawn_rolling_3
+    description: '[Famille 8, feature 59, ROLLING(3)] Moyenne de fautes subies sur les 3 derniers matchs antérieurs. NULL hors couverture WhoScored (ignoré par l''AVG).'
+  - name: fouls_drawn_rolling_5
+    description: '[Famille 8, feature 59, ROLLING(5)] Moyenne de fautes subies sur les 5 derniers matchs antérieurs.'
+  - name: fouls_drawn_rolling_10
+    description: '[Famille 8, feature 59, ROLLING(10)] Moyenne de fautes subies sur les 10 derniers matchs antérieurs.'
+  - name: corners_for_rolling_3
+    description: '[Famille 8, feature 61, ROLLING(3)] Moyenne de corners obtenus sur les 3 derniers matchs. NULL hors couverture WhoScored.'
+  - name: corners_for_rolling_5
+    description: '[Famille 8, feature 61, ROLLING(5)] Moyenne de corners obtenus sur les 5 derniers matchs.'
+  - name: corners_for_rolling_10
+    description: '[Famille 8, feature 61, ROLLING(10)] Moyenne de corners obtenus sur les 10 derniers matchs.'
+  - name: corners_against_rolling_3
+    description: '[Famille 8, feature 62, ROLLING(3)] Moyenne de corners concédés (= corners de l''adversaire) sur les 3 derniers matchs.'
+  - name: corners_against_rolling_5
+    description: '[Famille 8, feature 62, ROLLING(5)] Moyenne de corners concédés sur les 5 derniers matchs.'
+  - name: corners_against_rolling_10
+    description: '[Famille 8, feature 62, ROLLING(10)] Moyenne de corners concédés sur les 10 derniers matchs.'
+  - name: shots_blocked_rolling_3
+    description: '[Famille 8, feature 63, ROLLING(3)] Moyenne de tirs adverses contrés (par cette équipe) sur les 3 derniers matchs. NULL hors couverture WhoScored.'
+  - name: shots_blocked_rolling_5
+    description: '[Famille 8, feature 63, ROLLING(5)] Moyenne de tirs adverses contrés sur les 5 derniers matchs.'
+  - name: shots_blocked_rolling_10
+    description: '[Famille 8, feature 63, ROLLING(10)] Moyenne de tirs adverses contrés sur les 10 derniers matchs.'
+  - name: season_xg_per_shot_for_lag
+    description: '[Famille 3, SEASON-LAG, feature 28] xG par tir produit, saison précédente (jointure
+      sur la saison N-1). Couverture ~65-85 % dès 2022-2023, NULL avant (limite source, cf. troubleshooting).'
+  - name: season_xg_per_shot_against_lag
+    description: '[Famille 3, SEASON-LAG, feature 28] xG par tir concédé, saison précédente.'
+- name: equipe_adversaire_match
+  description: Grain (match_id, team_id, opponent_id). Famille CDC 1 (confrontation directe H2H), classe
+    H2H-CUTOFF (cumul avant match, vérifié anti-leakage). Taux NULL si pas d'historique, compteurs à 0.
+  tests:
+  - dbt_utils.unique_combination_of_columns:
+      combination_of_columns:
+      - match_id
+      - team_id
+  columns:
+  - name: match_id
+    description: Identifiant unifié du match (SHA1).
+    tests:
+    - not_null:
+        config:
+          severity: warn
+  - name: team_id
+    description: Id canonique de l'équipe (perspective de la ligne).
+    tests:
+    - not_null
+  - name: opponent_id
+    description: Id canonique de l'adversaire.
+  - name: date
+    description: Date du match.
+  - name: season
+    description: Saison (ex. 2023-2024).
+  - name: league_source
+    description: Championnat / compétition source.
+  - name: h2h_played
+    description: '[Famille 1, H2H-CUTOFF] Nombre de confrontations directes antérieures (0 si aucune).'
+  - name: h2h_home_played
+    description: '[Famille 1, H2H-CUTOFF] Confrontations directes à domicile antérieures (0 si aucune).'
+  - name: h2h_win_rate_cutoff
+    description: '[Famille 1] Taux de victoire en H2H cumulé avant le match. NULL si aucune confrontation
+      antérieure (inconnu ≠ 0).'
+    tests:
+    - dbt_utils.accepted_range:
+        min_value: 0
+        max_value: 1
+        config:
+          severity: warn
+  - name: h2h_draw_rate_cutoff
+    description: '[Famille 1] Taux de nul en H2H cumulé avant le match. NULL si aucune confrontation.'
+    tests:
+    - dbt_utils.accepted_range:
+        min_value: 0
+        max_value: 1
+        config:
+          severity: warn
+  - name: h2h_loss_rate_cutoff
+    description: '[Famille 1] Taux de défaite en H2H cumulé avant le match. NULL si aucune confrontation.'
+    tests:
+    - dbt_utils.accepted_range:
+        min_value: 0
+        max_value: 1
+        config:
+          severity: warn
+  - name: h2h_home_win_rate_cutoff
+    description: '[Famille 1] Taux de victoire à domicile en H2H cumulé avant le match. NULL si aucune
+      confrontation à domicile.'
+    tests:
+    - dbt_utils.accepted_range:
+        min_value: 0
+        max_value: 1
+        config:
+          severity: warn
+  - name: h2h_avg_gf_10
+    description: '[Famille 1] Moyenne de buts marqués sur les 10 dernières confrontations directes.'
+  - name: h2h_avg_ga_10
+    description: '[Famille 1] Moyenne de buts encaissés sur les 10 dernières confrontations directes.'
+  - name: h2h_avg_xg_diff_10
+    description: '[Famille 1] Différentiel xG moyen sur les 10 dernières confrontations directes.'
+- name: gardien_saison
+  description: 'Grain (keeper_id, season). Famille CDC 9 (profil gardien), classe SEASON-LAG. Chaque
+    ligne (gardien, saison S) porte le profil de la saison S-1 (int_keeper_psxg est au grain saison,
+    pas de PSxG au niveau match). Anti-leakage par construction. NULL = pas de saison N-1 (recrue) →
+    imputation famille 11.'
+  tests:
+  - dbt_utils.unique_combination_of_columns:
+      combination_of_columns:
+      - keeper_id
+      - season
+  columns:
+  - name: keeper_id
+    description: Identifiant du gardien.
+    tests:
+    - not_null
+  - name: season
+    description: Saison du match à venir (ex. 2023-2024) ; le profil porté est celui de N-1.
+    tests:
+    - not_null
+  - name: keeper_psxg_plus_minus_lag
+    description: '[Famille 9, SEASON-LAG, feature 64] Post-Shot xG +/- de la saison précédente (total :
+      PSxG affronté − buts encaissés ; positif = arrête plus que la qualité des tirs ne le prédit).'
+  - name: keeper_psxg_per_shot_lag
+    description: '[Famille 9, SEASON-LAG] PSxG +/- normalisé par tir affronté (comparable entre gardiens
+      de volumes différents).'
+  - name: keeper_save_pct_lag
+    description: '[Famille 9, SEASON-LAG, feature 65] Pourcentage d''arrêts de la saison précédente (saves
+      / shots_faced, recalculé).'
+    tests:
+    - dbt_utils.accepted_range:
+        min_value: 0
+        max_value: 1
+        config:
+          severity: warn
+  - name: keeper_shots_faced_lag
+    description: '[Famille 9, SEASON-LAG, feature 66] Tirs affrontés la saison précédente. Sert de signal
+      de confiance : un faible volume rend le PSxG bruité (seuil de bascule = calibration famille 11).'
+  - name: profile_confidence_flag
+    description: '[Famille 11, feature 79] Fiabilité du profil gardien : high (shots_faced≥50) / medium
+      (≥15) / low (≥1) / none (pas de saison N-1). Seuils par défaut, à calibrer.'
+    tests:
+    - accepted_values:
+        arguments:
+          values: ['high', 'medium', 'low', 'none']
+- name: joueur_saison
+  description: 'Grain (match_id, team_id, player_id) — snapshot as-of-date. Familles CDC 4 (source des
+    agrégats du onze), 5/6 NON-zonales, 8 (carton), 10 (Buteurs). PASSE 1 : source player_match_stats
+    seule ; passe 2 à venir (xgchain, penalties, coups francs, xGOT, part des tirs). Profil = 38 dernières
+    apparitions strictement antérieures du joueur (fenêtre ROWS 38 PRECEDING AND 1 PRECEDING, match courant
+    exclu). Volumes normalisés PER-90 (Σ stat / Σ minutes × 90) ; ratios exacts. Passe 1 (player_match_stats)
+    + passe 2 (xgChain/xgBuildup, part des tirs, rôles penalty/coup franc). Reste : scorer_xgot_overperformance
+    (feature 70).'
+  tests:
+  - dbt_utils.unique_combination_of_columns:
+      combination_of_columns:
+      - match_id
+      - team_id
+      - player_id
+  columns:
+  - name: match_id
+    description: Identifiant unifié du match (SHA1).
+    tests:
+    - not_null:
+        config:
+          severity: warn
+  - name: team_id
+    description: Id canonique de l'équipe du joueur pour ce match.
+    tests:
+    - not_null
+  - name: player_id
+    description: Identifiant du joueur.
+    tests:
+    - not_null
+  - name: date
+    description: Date du match courant (le profil porté est celui d'avant ce match).
+  - name: season
+    description: Saison du match courant.
+  - name: n_apps_lag
+    description: Nombre d'apparitions du joueur dans la fenêtre (0 à 38). Signal de confiance ; 0 = première
+      apparition (profil NULL) → imputation famille 11.
+  - name: minutes_lag
+    description: Minutes cumulées du joueur sur la fenêtre. Dénominateur du per-90 et signal de fiabilité
+      (faible volume = profil bruité).
+  - name: scorer_xg_per90_lag
+    description: '[Famille 10, feature 69] xG (contribution) par 90 minutes = Σ xG / Σ minutes × 90.'
+  - name: scorer_shots_per90_lag
+    description: '[Famille 10, feature 68] Tirs par 90 minutes.'
+  - name: off_xg_per_shot_lag
+    description: '[Famille 5/10, feature 42] Qualité de tir = Σ xG / Σ tirs sur la fenêtre (ratio exact,
+      indépendant des minutes).'
+  - name: off_chances_created_per90_lag
+    description: '[Famille 5] Occasions créées par 90 minutes.'
+  - name: off_key_passes_per90_lag
+    description: '[Famille 5] Passes clés par 90 minutes.'
+  - name: def_aerial_win_rate_lag
+    description: '[Famille 6, feature 50] Taux de duels aériens gagnés = Σ gagnés / Σ duels (ratio exact).'
+    tests:
+    - dbt_utils.accepted_range:
+        min_value: 0
+        max_value: 1
+        config:
+          severity: warn
+  - name: def_actions_per90_lag
+    description: '[Famille 6] Actions défensives (tacles + interceptions) par 90 minutes — volume non-zonal.'
+  - name: def_errors_per90_lag
+    description: '[Famille 6, feature 49] Erreurs menant à un tir/but, par 90 minutes.'
+  - name: player_card_propensity_lag
+    description: '[Famille 8, feature 60] Cartons jaunes (2es jaunes inclus) par 90 minutes.'
+  - name: off_xgchain_per90_lag
+    description: '[Famille 5, feature 39] xgChain par 90 min — xG cumulé des possessions où le joueur est
+      impliqué (Σ xgChain / Σ minutes × 90).'
+  - name: off_xgbuildup_per90_lag
+    description: '[Famille 5, feature 40] xgBuildup par 90 min — comme xgChain mais hors tir et passe clé
+      (implication dans la construction pure).'
+  - name: scorer_team_shot_share_lag
+    description: '[Famille 10, feature 71] Part des tirs de l''équipe pris par le joueur = Σ tirs joueur
+      / Σ tirs équipe sur la fenêtre. Point focal offensif.'
+    tests:
+    - dbt_utils.accepted_range:
+        min_value: 0
+        max_value: 1
+        config:
+          severity: warn
+  - name: scorer_penalty_taker_lag
+    description: '[Famille 10, feature 73] Nombre de penaltys tirés par le joueur sur la fenêtre. Fort
+      signal P(marque) : un tireur attitré convertit ~0,76 xG par penalty.'
+  - name: scorer_freekick_taker_lag
+    description: '[Famille 10, feature 74] Nombre de coups francs tirés par le joueur sur la fenêtre (rôle
+      de tireur sur CPA). À affiner en coups francs directs quand fk_type sera exploité.'
+  - name: def_threat_conceded_per90_lag
+    description: '[Famille 6, feature 48] Menace concédée par 90 min quand le joueur est impliqué dans
+      la chaîne défensive (fragilité). Non-zonale (threat_conceded sans coordonnées).'
+  - name: scorer_xgot_overperformance_lag
+    description: '[Famille 10, feature 70] Surperformance à la finition = (Σ buts − Σ xGOT) / Σ xGOT sur
+      la fenêtre. Positif = finisseur clinique. NULL si aucun tir cadré. Source xGOT = table externe (pipeline Python).'
+  - name: profile_confidence_flag
+    description: '[Famille 11, feature 79] Fiabilité du profil : high (n_apps_lag≥20) / medium (≥5) / low
+      (≥1) / none (première apparition). Seuils par défaut, à calibrer.'
+    tests:
+    - accepted_values:
+        arguments:
+          values: ['high', 'medium', 'low', 'none']
+- name: joueur_zone_saison
+  description: 'Grain (player_id, zone_5x5, season) — format tall 5×5. Familles CDC 5 (profils offensifs
+    zonaux) et 6 (défensifs), classe SEASON-LAG. Passe 1 offensive (touch share, volume de tirs par
+    cellule) depuis int_player_zone_season ; passe 2 (danger, duels défensifs, menace concédée) à venir.
+    Chaque ligne porte le profil de la saison N-1 (repli saison précédente, par cellule l''échantillon
+    d''une saison est mince). Anti-leakage par construction.'
+  tests:
+  - dbt_utils.unique_combination_of_columns:
+      combination_of_columns:
+      - player_id
+      - zone_5x5
+      - season
+  columns:
+  - name: player_id
+    description: Identifiant du joueur.
+    tests:
+    - not_null
+  - name: zone_5x5
+    description: 'Cellule 5×5 (zX_cY) : z = profondeur/tiers (x), c = couloir (y), bornes tous les 20.'
+    tests:
+    - not_null
+  - name: season
+    description: Saison du match à venir ; le profil porté est celui de N-1.
+    tests:
+    - not_null
+  - name: off_touch_share_by_zone_lag
+    description: '[Famille 5, feature 34] Part moyenne des touches du joueur dans la cellule, saison précédente.'
+    tests:
+    - dbt_utils.accepted_range:
+        min_value: 0
+        max_value: 1
+        config:
+          severity: warn
+  - name: off_shot_volume_by_zone_lag
+    description: '[Famille 5, feature 36] Tirs pris dans la cellule par match, saison précédente (total
+      tirs zone / matchs joués).'
+  - name: off_danger_by_zone_lag
+    description: '[Famille 5, feature 35] Danger offensif produit dans la cellule par match, saison précédente
+      (Σ danger_position des actions offensives / matchs). Où le joueur produit du danger.'
+  - name: off_progressive_actions_by_zone_lag
+    description: '[Famille 5, feature 41] Passes progressives dans la cellule par match, saison précédente
+      (is_progressive de player_passes_raw). Repère de l''attaquant.'
+  - name: off_cross_volume_by_zone_lag
+    description: '[Famille 5, feature 37] Centres délivrés depuis la cellule par match, saison précédente.
+      Définition GÉOMÉTRIQUE (is_creative écarté car central) : passe partant du dernier tiers sur un flanc
+      (x≥66 et y<20 ou y>80) vers la surface centrale (end_x≥83, end_y∈[21,79]), comptée en cellule d''origine.'
+  - name: def_duel_win_rate_by_zone_lag
+    description: '[Famille 6, feature 45] Taux de duels défensifs gagnés dans la cellule, saison précédente
+      (coords retournées vers la cage du défenseur). NULL si aucun duel dans la cellule.'
+    tests:
+    - dbt_utils.accepted_range:
+        min_value: 0
+        max_value: 1
+        config:
+          severity: warn
+    - dbt_expectations.expect_column_mean_to_be_between:
+        min_value: 0.35
+        max_value: 0.6
+        row_condition: n_duels_prev >= 5
+        config:
+          severity: warn
+  - name: def_actions_by_zone_lag
+    description: '[Famille 6] Densité d''actions défensives dans la cellule par match, saison précédente
+      (event_values, def_execution_quality non NULL ; coords dans le repère du camp du défenseur, pas de
+      retournement). Brique de matchup_central_control (feature 55).'
+  - name: n_duels_prev
+    description: Duels défensifs disputés la saison précédente dans la cellule (compteur de confiance).
+  - name: n_matches_prev
+    description: Nombre de matchs du joueur la saison précédente (compteur d'observations, base imputation
+      famille 11). NULL = pas de saison N-1 (recrue).
+  - name: profile_confidence_flag
+    description: '[Famille 11, feature 79] Fiabilité du profil zonal : high (n_matches_prev≥10) / medium
+      (≥3) / low (≥1) / none (pas de saison N-1). Seuils par défaut, à calibrer. ''none'' = cible du KNN.'
+    tests:
+    - accepted_values:
+        arguments:
+          values: ['high', 'medium', 'low', 'none']
+- name: team_corridor_profile
+  description: 'Grain (match_id, team_id, corridor). Brique de la famille 7 : agrège les profils zonaux
+    N-1 des titulaires (XI de départ) par couloir (gauche/axe/droit via grid_horizontal). off_strength =
+    Σ volume de tirs dans les cellules attaquantes du couloir ; def_solidity = taux de duels gagnés pondéré
+    dans les cellules défensives.'
+  tests:
+  - dbt_utils.unique_combination_of_columns:
+      combination_of_columns:
+      - match_id
+      - team_id
+      - corridor
+  columns:
+  - name: match_id
+    description: Identifiant unifié du match.
+    tests:
+    - not_null
+  - name: team_id
+    description: Équipe.
+    tests:
+    - not_null
+  - name: opponent_id
+    description: Adversaire (pour le croisement famille 7).
+  - name: corridor
+    description: 'Couloir occupé : gauche / axe / droit (via grid_horizontal du XI).'
+    tests:
+    - not_null
+  - name: off_strength
+    description: Force offensive du couloir = Σ volume de tirs des titulaires dans les cellules attaquantes
+      (z4,z5) du couloir.
+  - name: off_cross_strength
+    description: Force de centre du couloir = Σ off_cross_volume_by_zone_lag des titulaires dans les cellules
+      attaquantes (z4,z5). Brique de matchup_cross_threat (feature 53). ~0 sur le couloir axe (centres = flancs).
+  - name: off_dribble_strength
+    description: Force de percée du couloir = Σ off_progressive_actions_by_zone_lag des titulaires dans les
+      cellules attaquantes (z4,z5). Brique de matchup_dribble_threat (feature 54).
+  - name: off_central_progression
+    description: Progression centrale = Σ off_progressive_actions_by_zone_lag des titulaires en z3-z4, c3.
+      Ne porte son sens que sur la ligne du couloir axe. Brique de matchup_central_control (feature 55).
+  - name: off_central_touch
+    description: Présence centrale = Σ off_touch_share_by_zone_lag des titulaires en z3-z4, c3. Composante
+      brute exposée pour la feature 55 (ligne axe).
+  - name: def_central_density
+    description: Densité défensive centrale = Σ def_actions_by_zone_lag des titulaires en z1-z3, c3. Solidité
+      de B dans l''axe, brique de matchup_central_control (feature 55).
+  - name: def_solidity
+    description: Solidité défensive du couloir = taux de duels gagnés pondéré par volume, cellules défensives
+      (z1,z2). NULL si aucun duel.
+    tests:
+    - dbt_utils.accepted_range:
+        min_value: 0
+        max_value: 1
+        config:
+          severity: warn
+- name: zone_confrontation_match
+  description: 'Grain (match_id, attacking_team_id, attack_corridor) — famille CDC 7. Croise la menace
+    offensive de A et la vulnérabilité défensive de B PAR COULOIR, en MIROIR (A-gauche ↔ B-droite, car
+    les équipes se font face). 6 lignes par match (2 sens × 3 couloirs). Calculable une fois les compos
+    connues.'
+  tests:
+  - dbt_utils.unique_combination_of_columns:
+      combination_of_columns:
+      - match_id
+      - attacking_team_id
+      - attack_corridor
+  columns:
+  - name: match_id
+    description: Identifiant unifié du match.
+    tests:
+    - not_null
+  - name: attacking_team_id
+    description: Équipe en position d'attaque (sens A→B).
+    tests:
+    - not_null
+  - name: defending_team_id
+    description: Équipe en position de défense (adversaire).
+  - name: attack_corridor
+    description: 'Couloir d''attaque de A : gauche / axe / droit.'
+    tests:
+    - not_null
+  - name: off_strength
+    description: Force offensive de A dans le couloir.
+  - name: opp_def_solidity
+    description: Solidité défensive de B dans le couloir miroir.
+  - name: matchup_danger_by_corridor
+    description: '[Famille 7, feature 52] Danger du couloir = off_strength(A) × (1 − def_solidity(B miroir)).
+      Produit menace × vulnérabilité. NULL si solidité adverse inconnue → imputation famille 11.'
+    tests:
+    - dbt_expectations.expect_column_values_to_be_between:
+        min_value: 0
+        max_value: 20
+        row_condition: matchup_danger_by_corridor is not null
+        config:
+          severity: warn
+  - name: matchup_cross_threat
+    description: '[Famille 7, feature 53] Menace de centre = off_cross_strength(A) × (1 − def_solidity(B miroir)).
+      VERSION RÉDUITE : composante aérienne du CDC (def_aerial_win_rate, def_cross_conceded_by_flank, famille 6)
+      non incluse → TODO.'
+  - name: matchup_dribble_threat
+    description: '[Famille 7, feature 54] Menace de percée = off_dribble_strength(A) × (1 − def_solidity(B
+      miroir)). Complet.'
+  - name: matchup_central_control
+    description: '[Famille 7, feature 55] Contrôle de l''axe = off_central_progression(A) / def_central_density(B),
+      UNIQUEMENT sur la ligne axe (axe↔axe). >1 → A progresse dans l''axe plus que B n''y défend. SENS À VALIDER
+      empiriquement. def_threat_conceded_by_zone du CDC absente (threat_conceded sans coords) → densité = actions
+      défensives seules. NULL hors couloir axe.'
+  - name: self_central_progression
+    description: 'Composante brute (ligne axe) : progression centrale de A. NULL hors axe.'
+  - name: self_central_touch
+    description: 'Composante brute (ligne axe) : présence centrale (touch share) de A. NULL hors axe.'
+  - name: opp_central_def_density
+    description: 'Composante brute (ligne axe) : densité défensive centrale de B. NULL hors axe.'
+- name: equipe_confrontation_match
+  description: 'Grain (match_id, team_id) directionnel A→B — famille CDC 7, feature 56. Croise le pressing de
+    l''adversaire B (ppda_rolling) avec la capacité de relance sous pression de A (ppda_allowed_rolling +
+    xgbuildup du XI). Classe DÉRIVÉ (rolling + SEASON-LAG déjà anti-leakage). Lignes à clé nulle d''equipe_match
+    exclues.'
+  tests:
+  - dbt_utils.unique_combination_of_columns:
+      combination_of_columns:
+      - match_id
+      - team_id
+  columns:
+  - name: match_id
+    description: Identifiant unifié du match.
+    tests:
+    - not_null
+  - name: team_id
+    description: Équipe A (repère de la confrontation).
+    tests:
+    - not_null
+  - name: opponent_id
+    description: Adversaire B.
+  - name: opp_press_ppda_rolling_3
+    description: Pressing de B (ppda_rolling_3, plus bas = presse plus fort). Composante brute.
+  - name: opp_press_ppda_rolling_5
+    description: Pressing de B (ppda_rolling_5). Composante brute.
+  - name: opp_press_ppda_rolling_10
+    description: Pressing de B (ppda_rolling_10). Composante brute.
+  - name: self_buildup_resistance_rolling_3
+    description: Capacité de relance de A (ppda_allowed_rolling_3, plus haut = relance librement). Composante brute.
+  - name: self_buildup_resistance_rolling_5
+    description: Capacité de relance de A (ppda_allowed_rolling_5). Composante brute.
+  - name: self_buildup_resistance_rolling_10
+    description: Capacité de relance de A (ppda_allowed_rolling_10). Composante brute.
+  - name: matchup_high_press_vs_buildup_rolling_3
+    description: '[Feature 56] ppda_allowed(A) / ppda_rolling(B), fenêtre 3. >1 → A relance au-dessus du pressing
+      de B. SENS À VALIDER empiriquement (composantes brutes exposées en secours).'
+  - name: matchup_high_press_vs_buildup_rolling_5
+    description: '[Feature 56] ppda_allowed(A) / ppda_rolling(B), fenêtre 5. Voir note fenêtre 3.'
+  - name: matchup_high_press_vs_buildup_rolling_10
+    description: '[Feature 56] ppda_allowed(A) / ppda_rolling(B), fenêtre 10. Voir note fenêtre 3.'
+  - name: self_team_xgbuildup_lag
+    description: '[Feature 56, composante xgbuildup] Qualité de construction du XI de A = Σ off_xgbuildup_per90_lag
+      des 11 titulaires (convention team_corridor_profile).'
+  - name: opp_team_xgbuildup_lag
+    description: Qualité de construction du XI de B (Σ off_xgbuildup_per90_lag des titulaires). Composante brute.
+- name: equipe_lineup_match
+  description: 'Grain (match_id, team_id). Famille CDC 4 : qualité brute du XI de départ (indépendante
+    des matchups), agrégée depuis les profils SEASON-LAG de joueur_saison. Table séparée d''equipe_match
+    car dépendante de la compo (~1h avant le coup d''envoi). Reporté : age (source salie), rating (season-lag
+    à construire), n_key_starters_missing (seuil à calibrer).'
+  tests:
+  - dbt_utils.unique_combination_of_columns:
+      combination_of_columns:
+      - match_id
+      - team_id
+  columns:
+  - name: match_id
+    description: Identifiant unifié du match.
+    tests:
+    - not_null
+  - name: team_id
+    description: Équipe.
+    tests:
+    - not_null
+  - name: lineup_sum_xg_per90_lag
+    description: '[Famille 4, feature 30] Somme des xG/90 (saison N-1) des 11 titulaires — menace offensive
+      cumulée de la compo.'
+    tests:
+    - dbt_expectations.expect_column_mean_to_be_between:
+        min_value: 0.4
+        max_value: 1.2
+        config:
+          severity: warn
+  - name: lineup_avg_shots_per90_lag
+    description: '[Famille 4] Tirs/90 moyens des titulaires.'
+  - name: lineup_avg_def_actions_per90_lag
+    description: '[Famille 4] Actions défensives/90 moyennes des titulaires (solidité brute).'
+  - name: lineup_avg_aerial_win_rate_lag
+    description: '[Famille 4] Taux de duels aériens gagnés moyen des titulaires.'
+  - name: n_starters_profiled
+    description: Nombre de titulaires (sur 11) ayant un profil joueur_saison (confiance).
+- name: joueur_match
+  description: 'Grain (match_id, team_id, player_id) — 7e table de grain, assemblage du modèle Buteurs
+    (une ligne = un titulaire dans un match). Réunit les features scorer SEASON-LAG (joueur_saison) et
+    la feature propre 75 (scorer_context_vs_opponent_style : croisement tirs du joueur × vulnérabilité
+    adverse par couloir miroir). Candidats = XI de départ.'
+  tests:
+  - dbt_utils.unique_combination_of_columns:
+      combination_of_columns:
+      - match_id
+      - team_id
+      - player_id
+  columns:
+  - name: match_id
+    description: Identifiant unifié du match.
+    tests:
+    - not_null
+  - name: team_id
+    description: Équipe du joueur.
+    tests:
+    - not_null
+  - name: opponent_id
+    description: Adversaire.
+  - name: player_id
+    description: Joueur (titulaire).
+    tests:
+    - not_null
+  - name: is_home
+    description: 1 si le joueur joue à domicile.
+  - name: scorer_xg_per90_lag
+    description: '[Famille 10] xG/90 du joueur (saison N-1) — repris de joueur_saison.'
+  - name: scorer_shots_per90_lag
+    description: '[Famille 10] Tirs/90 du joueur.'
+  - name: scorer_team_shot_share_lag
+    description: '[Famille 10] Part des tirs de l''équipe prise par le joueur.'
+  - name: scorer_penalty_taker_lag
+    description: '[Famille 10] Penaltys tirés sur la fenêtre (rôle de tireur).'
+  - name: scorer_freekick_taker_lag
+    description: '[Famille 10] Coups francs tirés sur la fenêtre.'
+  - name: off_xg_per_shot_lag
+    description: '[Famille 5/10] Qualité de tir (xG/tir).'
+  - name: scorer_context_vs_opponent_style
+    description: '[Famille 10, feature 75] Σ sur les couloirs [ tirs du joueur × (1 − solidité défensive
+      de l''adversaire, couloir miroir) ]. Danger attendu du joueur face à CET adversaire. NULL/partiel
+      si solidité adverse inconnue → imputation famille 11.'
+    tests:
+    - dbt_expectations.expect_column_values_to_be_between:
+        min_value: 0
+        max_value: 20
+        row_condition: scorer_context_vs_opponent_style is not null
+        config:
+          severity: warn
+- name: equipe_gardien_match
+  description: 'Grain (match_id, team_id). Famille CDC 9 : rattache le profil SEASON-LAG du gardien
+    titulaire à son équipe pour le match. Identification via int_whoscored_player_match (position=''GK''
+    et is_first_eleven, tie-break player_id min si plusieurs GK marqués titulaires). Jointure gardien_saison
+    sur (keeper_id, season). Pur rattachement au grain équipe : aucune feature nouvelle, tout vient
+    de gardien_saison. NB : profile_confidence_flag de gardien_saison NON repris → perte du signal de
+    fiabilité du profil. NULL si compo inconnue ou pas de saison N-1 (recrue) → imputation famille 11.'
+  tests:
+  - dbt_utils.unique_combination_of_columns:
+      combination_of_columns:
+      - match_id
+      - team_id
+  columns:
+  - name: match_id
+    description: Identifiant unifié du match (SHA1).
+    tests:
+    - not_null:
+        config:
+          severity: warn
+  - name: team_id
+    description: Id canonique de l'équipe (perspective de la ligne).
+    tests:
+    - not_null
+  - name: keeper_psxg_plus_minus_lag
+    description: '[Famille 9, SEASON-LAG, feature 64] Post-Shot xG +/- de la saison précédente (total :
+      PSxG affronté − buts encaissés ; positif = arrête plus que la qualité des tirs ne le prédit).
+      Repris de gardien_saison.'
+  - name: keeper_psxg_per_shot_lag
+    description: '[Famille 9, SEASON-LAG] PSxG +/- normalisé par tir affronté (comparable entre gardiens
+      de volumes différents). Repris de gardien_saison.'
+  - name: keeper_save_pct_lag
+    description: '[Famille 9, SEASON-LAG, feature 65] Pourcentage d''arrêts de la saison précédente
+      (saves / shots_faced, recalculé). Repris de gardien_saison.'
+    tests:
+    - dbt_utils.accepted_range:
+        min_value: 0
+        max_value: 1
+        config:
+          severity: warn
+  - name: keeper_shots_faced_lag
+    description: '[Famille 9, SEASON-LAG, feature 66] Tirs affrontés la saison précédente. Sert de signal
+      de confiance : un faible volume rend le PSxG bruité (seuil de bascule = calibration famille 11).
+      Repris de gardien_saison.'
+- name: equipe_confrontation_zone
+  description: 'Grain (match_id, team_id). Pivote zone_confrontation_match (grain couloir A→B, 6 lignes
+    par match) vers grain (match, équipe) : chaque ligne porte les DEUX perspectives dans un même enregistrement.
+    off_* = quand cette équipe attaque (elle est A dans le sens A→B) ; def_* = quand cette équipe défend
+    (elle est B, l''adversaire est A). Convention miroir : def_danger_gauche = danger créé par l''adversaire
+    quand il attaque par SON couloir gauche = notre exposition défensive côté droit (les équipes se font
+    face). Consommé directement par mart_1n2.'
+  tests:
+  - dbt_utils.unique_combination_of_columns:
+      combination_of_columns:
+      - match_id
+      - team_id
+  columns:
+  - name: match_id
+    description: Identifiant unifié du match.
+    tests:
+    - not_null
+    - relationships:
+        to: source('intermediate', 'match_registry')
+        field: match_id
+  - name: team_id
+    description: Équipe (perspective de la ligne).
+    tests:
+    - not_null
+    - relationships:
+        to: ref('team_mapping')
+        field: team_id
+  - name: off_danger_gauche
+    description: '[Famille 7, feature 52] Danger du couloir gauche en attaque = off_strength(A) × (1 −
+      def_solidity(B miroir)). Repris de zone_confrontation_match.matchup_danger_by_corridor. NULL si
+      solidité adverse inconnue → imputation famille 11.'
+  - name: off_danger_axe
+    description: '[Famille 7, feature 52] Danger de l''axe en attaque. Repris de zone_confrontation_match.matchup_danger_by_corridor.'
+  - name: off_danger_droit
+    description: '[Famille 7, feature 52] Danger du couloir droit en attaque. Repris de zone_confrontation_match.matchup_danger_by_corridor.'
+  - name: off_cross_gauche
+    description: '[Famille 7, feature 53] Menace de centre côté gauche en attaque = off_cross_strength(A)
+      × (1 − def_solidity(B miroir)). Repris de zone_confrontation_match.matchup_cross_threat. VERSION
+      RÉDUITE : composante aérienne du CDC (famille 6) non incluse.'
+  - name: off_cross_droit
+    description: '[Famille 7, feature 53] Menace de centre côté droit en attaque. Repris de zone_confrontation_match.matchup_cross_threat.
+      Pas de colonne axe (centres = flancs par définition).'
+  - name: off_dribble_gauche
+    description: '[Famille 7, feature 54] Menace de percée côté gauche en attaque = off_dribble_strength(A)
+      × (1 − def_solidity(B miroir)). Repris de zone_confrontation_match.matchup_dribble_threat.'
+  - name: off_dribble_droit
+    description: '[Famille 7, feature 54] Menace de percée côté droit en attaque. Repris de zone_confrontation_match.matchup_dribble_threat.
+      Pas de colonne axe.'
+  - name: off_central_axe
+    description: '[Famille 7, feature 55] Contrôle de l''axe en attaque = off_central_progression(A) /
+      def_central_density(B), ligne axe uniquement. >1 → A progresse dans l''axe plus que B n''y défend.
+      SENS À VALIDER empiriquement. Repris de zone_confrontation_match.matchup_central_control.'
+  - name: def_danger_gauche
+    description: '[Famille 7, feature 52] Danger subi quand l''adversaire attaque par SON couloir gauche
+      (= notre couloir droit en miroir). Repris de zone_confrontation_match.matchup_danger_by_corridor
+      côté défenseur.'
+  - name: def_danger_axe
+    description: '[Famille 7, feature 52] Danger de l''axe subi (adversaire attaquant dans l''axe). Repris
+      de zone_confrontation_match.matchup_danger_by_corridor côté défenseur.'
+  - name: def_danger_droit
+    description: '[Famille 7, feature 52] Danger subi quand l''adversaire attaque par SON couloir droit
+      (= notre couloir gauche en miroir). Repris de zone_confrontation_match.matchup_danger_by_corridor
+      côté défenseur.'
+  - name: def_cross_gauche
+    description: '[Famille 7, feature 53] Menace de centre subie côté gauche adverse (= notre exposition
+      côté droit en miroir). Repris de zone_confrontation_match.matchup_cross_threat côté défenseur.
+      VERSION RÉDUITE.'
+  - name: def_cross_droit
+    description: '[Famille 7, feature 53] Menace de centre subie côté droit adverse. Repris de zone_confrontation_match.matchup_cross_threat
+      côté défenseur.'
+  - name: def_dribble_gauche
+    description: '[Famille 7, feature 54] Menace de percée subie côté gauche adverse. Repris de zone_confrontation_match.matchup_dribble_threat
+      côté défenseur.'
+  - name: def_dribble_droit
+    description: '[Famille 7, feature 54] Menace de percée subie côté droit adverse. Repris de zone_confrontation_match.matchup_dribble_threat
+      côté défenseur.'
+  - name: def_central_axe
+    description: '[Famille 7, feature 55] Contrôle de l''axe subi (adversaire progressant dans l''axe /
+      notre densité défensive centrale). SENS À VALIDER. Repris de zone_confrontation_match.matchup_central_control
+      côté défenseur.'

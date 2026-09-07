@@ -5,15 +5,25 @@ project:
 # Scrapping configuration
 # Format : "YYYY-YYYY"
 seasons:
-  - "2017-2018"
-  - "2018-2019"
-  - "2019-2020"
-  - "2020-2021"
-  - "2021-2022"
-  - "2022-2023"
-  - "2023-2024"
-  - "2024-2025"
+  # - "2009-2010"
+  # - "2010-2011"
+  # - "2011-2012"
+  # - "2012-2013"
+  # - "2013-2014"
+  # - "2014-2015"
+  # - "2015-2016"
+  # - "2016-2017"
+  # - "2017-2018"
+  # - "2018-2019"
+  # - "2019-2020"
+  # - "2020-2021"
+  # - "2021-2022"
+  # - "2022-2023"
+  # - "2023-2024"
+  # - "2024-2025"
   - "2025-2026"
+  # - "2026-2027"
+
 
 # Types de stats FBref à scraper
 stat_types:
@@ -30,22 +40,21 @@ leagues:
   - "Serie A"
   - "La Liga"
   - "Championship"
-  # - "Ligue 2"
   - "2. Bundesliga"
-  # - "Serie B"
-  # - "La Liga 2"
+
 
 # Métadonnées WhoScored par ligue (url / slug / substage éventuel).
 # Une ligue listée dans `leagues:` mais ABSENTE d'ici est ignorée au scraping
 # (avec un warning explicite). Ajouter une ligue = ajouter son bloc ici, sans code.
 whoscored_leagues:
-  "Premier League":
-    url:  "https://www.whoscored.com/regions/252/tournaments/2/england-premier-league"
-    slug: "ENG-Premier-League"
   "Championship":
     url:  "https://www.whoscored.com/regions/252/tournaments/7/england-championship"
     slug: "ENG-Championship"
     default_substage: "Championship"
+  "Premier League":
+    url:  "https://www.whoscored.com/regions/252/tournaments/2/england-premier-league"
+    slug: "ENG-Premier-League"
+
 
   "Ligue 1":
     url:  "https://www.whoscored.com/regions/74/tournaments/22/france-ligue-1"
@@ -208,6 +217,20 @@ mlflow:
   # Remote
   tracking_uri: https://dagshub.com/marcellin.stephane/Football_predictor.mlflow
 
+# Prédiction : sélection des prochains matchs à servir
+predict:
+  # Snapshot des prochains matchs, écrasé à chaque run de next_matches.py
+  next_matches_file: data/next_matches.csv
+  # Largeur (jours) du regroupement "une journée" : capte week-end + midweek
+  next_matchday_window_days: 7
+  # Championnats servis — indépendant de la liste de scraping `leagues:` plus haut
+  leagues:
+    - "Ligue 1"
+    - "Bundesliga"
+    - "La Liga"
+    - "Serie A"
+    - "Premier League"
+
 train:
   use_autoencoder: false
   use_stacking: false
@@ -286,3 +309,7 @@ venue_mapping:
   away: Away
   H: Home
   A: Away
+
+predict:
+  ensemble_alpha: 0.5      # poids du dérivé dans le blend
+  dixon_coles_rho: -0.08   # correction des petits scores (estimée sur la val)
