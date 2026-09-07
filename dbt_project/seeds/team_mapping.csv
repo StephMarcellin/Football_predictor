@@ -403,6 +403,7 @@ Deportivo La Coruna,Deportivo La Coruna,202606100107
 Deportivo de La Coruña,Deportivo La Coruna,202606100107
 Dep La Coruña,Deportivo La Coruna,202606100107
 Deportivo,Deportivo La Coruna,202606100107
+Deportivo La Corogne,Deportivo La Corogne,202609010006
 RC Deportivo,Deportivo La Coruna,202606100107
 Deportivo Alavés,Deportivo Alavés,202606100106
 Alaves,Deportivo Alavés,202606100106
@@ -508,6 +509,7 @@ US Avellino,Avellino,202606100033
 Bari,Bari,202606100038
 SSC Bari,Bari,202606100038
 itBari,Bari,202606100038
+AS Bari,Bari,202606100038
 Benevento,Benevento,202606100043
 Benevento Calcio,Benevento,202606100043
 Bologna,Bologna,202606100052
@@ -955,29 +957,27 @@ SV Wehen Wiesbaden,Wehen Wiesbaden,202606100419
 SV Werder Bremen,Werder Bremen,202606100420
 SpVgg Greuther Fürth,Greuther Fürth,202606100174
 Shrewsbury Town,Shrewsbury Town,202606110005
-AC Arles-Avignon,NEW,202609010001
-AC Siena,NEW,202609010002
-AS Bari,NEW,202609010003
-Alemannia Aachen,NEW,202609010004
-Catania Calcio,NEW,202609010005
-Deportivo La Corogne,NEW,202609010006
-Doncaster Rovers,NEW,202609010007
-FC Energie Cottbus,NEW,202609010008
-FC Évian Thonon Gaillard,NEW,202609010009
-FSV Frankfurt,NEW,202609010010
-Hércules CF,NEW,202609010011
-Le Mans Union Club 72,NEW,202609010012
-Lincoln City,NEW,202609010013
-Milton Keynes Dons,NEW,202609010014
-Parma FC,NEW,202609010015
-Rot Weiss Ahlen,NEW,202609010016
-Rot-Weiß Oberhausen,NEW,202609010017
-SV Werder Brême,NEW,202609010018
-Scunthorpe United,NEW,202609010019
-TSV 1860 München,NEW,202609010020
-TuS Koblenz,NEW,202609010021
-US Boulogne,NEW,202609010022
-VfR Aalen,NEW,202609010023
-Wrexham AFC,NEW,202609010024
-Xerez CD,NEW,202609010025
-Yeovil Town,NEW,202609010026
+AC Arles-Avignon,AC Arles-Avignon,202609010001
+AC Siena,AC Siena,202609010002
+Alemannia Aachen,Alemannia Aachen,202609010004
+Catania Calcio,Catania Calcio,202609010005
+Doncaster Rovers,Doncaster Rovers,202609010007
+FC Energie Cottbus,Energie Cottbus,202609010008
+FC Évian Thonon Gaillard,Évian Thonon Gaillard,202609010009
+FSV Frankfurt,FSV Francfort,202609010010
+Hércules CF,Hércules Alicante,202609010011
+Le Mans Union Club 72,Le Mans FC,202609010012
+Lincoln City,Lincoln City,202609010013
+Milton Keynes Dons,MK Dons,202609010014
+Parma FC,Parme,202609010015
+Rot Weiss Ahlen,Rot-Weiß Ahlen,202609010016
+Rot-Weiß Oberhausen,Rot-Weiß Oberhausen,202609010017
+SV Werder Brême,Werder Brême,202609010018
+Scunthorpe United,Scunthorpe United,202609010019
+TSV 1860 München,1860 Munich,202609010020
+TuS Koblenz,TuS Coblence,202609010021
+US Boulogne,US Boulogne,202609010022
+VfR Aalen,VfR Aalen,202609010023
+Wrexham AFC,Wrexham,202609010024
+Xerez CD,Xerez CD,202609010025
+Yeovil Town,Yeovil Town,202609010026
