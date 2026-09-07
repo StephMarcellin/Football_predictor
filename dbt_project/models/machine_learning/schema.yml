@@ -74,7 +74,8 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: [0, 1]
+              arguments:
+                values: [0, 1]
       - name: offset_center
         description: "Écart horizontal au centre du but (m dans le cadre) : ABS(goal_mouth_y - 50)."
       - name: height

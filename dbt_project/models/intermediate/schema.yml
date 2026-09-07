@@ -57,7 +57,7 @@ models:
           - not_null
 
       - name: result_1n2
-        description: "Résultat du point de vue de l'équipe : H (victoire), D (nul), A (défaite)"
+        description: "Résultat brut du match : H (victoire domicile) / D (nul) / A (victoire extérieur). NULL si indéterminé."
         tests:
           - not_null:
               config:
@@ -1379,8 +1379,9 @@ models:
         description: "Clean sheet — 1 si aucun but encaissé, 0 sinon. Dérivé du champ autoritaire ga_keeper (garde-fou : la colonne silver.cs est salie, valeurs 2 + incohérences, cf. troubleshooting)."
         tests:
           - accepted_values:
-              values: [0, 1]
-              quote: false
+              arguments:
+                values: [0, 1]
+                quote: false
       - name: pk_att
         description: "Penaltys tentés contre le gardien"
       - name: pk_allowed
@@ -1398,7 +1399,7 @@ models:
       - name: comp_category
         description: "Catégorie de compétition : Big5, Cup, Europe"
       - name: result_1n2
-        description: "Résultat encodé : H, D, A"
+        description: "Résultat brut du match : H (victoire domicile) / D (nul) / A (victoire extérieur). NULL si indéterminé."
 
   - name: int_fbref_misc
     description: >
@@ -1461,7 +1462,7 @@ models:
       - name: comp_category
         description: "Catégorie de compétition : Big5, Cup, Europe"
       - name: result_1n2
-        description: "Résultat encodé : H, D, A"
+        description: "Résultat brut du match : H (victoire domicile) / D (nul) / A (victoire extérieur). NULL si indéterminé."
 
   - name: int_fbref_schedule
     description: >
@@ -1506,7 +1507,7 @@ models:
       - name: comp_category
         description: "Catégorie de compétition : Big5, Cup, Europe"
       - name: result_1n2
-        description: "Résultat encodé du point de vue de l'équipe : H (victoire domicile), D (nul), A (victoire extérieur)"
+        description: "Résultat brut du match : H (victoire domicile) / D (nul) / A (victoire extérieur). NULL si indéterminé."
 
   - name: int_fbref_shooting
     description: >
@@ -1560,7 +1561,7 @@ models:
       - name: comp_category
         description: "Catégorie de compétition : Big5, Cup, Europe"
       - name: result_1n2
-        description: "Résultat encodé : H, D, A"
+        description: "Résultat brut du match : H (victoire domicile) / D (nul) / A (victoire extérieur). NULL si indéterminé."
 
   - name: int_odds
     description: >
@@ -2950,7 +2951,8 @@ models:
         description: "scored | saved | post | off_target"
         tests:
           - accepted_values:
-              values: ['scored', 'saved', 'post', 'off_target']
+              arguments:
+                values: ['scored', 'saved', 'post', 'off_target']
       - name: row_num
         description: "row_num du tir du penalty. Avec match_id, clé unique."
       - name: season
@@ -3352,7 +3354,8 @@ models:
         description: "Voie d'attribution : 'save' (qual 233), 'lineup' (GK de la période), 'none' (non identifié)."
         tests:
           - accepted_values:
-              values: ['save', 'lineup', 'none']
+              arguments:
+                values: ['save', 'lineup', 'none']
       - name: def_gk_available
         description: >
           Booléen : l'équipe qui défend a un GK lineup dans ce match (donc buts
@@ -3488,3 +3491,180 @@ models:
             - player_id
             - zone_5x5
             - season
+
+  - name: int_player_role_lag
+    description: >
+      Grain (player_id, season). Rôle tactique dominant du joueur en saison N-1
+      (SEASON-LAG), calculé sur ses apparitions comme titulaire (moyenne pondérée
+      par minutes titu de grid_vertical/grid_horizontal, taxonomie 9 : GK, CB,
+      FB, DM, CM, WM, AM, W, ST). NULL possible pour une recrue → fallback dans
+      int_player_role_match via role_fin_current.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: 
+          - player_id 
+          - season
+    columns:
+      - name: player_id
+        tests: [not_null]
+      - name: season
+        tests: [not_null]
+      - name: gv_avg
+        description: "Moyenne pondérée par minutes titu de grid_vertical (N-1)."
+      - name: gh_avg
+        description: "Moyenne pondérée par minutes titu de grid_horizontal (N-1)."
+      - name: gh_offaxis
+        description: "abs(gh_avg - 5), écart à l'axe central."
+      - name: minutes_titu_lag
+        description: "Minutes cumulées comme titulaire en N-1. Signal de confiance."
+      - name: apps_starter_lag
+        description: "Nb d'apparitions comme titulaire en N-1. Signal de confiance."
+      - name: role_fin_lag
+        description: "Rôle dominant N-1 (9 valeurs). NULL si recrue."
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['GK', 'CB', 'FB', 'DM', 'CM', 'WM', 'AM', 'W', 'ST']
+
+  - name: int_player_role_match
+    description: >
+      Grain (match_id, player_id). Rôle tactique résolu pour le match, cascade :
+      role_fin_lag (SEASON-LAG) → role_fin_current (slot du joueur dans la
+      formation initiale de ce match, coord annoncée pré-match, pas de leakage)
+      → role_fin_resolved = COALESCE des deux, JAMAIS NULL pour un titulaire.
+      Consommée par le KNN (famille 11 refonte) et serve_features.py.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: 
+          - match_id 
+          - player_id
+    columns:
+      - name: match_id
+        tests: [not_null]
+      - name: player_id
+        tests: [not_null]
+      - name: team_id
+        tests: [not_null]
+      - name: season
+        tests: [not_null]
+      - name: role_fin_lag
+        description: "Rôle SEASON-LAG (peut être NULL : recrue)."
+        tests:
+          - accepted_values:
+              values: ['GK', 'CB', 'FB', 'DM', 'CM', 'WM', 'AM', 'W', 'ST']
+              config:
+                where: "role_fin_lag IS NOT NULL"
+      - name: role_fin_current
+        description: "Rôle calculé sur la coord slot de CE match."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['GK', 'CB', 'FB', 'DM', 'CM', 'WM', 'AM', 'W', 'ST']
+      - name: role_fin_resolved
+        description: "COALESCE(role_fin_lag, role_fin_current). Utilisé comme masque KNN."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['GK', 'CB', 'FB', 'DM', 'CM', 'WM', 'AM', 'W', 'ST']
+      - name: role_source
+        description: "'season_lag' si role_fin_lag présent, 'match_slot' sinon."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['season_lag', 'match_slot']
+
+  - name: int_lineup_formation
+    description: >
+      Grain (match_id, team_id). Features structurelles de la compo de départ
+      (période 1) : compteurs par ligne via role_fin_resolved, catégorie 3/4/5-back
+      via n_def, écart-type spatial du bloc de champ (GK exclu), hauteur moyenne
+      des lignes défensive/offensive, axialité du XI. Base de la Phase 4
+      (features formation) — consommé par int_formation_matchup_match et par
+      equipe_lineup_match.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: 
+          - match_id
+          - team_id
+    columns:
+      - name: match_id
+        tests: [not_null]
+      - name: team_id
+        tests: [not_null]
+      - name: formation_id
+        description: "Formation WhoScored de la période 1 (première formation)."
+      - name: formation_family
+        description: "'3-back' / '4-back' / '5-back' via n_def. 'other' = compo irrégulière (à monitorer)."
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['3-back', '4-back', '5-back', 'other']
+      - name: n_gk
+        tests: [not_null]
+      - name: n_def
+        description: "Nb titulaires en CB ou FB."
+        tests: [not_null]
+      - name: n_mid
+        description: "Nb titulaires en DM/CM/AM/WM."
+        tests: [not_null]
+      - name: n_att
+        description: "Nb titulaires en W ou ST."
+        tests: [not_null]
+      - name: n_wingers
+        description: "Nb titulaires en W ou WM (couloirs bas + hauts)."
+      - name: n_central_att
+        description: "Nb titulaires en ST ou AM (attaque axiale)."
+      - name: bloc_width
+        description: "Écart-type de grid_horizontal sur les 10 joueurs de champ."
+      - name: bloc_depth
+        description: "Écart-type de grid_vertical sur les 10 joueurs de champ."
+      - name: line_defensive_avg
+        description: "Moyenne grid_vertical des CB+FB (hauteur du bloc défensif)."
+      - name: line_offensive_avg
+        description: "Moyenne grid_vertical des W+ST (hauteur du bloc offensif)."
+      - name: axiality_score
+        description: "Fraction du XI (hors GK) avec |gh-5| <= 1.5."
+
+  - name: int_formation_matchup_match
+    description: >
+      Grain (match_id, team_id) directionnel A→B. Deltas structurels entre la
+      formation de A et celle de l'adversaire B (attack_overload, mid_control_delta,
+      back_depth_delta, width_delta, depth_delta, axiality_delta) + clé catégorielle
+      croisée matchup_family (ex. '4-back_vs_3-back'). Complète le signal individuel
+      d'int_lineup_formation par les effets non-linéaires de matchup formation × formation.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: 
+          - match_id
+          - team_id
+    columns:
+      - name: match_id
+        tests: [not_null]
+      - name: team_id
+        tests: [not_null]
+      - name: opponent_id
+        tests: [not_null]
+      - name: attack_overload
+        description: "n_att(A) - n_def(B). Positif = surnombre offensif de A."
+      - name: mid_control_delta
+        description: "n_mid(A) - n_mid(B). Positif = supériorité numérique au milieu."
+      - name: back_depth_delta
+        description: "line_defensive_avg(A) - line_defensive_avg(B). Positif = A joue plus haut."
+      - name: width_delta
+        description: "bloc_width(A) - bloc_width(B). Positif = A joue plus large."
+      - name: depth_delta
+        description: "bloc_depth(A) - bloc_depth(B). Positif = bloc de A plus étiré verticalement."
+      - name: axiality_delta
+        description: "axiality_score(A) - axiality_score(B). Positif = A plus axial."
+      - name: formation_family_self
+        tests:
+          - accepted_values:
+              values: ['3-back', '4-back', '5-back', 'other']
+      - name: formation_family_opp
+        tests:
+          - accepted_values:
+              values: ['3-back', '4-back', '5-back', 'other']
+      - name: matchup_family
+        description: "concat(family_self, '_vs_', family_opp). Max 16 modalités, typiquement 6-9."
+        tests:
+          - not_null

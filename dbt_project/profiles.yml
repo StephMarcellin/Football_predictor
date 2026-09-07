@@ -8,5 +8,5 @@ football_prediction:
       threads: 4
       settings:
         preserve_insertion_order: false
-        memory_limit: '10GB'
+        memory_limit: '16GB'
         max_temp_directory_size: '100GB'
