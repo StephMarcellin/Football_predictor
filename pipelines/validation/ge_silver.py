@@ -27,6 +27,7 @@ with open(ROOT_DIR / "config.yaml", encoding="utf-8") as f:
 
 DB_PATH = ROOT_DIR / CFG["paths"]["duckdb"]
 
+SEASON_YEAR = CFG.get("season_year", "2023-2024")
 
 def validate_silver() -> bool:
     """
@@ -81,11 +82,7 @@ def validate_silver() -> bool:
         # Saisons connues uniquement
         gx.expectations.ExpectColumnValuesToBeInSet(
             column="season",
-            value_set=[
-                "2017-2018","2018-2019","2019-2020","2020-2021",
-                "2021-2022","2022-2023","2023-2024","2024-2025",
-                "2025-2026",
-            ],
+            value_set= SEASON_YEAR,
         ),
     ]
 

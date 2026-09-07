@@ -76,19 +76,20 @@ WS_BASE = "https://www.whoscored.com"
 
 # Mois d'une saison football août→mai
 # (year_offset, month_num, abbr_EN)
-SEASON_MONTHS = [
-    (0, 8,  "Aug"),
-    (0, 9,  "Sept"),
-    (0, 10, "Oct"),
-    (0, 11, "Nov"),
-    (0, 12, "Dec"),
-    (1, 1,  "Jan"),
-    (1, 2,  "Feb"),
-    (1, 3,  "Mar"),
-    (1, 4,  "Apr"),
-    (1, 5,  "May"),
-    (1, 6,  "Jun"),
-]
+SEASON_MONTHS = SCRAP_CFG.get("whoscored_season_months", {})
+# SEASON_MONTHS = [
+#     (0, 8,  "Aug"),
+#     (0, 9,  "Sept"),
+#     (0, 10, "Oct"),
+#     (0, 11, "Nov"),
+#     (0, 12, "Dec"),
+#     (1, 1,  "Jan"),
+#     (1, 2,  "Feb"),
+#     (1, 3,  "Mar"),
+#     (1, 4,  "Apr"),
+#     (1, 5,  "May"),
+#     (1, 6,  "Jun"),
+# ]
 
 MAX_RETRIES  = 3
 BACKOFF_BASE = 2   # délais : 2s, 4s, 8s

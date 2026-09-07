@@ -140,6 +140,16 @@ from-backtest: check-env
 	$(PYTHON) $(PIPELINE) --from backtest
 
 # ============================================================
+#  SCRAPPING
+# ============================================================
+fbref: check-env
+	$(PYTHON) pipelines\scrapping\team_stats\scrape_fbref.py
+
+understat: check-env
+	$(PYTHON) pipelines\scrapping\team_stats\scrape_understat.py
+
+
+# ============================================================
 #  OUTILS
 # ============================================================
 agent: check-env

@@ -46,13 +46,13 @@ def match_compo_features(con, match_id, team_id, opp_id, compo, season):
 def zonal_features(con, match_id, xi_positions):
     """Reproduit la chaîne zonale (team_corridor_profile → zone_confrontation_match
     → equipe_confrontation_zone) : 16 features off_/def_ par couloir, pour les DEUX
-    équipes. `xi_positions` = liste de (team_id, player_id, grid_horizontal).
+    équipes. `xi_positions` = liste de (team_id, player_id, grid_vertical, grid_horizontal).
 
     NB : joint gold.joueur_zone_saison — ce sur quoi le modèle a été ENTRAÎNÉ.
     (Le .sql dbt pointe vers zonal_profiles_imputed mais n'est pas reconstruit ;
     on reste sur joueur_zone_saison pour éviter le train/serve skew.)
     """
-    vals = ",".join(f"('{match_id}',{t},{p},{gh})" for (t, p, gh) in xi_positions)
+    vals = ",".join(f"('{match_id}',{t},{p},{gh})" for (t, p, _, gh) in xi_positions)
     sql = f"""
     with serve_xi(match_id,team_id,player_id,grid_horizontal) as (values {vals}),
     xi as (select distinct s.match_id,s.team_id,b.opponent_id,s.player_id,b.season,
@@ -105,23 +105,125 @@ def zonal_features(con, match_id, xi_positions):
     return {int(row["team_id"]): {c: row[c] for c in df.columns if c != "team_id"}
             for _, row in df.iterrows()}
 
+def formation_features(con, match_id, xi_positions):
+    """Reproduit int_lineup_formation + int_formation_matchup_match pour LES DEUX
+    équipes. Retourne {team_id: {feature: value, ...}} contenant les features
+    self, opp_* (miroir depuis l'adversaire) et les deltas matchup directionnels.
+    `xi_positions` = [(team_id, player_id, grid_vertical, grid_horizontal), ...]
+
+    IMPORTANT — TRAIN/SERVE : le CASE de rôle DOIT rester ALIGNÉ AVEC
+    int_player_role_lag / int_player_role_match. Si les seuils changent en dbt,
+    changer ici aussi (ceinture MANUELLE).
+    """
+    vals = ",".join(f"('{match_id}',{t},{p},{gv},{gh})"
+                    for (t, p, gv, gh) in xi_positions)
+    sql = f"""
+    with serve_xi(match_id, team_id, player_id, gv_start, gh_start) as (values {vals}),
+    -- Rôle courant (calculé sur la coord slot) + saison via backbone.
+    xi_with_role as (
+        select s.*, b.season,
+            case
+                when gv_start <= 0.5                                    then 'GK'
+                when gv_start <= 3.0 and abs(gh_start - 5) <= 2.0       then 'CB'
+                when gv_start <= 3.0                                    then 'FB'
+                when gv_start <  5.0 and abs(gh_start - 5) <= 1.5       then 'DM'
+                when gv_start <= 6.0 and abs(gh_start - 5) <= 1.5       then 'CM'
+                when gv_start <= 7.5 and abs(gh_start - 5) <= 1.5       then 'AM'
+                when gv_start <= 5.5                                    then 'WM'
+                when abs(gh_start - 5) <= 1.5                           then 'ST'
+                else                                                         'W'
+            end as role_current
+        from serve_xi s
+        left join intermediate.backbone b on b.match_id=s.match_id and b.team_id=s.team_id
+    ),
+    -- role_fin = COALESCE(SEASON-LAG, current).
+    xi_resolved as (
+        select x.*, coalesce(r.role_fin_lag, x.role_current) as role_fin
+        from xi_with_role x
+        left join intermediate.int_player_role_lag r
+            on r.player_id=x.player_id and r.season=x.season
+    ),
+    -- int_lineup_formation par (match, team).
+    form_by_team as (
+        select match_id, team_id,
+            count(*) filter (where role_fin='GK')                          as n_gk,
+            count(*) filter (where role_fin in ('CB','FB'))                as n_def,
+            count(*) filter (where role_fin in ('DM','CM','AM','WM'))      as n_mid,
+            count(*) filter (where role_fin in ('W','ST'))                 as n_att,
+            count(*) filter (where role_fin in ('W','WM'))                 as n_wingers,
+            count(*) filter (where role_fin in ('ST','AM'))                as n_central_att,
+            stddev_samp(gh_start) filter (where role_fin != 'GK')          as bloc_width,
+            stddev_samp(gv_start) filter (where role_fin != 'GK')          as bloc_depth,
+            avg(gv_start) filter (where role_fin in ('CB','FB'))           as line_defensive_avg,
+            avg(gv_start) filter (where role_fin in ('W','ST'))            as line_offensive_avg,
+            avg(case when abs(gh_start - 5) <= 1.5 then 1.0 else 0.0 end)
+                filter (where role_fin != 'GK')                            as axiality_score
+        from xi_resolved group by 1, 2
+    ),
+    form_labeled as (
+        select f.*,
+            case when n_def=3 then '3-back'
+                 when n_def=4 then '4-back'
+                 when n_def=5 then '5-back'
+                 else              'other'
+            end as formation_family
+        from form_by_team f
+    )
+    -- Self-join : chaque team reçoit ses features + celles de l'adversaire (opp_)
+    -- + les deltas matchup.
+    select
+        s.team_id,
+        s.formation_family, s.n_gk, s.n_def, s.n_mid, s.n_att,
+        s.n_wingers, s.n_central_att, s.bloc_width, s.bloc_depth,
+        s.line_defensive_avg, s.line_offensive_avg, s.axiality_score,
+        o.formation_family     as opp_formation_family,
+        o.n_gk                 as opp_n_gk,
+        o.n_def                as opp_n_def,
+        o.n_mid                as opp_n_mid,
+        o.n_att                as opp_n_att,
+        o.n_wingers            as opp_n_wingers,
+        o.n_central_att        as opp_n_central_att,
+        o.bloc_width           as opp_bloc_width,
+        o.bloc_depth           as opp_bloc_depth,
+        o.line_defensive_avg   as opp_line_defensive_avg,
+        o.line_offensive_avg   as opp_line_offensive_avg,
+        o.axiality_score       as opp_axiality_score,
+        (s.n_att              - o.n_def)              as attack_overload,
+        (s.n_mid              - o.n_mid)              as mid_control_delta,
+        (s.line_defensive_avg - o.line_defensive_avg) as back_depth_delta,
+        (s.bloc_width         - o.bloc_width)         as width_delta,
+        (s.bloc_depth         - o.bloc_depth)         as depth_delta,
+        (s.axiality_score     - o.axiality_score)     as axiality_delta,
+        s.formation_family     as formation_family_self,
+        o.formation_family     as formation_family_opp,
+        concat(s.formation_family, '_vs_', o.formation_family) as matchup_family
+    from form_labeled s
+    join form_labeled o
+        on o.match_id = s.match_id
+       and o.team_id != s.team_id
+    """
+    df = con.execute(sql).fetchdf()
+    return {int(row["team_id"]): {c: row[c] for c in df.columns if c != "team_id"}
+            for _, row in df.iterrows()}
+
 def serve_match(con, match_id, compo, xi_positions):
     """Assemble le vecteur complet du match pour les 2 équipes :
-    lit la ligne mart existante (204 hors-compo + 24 rolling), puis remplace les
-    28 features de compo par le recompute depuis `compo`. Rend le DataFrame prêt
-    pour prepare_x/predict.
+    lit la ligne mart existante, puis remplace les features de compo par le
+    recompute depuis `compo`. Rend le DataFrame prêt pour prepare_x/predict.
       compo        = {team_id: {"xi": [ids...], "gk": id}, opp_id: {...}}
-      xi_positions = [(team_id, player_id, grid_horizontal), ...] (les 2 équipes)
+      xi_positions = [(team_id, player_id, grid_vertical, grid_horizontal), ...]
     """
     df = con.execute("select * from marts.mart_1n2 where match_id=? order by team_id",
                      [match_id]).fetchdf()
     teams = list(df["team_id"])
-    zonal = zonal_features(con, match_id, xi_positions)
+    zonal     = zonal_features(con, match_id, xi_positions)
+    formation = formation_features(con, match_id, xi_positions)   # NOUVEAU
     for i, t in enumerate(teams):
         opp = teams[1 - i]
         season = df.loc[df.team_id == t, "season"].iloc[0]
         feats = match_compo_features(con, match_id, t, opp, compo, season)
         feats.update(zonal.get(t, {}))
+        feats.update(formation.get(t, {}))                        # NOUVEAU
         for k, v in feats.items():
             df.loc[df.team_id == t, k] = v
     return df
@@ -150,13 +252,14 @@ def _norm(s):
 
 
 def build_template(con):
-    """Gabarit formation_id → {slot: grid_horizontal}, déterministe (validé).
-    Fournit la position de chaque joueur à partir de son slot dans la formation."""
+    """Gabarit formation_id → {slot: (grid_vertical, grid_horizontal)}, déterministe.
+    Fournit la position (verticale + horizontale) de chaque joueur depuis son slot."""
     tmpl = {}
     for fid, pos in con.execute("""select formation_id, any_value(formation_positions)
         from intermediate.int_whoscored_formations group by formation_id""").fetchall():
         p = json.loads(pos)
-        tmpl[fid] = {i + 1: float(p[i]["horizontal"]) for i in range(min(11, len(p)))}
+        tmpl[fid] = {i + 1: (float(p[i]["vertical"]), float(p[i]["horizontal"]))
+                     for i in range(min(11, len(p)))}
     return tmpl
 
 
@@ -190,5 +293,6 @@ def load_compo(con, path):
         ids = [resolve_player(con, nm, t, season) for nm in spec[side]["xi"]]
         compo[t] = {"xi": ids, "gk": ids[0]}           # slot 1 = gardien
         for slot, pid in enumerate(ids, start=1):
-            xi_pos.append((t, pid, tmpl[fid][slot]))
+            gv, gh = tmpl[fid][slot]
+            xi_pos.append((t, pid, gv, gh))            # 4-tuple maintenant
     return mid, compo, xi_pos

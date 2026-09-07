@@ -44,8 +44,12 @@ models/diagnostics/
 models/backtest_results.csv
 models/predictions_*.csv
 
+# ── Claude ────────────────────────────────────────────────
+.claude/
+
 # ── MLflow ────────────────────────────────────────────────
 mlruns/
+mlflow.db
 
 # ── Logs ──────────────────────────────────────────────────
 logs/
