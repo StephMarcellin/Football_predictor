@@ -1,0 +1,98 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — intermediate.threat_conceded (GÉNÉRÉE AUTO 2026-09-09)
+# Volumétrie : 71,120 lignes, 17 colonnes
+# Bornes empiriques ± marge — à raffiner si nécessaire.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: intermediate.threat_conceded
+description: >
+  Suite auto-générée le 2026-09-09 pour intermediate.threat_conceded.
+  Volumétrie de référence : 71,120 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT "match_id", "chain_id", "chain_number", "chain_team_id", "player_id", "team_id", "season", "league_source", "xg_proxy", "is_penalty", "position_in_chain", "chain_length", "position_weight", "is_keeper", "has_error_leading_to_goal", "threat_conceded", "threat_conceded_weighted" FROM intermediate."threat_conceded"
+
+expectations:
+
+  # ── VOLUMÉTRIE ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 28448, max_value: 142240 }
+    severity: error
+    meta: { description: "Empirique = 71,120. Bornes [28,448, 142,240]." }
+
+  # ── COMPLÉTION STRICTE (0 NULL empirique) ──
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - match_id
+      - chain_id
+      - chain_number
+      - chain_team_id
+      - player_id
+      - team_id
+      - season
+      - league_source
+      - xg_proxy
+      - is_penalty
+      - position_in_chain
+      - chain_length
+      - position_weight
+      - is_keeper
+      - has_error_leading_to_goal
+      - threat_conceded
+      - threat_conceded_weighted
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # ── BORNES DE VALEURS NUMÉRIQUES ──
+  - type: expect_column_values_to_be_between
+    kwargs: { column: chain_number, min_value: -42, max_value: 478, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1, 434], mean=152." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: chain_team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100001, 202606100426], mean=2.03e+11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: player_id, min_value: -52783, max_value: 616460, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2987, 560689], mean=3.09e+05." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100001, 202606100426], mean=2.03e+11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: xg_proxy, min_value: 0.009999999999999995, max_value: 1.09, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.10, 1.00], mean=0.561." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: position_in_chain, min_value: 0, max_value: 14, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1, 12], mean=1.95." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: chain_length, min_value: 0, max_value: 14, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1, 12], mean=2.66." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: position_weight, min_value: -0.008370000000000002, max_value: 1.09167, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0833, 1.0], mean=0.798." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: threat_conceded, min_value: 0.009999999999999995, max_value: 1.09, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.10, 1.00], mean=0.561." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: threat_conceded_weighted, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.231." }
+
+  # ── DÉRIVE VOLUMÉTRIQUE INTER-SAISONS ──
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.20
+      max_deviation_error: 0.40
+      min_seasons_history: 2
+      exclude_partitions: ['2025-2026']
+    severity: warn

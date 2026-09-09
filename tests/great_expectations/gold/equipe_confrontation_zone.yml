@@ -1,0 +1,55 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — gold.equipe_confrontation_zone (GÉNÉRÉE AUTO 2026-09-09)
+# Volumétrie : 33,402 lignes, 18 colonnes
+# Bornes empiriques ± marge — à raffiner si nécessaire.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: gold.equipe_confrontation_zone
+description: >
+  Suite auto-générée le 2026-09-09 pour gold.equipe_confrontation_zone.
+  Volumétrie de référence : 33,402 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT "match_id", "team_id", "off_danger_gauche", "off_danger_axe", "off_danger_droit", "off_cross_gauche", "off_cross_droit", "off_dribble_gauche", "off_dribble_droit", "off_central_axe", "def_danger_gauche", "def_danger_axe", "def_danger_droit", "def_cross_gauche", "def_cross_droit", "def_dribble_gauche", "def_dribble_droit", "def_central_axe" FROM gold."equipe_confrontation_zone"
+
+expectations:
+
+  # ── VOLUMÉTRIE ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 13360, max_value: 66804 }
+    severity: error
+    meta: { description: "Empirique = 33,402. Bornes [13,360, 66,804]." }
+
+  # ── COMPLÉTION STRICTE (0 NULL empirique) ──
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - match_id
+      - team_id
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # ── COLONNES 100% NULL (documentées, pas testées) ──
+  # off_danger_gauche : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+  # off_danger_axe : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+  # off_danger_droit : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+  # off_cross_gauche : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+  # off_cross_droit : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+  # off_dribble_gauche : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+  # off_dribble_droit : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+  # off_central_axe : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+  # def_danger_gauche : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+  # def_danger_axe : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+  # def_danger_droit : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+  # def_cross_gauche : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+  # def_cross_droit : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+  # def_dribble_gauche : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+  # def_dribble_droit : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+  # def_central_axe : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+
+  # ── BORNES DE VALEURS NUMÉRIQUES ──
+  - type: expect_column_values_to_be_between
+    kwargs: { column: team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100001, 202606100426], mean=2.03e+11." }

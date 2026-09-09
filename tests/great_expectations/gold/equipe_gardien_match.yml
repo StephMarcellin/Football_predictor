@@ -1,0 +1,45 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — gold.equipe_gardien_match (GÉNÉRÉE AUTO 2026-09-09)
+# Volumétrie : 33,461 lignes, 6 colonnes
+# Bornes empiriques ± marge — à raffiner si nécessaire.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: gold.equipe_gardien_match
+description: >
+  Suite auto-générée le 2026-09-09 pour gold.equipe_gardien_match.
+  Volumétrie de référence : 33,461 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT "match_id", "team_id", "keeper_psxg_plus_minus_lag", "keeper_psxg_per_shot_lag", "keeper_save_pct_lag", "keeper_shots_faced_lag" FROM gold."equipe_gardien_match"
+
+expectations:
+
+  # ── VOLUMÉTRIE ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 13384, max_value: 66922 }
+    severity: error
+    meta: { description: "Empirique = 33,461. Bornes [13,384, 66,922]." }
+
+  # ── COMPLÉTION AVEC NULLs EMPIRIQUES (mostly = 1 - empirique - 5pts) ──
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: match_id, mostly: 0.9484 }
+    severity: warn
+    meta: { description: "Empirique 0.16% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: team_id, mostly: 0.95 }
+    severity: warn
+    meta: { description: "Empirique 0.00% NULL." }
+
+  # ── COLONNES 100% NULL (documentées, pas testées) ──
+  # keeper_psxg_plus_minus_lag : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+  # keeper_psxg_per_shot_lag : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+  # keeper_save_pct_lag : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+  # keeper_shots_faced_lag : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+
+  # ── BORNES DE VALEURS NUMÉRIQUES ──
+  - type: expect_column_values_to_be_between
+    kwargs: { column: team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100001, 202606100426], mean=2.03e+11." }

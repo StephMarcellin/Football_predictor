@@ -1,0 +1,169 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — silver.fbref_keeper
+# Rôle : SIGNAL & DISTRIBUTIONS — première couche testable après scraping
+# Contrainte spatiotemporelle : aucune (FBref couvre toutes les comp_category).
+# Test dérive volumétrique : exclut la saison 2025-2026 (scraping en cours).
+#
+# NOTE : cette suite documente les bugs de scraping A-004 (ga_keeper > sota),
+# A-008 (save_pct hors [0,100]) et A-012 (cs > 1) à leur SOURCE.
+# ══════════════════════════════════════════════════════════════════════════════
+
+suite_name: silver.fbref_keeper
+description: >
+  Signal statistique de la source silver.fbref_keeper (données brutes normalisées
+  par 02_process.py, avant rematching sur match_id + team_id). Couvre toutes les
+  compétitions — pas de filtre saisonnier.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT
+      date, team, opponent, league_source, season,
+      venue, result, result_1n2, comp_category, source,
+      gf, ga, sota, ga_keeper, saves, save_pct, cs,
+      pk_att, pk_allowed, pk_saved, pk_missed
+    FROM silver.fbref_keeper
+
+expectations:
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 1. VOLUMÉTRIE
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 40000, max_value: 100000 }
+    severity: error
+    meta: { description: "Empirique = 53 163 lignes." }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 2. COMPLÉTION — NULL rate
+  # ────────────────────────────────────────────────────────────────────────────
+  # Colonnes structurellement 0 % NULL
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - date
+      - team
+      - opponent
+      - league_source
+      - season
+      - venue
+      - comp_category
+      - source
+      - gf
+      - ga
+      - sota
+      - ga_keeper
+      - saves
+      - cs
+      - pk_att
+      - pk_allowed
+      - pk_saved
+      - pk_missed
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # save_pct : NULL légitime quand sota=0 (~5.5 %) → warn
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: save_pct, mostly: 0.85 }
+    severity: warn
+    meta: { description: "Empirique = 5.52 % NULL (sota=0). Marge de +5 pts." }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 3. BORNES DE VALEURS
+  # ────────────────────────────────────────────────────────────────────────────
+  # A-008 : save_pct doit être un pourcentage [0, 100].
+  # Empirique min = -200, 33 lignes en violation. Warn (dette documentée).
+  - type: expect_column_values_to_be_between
+    kwargs: { column: save_pct, min_value: 0, max_value: 100, mostly: 0.99 }
+    severity: warn
+    meta:
+      description: "A-008 : 33 lignes save_pct négatif (min -200). Warn tant que A-004 non fixé."
+      fires_on_current_bug: true
+
+  # A-012 : cs doit être binaire {0, 1}. Empirique max = 2, 119 lignes en violation.
+  - type: expect_column_values_to_be_between
+    kwargs: { column: cs, min_value: 0, max_value: 1, mostly: 0.99 }
+    severity: warn
+    meta:
+      description: "A-012 : 119 lignes cs = 2. Silver expose le bug, intermediate le camoufle."
+      fires_on_current_bug: true
+
+  # Métriques comptables : bornes larges
+  - type: expect_column_values_to_be_between
+    for_each_column: [sota, saves, ga_keeper, gf, ga]
+    kwargs: { min_value: 0, max_value: 30, mostly: 1.0 }
+    severity: error
+    meta: { description: "Max empirique sota=20 saves=19 ga_keeper=10 gf=14 ga=9." }
+
+  - type: expect_column_values_to_be_between
+    for_each_column: [pk_att, pk_allowed, pk_saved, pk_missed]
+    kwargs: { min_value: 0, max_value: 5, mostly: 1.0 }
+    severity: error
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 4. BORNES STATISTIQUES
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: sota, min_value: 2.0, max_value: 6.0 }
+    severity: error
+    meta: { description: "Empirique = 3.97" }
+
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: saves, min_value: 1.5, max_value: 4.0 }
+    severity: error
+    meta: { description: "Empirique = 2.77" }
+
+  - type: expect_column_mean_to_be_between
+    for_each_column: [ga_keeper, ga, gf]
+    kwargs: { min_value: 1.0, max_value: 2.0 }
+    severity: error
+
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: cs, min_value: 0.15, max_value: 0.40 }
+    severity: warn
+    meta: { description: "Empirique = 0.28. Warn car cs=2 pollue le calcul (A-012)." }
+
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: pk_att, min_value: 0.05, max_value: 0.30 }
+    severity: warn
+    meta: { description: "Empirique = 0.15" }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 5. COHÉRENCE CROISÉE — contraintes physiques métier
+  # Doublon volontaire avec dbt (charte v2).
+  # ────────────────────────────────────────────────────────────────────────────
+  # A-004 : contrainte physique la plus critique — 1 186 violations empiriques.
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "ga_keeper <= sota"
+    severity: warn
+    meta:
+      description: "A-004 : 1 186 lignes en violation. Bug scraping FBref confirmé. Warn tant qu'audits.scraping_targets_int_fbref_keeper n'a pas déclenché rescrap."
+      fires_on_current_bug: true
+
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "pk_allowed + pk_saved + pk_missed <= pk_att"
+    severity: warn
+    meta: { description: "0 violation empirique." }
+
+  # A-012 : cs cohérent avec ga_keeper
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "(ga_keeper == 0 and cs == 1) or (ga_keeper > 0 and cs == 0)"
+    severity: warn
+    meta:
+      description: "A-012 : 203 contradictions cs↔ga_keeper + 119 cs=2. Silver expose la vérité."
+      fires_on_current_bug: true
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 6. DÉRIVE VOLUMÉTRIQUE INTER-SAISONS
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.20
+      max_deviation_error: 0.40
+      min_seasons_history: 2
+      exclude_partitions: ['2025-2026']
+    severity: warn
+    meta: { description: "La saison en cours est écartée du calcul." }

@@ -1,0 +1,175 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — silver.fbref_misc
+# Rôle : SIGNAL & DISTRIBUTIONS — première couche testable après scraping
+# Contrainte spatiotemporelle : aucune (FBref couvre toutes les comp_category).
+# Test dérive volumétrique : exclut la saison 2025-2026 (scraping en cours).
+#
+# Note technique : `off` et `int` sont des mots réservés DuckDB *et* Python.
+# Renommés à la lecture (`off_col` / `int_col`) pour pandas.eval.
+# ══════════════════════════════════════════════════════════════════════════════
+
+suite_name: silver.fbref_misc
+description: >
+  Signal statistique de la source silver.fbref_misc (données brutes normalisées
+  par 02_process.py, avant rematching sur match_id + team_id). Couvre toutes les
+  compétitions — pas de filtre saisonnier.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT
+      date, team, opponent, league_source, season,
+      venue, result, result_1n2, comp_category, source,
+      gf, ga,
+      crdy, crdr, crdy2,
+      fls, fld,
+      "off" AS off_col,
+      crosses,
+      "int" AS int_col,
+      tklw,
+      pkwon, pkcon, og
+    FROM silver.fbref_misc
+
+expectations:
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 1. VOLUMÉTRIE
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 40000, max_value: 100000 }
+    severity: error
+    meta: { description: "Empirique = 53 109 lignes." }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 2. COMPLÉTION — NULL rate (aucun NULL empirique)
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - date
+      - team
+      - opponent
+      - league_source
+      - season
+      - venue
+      - comp_category
+      - source
+      - gf
+      - ga
+      - crdy
+      - crdr
+      - crdy2
+      - fls
+      - fld
+      - off_col
+      - crosses
+      - int_col
+      - tklw
+      - pkwon
+      - pkcon
+      - og
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 3. BORNES DE VALEURS
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_column_values_to_be_between
+    kwargs: { column: crdy, min_value: 0, max_value: 15, mostly: 1.0 }
+    severity: error
+    meta: { description: "Max empirique 9." }
+
+  - type: expect_column_values_to_be_between
+    for_each_column: [crdr, crdy2]
+    kwargs: { min_value: 0, max_value: 5, mostly: 1.0 }
+    severity: error
+
+  - type: expect_column_values_to_be_between
+    for_each_column: [gf, ga]
+    kwargs: { min_value: 0, max_value: 20, mostly: 1.0 }
+    severity: error
+
+  - type: expect_column_values_to_be_between
+    for_each_column: [fls, fld]
+    kwargs: { min_value: 0, max_value: 45, mostly: 1.0 }
+    severity: error
+    meta: { description: "Max empirique fls=fld=32." }
+
+  - type: expect_column_values_to_be_between
+    kwargs: { column: off_col, min_value: 0, max_value: 20, mostly: 1.0 }
+    severity: error
+
+  - type: expect_column_values_to_be_between
+    kwargs: { column: crosses, min_value: 0, max_value: 100, mostly: 1.0 }
+    severity: error
+
+  - type: expect_column_values_to_be_between
+    kwargs: { column: int_col, min_value: 0, max_value: 55, mostly: 1.0 }
+    severity: error
+
+  - type: expect_column_values_to_be_between
+    kwargs: { column: tklw, min_value: 0, max_value: 45, mostly: 1.0 }
+    severity: error
+
+  - type: expect_column_values_to_be_between
+    for_each_column: [pkwon, pkcon, og]
+    kwargs: { min_value: 0, max_value: 5, mostly: 1.0 }
+    severity: error
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 4. BORNES STATISTIQUES
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: crdy, min_value: 1.4, max_value: 2.8 }
+    severity: error
+
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: crdr, min_value: 0.04, max_value: 0.20 }
+    severity: warn
+
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: crdy2, min_value: 0.02, max_value: 0.10 }
+    severity: warn
+
+  - type: expect_column_mean_to_be_between
+    for_each_column: [fls, fld]
+    kwargs: { min_value: 8.0, max_value: 16.0 }
+    severity: error
+
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: off_col, min_value: 1.0, max_value: 3.0 }
+    severity: error
+
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: crosses, min_value: 12.0, max_value: 24.0 }
+    severity: error
+
+  - type: expect_column_mean_to_be_between
+    for_each_column: [int_col, tklw]
+    kwargs: { min_value: 6.0, max_value: 14.0 }
+    severity: error
+
+  - type: expect_column_mean_to_be_between
+    for_each_column: [pkwon, pkcon, og]
+    kwargs: { min_value: 0.01, max_value: 0.10 }
+    severity: warn
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 5. COHÉRENCE CROISÉE
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "crdy + crdr + crdy2 <= 15"
+    severity: warn
+    meta: { description: "Plafond de plausibilité disciplinaire. Max empirique 14." }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 6. DÉRIVE VOLUMÉTRIQUE INTER-SAISONS
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.20
+      max_deviation_error: 0.40
+      min_seasons_history: 2
+      exclude_partitions: ['2025-2026']
+    severity: warn

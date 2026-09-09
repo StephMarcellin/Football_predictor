@@ -1,0 +1,56 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — intermediate.events_qual (PUSH-DOWN LIGHT 2026-09-09)
+# Volumétrie : ~265 M lignes — trop lourde pour agrégats complets.
+# Politique : uniquement row_count + NULL sur 3 colonnes-clés (ID + team + qual).
+# À enrichir plus tard avec des agrégats supplémentaires si besoin (voir DOUBTS).
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: intermediate.events_qual
+description: >
+  Push-down agrégats light. Table ~265 M lignes (unnest des qualifiers WhoScored).
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT
+      COUNT(*) AS n_rows,
+      COUNT(*) FILTER (WHERE match_id IS NULL) AS null_match_id,
+      COUNT(*) FILTER (WHERE team_id IS NULL) AS null_team_id,
+      COUNT(*) FILTER (WHERE event_id IS NULL) AS null_event_id,
+      COUNT(*) FILTER (WHERE qual_type_id IS NULL) AS null_qual_type_id
+    FROM intermediate.events_qual
+
+expectations:
+
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 1, max_value: 1 }
+    severity: error
+    meta: { description: "Agrégat push-down = 1 ligne." }
+
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "n_rows >= 100000000 and n_rows <= 500000000"
+    severity: error
+    meta: { description: "Row count empirique ~265 M." }
+
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_match_id / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "match_id doit être ~toujours résolu." }
+
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_team_id / n_rows <= 0.001"
+    severity: warn
+
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_event_id / n_rows <= 0.001"
+    severity: error
+    meta: { description: "event_id must be NOT NULL (grain sensitive)." }
+
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_qual_type_id / n_rows <= 0.001"
+    severity: warn

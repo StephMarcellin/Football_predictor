@@ -1,0 +1,108 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — gold.joueur_match (GÉNÉRÉE AUTO 2026-09-09)
+# Volumétrie : 367,436 lignes, 12 colonnes
+# Bornes empiriques ± marge — à raffiner si nécessaire.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: gold.joueur_match
+description: >
+  Suite auto-générée le 2026-09-09 pour gold.joueur_match.
+  Volumétrie de référence : 367,436 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT "match_id", "team_id", "opponent_id", "player_id", "is_home", "scorer_xg_per90_lag", "scorer_shots_per90_lag", "scorer_team_shot_share_lag", "scorer_penalty_taker_lag", "scorer_freekick_taker_lag", "off_xg_per_shot_lag", "scorer_context_vs_opponent_style" FROM gold."joueur_match"
+
+expectations:
+
+  # ── VOLUMÉTRIE ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 146974, max_value: 734872 }
+    severity: error
+    meta: { description: "Empirique = 367,436. Bornes [146,974, 734,872]." }
+
+  # ── COMPLÉTION STRICTE (0 NULL empirique) ──
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - match_id
+      - team_id
+      - player_id
+      - is_home
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # ── COMPLÉTION AVEC NULLs EMPIRIQUES (mostly = 1 - empirique - 5pts) ──
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: opponent_id, mostly: 0.9441 }
+    severity: warn
+    meta: { description: "Empirique 0.59% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: scorer_xg_per90_lag, mostly: 0.9382 }
+    severity: warn
+    meta: { description: "Empirique 1.18% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: scorer_shots_per90_lag, mostly: 0.9382 }
+    severity: warn
+    meta: { description: "Empirique 1.18% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: scorer_team_shot_share_lag, mostly: 0.9449 }
+    severity: warn
+    meta: { description: "Empirique 0.51% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: scorer_penalty_taker_lag, mostly: 0.9449 }
+    severity: warn
+    meta: { description: "Empirique 0.51% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: scorer_freekick_taker_lag, mostly: 0.9449 }
+    severity: warn
+    meta: { description: "Empirique 0.51% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: off_xg_per_shot_lag, mostly: 0.8575 }
+    severity: warn
+    meta: { description: "Empirique 9.25% NULL." }
+
+  # ── COLONNES 100% NULL (documentées, pas testées) ──
+  # scorer_context_vs_opponent_style : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+
+  # ── BORNES DE VALEURS NUMÉRIQUES ──
+  - type: expect_column_values_to_be_between
+    kwargs: { column: team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100001, 202606100426], mean=2.03e+11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: opponent_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100001, 202606100426], mean=2.03e+11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: player_id, min_value: 0, max_value: 617555, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 561413], mean=2.06e+05." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: is_home, min_value: 0, max_value: 2, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 1], mean=0.5." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: scorer_xg_per90_lag, min_value: 0.0, max_value: 216.61206276153956, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 196.92005705594505], mean=0.133." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: scorer_shots_per90_lag, min_value: 0.0, max_value: 3861.0, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 3510.0], mean=2.19." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: scorer_team_shot_share_lag, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.0679." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: scorer_penalty_taker_lag, min_value: 0, max_value: 10, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 9], mean=0.0201." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: scorer_freekick_taker_lag, min_value: 0, max_value: 203, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 184], mean=1.61." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: off_xg_per_shot_lag, min_value: -0.024048878995085367, max_value: 0.38360866694803586, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.009922583166841404, 0.3496372047861091], mean=0.0616." }

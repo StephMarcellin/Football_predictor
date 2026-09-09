@@ -1,0 +1,344 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — gold.joueur_saison (PUSH-DOWN 2026-09-09)
+# Volumétrie : 1,075,422 lignes, 25 colonnes
+# Stratégie big data : agrégats DuckDB → 1 ligne en pandas.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: gold.joueur_saison
+description: >
+  Push-down agrégats. Volumétrie de référence : 1,075,422 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT
+          COUNT(*) AS n_rows,
+          COUNT(*) FILTER (WHERE "match_id" IS NULL) AS null_match_id,
+          COUNT(*) FILTER (WHERE "team_id" IS NULL) AS null_team_id,
+          COUNT(*) FILTER (WHERE "player_id" IS NULL) AS null_player_id,
+          COUNT(*) FILTER (WHERE "date" IS NULL) AS null_date,
+          COUNT(*) FILTER (WHERE "season" IS NULL) AS null_season,
+          COUNT(*) FILTER (WHERE "league_source" IS NULL) AS null_league_source,
+          COUNT(*) FILTER (WHERE "n_apps_lag" IS NULL) AS null_n_apps_lag,
+          COUNT(*) FILTER (WHERE "minutes_lag" IS NULL) AS null_minutes_lag,
+          COUNT(*) FILTER (WHERE "scorer_xg_per90_lag" IS NULL) AS null_scorer_xg_per90_lag,
+          COUNT(*) FILTER (WHERE "scorer_shots_per90_lag" IS NULL) AS null_scorer_shots_per90_lag,
+          COUNT(*) FILTER (WHERE "off_chances_created_per90_lag" IS NULL) AS null_off_chances_created_per90_lag,
+          COUNT(*) FILTER (WHERE "off_key_passes_per90_lag" IS NULL) AS null_off_key_passes_per90_lag,
+          COUNT(*) FILTER (WHERE "off_xg_per_shot_lag" IS NULL) AS null_off_xg_per_shot_lag,
+          COUNT(*) FILTER (WHERE "def_aerial_win_rate_lag" IS NULL) AS null_def_aerial_win_rate_lag,
+          COUNT(*) FILTER (WHERE "def_actions_per90_lag" IS NULL) AS null_def_actions_per90_lag,
+          COUNT(*) FILTER (WHERE "def_errors_per90_lag" IS NULL) AS null_def_errors_per90_lag,
+          COUNT(*) FILTER (WHERE "player_card_propensity_lag" IS NULL) AS null_player_card_propensity_lag,
+          COUNT(*) FILTER (WHERE "off_xgchain_per90_lag" IS NULL) AS null_off_xgchain_per90_lag,
+          COUNT(*) FILTER (WHERE "off_xgbuildup_per90_lag" IS NULL) AS null_off_xgbuildup_per90_lag,
+          COUNT(*) FILTER (WHERE "scorer_team_shot_share_lag" IS NULL) AS null_scorer_team_shot_share_lag,
+          COUNT(*) FILTER (WHERE "scorer_penalty_taker_lag" IS NULL) AS null_scorer_penalty_taker_lag,
+          COUNT(*) FILTER (WHERE "scorer_freekick_taker_lag" IS NULL) AS null_scorer_freekick_taker_lag,
+          COUNT(*) FILTER (WHERE "def_threat_conceded_per90_lag" IS NULL) AS null_def_threat_conceded_per90_lag,
+          COUNT(*) FILTER (WHERE "scorer_xgot_overperformance_lag" IS NULL) AS null_scorer_xgot_overperformance_lag,
+          COUNT(*) FILTER (WHERE "profile_confidence_flag" IS NULL) AS null_profile_confidence_flag,
+          MIN("team_id") AS min_team_id,
+          MAX("team_id") AS max_team_id,
+          AVG("team_id") AS avg_team_id,
+          MIN("player_id") AS min_player_id,
+          MAX("player_id") AS max_player_id,
+          AVG("player_id") AS avg_player_id,
+          MIN("n_apps_lag") AS min_n_apps_lag,
+          MAX("n_apps_lag") AS max_n_apps_lag,
+          AVG("n_apps_lag") AS avg_n_apps_lag,
+          MIN("minutes_lag") AS min_minutes_lag,
+          MAX("minutes_lag") AS max_minutes_lag,
+          AVG("minutes_lag") AS avg_minutes_lag,
+          MIN("scorer_xg_per90_lag") AS min_scorer_xg_per90_lag,
+          MAX("scorer_xg_per90_lag") AS max_scorer_xg_per90_lag,
+          AVG("scorer_xg_per90_lag") AS avg_scorer_xg_per90_lag,
+          MIN("scorer_shots_per90_lag") AS min_scorer_shots_per90_lag,
+          MAX("scorer_shots_per90_lag") AS max_scorer_shots_per90_lag,
+          AVG("scorer_shots_per90_lag") AS avg_scorer_shots_per90_lag,
+          MIN("off_chances_created_per90_lag") AS min_off_chances_created_per90_lag,
+          MAX("off_chances_created_per90_lag") AS max_off_chances_created_per90_lag,
+          AVG("off_chances_created_per90_lag") AS avg_off_chances_created_per90_lag,
+          MIN("off_key_passes_per90_lag") AS min_off_key_passes_per90_lag,
+          MAX("off_key_passes_per90_lag") AS max_off_key_passes_per90_lag,
+          AVG("off_key_passes_per90_lag") AS avg_off_key_passes_per90_lag,
+          MIN("off_xg_per_shot_lag") AS min_off_xg_per_shot_lag,
+          MAX("off_xg_per_shot_lag") AS max_off_xg_per_shot_lag,
+          AVG("off_xg_per_shot_lag") AS avg_off_xg_per_shot_lag,
+          MIN("def_aerial_win_rate_lag") AS min_def_aerial_win_rate_lag,
+          MAX("def_aerial_win_rate_lag") AS max_def_aerial_win_rate_lag,
+          AVG("def_aerial_win_rate_lag") AS avg_def_aerial_win_rate_lag,
+          MIN("def_actions_per90_lag") AS min_def_actions_per90_lag,
+          MAX("def_actions_per90_lag") AS max_def_actions_per90_lag,
+          AVG("def_actions_per90_lag") AS avg_def_actions_per90_lag,
+          MIN("def_errors_per90_lag") AS min_def_errors_per90_lag,
+          MAX("def_errors_per90_lag") AS max_def_errors_per90_lag,
+          AVG("def_errors_per90_lag") AS avg_def_errors_per90_lag,
+          MIN("player_card_propensity_lag") AS min_player_card_propensity_lag,
+          MAX("player_card_propensity_lag") AS max_player_card_propensity_lag,
+          AVG("player_card_propensity_lag") AS avg_player_card_propensity_lag,
+          MIN("off_xgchain_per90_lag") AS min_off_xgchain_per90_lag,
+          MAX("off_xgchain_per90_lag") AS max_off_xgchain_per90_lag,
+          AVG("off_xgchain_per90_lag") AS avg_off_xgchain_per90_lag,
+          MIN("off_xgbuildup_per90_lag") AS min_off_xgbuildup_per90_lag,
+          MAX("off_xgbuildup_per90_lag") AS max_off_xgbuildup_per90_lag,
+          AVG("off_xgbuildup_per90_lag") AS avg_off_xgbuildup_per90_lag,
+          MIN("scorer_team_shot_share_lag") AS min_scorer_team_shot_share_lag,
+          MAX("scorer_team_shot_share_lag") AS max_scorer_team_shot_share_lag,
+          AVG("scorer_team_shot_share_lag") AS avg_scorer_team_shot_share_lag,
+          MIN("scorer_penalty_taker_lag") AS min_scorer_penalty_taker_lag,
+          MAX("scorer_penalty_taker_lag") AS max_scorer_penalty_taker_lag,
+          AVG("scorer_penalty_taker_lag") AS avg_scorer_penalty_taker_lag,
+          MIN("scorer_freekick_taker_lag") AS min_scorer_freekick_taker_lag,
+          MAX("scorer_freekick_taker_lag") AS max_scorer_freekick_taker_lag,
+          AVG("scorer_freekick_taker_lag") AS avg_scorer_freekick_taker_lag,
+          MIN("def_threat_conceded_per90_lag") AS min_def_threat_conceded_per90_lag,
+          MAX("def_threat_conceded_per90_lag") AS max_def_threat_conceded_per90_lag,
+          AVG("def_threat_conceded_per90_lag") AS avg_def_threat_conceded_per90_lag,
+          MIN("scorer_xgot_overperformance_lag") AS min_scorer_xgot_overperformance_lag,
+          MAX("scorer_xgot_overperformance_lag") AS max_scorer_xgot_overperformance_lag,
+          AVG("scorer_xgot_overperformance_lag") AS avg_scorer_xgot_overperformance_lag
+        FROM gold."joueur_saison"
+
+expectations:
+
+  # ── VOLUMÉTRIE (1 ligne agrégée = 1 seule row en output) ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 1, max_value: 1 }
+    severity: error
+    meta: { description: "Agrégat push-down doit renvoyer exactement 1 ligne." }
+
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "n_rows >= 430168 and n_rows <= 2150844"
+    severity: error
+    meta: { description: "Row count empirique = 1,075,422." }
+
+  # ── COMPLÉTION PAR COLONNE (push-down NULL counts) ──
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_match_id / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "match_id empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_team_id / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "team_id empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_player_id / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "player_id empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_date / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "date empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_season / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "season empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_league_source / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "league_source empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_n_apps_lag / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "n_apps_lag empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_minutes_lag / n_rows <= 0.5238"
+    severity: warn
+    meta: { description: "minutes_lag empirique 47.38% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_scorer_xg_per90_lag / n_rows <= 0.5239"
+    severity: warn
+    meta: { description: "scorer_xg_per90_lag empirique 47.39% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_scorer_shots_per90_lag / n_rows <= 0.5239"
+    severity: warn
+    meta: { description: "scorer_shots_per90_lag empirique 47.39% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_off_chances_created_per90_lag / n_rows <= 0.5239"
+    severity: warn
+    meta: { description: "off_chances_created_per90_lag empirique 47.39% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_off_key_passes_per90_lag / n_rows <= 0.5239"
+    severity: warn
+    meta: { description: "off_key_passes_per90_lag empirique 47.39% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_off_xg_per_shot_lag / n_rows <= 0.146"
+    severity: warn
+    meta: { description: "off_xg_per_shot_lag empirique 9.60% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_def_aerial_win_rate_lag / n_rows <= 0.0793"
+    severity: warn
+    meta: { description: "def_aerial_win_rate_lag empirique 2.93% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_def_actions_per90_lag / n_rows <= 0.5239"
+    severity: warn
+    meta: { description: "def_actions_per90_lag empirique 47.39% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_def_errors_per90_lag / n_rows <= 0.5239"
+    severity: warn
+    meta: { description: "def_errors_per90_lag empirique 47.39% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_player_card_propensity_lag / n_rows <= 0.5239"
+    severity: warn
+    meta: { description: "player_card_propensity_lag empirique 47.39% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_off_xgchain_per90_lag / n_rows <= 0.5239"
+    severity: warn
+    meta: { description: "off_xgchain_per90_lag empirique 47.39% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_off_xgbuildup_per90_lag / n_rows <= 0.5239"
+    severity: warn
+    meta: { description: "off_xgbuildup_per90_lag empirique 47.39% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_scorer_team_shot_share_lag / n_rows <= 0.0637"
+    severity: warn
+    meta: { description: "scorer_team_shot_share_lag empirique 1.37% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_scorer_penalty_taker_lag / n_rows <= 0.0637"
+    severity: warn
+    meta: { description: "scorer_penalty_taker_lag empirique 1.37% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_scorer_freekick_taker_lag / n_rows <= 0.0637"
+    severity: warn
+    meta: { description: "scorer_freekick_taker_lag empirique 1.37% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_def_threat_conceded_per90_lag / n_rows <= 0.5239"
+    severity: warn
+    meta: { description: "def_threat_conceded_per90_lag empirique 47.39% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_scorer_xgot_overperformance_lag / n_rows <= 0.9784"
+    severity: warn
+    meta: { description: "scorer_xgot_overperformance_lag empirique 92.84% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_profile_confidence_flag / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "profile_confidence_flag empirique 0.00% NULL." }
+
+  # ── BORNES NUMÉRIQUES (push-down MIN/MAX) ──
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_team_id >= 202606099958.1000 and max_team_id <= 202606100472.9000"
+    severity: warn
+    meta: { description: "team_id empirique [202606100001.0, 202606100430.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_player_id >= 0.0000 and max_player_id <= 684360.6000"
+    severity: warn
+    meta: { description: "player_id empirique [0.0, 622146.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_n_apps_lag >= 0.0000 and max_n_apps_lag <= 41.8000"
+    severity: warn
+    meta: { description: "n_apps_lag empirique [0.0, 38.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_minutes_lag >= 0.0000 and max_minutes_lag <= 4088.7000"
+    severity: warn
+    meta: { description: "minutes_lag empirique [0.0, 3717.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_scorer_xg_per90_lag >= 0.0000 and max_scorer_xg_per90_lag <= 636.5471"
+    severity: warn
+    meta: { description: "scorer_xg_per90_lag empirique [0.0, 578.6791945153542]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_scorer_shots_per90_lag >= 0.0000 and max_scorer_shots_per90_lag <= 8811.0000"
+    severity: warn
+    meta: { description: "scorer_shots_per90_lag empirique [0.0, 8010.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_off_chances_created_per90_lag >= 0.0000 and max_off_chances_created_per90_lag <= 3663.0000"
+    severity: warn
+    meta: { description: "off_chances_created_per90_lag empirique [0.0, 3330.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_off_key_passes_per90_lag >= 0.0000 and max_off_key_passes_per90_lag <= 3663.0000"
+    severity: warn
+    meta: { description: "off_key_passes_per90_lag empirique [0.0, 3330.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_off_xg_per_shot_lag >= -0.0319 and max_off_xg_per_shot_lag <= 0.4703"
+    severity: warn
+    meta: { description: "off_xg_per_shot_lag empirique [0.009902142148580411, 0.428418469759787]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_def_aerial_win_rate_lag >= 0.0000 and max_def_aerial_win_rate_lag <= 1.1000"
+    severity: warn
+    meta: { description: "def_aerial_win_rate_lag empirique [0.0, 1.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_def_actions_per90_lag >= 0.0000 and max_def_actions_per90_lag <= 19602.0000"
+    severity: warn
+    meta: { description: "def_actions_per90_lag empirique [0.0, 17820.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_def_errors_per90_lag >= 0.0000 and max_def_errors_per90_lag <= 297.0000"
+    severity: warn
+    meta: { description: "def_errors_per90_lag empirique [0.0, 270.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_player_card_propensity_lag >= 0.0000 and max_player_card_propensity_lag <= 1287.0000"
+    severity: warn
+    meta: { description: "player_card_propensity_lag empirique [0.0, 1170.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_off_xgchain_per90_lag >= 0.0000 and max_off_xgchain_per90_lag <= 5355.9000"
+    severity: warn
+    meta: { description: "off_xgchain_per90_lag empirique [0.0, 4869.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_off_xgbuildup_per90_lag >= 0.0000 and max_off_xgbuildup_per90_lag <= 4484.7000"
+    severity: warn
+    meta: { description: "off_xgbuildup_per90_lag empirique [0.0, 4076.9999999999995]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_scorer_team_shot_share_lag >= 0.0000 and max_scorer_team_shot_share_lag <= 1.1000"
+    severity: warn
+    meta: { description: "scorer_team_shot_share_lag empirique [0.0, 1.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_scorer_penalty_taker_lag >= 0.0000 and max_scorer_penalty_taker_lag <= 9.9000"
+    severity: warn
+    meta: { description: "scorer_penalty_taker_lag empirique [0.0, 9.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_scorer_freekick_taker_lag >= 0.0000 and max_scorer_freekick_taker_lag <= 216.7000"
+    severity: warn
+    meta: { description: "scorer_freekick_taker_lag empirique [0.0, 197.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_def_threat_conceded_per90_lag >= 0.0000 and max_def_threat_conceded_per90_lag <= 1494.9000"
+    severity: warn
+    meta: { description: "def_threat_conceded_per90_lag empirique [0.0, 1359.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_scorer_xgot_overperformance_lag >= -9.3778 and max_scorer_xgot_overperformance_lag <= 91.1556"
+    severity: warn
+    meta: { description: "scorer_xgot_overperformance_lag empirique [-1.0, 82.77777777777779]." }

@@ -1,0 +1,29 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Suite GE — silver.stg_whoscored_formations_ref
+# Dimension catalogue formations (23 lignes). Structure minimale.
+# ══════════════════════════════════════════════════════════════════════════════
+
+suite_name: silver.stg_whoscored_formations_ref
+description: Dimension formations WhoScored — 23 formations tactiques.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT formation_id, formation_name
+    FROM silver.stg_whoscored_formations_ref
+
+expectations:
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 15, max_value: 50 }
+    severity: error
+    meta: { description: "Empirique = 23." }
+
+  - type: expect_column_values_to_not_be_null
+    for_each_column: [formation_id, formation_name]
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  - type: expect_column_values_to_be_between
+    kwargs: { column: formation_id, min_value: 1, max_value: 50, mostly: 1.0 }
+    severity: error
+    meta: { description: "Empirique min=2 max=25." }

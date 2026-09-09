@@ -1,0 +1,159 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — intermediate.int_shot_placement (GÉNÉRÉE AUTO 2026-09-09)
+# Volumétrie : 63,036 lignes, 28 colonnes
+# Bornes empiriques ± marge — à raffiner si nécessaire.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: intermediate.int_shot_placement
+description: >
+  Suite auto-générée le 2026-09-09 pour intermediate.int_shot_placement.
+  Volumétrie de référence : 63,036 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT "match_id", "team_id", "player_id", "event_id", "row_num", "expanded_minute", "season", "league_source", "scraped_at", "type_id", "type_name", "x", "y", "goal_mouth_y", "goal_mouth_z", "blocked_x", "blocked_y", "is_own_goal", "is_goal", "is_blocked", "is_on_target", "pre_shot_xg_proxy", "offset_center", "height", "placement_col", "placement_row", "placement_zone", "corner_dist" FROM intermediate."int_shot_placement"
+
+expectations:
+
+  # ── VOLUMÉTRIE ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 25214, max_value: 126072 }
+    severity: error
+    meta: { description: "Empirique = 63,036. Bornes [25,214, 126,072]." }
+
+  # ── COMPLÉTION STRICTE (0 NULL empirique) ──
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - match_id
+      - team_id
+      - player_id
+      - event_id
+      - row_num
+      - expanded_minute
+      - season
+      - league_source
+      - scraped_at
+      - type_id
+      - type_name
+      - x
+      - y
+      - goal_mouth_y
+      - goal_mouth_z
+      - is_own_goal
+      - is_goal
+      - is_blocked
+      - is_on_target
+      - pre_shot_xg_proxy
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # ── COMPLÉTION AVEC NULLs EMPIRIQUES (mostly = 1 - empirique - 5pts) ──
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: blocked_x, mostly: 0.5229 }
+    severity: warn
+    meta: { description: "Empirique 42.71% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: blocked_y, mostly: 0.5229 }
+    severity: warn
+    meta: { description: "Empirique 42.71% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: offset_center, mostly: 0.289 }
+    severity: warn
+    meta: { description: "Empirique 66.10% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: height, mostly: 0.289 }
+    severity: warn
+    meta: { description: "Empirique 66.10% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: placement_col, mostly: 0.289 }
+    severity: warn
+    meta: { description: "Empirique 66.10% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: placement_row, mostly: 0.289 }
+    severity: warn
+    meta: { description: "Empirique 66.10% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: placement_zone, mostly: 0.289 }
+    severity: warn
+    meta: { description: "Empirique 66.10% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_dist, mostly: 0.289 }
+    severity: warn
+    meta: { description: "Empirique 66.10% NULL." }
+
+  # ── BORNES DE VALEURS NUMÉRIQUES ──
+  - type: expect_column_values_to_be_between
+    kwargs: { column: team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100001, 202606100426], mean=2.03e+11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: player_id, min_value: -51106, max_value: 616307, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [4511, 560689], mean=3.3e+05." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: event_id, min_value: -218, max_value: 2435, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [3, 2213], mean=460." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: row_num, min_value: -184, max_value: 2057, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2, 1870], mean=802." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: expanded_minute, min_value: 0, max_value: 140, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 127], mean=51.1." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: type_id, min_value: 12, max_value: 17, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [13, 16], mean=14.4." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: x, min_value: -9.3, max_value: 109.5, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.6, 99.6], mean=85.5." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: y, min_value: -9.620000000000001, max_value: 109.42, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.3, 99.5], mean=50.3." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: goal_mouth_y, min_value: -9.780000000000001, max_value: 109.98, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.2, 100.0], mean=50.2." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: goal_mouth_z, min_value: 0.0, max_value: 110.0, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 100.0], mean=23.7." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: blocked_x, min_value: 43.79, max_value: 105.11, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [48.9, 100.0], mean=92.9." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: blocked_y, min_value: 0.0, max_value: 110.0, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 100.0], mean=50.1." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: pre_shot_xg_proxy, min_value: 0.009999999999999995, max_value: 1.09, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.10, 1.00], mean=0.578." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: offset_center, min_value: 0.0, max_value: 5.279999999999997, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 4.799999999999997], mean=2.2." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: height, min_value: -3.07, max_value: 40.97, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.6, 37.3], mean=12.4." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_dist, min_value: -0.03171865214213501, max_value: 1.2071751915780442, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.07152250150121327, 1.103934037934696], mean=0.747." }
+
+  # ── DÉRIVE VOLUMÉTRIQUE INTER-SAISONS ──
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.20
+      max_deviation_error: 0.40
+      min_seasons_history: 2
+      exclude_partitions: ['2025-2026']
+    severity: warn

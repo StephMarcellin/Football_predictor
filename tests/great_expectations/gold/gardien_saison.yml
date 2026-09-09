@@ -1,0 +1,54 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — gold.gardien_saison (GÉNÉRÉE AUTO 2026-09-09)
+# Volumétrie : 266 lignes, 7 colonnes
+# Bornes empiriques ± marge — à raffiner si nécessaire.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: gold.gardien_saison
+description: >
+  Suite auto-générée le 2026-09-09 pour gold.gardien_saison.
+  Volumétrie de référence : 266 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT "keeper_id", "season", "keeper_psxg_plus_minus_lag", "keeper_psxg_per_shot_lag", "keeper_save_pct_lag", "keeper_shots_faced_lag", "profile_confidence_flag" FROM gold."gardien_saison"
+
+expectations:
+
+  # ── VOLUMÉTRIE ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 106, max_value: 532 }
+    severity: error
+    meta: { description: "Empirique = 266. Bornes [106, 532]." }
+
+  # ── COMPLÉTION STRICTE (0 NULL empirique) ──
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - keeper_id
+      - season
+      - profile_confidence_flag
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # ── COLONNES 100% NULL (documentées, pas testées) ──
+  # keeper_psxg_plus_minus_lag : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+  # keeper_psxg_per_shot_lag : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+  # keeper_save_pct_lag : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+  # keeper_shots_faced_lag : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+
+  # ── BORNES DE VALEURS NUMÉRIQUES ──
+  - type: expect_column_values_to_be_between
+    kwargs: { column: keeper_id, min_value: -51942, max_value: 607208, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2987, 552278], mean=2.69e+05." }
+
+  # ── DÉRIVE VOLUMÉTRIQUE INTER-SAISONS ──
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.20
+      max_deviation_error: 0.40
+      min_seasons_history: 2
+      exclude_partitions: ['2025-2026']
+    severity: warn

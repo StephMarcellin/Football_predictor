@@ -1,0 +1,1665 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — intermediate.int_odds (GÉNÉRÉE AUTO 2026-09-09)
+# Volumétrie : 71,493 lignes, 211 colonnes
+# Bornes empiriques ± marge — à raffiner si nécessaire.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: intermediate.int_odds
+description: >
+  Suite auto-générée le 2026-09-09 pour intermediate.int_odds.
+  Volumétrie de référence : 71,493 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT "match_id", "team_id", "opponent_id", "date", "season", "league_source", "result_fdc", "div", "time", "odds_pinnacle_h", "odds_pinnacle_d", "odds_pinnacle_a", "odds_avg_h", "odds_avg_d", "odds_avg_a", "odds_max_h", "odds_max_d", "odds_max_a", "pinnacle_prob_h", "pinnacle_prob_d", "pinnacle_prob_a", "market_prob_h", "market_prob_d", "market_prob_a", "ah_line", "ah_line_close", "away_corners", "away_fouls", "away_reds", "away_shots", "away_shots_target", "away_yellows", "bet365_1x2_away", "bet365_1x2_draw", "bet365_1x2_home", "bet365_ah_away", "bet365_ah_home", "bet365_close_1x2_away", "bet365_close_1x2_draw", "bet365_close_1x2_home", "bet365_close_ah_away", "bet365_close_ah_home", "bet365_close_ou25_over", "bet365_close_ou25_under", "bet365_ou25_over", "bet365_ou25_under", "betbrain_ah_line", "betbrain_avg_1x2_away", "betbrain_avg_1x2_draw", "betbrain_avg_1x2_home", "betbrain_avg_ah_away", "betbrain_avg_ah_home", "betbrain_avg_ou25_over", "betbrain_avg_ou25_under", "betbrain_max_1x2_away", "betbrain_max_1x2_draw", "betbrain_max_1x2_home", "betbrain_max_ah_away", "betbrain_max_ah_home", "betbrain_max_ou25_over", "betbrain_max_ou25_under", "betbrain_n_1x2", "betbrain_n_ah", "betbrain_n_ou25", "betfair_1x2_away", "betfair_1x2_draw", "betfair_1x2_home", "betfair_close_1x2_away", "betfair_close_1x2_draw", "betfair_close_1x2_home", "betfair_exch_1x2_away", "betfair_exch_1x2_draw", "betfair_exch_1x2_home", "betfair_exch_ah_away", "betfair_exch_ah_home", "betfair_exch_close_1x2_away", "betfair_exch_close_1x2_draw", "betfair_exch_close_1x2_home", "betfair_exch_close_ah_away", "betfair_exch_close_ah_home", "betfair_exch_close_ou25_over", "betfair_exch_close_ou25_under", "betfair_exch_ou25_over", "betfair_exch_ou25_under", "betfred_1x2_away", "betfred_1x2_draw", "betfred_1x2_home", "betfred_close_1x2_away", "betfred_close_1x2_draw", "betfred_close_1x2_home", "betmgm_1x2_away", "betmgm_1x2_draw", "betmgm_1x2_home", "betmgm_close_1x2_away", "betmgm_close_1x2_draw", "betmgm_close_1x2_home", "betvictor_1x2_away", "betvictor_1x2_draw", "betvictor_1x2_home", "betvictor_close_1x2_away", "betvictor_close_1x2_draw", "betvictor_close_1x2_home", "betwin_1x2_away", "betwin_1x2_draw", "betwin_1x2_home", "betwin_close_1x2_away", "betwin_close_1x2_draw", "betwin_close_1x2_home", "coral_1x2_away", "coral_1x2_draw", "coral_1x2_home", "coral_close_1x2_away", "coral_close_1x2_draw", "coral_close_1x2_home", "ft_away_goals", "ft_home_goals", "home_corners", "home_fouls", "home_reds", "home_shots", "home_shots_target", "home_yellows", "ht_away_goals", "ht_home_goals", "ht_result", "interwetten_1x2_away", "interwetten_1x2_draw", "interwetten_1x2_home", "interwetten_close_1x2_away", "interwetten_close_1x2_draw", "interwetten_close_1x2_home", "ladbrokes_1x2_away", "ladbrokes_1x2_draw", "ladbrokes_1x2_home", "ladbrokes_close_1x2_away", "ladbrokes_close_1x2_draw", "ladbrokes_close_1x2_home", "market_avg_1x2_away", "market_avg_1x2_draw", "market_avg_1x2_home", "market_avg_ah_away", "market_avg_ah_home", "market_avg_close_1x2_away", "market_avg_close_1x2_draw", "market_avg_close_1x2_home", "market_avg_close_ah_away", "market_avg_close_ah_home", "market_avg_close_ou25_over", "market_avg_close_ou25_under", "market_avg_ou25_over", "market_avg_ou25_under", "market_max_1x2_away", "market_max_1x2_draw", "market_max_1x2_home", "market_max_ah_away", "market_max_ah_home", "market_max_close_1x2_away", "market_max_close_1x2_draw", "market_max_close_1x2_home", "market_max_close_ah_away", "market_max_close_ah_home", "market_max_close_ou25_over", "market_max_close_ou25_under", "market_max_ou25_over", "market_max_ou25_under", "onexbet_1x2_away", "onexbet_1x2_draw", "onexbet_1x2_home", "onexbet_close_1x2_away", "onexbet_close_1x2_draw", "onexbet_close_1x2_home", "pinnacle_1x2_away", "pinnacle_1x2_draw", "pinnacle_1x2_home", "pinnacle_ah_away", "pinnacle_ah_home", "pinnacle_close_1x2_away", "pinnacle_close_1x2_draw", "pinnacle_close_1x2_home", "pinnacle_close_ah_away", "pinnacle_close_ah_home", "pinnacle_close_ou25_over", "pinnacle_close_ou25_under", "pinnacle_ou25_over", "pinnacle_ou25_under", "referee", "vcbet_1x2_away", "vcbet_1x2_draw", "vcbet_1x2_home", "vcbet_close_1x2_away", "vcbet_close_1x2_draw", "vcbet_close_1x2_home", "william_hill_1x2_away", "william_hill_1x2_draw", "william_hill_1x2_home", "william_hill_close_1x2_away", "william_hill_close_1x2_draw", "william_hill_close_1x2_home", "pinnacle_prob_close_h", "pinnacle_prob_close_d", "pinnacle_prob_close_a", "market_prob_close_h", "market_prob_close_d", "market_prob_close_a", "pinnacle_prob_over25", "pinnacle_prob_under25", "pinnacle_prob_close_over25", "pinnacle_prob_close_under25", "pinnacle_drift_h", "pinnacle_drift_d", "pinnacle_drift_a" FROM intermediate."int_odds"
+
+expectations:
+
+  # ── VOLUMÉTRIE ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 28597, max_value: 142986 }
+    severity: error
+    meta: { description: "Empirique = 71,493. Bornes [28,597, 142,986]." }
+
+  # ── COMPLÉTION STRICTE (0 NULL empirique) ──
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - match_id
+      - team_id
+      - opponent_id
+      - date
+      - season
+      - league_source
+      - result_fdc
+      - div
+      - ft_away_goals
+      - ft_home_goals
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # ── COMPLÉTION AVEC NULLs EMPIRIQUES (mostly = 1 - empirique - 5pts) ──
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: time, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: odds_pinnacle_h, mostly: 0.9192 }
+    severity: warn
+    meta: { description: "Empirique 3.08% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: odds_pinnacle_d, mostly: 0.9192 }
+    severity: warn
+    meta: { description: "Empirique 3.08% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: odds_pinnacle_a, mostly: 0.9192 }
+    severity: warn
+    meta: { description: "Empirique 3.08% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: odds_avg_h, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: odds_avg_d, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: odds_avg_a, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: odds_max_h, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: odds_max_d, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: odds_max_a, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: pinnacle_prob_h, mostly: 0.9192 }
+    severity: warn
+    meta: { description: "Empirique 3.08% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: pinnacle_prob_d, mostly: 0.9192 }
+    severity: warn
+    meta: { description: "Empirique 3.08% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: pinnacle_prob_a, mostly: 0.9192 }
+    severity: warn
+    meta: { description: "Empirique 3.08% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_prob_h, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_prob_d, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_prob_a, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: ah_line, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: ah_line_close, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: away_corners, mostly: 0.9499 }
+    severity: warn
+    meta: { description: "Empirique 0.01% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: away_fouls, mostly: 0.9499 }
+    severity: warn
+    meta: { description: "Empirique 0.01% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: away_reds, mostly: 0.9499 }
+    severity: warn
+    meta: { description: "Empirique 0.01% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: away_shots, mostly: 0.9499 }
+    severity: warn
+    meta: { description: "Empirique 0.01% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: away_shots_target, mostly: 0.9499 }
+    severity: warn
+    meta: { description: "Empirique 0.01% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: away_yellows, mostly: 0.9499 }
+    severity: warn
+    meta: { description: "Empirique 0.01% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: bet365_1x2_away, mostly: 0.9497 }
+    severity: warn
+    meta: { description: "Empirique 0.03% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: bet365_1x2_draw, mostly: 0.9497 }
+    severity: warn
+    meta: { description: "Empirique 0.03% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: bet365_1x2_home, mostly: 0.9497 }
+    severity: warn
+    meta: { description: "Empirique 0.03% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: bet365_ah_away, mostly: 0.7009 }
+    severity: warn
+    meta: { description: "Empirique 24.91% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: bet365_ah_home, mostly: 0.7009 }
+    severity: warn
+    meta: { description: "Empirique 24.91% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: bet365_close_1x2_away, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: bet365_close_1x2_draw, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: bet365_close_1x2_home, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: bet365_close_ah_away, mostly: 0.7025 }
+    severity: warn
+    meta: { description: "Empirique 24.75% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: bet365_close_ah_home, mostly: 0.7025 }
+    severity: warn
+    meta: { description: "Empirique 24.75% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: bet365_close_ou25_over, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: bet365_close_ou25_under, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: bet365_ou25_over, mostly: 0.7019 }
+    severity: warn
+    meta: { description: "Empirique 24.81% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: bet365_ou25_under, mostly: 0.7019 }
+    severity: warn
+    meta: { description: "Empirique 24.81% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betbrain_ah_line, mostly: 0.1974 }
+    severity: warn
+    meta: { description: "Empirique 75.26% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betbrain_avg_1x2_away, mostly: 0.1974 }
+    severity: warn
+    meta: { description: "Empirique 75.26% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betbrain_avg_1x2_draw, mostly: 0.1974 }
+    severity: warn
+    meta: { description: "Empirique 75.26% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betbrain_avg_1x2_home, mostly: 0.1974 }
+    severity: warn
+    meta: { description: "Empirique 75.26% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betbrain_avg_ah_away, mostly: 0.1974 }
+    severity: warn
+    meta: { description: "Empirique 75.26% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betbrain_avg_ah_home, mostly: 0.1974 }
+    severity: warn
+    meta: { description: "Empirique 75.26% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betbrain_avg_ou25_over, mostly: 0.1974 }
+    severity: warn
+    meta: { description: "Empirique 75.26% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betbrain_avg_ou25_under, mostly: 0.1974 }
+    severity: warn
+    meta: { description: "Empirique 75.26% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betbrain_max_1x2_away, mostly: 0.1974 }
+    severity: warn
+    meta: { description: "Empirique 75.26% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betbrain_max_1x2_draw, mostly: 0.1974 }
+    severity: warn
+    meta: { description: "Empirique 75.26% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betbrain_max_1x2_home, mostly: 0.1974 }
+    severity: warn
+    meta: { description: "Empirique 75.26% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betbrain_max_ah_away, mostly: 0.1974 }
+    severity: warn
+    meta: { description: "Empirique 75.26% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betbrain_max_ah_home, mostly: 0.1974 }
+    severity: warn
+    meta: { description: "Empirique 75.26% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betbrain_max_ou25_over, mostly: 0.1974 }
+    severity: warn
+    meta: { description: "Empirique 75.26% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betbrain_max_ou25_under, mostly: 0.1974 }
+    severity: warn
+    meta: { description: "Empirique 75.26% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betbrain_n_1x2, mostly: 0.1974 }
+    severity: warn
+    meta: { description: "Empirique 75.26% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betbrain_n_ah, mostly: 0.1974 }
+    severity: warn
+    meta: { description: "Empirique 75.26% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betbrain_n_ou25, mostly: 0.1974 }
+    severity: warn
+    meta: { description: "Empirique 75.26% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betfair_1x2_away, mostly: 0.0516 }
+    severity: warn
+    meta: { description: "Empirique 89.84% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betfair_1x2_draw, mostly: 0.0516 }
+    severity: warn
+    meta: { description: "Empirique 89.84% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betfair_1x2_home, mostly: 0.0516 }
+    severity: warn
+    meta: { description: "Empirique 89.84% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betfair_close_1x2_away, mostly: 0.0517 }
+    severity: warn
+    meta: { description: "Empirique 89.83% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betfair_close_1x2_draw, mostly: 0.0517 }
+    severity: warn
+    meta: { description: "Empirique 89.83% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betfair_close_1x2_home, mostly: 0.0517 }
+    severity: warn
+    meta: { description: "Empirique 89.83% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betfair_exch_1x2_away, mostly: 0.1341 }
+    severity: warn
+    meta: { description: "Empirique 81.59% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betfair_exch_1x2_draw, mostly: 0.1341 }
+    severity: warn
+    meta: { description: "Empirique 81.59% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betfair_exch_1x2_home, mostly: 0.1341 }
+    severity: warn
+    meta: { description: "Empirique 81.59% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betfair_exch_ah_away, mostly: 0.1337 }
+    severity: warn
+    meta: { description: "Empirique 81.63% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betfair_exch_ah_home, mostly: 0.1337 }
+    severity: warn
+    meta: { description: "Empirique 81.63% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betfair_exch_close_1x2_away, mostly: 0.1341 }
+    severity: warn
+    meta: { description: "Empirique 81.59% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betfair_exch_close_1x2_draw, mostly: 0.1341 }
+    severity: warn
+    meta: { description: "Empirique 81.59% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betfair_exch_close_1x2_home, mostly: 0.1341 }
+    severity: warn
+    meta: { description: "Empirique 81.59% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betfair_exch_close_ah_away, mostly: 0.1339 }
+    severity: warn
+    meta: { description: "Empirique 81.61% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betfair_exch_close_ah_home, mostly: 0.1339 }
+    severity: warn
+    meta: { description: "Empirique 81.61% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betfair_exch_close_ou25_over, mostly: 0.1341 }
+    severity: warn
+    meta: { description: "Empirique 81.59% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betfair_exch_close_ou25_under, mostly: 0.1341 }
+    severity: warn
+    meta: { description: "Empirique 81.59% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betfair_exch_ou25_over, mostly: 0.1325 }
+    severity: warn
+    meta: { description: "Empirique 81.75% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betfair_exch_ou25_under, mostly: 0.1325 }
+    severity: warn
+    meta: { description: "Empirique 81.75% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betfred_1x2_away, mostly: 0.0323 }
+    severity: warn
+    meta: { description: "Empirique 91.77% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betfred_1x2_draw, mostly: 0.0323 }
+    severity: warn
+    meta: { description: "Empirique 91.77% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betfred_1x2_home, mostly: 0.0323 }
+    severity: warn
+    meta: { description: "Empirique 91.77% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betfred_close_1x2_away, mostly: 0.0323 }
+    severity: warn
+    meta: { description: "Empirique 91.77% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betfred_close_1x2_draw, mostly: 0.0323 }
+    severity: warn
+    meta: { description: "Empirique 91.77% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betfred_close_1x2_home, mostly: 0.0323 }
+    severity: warn
+    meta: { description: "Empirique 91.77% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betmgm_1x2_away, mostly: 0.0323 }
+    severity: warn
+    meta: { description: "Empirique 91.77% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betmgm_1x2_draw, mostly: 0.0323 }
+    severity: warn
+    meta: { description: "Empirique 91.77% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betmgm_1x2_home, mostly: 0.0323 }
+    severity: warn
+    meta: { description: "Empirique 91.77% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betmgm_close_1x2_away, mostly: 0.0323 }
+    severity: warn
+    meta: { description: "Empirique 91.77% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betmgm_close_1x2_draw, mostly: 0.0323 }
+    severity: warn
+    meta: { description: "Empirique 91.77% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betmgm_close_1x2_home, mostly: 0.0323 }
+    severity: warn
+    meta: { description: "Empirique 91.77% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betvictor_1x2_away, mostly: 0.0323 }
+    severity: warn
+    meta: { description: "Empirique 91.77% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betvictor_1x2_draw, mostly: 0.0323 }
+    severity: warn
+    meta: { description: "Empirique 91.77% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betvictor_1x2_home, mostly: 0.0323 }
+    severity: warn
+    meta: { description: "Empirique 91.77% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betvictor_close_1x2_away, mostly: 0.0323 }
+    severity: warn
+    meta: { description: "Empirique 91.77% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betvictor_close_1x2_draw, mostly: 0.0323 }
+    severity: warn
+    meta: { description: "Empirique 91.77% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betvictor_close_1x2_home, mostly: 0.0323 }
+    severity: warn
+    meta: { description: "Empirique 91.77% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betwin_1x2_away, mostly: 0.9066 }
+    severity: warn
+    meta: { description: "Empirique 4.34% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betwin_1x2_draw, mostly: 0.9066 }
+    severity: warn
+    meta: { description: "Empirique 4.34% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betwin_1x2_home, mostly: 0.9066 }
+    severity: warn
+    meta: { description: "Empirique 4.34% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betwin_close_1x2_away, mostly: 0.6589 }
+    severity: warn
+    meta: { description: "Empirique 29.11% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betwin_close_1x2_draw, mostly: 0.6589 }
+    severity: warn
+    meta: { description: "Empirique 29.11% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: betwin_close_1x2_home, mostly: 0.6589 }
+    severity: warn
+    meta: { description: "Empirique 29.11% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: coral_1x2_away, mostly: 0.0116 }
+    severity: warn
+    meta: { description: "Empirique 93.84% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: coral_1x2_draw, mostly: 0.0116 }
+    severity: warn
+    meta: { description: "Empirique 93.84% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: coral_1x2_home, mostly: 0.0116 }
+    severity: warn
+    meta: { description: "Empirique 93.84% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: coral_close_1x2_away, mostly: 0.0106 }
+    severity: warn
+    meta: { description: "Empirique 93.94% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: coral_close_1x2_draw, mostly: 0.0106 }
+    severity: warn
+    meta: { description: "Empirique 93.94% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: coral_close_1x2_home, mostly: 0.0106 }
+    severity: warn
+    meta: { description: "Empirique 93.94% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: home_corners, mostly: 0.9499 }
+    severity: warn
+    meta: { description: "Empirique 0.01% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: home_fouls, mostly: 0.9499 }
+    severity: warn
+    meta: { description: "Empirique 0.01% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: home_reds, mostly: 0.9499 }
+    severity: warn
+    meta: { description: "Empirique 0.01% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: home_shots, mostly: 0.9499 }
+    severity: warn
+    meta: { description: "Empirique 0.01% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: home_shots_target, mostly: 0.9499 }
+    severity: warn
+    meta: { description: "Empirique 0.01% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: home_yellows, mostly: 0.9499 }
+    severity: warn
+    meta: { description: "Empirique 0.01% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: ht_away_goals, mostly: 0.9499 }
+    severity: warn
+    meta: { description: "Empirique 0.01% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: ht_home_goals, mostly: 0.9499 }
+    severity: warn
+    meta: { description: "Empirique 0.01% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: ht_result, mostly: 0.9499 }
+    severity: warn
+    meta: { description: "Empirique 0.01% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: interwetten_1x2_away, mostly: 0.7133 }
+    severity: warn
+    meta: { description: "Empirique 23.67% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: interwetten_1x2_draw, mostly: 0.7133 }
+    severity: warn
+    meta: { description: "Empirique 23.67% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: interwetten_1x2_home, mostly: 0.7133 }
+    severity: warn
+    meta: { description: "Empirique 23.67% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: interwetten_close_1x2_away, mostly: 0.4643 }
+    severity: warn
+    meta: { description: "Empirique 48.57% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: interwetten_close_1x2_draw, mostly: 0.4643 }
+    severity: warn
+    meta: { description: "Empirique 48.57% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: interwetten_close_1x2_home, mostly: 0.4643 }
+    severity: warn
+    meta: { description: "Empirique 48.57% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: ladbrokes_1x2_away, mostly: 0.1394 }
+    severity: warn
+    meta: { description: "Empirique 81.06% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: ladbrokes_1x2_draw, mostly: 0.1394 }
+    severity: warn
+    meta: { description: "Empirique 81.06% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: ladbrokes_1x2_home, mostly: 0.1394 }
+    severity: warn
+    meta: { description: "Empirique 81.06% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: ladbrokes_close_1x2_away, mostly: 0.0106 }
+    severity: warn
+    meta: { description: "Empirique 93.94% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: ladbrokes_close_1x2_draw, mostly: 0.0106 }
+    severity: warn
+    meta: { description: "Empirique 93.94% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: ladbrokes_close_1x2_home, mostly: 0.0106 }
+    severity: warn
+    meta: { description: "Empirique 93.94% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_avg_1x2_away, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_avg_1x2_draw, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_avg_1x2_home, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_avg_ah_away, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_avg_ah_home, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_avg_close_1x2_away, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_avg_close_1x2_draw, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_avg_close_1x2_home, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_avg_close_ah_away, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_avg_close_ah_home, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_avg_close_ou25_over, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_avg_close_ou25_under, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_avg_ou25_over, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_avg_ou25_under, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_max_1x2_away, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_max_1x2_draw, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_max_1x2_home, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_max_ah_away, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_max_ah_home, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_max_close_1x2_away, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_max_close_1x2_draw, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_max_close_1x2_home, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_max_close_ah_away, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_max_close_ah_home, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_max_close_ou25_over, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_max_close_ou25_under, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_max_ou25_over, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_max_ou25_under, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: onexbet_1x2_away, mostly: 0.0494 }
+    severity: warn
+    meta: { description: "Empirique 90.06% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: onexbet_1x2_draw, mostly: 0.0494 }
+    severity: warn
+    meta: { description: "Empirique 90.06% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: onexbet_1x2_home, mostly: 0.0494 }
+    severity: warn
+    meta: { description: "Empirique 90.06% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: onexbet_close_1x2_away, mostly: 0.0517 }
+    severity: warn
+    meta: { description: "Empirique 89.83% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: onexbet_close_1x2_draw, mostly: 0.0517 }
+    severity: warn
+    meta: { description: "Empirique 89.83% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: onexbet_close_1x2_home, mostly: 0.0517 }
+    severity: warn
+    meta: { description: "Empirique 89.83% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: pinnacle_1x2_away, mostly: 0.9192 }
+    severity: warn
+    meta: { description: "Empirique 3.08% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: pinnacle_1x2_draw, mostly: 0.9192 }
+    severity: warn
+    meta: { description: "Empirique 3.08% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: pinnacle_1x2_home, mostly: 0.9192 }
+    severity: warn
+    meta: { description: "Empirique 3.08% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: pinnacle_ah_away, mostly: 0.672 }
+    severity: warn
+    meta: { description: "Empirique 27.80% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: pinnacle_ah_home, mostly: 0.672 }
+    severity: warn
+    meta: { description: "Empirique 27.80% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: pinnacle_close_1x2_away, mostly: 0.9199 }
+    severity: warn
+    meta: { description: "Empirique 3.01% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: pinnacle_close_1x2_draw, mostly: 0.9199 }
+    severity: warn
+    meta: { description: "Empirique 3.01% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: pinnacle_close_1x2_home, mostly: 0.9199 }
+    severity: warn
+    meta: { description: "Empirique 3.01% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: pinnacle_close_ah_away, mostly: 0.6727 }
+    severity: warn
+    meta: { description: "Empirique 27.73% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: pinnacle_close_ah_home, mostly: 0.6727 }
+    severity: warn
+    meta: { description: "Empirique 27.73% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: pinnacle_close_ou25_over, mostly: 0.6681 }
+    severity: warn
+    meta: { description: "Empirique 28.19% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: pinnacle_close_ou25_under, mostly: 0.6681 }
+    severity: warn
+    meta: { description: "Empirique 28.19% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: pinnacle_ou25_over, mostly: 0.6665 }
+    severity: warn
+    meta: { description: "Empirique 28.35% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: pinnacle_ou25_under, mostly: 0.6665 }
+    severity: warn
+    meta: { description: "Empirique 28.35% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: referee, mostly: 0.1786 }
+    severity: warn
+    meta: { description: "Empirique 77.14% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: vcbet_1x2_away, mostly: 0.7657 }
+    severity: warn
+    meta: { description: "Empirique 18.43% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: vcbet_1x2_draw, mostly: 0.7657 }
+    severity: warn
+    meta: { description: "Empirique 18.43% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: vcbet_1x2_home, mostly: 0.7657 }
+    severity: warn
+    meta: { description: "Empirique 18.43% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: vcbet_close_1x2_away, mostly: 0.5186 }
+    severity: warn
+    meta: { description: "Empirique 43.14% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: vcbet_close_1x2_draw, mostly: 0.5186 }
+    severity: warn
+    meta: { description: "Empirique 43.14% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: vcbet_close_1x2_home, mostly: 0.5186 }
+    severity: warn
+    meta: { description: "Empirique 43.14% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: william_hill_1x2_away, mostly: 0.8397 }
+    severity: warn
+    meta: { description: "Empirique 11.03% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: william_hill_1x2_draw, mostly: 0.8397 }
+    severity: warn
+    meta: { description: "Empirique 11.03% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: william_hill_1x2_home, mostly: 0.8397 }
+    severity: warn
+    meta: { description: "Empirique 11.03% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: william_hill_close_1x2_away, mostly: 0.5926 }
+    severity: warn
+    meta: { description: "Empirique 35.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: william_hill_close_1x2_draw, mostly: 0.5926 }
+    severity: warn
+    meta: { description: "Empirique 35.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: william_hill_close_1x2_home, mostly: 0.5926 }
+    severity: warn
+    meta: { description: "Empirique 35.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: pinnacle_prob_close_h, mostly: 0.9199 }
+    severity: warn
+    meta: { description: "Empirique 3.01% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: pinnacle_prob_close_d, mostly: 0.9199 }
+    severity: warn
+    meta: { description: "Empirique 3.01% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: pinnacle_prob_close_a, mostly: 0.9199 }
+    severity: warn
+    meta: { description: "Empirique 3.01% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_prob_close_h, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_prob_close_d, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: market_prob_close_a, mostly: 0.7026 }
+    severity: warn
+    meta: { description: "Empirique 24.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: pinnacle_prob_over25, mostly: 0.6664 }
+    severity: warn
+    meta: { description: "Empirique 28.36% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: pinnacle_prob_under25, mostly: 0.6664 }
+    severity: warn
+    meta: { description: "Empirique 28.36% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: pinnacle_prob_close_over25, mostly: 0.6679 }
+    severity: warn
+    meta: { description: "Empirique 28.21% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: pinnacle_prob_close_under25, mostly: 0.6679 }
+    severity: warn
+    meta: { description: "Empirique 28.21% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: pinnacle_drift_h, mostly: 0.919 }
+    severity: warn
+    meta: { description: "Empirique 3.10% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: pinnacle_drift_d, mostly: 0.919 }
+    severity: warn
+    meta: { description: "Empirique 3.10% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: pinnacle_drift_a, mostly: 0.919 }
+    severity: warn
+    meta: { description: "Empirique 3.10% NULL." }
+
+  # ── BORNES DE VALEURS NUMÉRIQUES ──
+  - type: expect_column_values_to_be_between
+    kwargs: { column: team_id, min_value: 202606099965, max_value: 202606100468, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100007, 202606100426], mean=2.03e+11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: opponent_id, min_value: 202606099965, max_value: 202606100468, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100007, 202606100426], mean=2.03e+11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: odds_pinnacle_h, min_value: -1.5450000000000002, max_value: 29.595, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.05, 27.0], mean=2.85." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: odds_pinnacle_d, min_value: 0.2500000000000002, max_value: 22.209999999999997, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.08, 20.38], mean=4.21." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: odds_pinnacle_a, min_value: -3.0729999999999995, max_value: 47.123, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.11, 42.94], mean=4.66." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: odds_avg_h, min_value: -1.099, max_value: 24.689, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.05, 22.54], mean=2.77." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: odds_avg_d, min_value: 0.6549999999999996, max_value: 17.875, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.09, 16.44], mean=4.08." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: odds_avg_a, min_value: -2.594, max_value: 41.734, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.1, 38.04], mean=4.33." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: odds_max_h, min_value: -1.723, max_value: 31.793, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.07, 29.0], mean=2.93." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: odds_max_d, min_value: 0.020000000000000018, max_value: 26.18, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.2, 24.0], mean=4.32." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: odds_max_a, min_value: -4.357, max_value: 61.487, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.13, 56.0], mean=4.74." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: pinnacle_prob_h, min_value: -0.05251128503473986, max_value: 1.0133403112412092, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.03630968132158923, 0.9245193448848801], mean=0.442." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: pinnacle_prob_d, min_value: 0.005486180488088757, max_value: 0.5092705239159748, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.04746820910707926, 0.4672884952969843], mean=0.246." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: pinnacle_prob_a, min_value: -0.06328762686075778, max_value: 0.9688839660483463, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.02272667254833422, 0.8828696666392543], mean=0.311." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_prob_h, min_value: -0.044520865186045526, max_value: 1.003532407952407, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.042816907575492204, 0.9161946351908694], mean=0.437." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_prob_d, min_value: 0.018804058627053033, max_value: 0.49534832367936027, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.05851608071474531, 0.455636301591668], mean=0.247." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_prob_a, min_value: -0.059917523564503035, max_value: 0.9625641683421557, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.025289284094385196, 0.8773573606832675], mean=0.316." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ah_line, min_value: -3.85, max_value: 3.35, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [-3.25, 2.75], mean=-0.285." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ah_line_close, min_value: -4.425, max_value: 3.675, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [-3.75, 3.0], mean=-0.279." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: away_corners, min_value: 0, max_value: 20.9, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 19.0], mean=4.42." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: away_fouls, min_value: 0, max_value: 34.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 31.0], mean=12.3." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: away_reds, min_value: 0, max_value: 2.2, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 2.0], mean=0.104." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: away_shots, min_value: 0, max_value: 40.7, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 37.0], mean=11.1." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: away_shots_target, min_value: 0, max_value: 22.0, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 20.0], mean=4.03." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: away_yellows, min_value: 0, max_value: 9.9, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 9.0], mean=2.13." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: bet365_1x2_away, min_value: -2.923, max_value: 44.993, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.07, 41.0], mean=4.46." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: bet365_1x2_draw, min_value: 0.09999999999999987, max_value: 22.9, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.0, 21.0], mean=4.09." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: bet365_1x2_home, min_value: -1.167, max_value: 25.197, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.03, 23.0], mean=2.78." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: bet365_ah_away, min_value: 0.9989999999999999, max_value: 3.291, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.19, 3.1], mean=1.95." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: bet365_ah_home, min_value: 1.0350000000000001, max_value: 4.815, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.35, 4.5], mean=1.95." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: bet365_close_1x2_away, min_value: -2.923, max_value: 44.993, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.07, 41.0], mean=4.29." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: bet365_close_1x2_draw, min_value: 0.2999999999999998, max_value: 20.7, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.0, 19.0], mean=4.07." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: bet365_close_1x2_home, min_value: -1.167, max_value: 25.197, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.03, 23.0], mean=2.77." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: bet365_close_ah_away, min_value: 1.167, max_value: 2.4029999999999996, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.27, 2.3], mean=1.96." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: bet365_close_ah_home, min_value: 1.405, max_value: 3.7449999999999997, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.6, 3.55], mean=1.94." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: bet365_close_ou25_over, min_value: 0, max_value: 4.4, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 4.0], mean=1.87." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: bet365_close_ou25_under, min_value: 0, max_value: 6.6, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 6.0], mean=2.13." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: bet365_ou25_over, min_value: 0.8570000000000001, max_value: 4.013, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.12, 3.75], mean=1.85." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: bet365_ou25_under, min_value: 0.819, max_value: 6.471, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.29, 6.0], mean=2.12." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betbrain_ah_line, min_value: -4.1, max_value: 3.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [-3.5, 2.5], mean=-0.366." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betbrain_avg_1x2_away, min_value: -3.271000000000001, max_value: 49.421, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.12, 45.03], mean=4.95." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betbrain_avg_1x2_draw, min_value: 0.8770000000000002, max_value: 19.033, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.39, 17.52], mean=4.15." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betbrain_avg_1x2_home, min_value: -0.9400000000000002, max_value: 22.82, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.04, 20.84], mean=2.8." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betbrain_avg_ah_away, min_value: 1.2049999999999998, max_value: 3.545, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.4, 3.35], mean=1.93." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betbrain_avg_ah_home, min_value: 1.282, max_value: 3.178, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.44, 3.02], mean=1.96." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betbrain_avg_ou25_over, min_value: 0.9410000000000001, max_value: 3.089, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.12, 2.91], mean=1.87." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betbrain_avg_ou25_under, min_value: 0.9209999999999998, max_value: 6.428999999999999, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.38, 5.97], mean=2.08." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betbrain_max_1x2_away, min_value: -6.334999999999999, max_value: 83.485, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.15, 76.0], mean=5.7." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betbrain_max_1x2_draw, min_value: 0.32699999999999996, max_value: 27.243, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.57, 25.0], mean=4.45." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betbrain_max_1x2_home, min_value: -1.7449999999999999, max_value: 31.795, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.05, 29.0], mean=3.02." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betbrain_max_ah_away, min_value: 1.224, max_value: 3.8160000000000003, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.44, 3.6], mean=1.98." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betbrain_max_ah_home, min_value: 1.323, max_value: 3.447, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.5, 3.27], mean=2.02." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betbrain_max_ou25_over, min_value: 0.9229999999999998, max_value: 3.407, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.13, 3.2], mean=1.94." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betbrain_max_ou25_under, min_value: 0.8619999999999999, max_value: 7.558, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.42, 7.0], mean=2.19." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betbrain_n_1x2, min_value: -1.0, max_value: 47.0, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [3.0, 43.0], mean=37." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betbrain_n_ah, min_value: -1.5, max_value: 28.5, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.0, 26.0], mean=19.4." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betbrain_n_ou25, min_value: -0.9000000000000004, max_value: 45.9, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [3.0, 42.0], mean=34.1." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betfair_1x2_away, min_value: -2.857, max_value: 44.987, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.13, 41.0], mean=4.56." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betfair_1x2_draw, min_value: 1.0929999999999997, max_value: 19.537, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.63, 18.0], mean=4.16." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betfair_1x2_home, min_value: -0.7340000000000002, max_value: 20.794, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.06, 19.0], mean=2.77." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betfair_close_1x2_away, min_value: -4.3790000000000004, max_value: 61.489000000000004, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.11, 56.0], mean=4.43." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betfair_close_1x2_draw, min_value: 0.95, max_value: 19.55, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.5, 18.0], mean=3.98." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betfair_close_1x2_home, min_value: -0.9669999999999999, max_value: 22.997, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.03, 21.0], mean=2.73." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betfair_exch_1x2_away, min_value: -3.524, max_value: 52.684, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.16, 48.0], mean=4.74." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betfair_exch_1x2_draw, min_value: 1.042, max_value: 21.178, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.72, 19.5], mean=4.29." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betfair_exch_1x2_home, min_value: -0.823, max_value: 21.893, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.07, 20.0], mean=2.9." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betfair_exch_ah_away, min_value: 0.9219999999999999, max_value: 3.538, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.14, 3.32], mean=1.98." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betfair_exch_ah_home, min_value: 0.9970000000000001, max_value: 5.473, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.37, 5.1], mean=1.98." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betfair_exch_close_1x2_away, min_value: -6.746, max_value: 87.886, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.14, 80.0], mean=4.86." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betfair_exch_close_1x2_draw, min_value: -0.040000000000000036, max_value: 31.64, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.6, 29.0], mean=4.26." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betfair_exch_close_1x2_home, min_value: -1.4560000000000004, max_value: 28.496000000000002, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.04, 26.0], mean=2.97." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betfair_exch_close_ah_away, min_value: 1.634, max_value: 2.9059999999999997, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.74, 2.8], mean=2." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betfair_exch_close_ah_home, min_value: 1.4820000000000002, max_value: 2.8979999999999997, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.6, 2.78], mean=1.99." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betfair_exch_close_ou25_over, min_value: 0.8139999999999998, max_value: 4.726000000000001, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.14, 4.4], mean=1.94." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betfair_exch_close_ou25_under, min_value: 0.648, max_value: 8.232, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.28, 7.6], mean=2.27." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betfair_exch_ou25_over, min_value: 0.752, max_value: 3.968, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.02, 3.7], mean=1.9." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betfair_exch_ou25_under, min_value: 0.6249999999999999, max_value: 6.925000000000001, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.15, 6.4], mean=2.22." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betfred_1x2_away, min_value: -1.6570000000000005, max_value: 31.787, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.13, 29.0], mean=4.2." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betfred_1x2_draw, min_value: 1.825, max_value: 12.925, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.75, 12.0], mean=3.92." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betfred_1x2_home, min_value: -0.5229999999999999, max_value: 18.593, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.07, 17.0], mean=2.72." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betfred_close_1x2_away, min_value: -2.113, max_value: 37.283, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.17, 34.0], mean=4.14." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betfred_close_1x2_draw, min_value: 1.825, max_value: 12.925, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.75, 12.0], mean=3.89." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betfred_close_1x2_home, min_value: -0.5229999999999999, max_value: 18.593, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.07, 17.0], mean=2.76." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betmgm_1x2_away, min_value: -1.8570000000000002, max_value: 33.987, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.13, 31.0], mean=4.22." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betmgm_1x2_draw, min_value: 1.7249999999999999, max_value: 14.025, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.75, 13.0], mean=4." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betmgm_1x2_home, min_value: -0.5449999999999999, max_value: 18.595, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.05, 17.0], mean=2.72." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betmgm_close_1x2_away, min_value: -1.6350000000000002, max_value: 31.785, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.15, 29.0], mean=4.22." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betmgm_close_1x2_draw, min_value: 1.515, max_value: 15.135, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.65, 14.0], mean=3.95." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betmgm_close_1x2_home, min_value: -0.4560000000000002, max_value: 17.496, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.04, 16.0], mean=2.78." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betvictor_1x2_away, min_value: -1.3900000000000001, max_value: 28.490000000000002, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.1, 26.0], mean=4.06." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betvictor_1x2_draw, min_value: 1.82, max_value: 12.38, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.7, 11.5], mean=3.87." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betvictor_1x2_home, min_value: -0.3340000000000001, max_value: 16.394, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.06, 15.0], mean=2.65." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betvictor_close_1x2_away, min_value: -1.6350000000000002, max_value: 31.785, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.15, 29.0], mean=4.15." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betvictor_close_1x2_draw, min_value: 1.6700000000000002, max_value: 14.03, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.7, 13.0], mean=3.95." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betvictor_close_1x2_home, min_value: -0.3340000000000001, max_value: 16.394, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.06, 15.0], mean=2.74." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betwin_1x2_away, min_value: -2.9120000000000004, max_value: 44.992, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.08, 41.0], mean=4.42." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betwin_1x2_draw, min_value: 0.5049999999999999, max_value: 19.045, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.05, 17.5], mean=4.08." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betwin_1x2_home, min_value: -1.4669999999999999, max_value: 28.497, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.03, 26.0], mean=2.75." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betwin_close_1x2_away, min_value: -3.912000000000001, max_value: 55.992000000000004, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.08, 51.0], mean=4.28." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betwin_close_1x2_draw, min_value: 0.47, max_value: 21.23, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.2, 19.5], mean=4.04." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: betwin_close_1x2_home, min_value: -1.778, max_value: 31.798000000000002, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.02, 29.0], mean=2.76." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: coral_1x2_away, min_value: -1.3130000000000002, max_value: 28.483, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.17, 26.0], mean=4." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: coral_1x2_draw, min_value: 1.7799999999999998, max_value: 14.02, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.8, 13.0], mean=3.97." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: coral_1x2_home, min_value: -0.11199999999999988, max_value: 14.192, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.08, 13.0], mean=2.66." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: coral_close_1x2_away, min_value: -1.5800000000000003, max_value: 31.78, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.2, 29.0], mean=3.99." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: coral_close_1x2_draw, min_value: 1.6700000000000002, max_value: 14.03, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.7, 13.0], mean=3.93." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: coral_close_1x2_home, min_value: -0.123, max_value: 14.193, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.07, 13.0], mean=2.73." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ft_away_goals, min_value: 0, max_value: 9.9, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 9.0], mean=1.26." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ft_home_goals, min_value: 0, max_value: 9.9, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 9.0], mean=1.54." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: home_corners, min_value: 0, max_value: 28.6, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 26.0], mean=5.39." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: home_fouls, min_value: 0, max_value: 31.9, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 29.0], mean=12." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: home_reds, min_value: 0, max_value: 3.3, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 3.0], mean=0.0901." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: home_shots, min_value: 0, max_value: 50.6, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 46.0], mean=13.5." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: home_shots_target, min_value: 0, max_value: 22.0, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 20.0], mean=4.86." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: home_yellows, min_value: 0, max_value: 9.9, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 9.0], mean=1.89." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ht_away_goals, min_value: 0, max_value: 6.6, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 6.0], mean=0.556." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ht_home_goals, min_value: 0, max_value: 6.6, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 6.0], mean=0.684." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: interwetten_1x2_away, min_value: -2.4680000000000004, max_value: 40.588, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.12, 37.0], mean=4.37." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: interwetten_1x2_draw, min_value: 0.81, max_value: 16.29, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.1, 15.0], mean=4.03." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: interwetten_1x2_home, min_value: -0.845, max_value: 21.895, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.05, 20.0], mean=2.76." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: interwetten_close_1x2_away, min_value: -1.568, max_value: 30.688, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.12, 28.0], mean=4.22." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: interwetten_close_1x2_draw, min_value: 0.9199999999999999, max_value: 16.28, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.2, 15.0], mean=3.99." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: interwetten_close_1x2_home, min_value: -0.923, max_value: 22.993, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.07, 21.0], mean=2.79." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ladbrokes_1x2_away, min_value: -4.8790000000000004, max_value: 66.989, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.11, 61.0], mean=4.83." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ladbrokes_1x2_draw, min_value: 1.325, max_value: 18.425, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.75, 17.0], mean=4.03." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ladbrokes_1x2_home, min_value: -1.7449999999999999, max_value: 31.795, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.05, 29.0], mean=2.76." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ladbrokes_close_1x2_away, min_value: -1.5800000000000003, max_value: 31.78, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.2, 29.0], mean=3.95." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ladbrokes_close_1x2_draw, min_value: 1.6700000000000002, max_value: 14.03, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.7, 13.0], mean=3.89." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ladbrokes_close_1x2_home, min_value: -0.123, max_value: 14.193, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.07, 13.0], mean=2.71." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_avg_1x2_away, min_value: -2.594, max_value: 41.734, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.1, 38.04], mean=4.33." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_avg_1x2_draw, min_value: 0.6549999999999996, max_value: 17.875, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.09, 16.44], mean=4.08." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_avg_1x2_home, min_value: -1.099, max_value: 24.689, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.05, 22.54], mean=2.77." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_avg_ah_away, min_value: 0.772, max_value: 5.788, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.19, 5.37], mean=1.93." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_avg_ah_home, min_value: 0.9910000000000001, max_value: 4.939, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.32, 4.61], mean=1.93." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_avg_close_1x2_away, min_value: -3.1769999999999996, max_value: 48.027, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.09, 43.76], mean=4.39." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_avg_close_1x2_draw, min_value: -0.05000000000000049, max_value: 21.19, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.72, 19.42], mean=4.08." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_avg_close_1x2_home, min_value: -1.455, max_value: 28.485, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.04, 25.99], mean=2.81." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_avg_close_ah_away, min_value: 1.183, max_value: 2.347, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.28, 2.25], mean=1.93." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_avg_close_ah_home, min_value: 1.4709999999999999, max_value: 3.859, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.67, 3.66], mean=1.92." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_avg_close_ou25_over, min_value: 0.06599999999999995, max_value: 4.314, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.42, 3.96], mean=1.85." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_avg_close_ou25_under, min_value: 0.7409999999999999, max_value: 6.729, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.24, 6.23], mean=2.13." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_avg_ou25_over, min_value: 0.8860000000000001, max_value: 3.694, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.12, 3.46], mean=1.84." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_avg_ou25_under, min_value: 0.829, max_value: 6.481, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.3, 6.01], mean=2.12." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_max_1x2_away, min_value: -4.357, max_value: 61.487, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.13, 56.0], mean=4.74." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_max_1x2_draw, min_value: 0.020000000000000018, max_value: 26.18, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.2, 24.0], mean=4.32." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_max_1x2_home, min_value: -1.723, max_value: 31.793, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.07, 29.0], mean=2.93." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_max_ah_away, min_value: -0.8800000000000001, max_value: 24.08, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.2, 22.0], mean=2.04." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_max_ah_home, min_value: 0.9650000000000001, max_value: 5.585, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.35, 5.2], mean=1.98." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_max_close_1x2_away, min_value: -5.268000000000001, max_value: 71.388, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.12, 65.0], mean=4.88." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_max_close_1x2_draw, min_value: -0.6750000000000003, max_value: 28.425, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.75, 26.0], mean=4.34." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_max_close_1x2_home, min_value: -2.3450000000000006, max_value: 38.395, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.05, 35.0], mean=3.02." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_max_close_ah_away, min_value: 1.1600000000000001, max_value: 2.8400000000000003, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.3, 2.7], mean=2.01." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_max_close_ah_home, min_value: 1.4969999999999999, max_value: 4.173, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.72, 3.95], mean=2." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_max_close_ou25_over, min_value: 0.8209999999999998, max_value: 4.769, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.15, 4.44], mean=1.94." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_max_close_ou25_under, min_value: 0.6859999999999999, max_value: 7.934, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.29, 7.33], mean=2.26." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_max_ou25_over, min_value: 0.8879999999999999, max_value: 4.032, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.15, 3.77], mean=1.91." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_max_ou25_under, min_value: 0.7590000000000001, max_value: 7.491, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.32, 6.93], mean=2.21." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: onexbet_1x2_away, min_value: 0, max_value: 55.0, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 50.0], mean=4.57." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: onexbet_1x2_draw, min_value: 0, max_value: 26.4, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 24.0], mean=4.36." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: onexbet_1x2_home, min_value: 0, max_value: 19.8, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 18.0], mean=2.82." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: onexbet_close_1x2_away, min_value: -1.602, max_value: 31.782, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.18, 29.0], mean=4.51." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: onexbet_close_1x2_draw, min_value: 0.9600000000000002, max_value: 20.64, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.6, 19.0], mean=4.24." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: onexbet_close_1x2_home, min_value: -0.526, max_value: 18.266, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.04, 16.7], mean=2.88." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: pinnacle_1x2_away, min_value: -3.0729999999999995, max_value: 47.123, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.11, 42.94], mean=4.66." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: pinnacle_1x2_draw, min_value: 0.2500000000000002, max_value: 22.209999999999997, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.08, 20.38], mean=4.21." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: pinnacle_1x2_home, min_value: -1.5450000000000002, max_value: 29.595, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.05, 27.0], mean=2.85." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: pinnacle_ah_away, min_value: 1.233, max_value: 2.397, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.33, 2.3], mean=1.96." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: pinnacle_ah_home, min_value: 1.4829999999999999, max_value: 3.847, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.68, 3.65], mean=1.96." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: pinnacle_close_1x2_away, min_value: -4.078, max_value: 57.938, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.09, 52.77], mean=4.78." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: pinnacle_close_1x2_draw, min_value: 0.5299999999999998, max_value: 21.77, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.3, 20.0], mean=4.21." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: pinnacle_close_1x2_home, min_value: -2.2560000000000002, max_value: 37.296, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.04, 34.0], mean=2.9." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: pinnacle_close_ah_away, min_value: 1.163, max_value: 2.807, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.3, 2.67], mean=1.97." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: pinnacle_close_ah_home, min_value: 1.202, max_value: 4.178, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.45, 3.93], mean=1.96." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: pinnacle_close_ou25_over, min_value: 0, max_value: 4.7299999999999995, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 4.3], mean=1.9." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: pinnacle_close_ou25_under, min_value: 0, max_value: 8.041, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 7.31], mean=2.16." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: pinnacle_ou25_over, min_value: 0, max_value: 3.971, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 3.61], mean=1.88." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: pinnacle_ou25_under, min_value: 0, max_value: 7.612, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 6.92], mean=2.15." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: vcbet_1x2_away, min_value: -3.923, max_value: 55.993, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.07, 51.0], mean=4.69." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: vcbet_1x2_draw, min_value: 0.1200000000000001, max_value: 25.08, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.2, 23.0], mean=4.07." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: vcbet_1x2_home, min_value: -1.167, max_value: 25.197, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.03, 23.0], mean=2.82." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: vcbet_close_1x2_away, min_value: -3.901, max_value: 55.991, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.09, 51.0], mean=4.48." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: vcbet_close_1x2_draw, min_value: 0.1200000000000001, max_value: 25.08, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.2, 23.0], mean=4.06." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: vcbet_close_1x2_home, min_value: -1.4669999999999999, max_value: 28.497, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.03, 26.0], mean=2.83." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: william_hill_1x2_away, min_value: -3.912000000000001, max_value: 55.992000000000004, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.08, 51.0], mean=4.53." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: william_hill_1x2_draw, min_value: 0.52, max_value: 20.68, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.2, 19.0], mean=4.01." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: william_hill_1x2_home, min_value: -1.178, max_value: 25.198, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.02, 23.0], mean=2.77." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: william_hill_close_1x2_away, min_value: -3.923, max_value: 55.993, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.07, 51.0], mean=4.43." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: william_hill_close_1x2_draw, min_value: 0.1200000000000001, max_value: 25.08, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.2, 23.0], mean=3.99." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: william_hill_close_1x2_home, min_value: -1.778, max_value: 31.798000000000002, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.02, 29.0], mean=2.81." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: pinnacle_prob_close_h, min_value: -0.06133346828509445, max_value: 1.0200671916942596, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.028783253379851725, 0.9299504700293135], mean=0.441." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: pinnacle_prob_close_d, min_value: 0.01212905506726239, max_value: 0.4524491903785813, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.048822399676538966, 0.4157558457693047], mean=0.249." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: pinnacle_prob_close_a, min_value: -0.0688122297608678, max_value: 0.9776799605824584, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.018395452767742723, 0.8904722780538479], mean=0.31." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_prob_close_h, min_value: -0.05198778851513388, max_value: 1.0157578801446396, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.03699101720651391, 0.9267790744229918], mean=0.436." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_prob_close_d, min_value: -0.0012085528322839656, max_value: 0.6088761022055323, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.049631835087534056, 0.5580357142857143], mean=0.249." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: market_prob_close_a, min_value: -0.06402424611302596, max_value: 0.9680187551818812, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.021979337328216296, 0.8820151717406389], mean=0.315." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: pinnacle_prob_over25, min_value: 0.20670934200002028, max_value: 0.9213191892192895, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.26626016260162605, 0.8617683686176837], mean=0.53." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: pinnacle_prob_under25, min_value: 0.07868081078071057, max_value: 0.7932906579999798, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.13823163138231634, 0.733739837398374], mean=0.47." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: pinnacle_prob_close_over25, min_value: 0.16093064560998055, max_value: 0.9324656009929169, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.22522522522522523, 0.8681710213776722], mean=0.528." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: pinnacle_prob_close_under25, min_value: 0.0675343990070831, max_value: 0.8390693543900196, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.1318289786223278, 0.7747747747747749], mean=0.472." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: pinnacle_drift_h, min_value: -0.2295744643807379, max_value: 0.3029858321662977, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [-0.18519443966848492, 0.2586058074540447], mean=-0.00121." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: pinnacle_drift_d, min_value: -0.14196675300377107, max_value: 0.10069669864517666, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [-0.12174479869969208, 0.08047474434109769], mean=0.00246." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: pinnacle_drift_a, min_value: -0.1885901406044175, max_value: 0.18287754301017953, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [-0.15763450030320109, 0.1519219027089631], mean=-0.00125." }
+
+  # ── DÉRIVE VOLUMÉTRIQUE INTER-SAISONS ──
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.20
+      max_deviation_error: 0.40
+      min_seasons_history: 2
+      exclude_partitions: ['2025-2026']
+    severity: warn

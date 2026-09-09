@@ -1,0 +1,102 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — intermediate.int_defensive_blocks (GÉNÉRÉE AUTO 2026-09-09)
+# Volumétrie : 484,536 lignes, 14 colonnes
+# Bornes empiriques ± marge — à raffiner si nécessaire.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: intermediate.int_defensive_blocks
+description: >
+  Suite auto-générée le 2026-09-09 pour intermediate.int_defensive_blocks.
+  Volumétrie de référence : 484,536 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT "match_id", "row_num", "event_id", "season", "league_source", "scraped_at", "expanded_minute", "blocking_team_id", "blocker_player_id", "blocked_team_id", "blocked_player_id", "blocked_type", "block_x", "block_y" FROM intermediate."int_defensive_blocks"
+
+expectations:
+
+  # ── VOLUMÉTRIE ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 193814, max_value: 969072 }
+    severity: error
+    meta: { description: "Empirique = 484,536. Bornes [193,814, 969,072]." }
+
+  # ── COMPLÉTION STRICTE (0 NULL empirique) ──
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - match_id
+      - row_num
+      - event_id
+      - season
+      - league_source
+      - scraped_at
+      - expanded_minute
+      - blocking_team_id
+      - blocker_player_id
+      - block_x
+      - block_y
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # ── COMPLÉTION AVEC NULLs EMPIRIQUES (mostly = 1 - empirique - 5pts) ──
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: blocked_team_id, mostly: 0.9231 }
+    severity: warn
+    meta: { description: "Empirique 2.69% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: blocked_player_id, mostly: 0.9231 }
+    severity: warn
+    meta: { description: "Empirique 2.69% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: blocked_type, mostly: 0.9231 }
+    severity: warn
+    meta: { description: "Empirique 2.69% NULL." }
+
+  # ── BORNES DE VALEURS NUMÉRIQUES ──
+  - type: expect_column_values_to_be_between
+    kwargs: { column: row_num, min_value: -191, max_value: 2147, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [3, 1952], mean=756." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: event_id, min_value: -100093, max_value: 1101066, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [3, 1000969], mean=451." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: expanded_minute, min_value: 0, max_value: 149, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 135], mean=45.8." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: blocking_team_id, min_value: 202606099958, max_value: 202606100470, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100001, 202606100427], mean=2.03e+11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: blocker_player_id, min_value: 0, max_value: 684038, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 621852], mean=1.89e+05." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: blocked_team_id, min_value: 202606099958, max_value: 202606100470, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100001, 202606100427], mean=2.03e+11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: blocked_player_id, min_value: 0, max_value: 684038, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 621852], mean=1.89e+05." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: block_x, min_value: 0, max_value: 109.89000000000001, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 99.9], mean=45.2." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: block_y, min_value: 0, max_value: 110.0, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 100.0], mean=49." }
+
+  # ── DÉRIVE VOLUMÉTRIQUE INTER-SAISONS ──
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.20
+      max_deviation_error: 0.40
+      min_seasons_history: 2
+      exclude_partitions: ['2025-2026']
+    severity: warn

@@ -1,0 +1,169 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — silver.odds
+# Rôle : SIGNAL & DISTRIBUTIONS
+# Contrainte spatiotemporelle : Odds football-data.co.uk = 100 % Big5.
+# Test dérive volumétrique : exclut 2025-2026.
+#
+# NOTE : silver.odds contient 200+ colonnes bookmakers. Cette suite se concentre
+# sur les colonnes CANONIQUES effectivement consommées en aval :
+#   - odds_pinnacle_* (bookmaker de référence pour l'edge)
+#   - odds_avg_* / odds_max_* (moyennes marché)
+#   - pinnacle_prob_* / market_prob_* (probabilités no-vig)
+#   - result_fdc (résultat réel, utilisé en backtest)
+# Les colonnes bookmakers spécifiques (bet365, betbrain, betfair…) ne sont pas
+# testées ici — leur NULL rate massif (25-93 %) reflète la couverture historique
+# hétérogène, pas un bug.
+# ══════════════════════════════════════════════════════════════════════════════
+
+suite_name: silver.odds
+description: >
+  Signal statistique de silver.odds. 100 % Big5 (Premier League, Bundesliga,
+  Serie A, La Liga, Ligue 1). Focus sur les colonnes canoniques consommées
+  en aval — pas de test unitaire sur chaque bookmaker.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT
+      date, season, league_source, div,
+      home_team, away_team, result_fdc,
+      odds_pinnacle_h, odds_pinnacle_d, odds_pinnacle_a,
+      odds_avg_h, odds_avg_d, odds_avg_a,
+      odds_max_h, odds_max_d, odds_max_a,
+      pinnacle_prob_h, pinnacle_prob_d, pinnacle_prob_a,
+      market_prob_h, market_prob_d, market_prob_a,
+      ft_home_goals, ft_away_goals
+    FROM silver.odds
+
+expectations:
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 12000, max_value: 25000 }
+    severity: error
+    meta: { description: "Empirique = 15 827." }
+
+  # NULL rate — colonnes structurelles
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - date
+      - season
+      - league_source
+      - div
+      - home_team
+      - away_team
+      - result_fdc
+      - ft_home_goals
+      - ft_away_goals
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # Pinnacle : 3.66 % NULL empirique → warn (marge +5 pts)
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - odds_pinnacle_h
+      - odds_pinnacle_d
+      - odds_pinnacle_a
+      - pinnacle_prob_h
+      - pinnacle_prob_d
+      - pinnacle_prob_a
+    kwargs: { mostly: 0.91 }
+    severity: warn
+    meta: { description: "Empirique = 3.66 %. Marge +5 pts." }
+
+  # Marché : 23.08 % NULL empirique → warn (marge +5 pts)
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - odds_avg_h
+      - odds_avg_d
+      - odds_avg_a
+      - odds_max_h
+      - odds_max_d
+      - odds_max_a
+      - market_prob_h
+      - market_prob_d
+      - market_prob_a
+    kwargs: { mostly: 0.71 }
+    severity: warn
+    meta: { description: "Empirique = 23.08 %. Marge +5 pts." }
+
+  # ── Bornes ──
+  # result_fdc restreint à {H, D, A} — pas de NULL toléré
+  # (test niveau colonne dans sources.yml via accepted_values déjà présent)
+
+  # Cotes : positives, ≥ 1.01 (cote implicite prob < 1)
+  - type: expect_column_values_to_be_between
+    for_each_column:
+      - odds_pinnacle_h
+      - odds_pinnacle_d
+      - odds_pinnacle_a
+      - odds_avg_h
+      - odds_avg_d
+      - odds_avg_a
+      - odds_max_h
+      - odds_max_d
+      - odds_max_a
+    kwargs: { min_value: 1.01, max_value: 100, mostly: 1.0 }
+    severity: error
+    meta: { description: "Empirique odds_pinnacle max 42.94." }
+
+  # Probabilités : dans [0, 1]
+  - type: expect_column_values_to_be_between
+    for_each_column:
+      - pinnacle_prob_h
+      - pinnacle_prob_d
+      - pinnacle_prob_a
+      - market_prob_h
+      - market_prob_d
+      - market_prob_a
+    kwargs: { min_value: 0, max_value: 1, mostly: 1.0 }
+    severity: error
+
+  # Buts
+  - type: expect_column_values_to_be_between
+    for_each_column: [ft_home_goals, ft_away_goals]
+    kwargs: { min_value: 0, max_value: 15, mostly: 1.0 }
+    severity: error
+
+  # ── Bornes statistiques ──
+  - type: expect_column_mean_to_be_between
+    for_each_column: [ft_home_goals, ft_away_goals]
+    kwargs: { min_value: 1.0, max_value: 2.0 }
+    severity: error
+
+  - type: expect_column_mean_to_be_between
+    for_each_column: [pinnacle_prob_h, market_prob_h]
+    kwargs: { min_value: 0.35, max_value: 0.55 }
+    severity: error
+    meta: { description: "P(home) moyen — avantage domicile stable." }
+
+  - type: expect_column_mean_to_be_between
+    for_each_column: [pinnacle_prob_d, market_prob_d]
+    kwargs: { min_value: 0.20, max_value: 0.30 }
+    severity: error
+
+  - type: expect_column_mean_to_be_between
+    for_each_column: [pinnacle_prob_a, market_prob_a]
+    kwargs: { min_value: 0.20, max_value: 0.40 }
+    severity: error
+
+  # ── Contraintes physiques : probabilités no-vig somment à 1 ──
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "pinnacle_prob_h != pinnacle_prob_h or abs(pinnacle_prob_h + pinnacle_prob_d + pinnacle_prob_a - 1) < 1e-6"
+    severity: error
+    meta: { description: "Somme des 3 probas no-vig = 1 (Pinnacle)." }
+
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "market_prob_h != market_prob_h or abs(market_prob_h + market_prob_d + market_prob_a - 1) < 1e-6"
+    severity: error
+    meta: { description: "Somme des 3 probas no-vig = 1 (marché moyen)." }
+
+  # ── Dérive volumétrique ──
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.20
+      max_deviation_error: 0.40
+      min_seasons_history: 2
+      exclude_partitions: ['2025-2026']
+    severity: warn

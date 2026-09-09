@@ -1,0 +1,54 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — intermediate.int_whoscored_team_match (GÉNÉRÉE AUTO 2026-09-09)
+# Volumétrie : 33,976 lignes, 7 colonnes
+# Bornes empiriques ± marge — à raffiner si nécessaire.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: intermediate.int_whoscored_team_match
+description: >
+  Suite auto-générée le 2026-09-09 pour intermediate.int_whoscored_team_match.
+  Volumétrie de référence : 33,976 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT "match_id", "team_id", "field", "manager_name", "country_name", "average_age", "stats_json" FROM intermediate."int_whoscored_team_match"
+
+expectations:
+
+  # ── VOLUMÉTRIE ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 13590, max_value: 67952 }
+    severity: error
+    meta: { description: "Empirique = 33,976. Bornes [13,590, 67,952]." }
+
+  # ── COMPLÉTION STRICTE (0 NULL empirique) ──
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - field
+      - manager_name
+      - country_name
+      - average_age
+      - stats_json
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # ── COMPLÉTION AVEC NULLs EMPIRIQUES (mostly = 1 - empirique - 5pts) ──
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: match_id, mostly: 0.9333 }
+    severity: warn
+    meta: { description: "Empirique 1.67% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: team_id, mostly: 0.9427 }
+    severity: warn
+    meta: { description: "Empirique 0.73% NULL." }
+
+  # ── BORNES DE VALEURS NUMÉRIQUES ──
+  - type: expect_column_values_to_be_between
+    kwargs: { column: team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100001, 202606100426], mean=2.03e+11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: average_age, min_value: 20.22, max_value: 40.38, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [21.9, 38.7], mean=31.2." }

@@ -1,0 +1,129 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — gold.equipe_adversaire_match (GÉNÉRÉE AUTO 2026-09-09)
+# Volumétrie : 56,616 lignes, 15 colonnes
+# Bornes empiriques ± marge — à raffiner si nécessaire.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: gold.equipe_adversaire_match
+description: >
+  Suite auto-générée le 2026-09-09 pour gold.equipe_adversaire_match.
+  Volumétrie de référence : 56,616 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT "match_id", "team_id", "opponent_id", "date", "season", "league_source", "h2h_played", "h2h_home_played", "h2h_win_rate_cutoff", "h2h_draw_rate_cutoff", "h2h_loss_rate_cutoff", "h2h_home_win_rate_cutoff", "h2h_avg_gf_10", "h2h_avg_ga_10", "h2h_avg_xg_diff_10" FROM gold."equipe_adversaire_match"
+
+expectations:
+
+  # ── VOLUMÉTRIE ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 22646, max_value: 113232 }
+    severity: error
+    meta: { description: "Empirique = 56,616. Bornes [22,646, 113,232]." }
+
+  # ── COMPLÉTION STRICTE (0 NULL empirique) ──
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - team_id
+      - date
+      - season
+      - league_source
+      - h2h_played
+      - h2h_home_played
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # ── COMPLÉTION AVEC NULLs EMPIRIQUES (mostly = 1 - empirique - 5pts) ──
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: match_id, mostly: 0.9491 }
+    severity: warn
+    meta: { description: "Empirique 0.09% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: opponent_id, mostly: 0.9138 }
+    severity: warn
+    meta: { description: "Empirique 3.62% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: h2h_win_rate_cutoff, mostly: 0.7984 }
+    severity: warn
+    meta: { description: "Empirique 15.16% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: h2h_draw_rate_cutoff, mostly: 0.7984 }
+    severity: warn
+    meta: { description: "Empirique 15.16% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: h2h_loss_rate_cutoff, mostly: 0.7984 }
+    severity: warn
+    meta: { description: "Empirique 15.16% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: h2h_home_win_rate_cutoff, mostly: 0.7126 }
+    severity: warn
+    meta: { description: "Empirique 23.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: h2h_avg_gf_10, mostly: 0.7984 }
+    severity: warn
+    meta: { description: "Empirique 15.16% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: h2h_avg_ga_10, mostly: 0.7984 }
+    severity: warn
+    meta: { description: "Empirique 15.16% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: h2h_avg_xg_diff_10, mostly: 0.5022 }
+    severity: warn
+    meta: { description: "Empirique 44.78% NULL." }
+
+  # ── BORNES DE VALEURS NUMÉRIQUES ──
+  - type: expect_column_values_to_be_between
+    kwargs: { column: team_id, min_value: 202606099958, max_value: 202606100471, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100001, 202606100428], mean=2.03e+11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: opponent_id, min_value: 202606099000, max_value: 202606111006, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100001, 202606110005], mean=2.03e+11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: h2h_played, min_value: 0, max_value: 117, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 106], mean=5.21." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: h2h_home_played, min_value: 0, max_value: 58, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 52], mean=2.55." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: h2h_win_rate_cutoff, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.388." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: h2h_draw_rate_cutoff, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.254." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: h2h_loss_rate_cutoff, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.353." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: h2h_home_win_rate_cutoff, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.454." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: h2h_avg_gf_10, min_value: 0.0, max_value: 9.9, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 9.0], mean=1.43." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: h2h_avg_ga_10, min_value: 0.0, max_value: 8.8, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 8.0], mean=1.34." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: h2h_avg_xg_diff_10, min_value: -6.778524000000001, max_value: 6.778524000000001, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [-5.648770000000001, 5.648770000000001], mean=0.00318." }
+
+  # ── DÉRIVE VOLUMÉTRIQUE INTER-SAISONS ──
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.20
+      max_deviation_error: 0.40
+      min_seasons_history: 2
+      exclude_partitions: ['2025-2026']
+    severity: warn

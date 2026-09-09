@@ -1,0 +1,99 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — intermediate.player_network_passes (GÉNÉRÉE AUTO 2026-09-09)
+# Volumétrie : 570,137 lignes, 14 colonnes
+# Bornes empiriques ± marge — à raffiner si nécessaire.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: intermediate.player_network_passes
+description: >
+  Suite auto-générée le 2026-09-09 pour intermediate.player_network_passes.
+  Volumétrie de référence : 570,137 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT "match_id", "team_id", "passer_id", "receiver_id", "season", "league_source", "n_passes", "n_passes_counter_attack", "n_passes_open_play", "n_passes_recovery", "n_passes_other", "n_progressive", "n_creative", "n_buildup" FROM intermediate."player_network_passes"
+
+expectations:
+
+  # ── VOLUMÉTRIE ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 228054, max_value: 1140274 }
+    severity: error
+    meta: { description: "Empirique = 570,137. Bornes [228,054, 1,140,274]." }
+
+  # ── COMPLÉTION STRICTE (0 NULL empirique) ──
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - match_id
+      - team_id
+      - passer_id
+      - receiver_id
+      - season
+      - league_source
+      - n_passes
+      - n_passes_counter_attack
+      - n_passes_open_play
+      - n_passes_recovery
+      - n_passes_other
+      - n_progressive
+      - n_creative
+      - n_buildup
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # ── BORNES DE VALEURS NUMÉRIQUES ──
+  - type: expect_column_values_to_be_between
+    kwargs: { column: team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100001, 202606100426], mean=2.03e+11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: passer_id, min_value: -52893, max_value: 617676, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2987, 561795], mean=3.19e+05." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: receiver_id, min_value: -52893, max_value: 617676, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2987, 561795], mean=3.22e+05." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: n_passes, min_value: -6, max_value: 88, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1, 80], mean=3.39." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: n_passes_counter_attack, min_value: 0, max_value: 1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 0], mean=0." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: n_passes_open_play, min_value: 0, max_value: 28, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 25], mean=1.24." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: n_passes_recovery, min_value: 0, max_value: 25, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 22], mean=0.828." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: n_passes_other, min_value: 0, max_value: 52, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 47], mean=1.31." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: n_progressive, min_value: 0, max_value: 29, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 26], mean=0.757." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: n_creative, min_value: 0, max_value: 6, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 5], mean=0.0768." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: n_buildup, min_value: 0, max_value: 73, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 66], mean=1.9." }
+
+  # ── DÉRIVE VOLUMÉTRIQUE INTER-SAISONS ──
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.20
+      max_deviation_error: 0.40
+      min_seasons_history: 2
+      exclude_partitions: ['2025-2026']
+    severity: warn

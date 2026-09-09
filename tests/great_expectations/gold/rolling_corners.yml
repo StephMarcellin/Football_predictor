@@ -1,0 +1,463 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — gold.rolling_corners (GÉNÉRÉE AUTO 2026-09-09)
+# Volumétrie : 56,616 lignes, 56 colonnes
+# Bornes empiriques ± marge — à raffiner si nécessaire.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: gold.rolling_corners
+description: >
+  Suite auto-générée le 2026-09-09 pour gold.rolling_corners.
+  Volumétrie de référence : 56,616 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT "match_id", "team_id", "date", "season", "league_source", "corners_for_3", "corner_danger_rate_for_3", "corner_conversion_rate_for_3", "corners_against_3", "corner_danger_rate_against_3", "corner_conversion_rate_against_3", "corner_danger_intensity_for_3", "corner_danger_intensity_against_3", "corner_header_share_for_3", "corner_header_share_against_3", "corner_header_goal_share_for_3", "corner_header_goal_share_against_3", "corner_short_rate_for_3", "corner_short_rate_against_3", "corner_forced_bad_clearance_rate_for_3", "corner_clearance_fail_rate_against_3", "corner_headed_clearance_rate_against_3", "corners_for_5", "corner_danger_rate_for_5", "corner_conversion_rate_for_5", "corners_against_5", "corner_danger_rate_against_5", "corner_conversion_rate_against_5", "corner_danger_intensity_for_5", "corner_danger_intensity_against_5", "corner_header_share_for_5", "corner_header_share_against_5", "corner_header_goal_share_for_5", "corner_header_goal_share_against_5", "corner_short_rate_for_5", "corner_short_rate_against_5", "corner_forced_bad_clearance_rate_for_5", "corner_clearance_fail_rate_against_5", "corner_headed_clearance_rate_against_5", "corners_for_10", "corner_danger_rate_for_10", "corner_conversion_rate_for_10", "corners_against_10", "corner_danger_rate_against_10", "corner_conversion_rate_against_10", "corner_danger_intensity_for_10", "corner_danger_intensity_against_10", "corner_header_share_for_10", "corner_header_share_against_10", "corner_header_goal_share_for_10", "corner_header_goal_share_against_10", "corner_short_rate_for_10", "corner_short_rate_against_10", "corner_forced_bad_clearance_rate_for_10", "corner_clearance_fail_rate_against_10", "corner_headed_clearance_rate_against_10" FROM gold."rolling_corners"
+
+expectations:
+
+  # ── VOLUMÉTRIE ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 22646, max_value: 113232 }
+    severity: error
+    meta: { description: "Empirique = 56,616. Bornes [22,646, 113,232]." }
+
+  # ── COMPLÉTION STRICTE (0 NULL empirique) ──
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - team_id
+      - date
+      - season
+      - league_source
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # ── COMPLÉTION AVEC NULLs EMPIRIQUES (mostly = 1 - empirique - 5pts) ──
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: match_id, mostly: 0.9491 }
+    severity: warn
+    meta: { description: "Empirique 0.09% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corners_for_3, mostly: 0.0245 }
+    severity: warn
+    meta: { description: "Empirique 92.55% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_danger_rate_for_3, mostly: 0.0244 }
+    severity: warn
+    meta: { description: "Empirique 92.56% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_conversion_rate_for_3, mostly: 0.023 }
+    severity: warn
+    meta: { description: "Empirique 92.70% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corners_against_3, mostly: 0.0245 }
+    severity: warn
+    meta: { description: "Empirique 92.55% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_danger_rate_against_3, mostly: 0.0242 }
+    severity: warn
+    meta: { description: "Empirique 92.58% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_conversion_rate_against_3, mostly: 0.0225 }
+    severity: warn
+    meta: { description: "Empirique 92.75% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_danger_intensity_for_3, mostly: 0.0244 }
+    severity: warn
+    meta: { description: "Empirique 92.56% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_danger_intensity_against_3, mostly: 0.0242 }
+    severity: warn
+    meta: { description: "Empirique 92.58% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_header_share_for_3, mostly: 0.023 }
+    severity: warn
+    meta: { description: "Empirique 92.70% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_header_share_against_3, mostly: 0.0225 }
+    severity: warn
+    meta: { description: "Empirique 92.75% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_header_goal_share_for_3, mostly: 0.0 }
+    severity: warn
+    meta: { description: "Empirique 97.33% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_header_goal_share_against_3, mostly: 0.0 }
+    severity: warn
+    meta: { description: "Empirique 97.44% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_short_rate_for_3, mostly: 0.0244 }
+    severity: warn
+    meta: { description: "Empirique 92.56% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_short_rate_against_3, mostly: 0.0242 }
+    severity: warn
+    meta: { description: "Empirique 92.58% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_forced_bad_clearance_rate_for_3, mostly: 0.0239 }
+    severity: warn
+    meta: { description: "Empirique 92.61% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_clearance_fail_rate_against_3, mostly: 0.0236 }
+    severity: warn
+    meta: { description: "Empirique 92.64% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_headed_clearance_rate_against_3, mostly: 0.023 }
+    severity: warn
+    meta: { description: "Empirique 92.70% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corners_for_5, mostly: 0.0247 }
+    severity: warn
+    meta: { description: "Empirique 92.53% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_danger_rate_for_5, mostly: 0.0247 }
+    severity: warn
+    meta: { description: "Empirique 92.53% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_conversion_rate_for_5, mostly: 0.0242 }
+    severity: warn
+    meta: { description: "Empirique 92.58% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corners_against_5, mostly: 0.0247 }
+    severity: warn
+    meta: { description: "Empirique 92.53% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_danger_rate_against_5, mostly: 0.0246 }
+    severity: warn
+    meta: { description: "Empirique 92.54% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_conversion_rate_against_5, mostly: 0.0241 }
+    severity: warn
+    meta: { description: "Empirique 92.59% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_danger_intensity_for_5, mostly: 0.0247 }
+    severity: warn
+    meta: { description: "Empirique 92.53% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_danger_intensity_against_5, mostly: 0.0246 }
+    severity: warn
+    meta: { description: "Empirique 92.54% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_header_share_for_5, mostly: 0.0242 }
+    severity: warn
+    meta: { description: "Empirique 92.58% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_header_share_against_5, mostly: 0.0241 }
+    severity: warn
+    meta: { description: "Empirique 92.59% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_header_goal_share_for_5, mostly: 0.0 }
+    severity: warn
+    meta: { description: "Empirique 96.16% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_header_goal_share_against_5, mostly: 0.0 }
+    severity: warn
+    meta: { description: "Empirique 96.35% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_short_rate_for_5, mostly: 0.0247 }
+    severity: warn
+    meta: { description: "Empirique 92.53% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_short_rate_against_5, mostly: 0.0246 }
+    severity: warn
+    meta: { description: "Empirique 92.54% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_forced_bad_clearance_rate_for_5, mostly: 0.0245 }
+    severity: warn
+    meta: { description: "Empirique 92.55% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_clearance_fail_rate_against_5, mostly: 0.0243 }
+    severity: warn
+    meta: { description: "Empirique 92.57% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_headed_clearance_rate_against_5, mostly: 0.0241 }
+    severity: warn
+    meta: { description: "Empirique 92.59% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corners_for_10, mostly: 0.0247 }
+    severity: warn
+    meta: { description: "Empirique 92.53% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_danger_rate_for_10, mostly: 0.0247 }
+    severity: warn
+    meta: { description: "Empirique 92.53% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_conversion_rate_for_10, mostly: 0.0244 }
+    severity: warn
+    meta: { description: "Empirique 92.56% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corners_against_10, mostly: 0.0247 }
+    severity: warn
+    meta: { description: "Empirique 92.53% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_danger_rate_against_10, mostly: 0.0246 }
+    severity: warn
+    meta: { description: "Empirique 92.54% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_conversion_rate_against_10, mostly: 0.0243 }
+    severity: warn
+    meta: { description: "Empirique 92.57% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_danger_intensity_for_10, mostly: 0.0247 }
+    severity: warn
+    meta: { description: "Empirique 92.53% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_danger_intensity_against_10, mostly: 0.0246 }
+    severity: warn
+    meta: { description: "Empirique 92.54% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_header_share_for_10, mostly: 0.0244 }
+    severity: warn
+    meta: { description: "Empirique 92.56% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_header_share_against_10, mostly: 0.0243 }
+    severity: warn
+    meta: { description: "Empirique 92.57% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_header_goal_share_for_10, mostly: 0.0029 }
+    severity: warn
+    meta: { description: "Empirique 94.71% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_header_goal_share_against_10, mostly: 0.0018 }
+    severity: warn
+    meta: { description: "Empirique 94.82% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_short_rate_for_10, mostly: 0.0247 }
+    severity: warn
+    meta: { description: "Empirique 92.53% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_short_rate_against_10, mostly: 0.0246 }
+    severity: warn
+    meta: { description: "Empirique 92.54% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_forced_bad_clearance_rate_for_10, mostly: 0.0245 }
+    severity: warn
+    meta: { description: "Empirique 92.55% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_clearance_fail_rate_against_10, mostly: 0.0245 }
+    severity: warn
+    meta: { description: "Empirique 92.55% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corner_headed_clearance_rate_against_10, mostly: 0.0244 }
+    severity: warn
+    meta: { description: "Empirique 92.56% NULL." }
+
+  # ── BORNES DE VALEURS NUMÉRIQUES ──
+  - type: expect_column_values_to_be_between
+    kwargs: { column: team_id, min_value: 202606099958, max_value: 202606100471, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100001, 202606100428], mean=2.03e+11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corners_for_3, min_value: 0, max_value: 45, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 40], mean=13.6." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_danger_rate_for_3, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.362." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_conversion_rate_for_3, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.0928." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corners_against_3, min_value: 0, max_value: 45, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 40], mean=13.3." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_danger_rate_against_3, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.363." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_conversion_rate_against_3, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.092." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_danger_intensity_for_3, min_value: 0.0, max_value: 1.5432814133658441, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.4029831030598583], mean=0.371." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_danger_intensity_against_3, min_value: 0.0, max_value: 1.5432814133658441, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.4029831030598583], mean=0.371." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_header_share_for_3, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.482." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_header_share_against_3, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.482." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_header_goal_share_for_3, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.502." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_header_goal_share_against_3, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.503." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_short_rate_for_3, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.0508." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_short_rate_against_3, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.0508." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_forced_bad_clearance_rate_for_3, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.487." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_clearance_fail_rate_against_3, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.484." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_headed_clearance_rate_against_3, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.982." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corners_for_5, min_value: 0, max_value: 60, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 54], mean=21.9." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_danger_rate_for_5, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.361." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_conversion_rate_for_5, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.0903." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corners_against_5, min_value: 0, max_value: 63, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 57], mean=21.4." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_danger_rate_against_5, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.364." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_conversion_rate_against_5, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.0905." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_danger_intensity_for_5, min_value: 0.0, max_value: 1.5432814133658441, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.4029831030598583], mean=0.37." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_danger_intensity_against_5, min_value: 0.0, max_value: 1.5432814133658441, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.4029831030598583], mean=0.372." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_header_share_for_5, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.485." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_header_share_against_5, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.484." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_header_goal_share_for_5, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.5." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_header_goal_share_against_5, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.51." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_short_rate_for_5, min_value: 0.0, max_value: 0.7333333333333333, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.6666666666666666], mean=0.0512." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_short_rate_against_5, min_value: 0.0, max_value: 0.7333333333333333, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.6666666666666666], mean=0.0512." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_forced_bad_clearance_rate_for_5, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.489." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_clearance_fail_rate_against_5, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.486." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_headed_clearance_rate_against_5, min_value: 0.45, max_value: 1.05, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.5, 1.0], mean=0.982." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corners_for_10, min_value: 0, max_value: 108, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 98], mean=40.7." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_danger_rate_for_10, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.363." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_conversion_rate_for_10, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.0882." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corners_against_10, min_value: 0, max_value: 96, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 87], mean=39.8." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_danger_rate_against_10, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.364." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_conversion_rate_against_10, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.0879." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_danger_intensity_for_10, min_value: 0.0, max_value: 1.5432814133658441, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.4029831030598583], mean=0.371." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_danger_intensity_against_10, min_value: 0.0, max_value: 1.5432814133658441, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.4029831030598583], mean=0.372." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_header_share_for_10, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.485." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_header_share_against_10, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.486." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_header_goal_share_for_10, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.497." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_header_goal_share_against_10, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.511." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_short_rate_for_10, min_value: 0.0, max_value: 0.7333333333333333, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.6666666666666666], mean=0.0522." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_short_rate_against_10, min_value: 0.0, max_value: 0.7333333333333333, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.6666666666666666], mean=0.0525." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_forced_bad_clearance_rate_for_10, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.49." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_clearance_fail_rate_against_10, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.486." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_headed_clearance_rate_against_10, min_value: 0.45, max_value: 1.05, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.5, 1.0], mean=0.982." }
+
+  # ── DÉRIVE VOLUMÉTRIQUE INTER-SAISONS ──
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.20
+      max_deviation_error: 0.40
+      min_seasons_history: 2
+      exclude_partitions: ['2025-2026']
+    severity: warn

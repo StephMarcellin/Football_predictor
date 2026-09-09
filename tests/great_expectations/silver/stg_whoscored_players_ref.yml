@@ -1,0 +1,29 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Suite GE — silver.stg_whoscored_players_ref
+# Dimension joueurs (11 109). Grain player_id.
+# ══════════════════════════════════════════════════════════════════════════════
+
+suite_name: silver.stg_whoscored_players_ref
+description: Dimension joueurs WhoScored.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT player_id, player_name
+    FROM silver.stg_whoscored_players_ref
+
+expectations:
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 8000, max_value: 20000 }
+    severity: error
+    meta: { description: "Empirique = 11 109." }
+
+  - type: expect_column_values_to_not_be_null
+    for_each_column: [player_id, player_name]
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  - type: expect_column_values_to_be_between
+    kwargs: { column: player_id, min_value: 1, max_value: 1000000, mostly: 1.0 }
+    severity: error
+    meta: { description: "Empirique min=70 max=561841." }

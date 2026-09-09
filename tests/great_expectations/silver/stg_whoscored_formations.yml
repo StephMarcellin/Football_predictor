@@ -1,0 +1,87 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Suite GE — silver.stg_whoscored_formations
+# Timeline tactique (159 338). Grain (ws_match_id, team_id, formation_seq).
+# Documente A-014 (474 lignes end_minute < start_minute + 5 sentinelles 32767)
+# et A-015 (start_minute_reg, end_minute_reg 100 % NULL).
+# ══════════════════════════════════════════════════════════════════════════════
+
+suite_name: silver.stg_whoscored_formations
+description: Timeline tactique WhoScored — périodes de formation par équipe et match.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT
+      ws_match_id, team_id, formation_seq, formation_id, period,
+      start_minute, end_minute, start_minute_reg, end_minute_reg,
+      captain_player_id
+    FROM silver.stg_whoscored_formations
+
+expectations:
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 100000, max_value: 250000 }
+    severity: error
+    meta: { description: "Empirique = 159 338." }
+
+  # NULL structurels
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - ws_match_id
+      - team_id
+      - formation_seq
+      - formation_id
+      - period
+      - start_minute
+      - end_minute
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # captain_player_id : 19 NULL (0.01 %) → warn
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: captain_player_id, mostly: 0.999 }
+    severity: warn
+
+  # A-015 : start_minute_reg / end_minute_reg 100 % NULL — colonnes dead
+  # Test descriptif : on attend qu'elles restent NULL. Si un jour elles se
+  # remplissent, ce sera un signal à investiguer.
+  - type: expect_column_values_to_not_be_null
+    for_each_column: [start_minute_reg, end_minute_reg]
+    kwargs: { mostly: 0.0 }
+    severity: warn
+    meta: { description: "A-015 : colonnes dead — 100 % NULL empirique." }
+
+  # Bornes formation_seq / formation_id / period
+  - type: expect_column_values_to_be_between
+    kwargs: { column: formation_seq, min_value: 0, max_value: 15, mostly: 1.0 }
+    severity: error
+
+  - type: expect_column_values_to_be_between
+    kwargs: { column: formation_id, min_value: 1, max_value: 30, mostly: 1.0 }
+    severity: error
+    meta: { description: "FK vers stg_whoscored_formations_ref (max empirique 25)." }
+
+  - type: expect_column_values_to_be_between
+    kwargs: { column: period, min_value: 1, max_value: 30, mostly: 1.0 }
+    severity: error
+
+  # A-014 : start_minute plausible + end_minute contient 5 sentinelles 32767
+  - type: expect_column_values_to_be_between
+    kwargs: { column: start_minute, min_value: 0, max_value: 200, mostly: 1.0 }
+    severity: error
+
+  # end_minute : borne large + warn sur le sentinel (attendu 5 hors bornes)
+  - type: expect_column_values_to_be_between
+    kwargs: { column: end_minute, min_value: 0, max_value: 200, mostly: 0.99 }
+    severity: warn
+    meta:
+      description: "A-014 : 5 lignes end_minute = 32767 (INT16 max — sentinel bug scraping)."
+      fires_on_current_bug: true
+
+  # A-014 : cohérence temporelle end >= start (474 violations empiriques hors sentinel)
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "end_minute >= start_minute"
+    severity: warn
+    meta:
+      description: "A-014 : 474 lignes end_minute < start_minute — timeline cassée."
+      fires_on_current_bug: true

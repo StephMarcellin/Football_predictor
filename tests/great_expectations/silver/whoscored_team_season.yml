@@ -1,0 +1,79 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Suite GE — silver.whoscored_team_season
+# Agrégat par équipe × saison (390 lignes). 46 métriques ratings/xG/tirs/fouls.
+# 100 % Big5 par nature.
+# ══════════════════════════════════════════════════════════════════════════════
+
+suite_name: silver.whoscored_team_season
+description: >
+  Agrégat WhoScored par équipe × saison. Rating home/away sur échelle 0-10,
+  métriques xG/goals/shots par côté. Alimente les colonnes ws_*_rating de backbone.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT
+      team, season, league_source,
+      ws_home_att_rating, ws_away_att_rating,
+      ws_home_def_rating, ws_away_def_rating,
+      ws_home_xg_for, ws_away_xg_for,
+      ws_home_xg_against, ws_away_xg_against,
+      ws_home_goals_for, ws_away_goals_for,
+      ws_home_goals_against, ws_away_goals_against,
+      ws_home_shots_pg, ws_away_shots_pg,
+      ws_home_shots_ot_pg, ws_away_shots_ot_pg
+    FROM silver.whoscored_team_season
+
+expectations:
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 200, max_value: 800 }
+    severity: error
+    meta: { description: "Empirique = 390 (5 championnats × ~5 saisons × ~15 équipes)." }
+
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - team
+      - season
+      - league_source
+      - ws_home_att_rating
+      - ws_away_att_rating
+      - ws_home_def_rating
+      - ws_away_def_rating
+      - ws_home_xg_for
+      - ws_away_xg_for
+      - ws_home_goals_for
+      - ws_away_goals_for
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # Ratings sur échelle WhoScored 0-10 (empirique 6.26-7.14)
+  - type: expect_column_values_to_be_between
+    for_each_column:
+      - ws_home_att_rating
+      - ws_away_att_rating
+      - ws_home_def_rating
+      - ws_away_def_rating
+    kwargs: { min_value: 0, max_value: 10, mostly: 1.0 }
+    severity: error
+
+  # xG par saison plausibles (empirique 11-58)
+  - type: expect_column_values_to_be_between
+    for_each_column:
+      - ws_home_xg_for
+      - ws_away_xg_for
+      - ws_home_xg_against
+      - ws_away_xg_against
+    kwargs: { min_value: 5, max_value: 100, mostly: 1.0 }
+    severity: error
+
+  # Bornes moyennes
+  - type: expect_column_mean_to_be_between
+    for_each_column: [ws_home_att_rating, ws_away_att_rating]
+    kwargs: { min_value: 6.0, max_value: 7.5 }
+    severity: error
+    meta: { description: "Empirique 6.58/6.67 — rating moyen équipe." }
+
+  - type: expect_column_mean_to_be_between
+    for_each_column: [ws_home_shots_pg, ws_away_shots_pg]
+    kwargs: { min_value: 9, max_value: 16 }
+    severity: error

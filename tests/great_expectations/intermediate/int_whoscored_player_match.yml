@@ -1,0 +1,666 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — intermediate.int_whoscored_player_match (PUSH-DOWN 2026-09-09)
+# Volumétrie : 681,447 lignes, 48 colonnes
+# Stratégie big data : agrégats DuckDB → 1 ligne en pandas.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: intermediate.int_whoscored_player_match
+description: >
+  Push-down agrégats. Volumétrie de référence : 681,447 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT
+          COUNT(*) AS n_rows,
+          COUNT(*) FILTER (WHERE "match_id" IS NULL) AS null_match_id,
+          COUNT(*) FILTER (WHERE "team_id" IS NULL) AS null_team_id,
+          COUNT(*) FILTER (WHERE "player_id" IS NULL) AS null_player_id,
+          COUNT(*) FILTER (WHERE "shirt_no" IS NULL) AS null_shirt_no,
+          COUNT(*) FILTER (WHERE "position" IS NULL) AS null_position,
+          COUNT(*) FILTER (WHERE "is_first_eleven" IS NULL) AS null_is_first_eleven,
+          COUNT(*) FILTER (WHERE "is_man_of_the_match" IS NULL) AS null_is_man_of_the_match,
+          COUNT(*) FILTER (WHERE "height" IS NULL) AS null_height,
+          COUNT(*) FILTER (WHERE "weight" IS NULL) AS null_weight,
+          COUNT(*) FILTER (WHERE "age" IS NULL) AS null_age,
+          COUNT(*) FILTER (WHERE "rating" IS NULL) AS null_rating,
+          COUNT(*) FILTER (WHERE "stats_json" IS NULL) AS null_stats_json,
+          COUNT(*) FILTER (WHERE "touches" IS NULL) AS null_touches,
+          COUNT(*) FILTER (WHERE "possession" IS NULL) AS null_possession,
+          COUNT(*) FILTER (WHERE "passes_total" IS NULL) AS null_passes_total,
+          COUNT(*) FILTER (WHERE "passes_accurate" IS NULL) AS null_passes_accurate,
+          COUNT(*) FILTER (WHERE "passes_key" IS NULL) AS null_passes_key,
+          COUNT(*) FILTER (WHERE "shots_total" IS NULL) AS null_shots_total,
+          COUNT(*) FILTER (WHERE "shots_on_target" IS NULL) AS null_shots_on_target,
+          COUNT(*) FILTER (WHERE "shots_off_target" IS NULL) AS null_shots_off_target,
+          COUNT(*) FILTER (WHERE "shots_blocked" IS NULL) AS null_shots_blocked,
+          COUNT(*) FILTER (WHERE "shots_on_post" IS NULL) AS null_shots_on_post,
+          COUNT(*) FILTER (WHERE "dribbles_attempted" IS NULL) AS null_dribbles_attempted,
+          COUNT(*) FILTER (WHERE "dribbles_won" IS NULL) AS null_dribbles_won,
+          COUNT(*) FILTER (WHERE "dribbles_lost" IS NULL) AS null_dribbles_lost,
+          COUNT(*) FILTER (WHERE "dribbled_past" IS NULL) AS null_dribbled_past,
+          COUNT(*) FILTER (WHERE "dispossessed" IS NULL) AS null_dispossessed,
+          COUNT(*) FILTER (WHERE "tackles_total" IS NULL) AS null_tackles_total,
+          COUNT(*) FILTER (WHERE "tackle_successful" IS NULL) AS null_tackle_successful,
+          COUNT(*) FILTER (WHERE "tackle_unsuccesful" IS NULL) AS null_tackle_unsuccesful,
+          COUNT(*) FILTER (WHERE "interceptions" IS NULL) AS null_interceptions,
+          COUNT(*) FILTER (WHERE "clearances" IS NULL) AS null_clearances,
+          COUNT(*) FILTER (WHERE "aerials_total" IS NULL) AS null_aerials_total,
+          COUNT(*) FILTER (WHERE "aerials_won" IS NULL) AS null_aerials_won,
+          COUNT(*) FILTER (WHERE "offensive_aerials" IS NULL) AS null_offensive_aerials,
+          COUNT(*) FILTER (WHERE "defensive_aerials" IS NULL) AS null_defensive_aerials,
+          COUNT(*) FILTER (WHERE "fouls_commited" IS NULL) AS null_fouls_commited,
+          COUNT(*) FILTER (WHERE "offsides_caught" IS NULL) AS null_offsides_caught,
+          COUNT(*) FILTER (WHERE "errors" IS NULL) AS null_errors,
+          COUNT(*) FILTER (WHERE "corners_total" IS NULL) AS null_corners_total,
+          COUNT(*) FILTER (WHERE "corners_accurate" IS NULL) AS null_corners_accurate,
+          COUNT(*) FILTER (WHERE "throw_ins_total" IS NULL) AS null_throw_ins_total,
+          COUNT(*) FILTER (WHERE "throw_ins_accurate" IS NULL) AS null_throw_ins_accurate,
+          COUNT(*) FILTER (WHERE "total_saves" IS NULL) AS null_total_saves,
+          COUNT(*) FILTER (WHERE "parried_safe" IS NULL) AS null_parried_safe,
+          COUNT(*) FILTER (WHERE "parried_danger" IS NULL) AS null_parried_danger,
+          COUNT(*) FILTER (WHERE "claims_high" IS NULL) AS null_claims_high,
+          COUNT(*) FILTER (WHERE "collected" IS NULL) AS null_collected,
+          MIN("team_id") AS min_team_id,
+          MAX("team_id") AS max_team_id,
+          AVG("team_id") AS avg_team_id,
+          MIN("player_id") AS min_player_id,
+          MAX("player_id") AS max_player_id,
+          AVG("player_id") AS avg_player_id,
+          MIN("shirt_no") AS min_shirt_no,
+          MAX("shirt_no") AS max_shirt_no,
+          AVG("shirt_no") AS avg_shirt_no,
+          MIN("height") AS min_height,
+          MAX("height") AS max_height,
+          AVG("height") AS avg_height,
+          MIN("weight") AS min_weight,
+          MAX("weight") AS max_weight,
+          AVG("weight") AS avg_weight,
+          MIN("age") AS min_age,
+          MAX("age") AS max_age,
+          AVG("age") AS avg_age,
+          MIN("rating") AS min_rating,
+          MAX("rating") AS max_rating,
+          AVG("rating") AS avg_rating,
+          MIN("touches") AS min_touches,
+          MAX("touches") AS max_touches,
+          AVG("touches") AS avg_touches,
+          MIN("possession") AS min_possession,
+          MAX("possession") AS max_possession,
+          AVG("possession") AS avg_possession,
+          MIN("passes_total") AS min_passes_total,
+          MAX("passes_total") AS max_passes_total,
+          AVG("passes_total") AS avg_passes_total,
+          MIN("passes_accurate") AS min_passes_accurate,
+          MAX("passes_accurate") AS max_passes_accurate,
+          AVG("passes_accurate") AS avg_passes_accurate,
+          MIN("passes_key") AS min_passes_key,
+          MAX("passes_key") AS max_passes_key,
+          AVG("passes_key") AS avg_passes_key,
+          MIN("shots_total") AS min_shots_total,
+          MAX("shots_total") AS max_shots_total,
+          AVG("shots_total") AS avg_shots_total,
+          MIN("shots_on_target") AS min_shots_on_target,
+          MAX("shots_on_target") AS max_shots_on_target,
+          AVG("shots_on_target") AS avg_shots_on_target,
+          MIN("shots_off_target") AS min_shots_off_target,
+          MAX("shots_off_target") AS max_shots_off_target,
+          AVG("shots_off_target") AS avg_shots_off_target,
+          MIN("shots_blocked") AS min_shots_blocked,
+          MAX("shots_blocked") AS max_shots_blocked,
+          AVG("shots_blocked") AS avg_shots_blocked,
+          MIN("shots_on_post") AS min_shots_on_post,
+          MAX("shots_on_post") AS max_shots_on_post,
+          AVG("shots_on_post") AS avg_shots_on_post,
+          MIN("dribbles_attempted") AS min_dribbles_attempted,
+          MAX("dribbles_attempted") AS max_dribbles_attempted,
+          AVG("dribbles_attempted") AS avg_dribbles_attempted,
+          MIN("dribbles_won") AS min_dribbles_won,
+          MAX("dribbles_won") AS max_dribbles_won,
+          AVG("dribbles_won") AS avg_dribbles_won,
+          MIN("dribbles_lost") AS min_dribbles_lost,
+          MAX("dribbles_lost") AS max_dribbles_lost,
+          AVG("dribbles_lost") AS avg_dribbles_lost,
+          MIN("dribbled_past") AS min_dribbled_past,
+          MAX("dribbled_past") AS max_dribbled_past,
+          AVG("dribbled_past") AS avg_dribbled_past,
+          MIN("dispossessed") AS min_dispossessed,
+          MAX("dispossessed") AS max_dispossessed,
+          AVG("dispossessed") AS avg_dispossessed,
+          MIN("tackles_total") AS min_tackles_total,
+          MAX("tackles_total") AS max_tackles_total,
+          AVG("tackles_total") AS avg_tackles_total,
+          MIN("tackle_successful") AS min_tackle_successful,
+          MAX("tackle_successful") AS max_tackle_successful,
+          AVG("tackle_successful") AS avg_tackle_successful,
+          MIN("tackle_unsuccesful") AS min_tackle_unsuccesful,
+          MAX("tackle_unsuccesful") AS max_tackle_unsuccesful,
+          AVG("tackle_unsuccesful") AS avg_tackle_unsuccesful,
+          MIN("interceptions") AS min_interceptions,
+          MAX("interceptions") AS max_interceptions,
+          AVG("interceptions") AS avg_interceptions,
+          MIN("clearances") AS min_clearances,
+          MAX("clearances") AS max_clearances,
+          AVG("clearances") AS avg_clearances,
+          MIN("aerials_total") AS min_aerials_total,
+          MAX("aerials_total") AS max_aerials_total,
+          AVG("aerials_total") AS avg_aerials_total,
+          MIN("aerials_won") AS min_aerials_won,
+          MAX("aerials_won") AS max_aerials_won,
+          AVG("aerials_won") AS avg_aerials_won,
+          MIN("offensive_aerials") AS min_offensive_aerials,
+          MAX("offensive_aerials") AS max_offensive_aerials,
+          AVG("offensive_aerials") AS avg_offensive_aerials,
+          MIN("defensive_aerials") AS min_defensive_aerials,
+          MAX("defensive_aerials") AS max_defensive_aerials,
+          AVG("defensive_aerials") AS avg_defensive_aerials,
+          MIN("fouls_commited") AS min_fouls_commited,
+          MAX("fouls_commited") AS max_fouls_commited,
+          AVG("fouls_commited") AS avg_fouls_commited,
+          MIN("offsides_caught") AS min_offsides_caught,
+          MAX("offsides_caught") AS max_offsides_caught,
+          AVG("offsides_caught") AS avg_offsides_caught,
+          MIN("errors") AS min_errors,
+          MAX("errors") AS max_errors,
+          AVG("errors") AS avg_errors,
+          MIN("corners_total") AS min_corners_total,
+          MAX("corners_total") AS max_corners_total,
+          AVG("corners_total") AS avg_corners_total,
+          MIN("corners_accurate") AS min_corners_accurate,
+          MAX("corners_accurate") AS max_corners_accurate,
+          AVG("corners_accurate") AS avg_corners_accurate,
+          MIN("throw_ins_total") AS min_throw_ins_total,
+          MAX("throw_ins_total") AS max_throw_ins_total,
+          AVG("throw_ins_total") AS avg_throw_ins_total,
+          MIN("throw_ins_accurate") AS min_throw_ins_accurate,
+          MAX("throw_ins_accurate") AS max_throw_ins_accurate,
+          AVG("throw_ins_accurate") AS avg_throw_ins_accurate,
+          MIN("total_saves") AS min_total_saves,
+          MAX("total_saves") AS max_total_saves,
+          AVG("total_saves") AS avg_total_saves,
+          MIN("parried_safe") AS min_parried_safe,
+          MAX("parried_safe") AS max_parried_safe,
+          AVG("parried_safe") AS avg_parried_safe,
+          MIN("parried_danger") AS min_parried_danger,
+          MAX("parried_danger") AS max_parried_danger,
+          AVG("parried_danger") AS avg_parried_danger,
+          MIN("claims_high") AS min_claims_high,
+          MAX("claims_high") AS max_claims_high,
+          AVG("claims_high") AS avg_claims_high,
+          MIN("collected") AS min_collected,
+          MAX("collected") AS max_collected,
+          AVG("collected") AS avg_collected
+        FROM intermediate."int_whoscored_player_match"
+
+expectations:
+
+  # ── VOLUMÉTRIE (1 ligne agrégée = 1 seule row en output) ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 1, max_value: 1 }
+    severity: error
+    meta: { description: "Agrégat push-down doit renvoyer exactement 1 ligne." }
+
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "n_rows >= 272578 and n_rows <= 1362894"
+    severity: error
+    meta: { description: "Row count empirique = 681,447." }
+
+  # ── COMPLÉTION PAR COLONNE (push-down NULL counts) ──
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_match_id / n_rows <= 0.0662"
+    severity: warn
+    meta: { description: "match_id empirique 1.62% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_team_id / n_rows <= 0.0571"
+    severity: warn
+    meta: { description: "team_id empirique 0.71% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_player_id / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "player_id empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_shirt_no / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "shirt_no empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_position / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "position empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_is_first_eleven / n_rows <= 0.5016"
+    severity: warn
+    meta: { description: "is_first_eleven empirique 45.16% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_is_man_of_the_match / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "is_man_of_the_match empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_height / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "height empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_weight / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "weight empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_age / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "age empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_rating / n_rows <= 0.3148"
+    severity: warn
+    meta: { description: "rating empirique 26.48% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_stats_json / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "stats_json empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_touches / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "touches empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_possession / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "possession empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_passes_total / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "passes_total empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_passes_accurate / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "passes_accurate empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_passes_key / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "passes_key empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_shots_total / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "shots_total empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_shots_on_target / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "shots_on_target empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_shots_off_target / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "shots_off_target empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_shots_blocked / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "shots_blocked empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_shots_on_post / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "shots_on_post empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_dribbles_attempted / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "dribbles_attempted empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_dribbles_won / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "dribbles_won empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_dribbles_lost / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "dribbles_lost empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_dribbled_past / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "dribbled_past empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_dispossessed / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "dispossessed empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_tackles_total / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "tackles_total empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_tackle_successful / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "tackle_successful empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_tackle_unsuccesful / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "tackle_unsuccesful empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_interceptions / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "interceptions empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_clearances / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "clearances empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_aerials_total / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "aerials_total empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_aerials_won / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "aerials_won empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_offensive_aerials / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "offensive_aerials empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_defensive_aerials / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "defensive_aerials empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_fouls_commited / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "fouls_commited empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_offsides_caught / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "offsides_caught empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_errors / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "errors empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_corners_total / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "corners_total empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_corners_accurate / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "corners_accurate empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_throw_ins_total / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "throw_ins_total empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_throw_ins_accurate / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "throw_ins_accurate empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_total_saves / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "total_saves empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_parried_safe / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "parried_safe empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_parried_danger / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "parried_danger empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_claims_high / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "claims_high empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_collected / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "collected empirique 0.00% NULL." }
+
+  # ── BORNES NUMÉRIQUES (push-down MIN/MAX) ──
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_team_id >= 202606099958.5000 and max_team_id <= 202606100468.5000"
+    severity: warn
+    meta: { description: "team_id empirique [202606100001.0, 202606100426.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_player_id >= -56107.1000 and max_player_id <= 618018.1000"
+    severity: warn
+    meta: { description: "player_id empirique [70.0, 561841.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_shirt_no >= -8.8000 and max_shirt_no <= 108.8000"
+    severity: warn
+    meta: { description: "shirt_no empirique [1.0, 99.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_height >= 0.0000 and max_height <= 226.6000"
+    severity: warn
+    meta: { description: "height empirique [0.0, 206.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_weight >= 0.0000 and max_weight <= 115.5000"
+    severity: warn
+    meta: { description: "weight empirique [0.0, 105.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_age >= 0.0000 and max_age <= 53.9000"
+    severity: warn
+    meta: { description: "age empirique [0.0, 49.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_rating >= 2.6190 and max_rating <= 10.6710"
+    severity: warn
+    meta: { description: "rating empirique [3.29, 10.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_touches >= 0.0000 and max_touches <= 226.6000"
+    severity: warn
+    meta: { description: "touches empirique [0.0, 206.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_possession >= 0.0000 and max_possession <= 222.2000"
+    severity: warn
+    meta: { description: "possession empirique [0.0, 202.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_passes_total >= 0.0000 and max_passes_total <= 222.2000"
+    severity: warn
+    meta: { description: "passes_total empirique [0.0, 202.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_passes_accurate >= 0.0000 and max_passes_accurate <= 214.5000"
+    severity: warn
+    meta: { description: "passes_accurate empirique [0.0, 195.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_passes_key >= 0.0000 and max_passes_key <= 15.4000"
+    severity: warn
+    meta: { description: "passes_key empirique [0.0, 14.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_shots_total >= 0.0000 and max_shots_total <= 15.4000"
+    severity: warn
+    meta: { description: "shots_total empirique [0.0, 14.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_shots_on_target >= 0.0000 and max_shots_on_target <= 11.0000"
+    severity: warn
+    meta: { description: "shots_on_target empirique [0.0, 10.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_shots_off_target >= 0.0000 and max_shots_off_target <= 8.8000"
+    severity: warn
+    meta: { description: "shots_off_target empirique [0.0, 8.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_shots_blocked >= 0.0000 and max_shots_blocked <= 6.6000"
+    severity: warn
+    meta: { description: "shots_blocked empirique [0.0, 6.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_shots_on_post >= 0.0000 and max_shots_on_post <= 3.3000"
+    severity: warn
+    meta: { description: "shots_on_post empirique [0.0, 3.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_dribbles_attempted >= 0.0000 and max_dribbles_attempted <= 25.3000"
+    severity: warn
+    meta: { description: "dribbles_attempted empirique [0.0, 23.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_dribbles_won >= 0.0000 and max_dribbles_won <= 17.6000"
+    severity: warn
+    meta: { description: "dribbles_won empirique [0.0, 16.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_dribbles_lost >= 0.0000 and max_dribbles_lost <= 16.5000"
+    severity: warn
+    meta: { description: "dribbles_lost empirique [0.0, 15.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_dribbled_past >= 0.0000 and max_dribbled_past <= 13.2000"
+    severity: warn
+    meta: { description: "dribbled_past empirique [0.0, 12.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_dispossessed >= 0.0000 and max_dispossessed <= 14.3000"
+    severity: warn
+    meta: { description: "dispossessed empirique [0.0, 13.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_tackles_total >= 0.0000 and max_tackles_total <= 18.7000"
+    severity: warn
+    meta: { description: "tackles_total empirique [0.0, 17.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_tackle_successful >= 0.0000 and max_tackle_successful <= 15.4000"
+    severity: warn
+    meta: { description: "tackle_successful empirique [0.0, 14.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_tackle_unsuccesful >= 0.0000 and max_tackle_unsuccesful <= 13.2000"
+    severity: warn
+    meta: { description: "tackle_unsuccesful empirique [0.0, 12.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_interceptions >= 0.0000 and max_interceptions <= 14.3000"
+    severity: warn
+    meta: { description: "interceptions empirique [0.0, 13.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_clearances >= 0.0000 and max_clearances <= 26.4000"
+    severity: warn
+    meta: { description: "clearances empirique [0.0, 24.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_aerials_total >= 0.0000 and max_aerials_total <= 40.7000"
+    severity: warn
+    meta: { description: "aerials_total empirique [0.0, 37.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_aerials_won >= 0.0000 and max_aerials_won <= 26.4000"
+    severity: warn
+    meta: { description: "aerials_won empirique [0.0, 24.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_offensive_aerials >= 0.0000 and max_offensive_aerials <= 38.5000"
+    severity: warn
+    meta: { description: "offensive_aerials empirique [0.0, 35.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_defensive_aerials >= 0.0000 and max_defensive_aerials <= 27.5000"
+    severity: warn
+    meta: { description: "defensive_aerials empirique [0.0, 25.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_fouls_commited >= 0.0000 and max_fouls_commited <= 9.9000"
+    severity: warn
+    meta: { description: "fouls_commited empirique [0.0, 9.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_offsides_caught >= 0.0000 and max_offsides_caught <= 8.8000"
+    severity: warn
+    meta: { description: "offsides_caught empirique [0.0, 8.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_errors >= 0.0000 and max_errors <= 3.3000"
+    severity: warn
+    meta: { description: "errors empirique [0.0, 3.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_corners_total >= 0.0000 and max_corners_total <= 8.8000"
+    severity: warn
+    meta: { description: "corners_total empirique [0.0, 8.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_corners_accurate >= 0.0000 and max_corners_accurate <= 12.1000"
+    severity: warn
+    meta: { description: "corners_accurate empirique [0.0, 11.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_throw_ins_total >= 0.0000 and max_throw_ins_total <= 33.0000"
+    severity: warn
+    meta: { description: "throw_ins_total empirique [0.0, 30.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_throw_ins_accurate >= 0.0000 and max_throw_ins_accurate <= 30.8000"
+    severity: warn
+    meta: { description: "throw_ins_accurate empirique [0.0, 28.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_total_saves >= 0.0000 and max_total_saves <= 20.9000"
+    severity: warn
+    meta: { description: "total_saves empirique [0.0, 19.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_parried_safe >= 0.0000 and max_parried_safe <= 8.8000"
+    severity: warn
+    meta: { description: "parried_safe empirique [0.0, 8.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_parried_danger >= 0.0000 and max_parried_danger <= 8.8000"
+    severity: warn
+    meta: { description: "parried_danger empirique [0.0, 8.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_claims_high >= 0.0000 and max_claims_high <= 9.9000"
+    severity: warn
+    meta: { description: "claims_high empirique [0.0, 9.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_collected >= 0.0000 and max_collected <= 8.8000"
+    severity: warn
+    meta: { description: "collected empirique [0.0, 8.0]." }

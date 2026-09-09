@@ -1,0 +1,186 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — intermediate.int_player_zone_season (PUSH-DOWN 2026-09-09)
+# Volumétrie : 1,398,725 lignes, 12 colonnes
+# Stratégie big data : agrégats DuckDB → 1 ligne en pandas.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: intermediate.int_player_zone_season
+description: >
+  Push-down agrégats. Volumétrie de référence : 1,398,725 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT
+          COUNT(*) AS n_rows,
+          COUNT(*) FILTER (WHERE "player_id" IS NULL) AS null_player_id,
+          COUNT(*) FILTER (WHERE "zone_5x5" IS NULL) AS null_zone_5x5,
+          COUNT(*) FILTER (WHERE "season" IS NULL) AS null_season,
+          COUNT(*) FILTER (WHERE "avg_touch_share" IS NULL) AS null_avg_touch_share,
+          COUNT(*) FILTER (WHERE "n_matches" IS NULL) AS null_n_matches,
+          COUNT(*) FILTER (WHERE "total_shots" IS NULL) AS null_total_shots,
+          COUNT(*) FILTER (WHERE "n_duels" IS NULL) AS null_n_duels,
+          COUNT(*) FILTER (WHERE "duels_won" IS NULL) AS null_duels_won,
+          COUNT(*) FILTER (WHERE "total_danger" IS NULL) AS null_total_danger,
+          COUNT(*) FILTER (WHERE "total_progressive" IS NULL) AS null_total_progressive,
+          COUNT(*) FILTER (WHERE "total_crosses" IS NULL) AS null_total_crosses,
+          COUNT(*) FILTER (WHERE "total_def_actions" IS NULL) AS null_total_def_actions,
+          MIN("player_id") AS min_player_id,
+          MAX("player_id") AS max_player_id,
+          AVG("player_id") AS avg_player_id,
+          MIN("avg_touch_share") AS min_avg_touch_share,
+          MAX("avg_touch_share") AS max_avg_touch_share,
+          AVG("avg_touch_share") AS avg_avg_touch_share,
+          MIN("n_matches") AS min_n_matches,
+          MAX("n_matches") AS max_n_matches,
+          AVG("n_matches") AS avg_n_matches,
+          MIN("total_shots") AS min_total_shots,
+          MAX("total_shots") AS max_total_shots,
+          AVG("total_shots") AS avg_total_shots,
+          MIN("n_duels") AS min_n_duels,
+          MAX("n_duels") AS max_n_duels,
+          AVG("n_duels") AS avg_n_duels,
+          MIN("duels_won") AS min_duels_won,
+          MAX("duels_won") AS max_duels_won,
+          AVG("duels_won") AS avg_duels_won,
+          MIN("total_danger") AS min_total_danger,
+          MAX("total_danger") AS max_total_danger,
+          AVG("total_danger") AS avg_total_danger,
+          MIN("total_progressive") AS min_total_progressive,
+          MAX("total_progressive") AS max_total_progressive,
+          AVG("total_progressive") AS avg_total_progressive,
+          MIN("total_crosses") AS min_total_crosses,
+          MAX("total_crosses") AS max_total_crosses,
+          AVG("total_crosses") AS avg_total_crosses,
+          MIN("total_def_actions") AS min_total_def_actions,
+          MAX("total_def_actions") AS max_total_def_actions,
+          AVG("total_def_actions") AS avg_total_def_actions
+        FROM intermediate."int_player_zone_season"
+
+expectations:
+
+  # ── VOLUMÉTRIE (1 ligne agrégée = 1 seule row en output) ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 1, max_value: 1 }
+    severity: error
+    meta: { description: "Agrégat push-down doit renvoyer exactement 1 ligne." }
+
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "n_rows >= 559490 and n_rows <= 2797450"
+    severity: error
+    meta: { description: "Row count empirique = 1,398,725." }
+
+  # ── COMPLÉTION PAR COLONNE (push-down NULL counts) ──
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_player_id / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "player_id empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_zone_5x5 / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "zone_5x5 empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_season / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "season empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_avg_touch_share / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "avg_touch_share empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_n_matches / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "n_matches empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_total_shots / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "total_shots empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_n_duels / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "n_duels empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_duels_won / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "duels_won empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_total_danger / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "total_danger empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_total_progressive / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "total_progressive empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_total_crosses / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "total_crosses empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_total_def_actions / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "total_def_actions empirique 0.00% NULL." }
+
+  # ── BORNES NUMÉRIQUES (push-down MIN/MAX) ──
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_player_id >= 0.0000 and max_player_id <= 684360.6000"
+    severity: warn
+    meta: { description: "player_id empirique [0.0, 622146.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_avg_touch_share >= 0.0000 and max_avg_touch_share <= 0.9429"
+    severity: warn
+    meta: { description: "avg_touch_share empirique [0.0, 0.8571428571428571]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_n_matches >= -4.9000 and max_n_matches <= 65.9000"
+    severity: warn
+    meta: { description: "n_matches empirique [1.0, 60.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_total_shots >= 0.0000 and max_total_shots <= 91.3000"
+    severity: warn
+    meta: { description: "total_shots empirique [0.0, 83.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_n_duels >= 0.0000 and max_n_duels <= 71.5000"
+    severity: warn
+    meta: { description: "n_duels empirique [0.0, 65.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_duels_won >= 0.0000 and max_duels_won <= 44.0000"
+    severity: warn
+    meta: { description: "duels_won empirique [0.0, 40.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_total_danger >= 0.0000 and max_total_danger <= 499.9929"
+    severity: warn
+    meta: { description: "total_danger empirique [0.0, 454.53900000000004]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_total_progressive >= 0.0000 and max_total_progressive <= 618.2000"
+    severity: warn
+    meta: { description: "total_progressive empirique [0.0, 562.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_total_crosses >= 0.0000 and max_total_crosses <= 68.2000"
+    severity: warn
+    meta: { description: "total_crosses empirique [0.0, 62.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_total_def_actions >= 0.0000 and max_total_def_actions <= 233.2000"
+    severity: warn
+    meta: { description: "total_def_actions empirique [0.0, 212.0]." }

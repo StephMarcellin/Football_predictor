@@ -1,0 +1,78 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — intermediate.int_keeper_psxg (GÉNÉRÉE AUTO 2026-09-09)
+# Volumétrie : 268 lignes, 9 colonnes
+# Bornes empiriques ± marge — à raffiner si nécessaire.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: intermediate.int_keeper_psxg
+description: >
+  Suite auto-générée le 2026-09-09 pour intermediate.int_keeper_psxg.
+  Volumétrie de référence : 268 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT "keeper_id", "season", "league_source", "shots_faced", "goals_conceded", "saves", "psxg_faced", "psxg_plus_minus", "save_pct" FROM intermediate."int_keeper_psxg"
+
+expectations:
+
+  # ── VOLUMÉTRIE ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 107, max_value: 536 }
+    severity: error
+    meta: { description: "Empirique = 268. Bornes [107, 536]." }
+
+  # ── COMPLÉTION STRICTE (0 NULL empirique) ──
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - keeper_id
+      - season
+      - league_source
+      - shots_faced
+      - goals_conceded
+      - saves
+      - psxg_faced
+      - psxg_plus_minus
+      - save_pct
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # ── BORNES DE VALEURS NUMÉRIQUES ──
+  - type: expect_column_values_to_be_between
+    kwargs: { column: keeper_id, min_value: -51942, max_value: 607208, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2987, 552278], mean=2.69e+05." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: shots_faced, min_value: -19, max_value: 223, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1, 202], mean=62." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: goals_conceded, min_value: 0, max_value: 70, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 63], mean=19." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: saves, min_value: 0, max_value: 166, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 150], mean=43.1." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: psxg_faced, min_value: -6.021300000000001, max_value: 66.4503, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.018, 60.411], mean=18.6." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: psxg_plus_minus, min_value: -17.119600000000002, max_value: 15.0956, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [-14.435, 12.411], mean=-0.366." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: save_pct, min_value: 0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.72." }
+
+  # ── DÉRIVE VOLUMÉTRIQUE INTER-SAISONS ──
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.20
+      max_deviation_error: 0.40
+      min_seasons_history: 2
+      exclude_partitions: ['2025-2026']
+    severity: warn

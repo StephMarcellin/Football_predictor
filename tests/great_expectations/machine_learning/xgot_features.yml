@@ -1,0 +1,92 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — machine_learning.xgot_features (GÉNÉRÉE AUTO 2026-09-09)
+# Volumétrie : 20,499 lignes, 15 colonnes
+# Bornes empiriques ± marge — à raffiner si nécessaire.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: machine_learning.xgot_features
+description: >
+  Suite auto-générée le 2026-09-09 pour machine_learning.xgot_features.
+  Volumétrie de référence : 20,499 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT "match_id", "row_num", "season", "is_goal", "offset_center", "height", "corner_dist", "placement_col", "placement_row", "placement_zone", "x", "y", "shot_distance_m", "shot_angle_rad", "pre_shot_xg_proxy" FROM machine_learning."xgot_features"
+
+expectations:
+
+  # ── VOLUMÉTRIE ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 8199, max_value: 40998 }
+    severity: error
+    meta: { description: "Empirique = 20,499. Bornes [8,199, 40,998]." }
+
+  # ── COMPLÉTION STRICTE (0 NULL empirique) ──
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - match_id
+      - row_num
+      - season
+      - is_goal
+      - offset_center
+      - height
+      - corner_dist
+      - placement_col
+      - placement_row
+      - placement_zone
+      - x
+      - y
+      - shot_distance_m
+      - shot_angle_rad
+      - pre_shot_xg_proxy
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # ── BORNES DE VALEURS NUMÉRIQUES ──
+  - type: expect_column_values_to_be_between
+    kwargs: { column: row_num, min_value: -183, max_value: 2057, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [3, 1870], mean=804." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: offset_center, min_value: 0.0, max_value: 5.279999999999997, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 4.799999999999997], mean=2.17." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: height, min_value: -3.07, max_value: 40.97, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.6, 37.3], mean=12.5." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corner_dist, min_value: -0.03171865214213501, max_value: 1.2071751915780442, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.07152250150121327, 1.103934037934696], mean=0.745." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: x, min_value: 30.08, max_value: 105.91999999999999, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [36.4, 99.6], mean=87.1." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: y, min_value: -9.620000000000001, max_value: 109.42, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.3, 99.5], mean=50.4." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: shot_distance_m, min_value: -6.0115444158052815, max_value: 73.6327463637151, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.6254798158214168, 66.9957221320884], mean=15.9." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: shot_angle_rad, min_value: -0.2824299205490213, max_value: 3.139407894103978, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.002723230672061959, 2.8542547428828944], mean=0.508." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: pre_shot_xg_proxy, min_value: 0.34, max_value: 1.06, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.40, 1.00], mean=0.722." }
+
+  # ── DÉRIVE VOLUMÉTRIQUE INTER-SAISONS ──
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.20
+      max_deviation_error: 0.40
+      min_seasons_history: 2
+      exclude_partitions: ['2025-2026']
+    severity: warn

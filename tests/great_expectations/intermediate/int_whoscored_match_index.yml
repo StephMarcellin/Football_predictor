@@ -1,0 +1,102 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — intermediate.int_whoscored_match_index
+# Rôle : SIGNAL & DISTRIBUTIONS
+# Périmètre : Big5 + D2 (Championship, 2. Bundesliga). Historique long : 2009-2026.
+# ══════════════════════════════════════════════════════════════════════════════
+
+suite_name: intermediate.int_whoscored_match_index
+description: >
+  Signal statistique du pont d'identité WhoScored → warehouse canonique.
+  Table critique : c'est la table de résolution ws_match_id → match_id / team_id.
+  Défauts connus : 118 ws_match_id dupliqués (rechargements ?), 1718 match_id NULL,
+  854 team_id NULL. Signal empirique consigné dans les seuils NULL.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT
+      ws_match_id, match_id, team_id, opponent_id,
+      ws_home_team_id, ws_away_team_id,
+      match_date, league_source, season, comp_category
+    FROM intermediate.int_whoscored_match_index
+
+expectations:
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 1. VOLUMÉTRIE
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 30000, max_value: 60000 }
+    severity: error
+    meta: { description: "Empirique = 39 096 (17 saisons × Big5+D2)." }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 2. COMPLÉTION
+  # ────────────────────────────────────────────────────────────────────────────
+  # Colonnes structurelles jamais NULL
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - ws_match_id
+      - ws_home_team_id
+      - ws_away_team_id
+      - match_date
+      - league_source
+      - season
+      - comp_category
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # match_id : 4.4 % NULL empirique + marge 5 pts → mostly = 0.90
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: match_id, mostly: 0.90 }
+    severity: error
+    meta: { description: "Empirique 4.4 % NULL (1 718 lignes) — non résolus au match_registry." }
+
+  # team_id / opponent_id : 2.2 % NULL empirique + marge 5 pts → mostly = 0.92
+  - type: expect_column_values_to_not_be_null
+    for_each_column: [team_id, opponent_id]
+    kwargs: { mostly: 0.92 }
+    severity: error
+    meta: { description: "Empirique 2.2 % NULL — noms d'équipes non mappés." }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 3. BORNES DE VALEURS
+  # ────────────────────────────────────────────────────────────────────────────
+  # IDs numériques bornés — ws_match_id est VARCHAR (id textuel), on ne le teste
+  # pas en borne numérique ici (test structure `matches_regex` côté dbt).
+  - type: expect_column_values_to_be_between
+    for_each_column: [ws_home_team_id, ws_away_team_id]
+    kwargs: { min_value: 1, max_value: 999999999, mostly: 1.0 }
+    severity: error
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 4. COHÉRENCE CROISÉE
+  # ────────────────────────────────────────────────────────────────────────────
+  # Un match n'oppose pas une équipe à elle-même (côté WhoScored brut)
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "ws_home_team_id != ws_away_team_id"
+    severity: error
+    meta: { description: "Home ≠ Away (ws bruts)." }
+
+  # Idem côté ids canoniques (quand résolus)
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "team_id.isna() or opponent_id.isna() or team_id != opponent_id"
+    severity: error
+    meta: { description: "Home ≠ Away (ids canoniques quand résolus)." }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 5. DÉRIVE VOLUMÉTRIQUE — exclut 2025-2026
+  # NB : couverture historique 2009-2026 hétérogène (croissance progressive)
+  # → seuils larges pour tolérer les saisons anciennes moins denses.
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.30
+      max_deviation_error: 0.60
+      min_seasons_history: 2
+      exclude_partitions: ['2025-2026']
+    severity: warn
+    meta: { description: "Tolérance élargie — couverture WhoScored variable selon les époques." }

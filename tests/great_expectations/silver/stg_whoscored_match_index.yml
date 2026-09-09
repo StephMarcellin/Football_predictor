@@ -1,0 +1,53 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Suite GE — silver.stg_whoscored_match_index
+# Index des matchs WhoScored (38 978). 7 championnats (Big5 + Championship + 2.Bundesliga).
+# CONTRASTE : ce silver a 0 doublon sur ws_match_id, alors qu'int_whoscored_match_index
+# en a 118 (cascade A-003). Le bug est bien introduit par la couche intermediate.
+# ══════════════════════════════════════════════════════════════════════════════
+
+suite_name: silver.stg_whoscored_match_index
+description: Index matchs WhoScored, 1 ligne par match.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT
+      ws_match_id, match_date, home_team_id, away_team_id,
+      home_team_name, away_team_name, league_source, season, comp_category
+    FROM silver.stg_whoscored_match_index
+
+expectations:
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 30000, max_value: 60000 }
+    severity: error
+    meta: { description: "Empirique = 38 978." }
+
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - ws_match_id
+      - match_date
+      - home_team_id
+      - away_team_id
+      - home_team_name
+      - away_team_name
+      - league_source
+      - season
+      - comp_category
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # ── Contrainte physique : équipes différentes ──
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "home_team_id != away_team_id"
+    severity: error
+
+  # Dérive volumétrique — 17 saisons, exclut 2025-2026
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.20
+      max_deviation_error: 0.40
+      min_seasons_history: 2
+      exclude_partitions: ['2025-2026']
+    severity: warn

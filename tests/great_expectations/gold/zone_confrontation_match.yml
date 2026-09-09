@@ -1,0 +1,81 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — gold.zone_confrontation_match (GÉNÉRÉE AUTO 2026-09-09)
+# Volumétrie : 99,618 lignes, 13 colonnes
+# Bornes empiriques ± marge — à raffiner si nécessaire.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: gold.zone_confrontation_match
+description: >
+  Suite auto-générée le 2026-09-09 pour gold.zone_confrontation_match.
+  Volumétrie de référence : 99,618 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT "match_id", "attacking_team_id", "defending_team_id", "attack_corridor", "off_strength", "opp_def_solidity", "matchup_danger_by_corridor", "matchup_cross_threat", "matchup_dribble_threat", "matchup_central_control", "self_central_progression", "self_central_touch", "opp_central_def_density" FROM gold."zone_confrontation_match"
+
+expectations:
+
+  # ── VOLUMÉTRIE ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 39847, max_value: 199236 }
+    severity: error
+    meta: { description: "Empirique = 99,618. Bornes [39,847, 199,236]." }
+
+  # ── COMPLÉTION STRICTE (0 NULL empirique) ──
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - match_id
+      - attacking_team_id
+      - defending_team_id
+      - attack_corridor
+      - off_strength
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # ── COMPLÉTION AVEC NULLs EMPIRIQUES (mostly = 1 - empirique - 5pts) ──
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: self_central_progression, mostly: 0.2833 }
+    severity: warn
+    meta: { description: "Empirique 66.67% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: self_central_touch, mostly: 0.2833 }
+    severity: warn
+    meta: { description: "Empirique 66.67% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: opp_central_def_density, mostly: 0.2833 }
+    severity: warn
+    meta: { description: "Empirique 66.67% NULL." }
+
+  # ── COLONNES 100% NULL (documentées, pas testées) ──
+  # opp_def_solidity : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+  # matchup_danger_by_corridor : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+  # matchup_cross_threat : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+  # matchup_dribble_threat : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+  # matchup_central_control : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+
+  # ── BORNES DE VALEURS NUMÉRIQUES ──
+  - type: expect_column_values_to_be_between
+    kwargs: { column: attacking_team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100001, 202606100426], mean=2.03e+11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: defending_team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100001, 202606100426], mean=2.03e+11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: off_strength, min_value: 0.0, max_value: 0.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.0], mean=0." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: self_central_progression, min_value: 0.0, max_value: 0.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.0], mean=0." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: self_central_touch, min_value: 0.0, max_value: 0.6465121056084981, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.5877382778259074], mean=0.136." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: opp_central_def_density, min_value: 0.0, max_value: 0.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.0], mean=0." }

@@ -1,0 +1,164 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — intermediate.int_fbref_keeper
+# Rôle : SIGNAL & DISTRIBUTIONS
+# Contrainte spatiotemporelle : aucune (FBref couvre toutes les comp_category).
+# Test dérive volumétrique : exclut la saison 2025-2026 (scraping en cours).
+# ══════════════════════════════════════════════════════════════════════════════
+
+suite_name: intermediate.int_fbref_keeper
+description: >
+  Signal statistique du modèle intermediate int_fbref_keeper (stats gardien
+  rematchées sur match_id + team_id normalisés). Couvre toutes les compétitions
+  (Big5, Cup, D2, Europe, Other) — pas de filtre saisonnier.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT
+      match_id, team_id, opponent_id, date, season,
+      venue, result, result_1n2, comp_category, source,
+      gf, ga, sota, ga_keeper, saves, save_pct, cs,
+      pk_att, pk_allowed, pk_saved, pk_missed
+    FROM intermediate.int_fbref_keeper
+
+expectations:
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 1. VOLUMÉTRIE — la table doit contenir entre 40k et 100k lignes
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 40000, max_value: 100000 }
+    severity: error
+    meta: { description: "Empirique = 55 709 lignes. Fenêtre de tolérance large." }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 2. COMPLÉTION — NULL rate contrôlé par famille
+  # ────────────────────────────────────────────────────────────────────────────
+  # Colonnes structurelles : 0% NULL toléré
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - match_id
+      - team_id
+      - date
+      - season
+      - venue
+      - comp_category
+      - source
+      - gf
+      - ga
+      - sota
+      - ga_keeper
+      - saves
+      - cs
+      - pk_att
+      - pk_allowed
+      - pk_saved
+      - pk_missed
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # opponent_id : NULL toléré ~3.6% empirique + marge 5 pts → 91.4% non-null min
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: opponent_id, mostly: 0.914 }
+    severity: error
+    meta: { description: "Empirique = 3.6% NULL (~2001 lignes). Marge de +5 pts appliquée." }
+
+  # save_pct : NULL légitime quand sota=0 → severity=warn seulement
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: save_pct, mostly: 0.85 }
+    severity: warn
+    meta: { description: "Empirique = 5.5% NULL (sota=0). Marge de +5 pts appliquée." }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 3. BORNES DE VALEURS
+  # ────────────────────────────────────────────────────────────────────────────
+  # save_pct doit être un pourcentage. Attrape les 36 lignes à -100.
+  - type: expect_column_values_to_be_between
+    kwargs: { column: save_pct, min_value: 0, max_value: 100, mostly: 1.0 }
+    severity: error
+    meta: { description: "Attrape le bug save_pct négatif (36 lignes empiriques)." }
+
+  # cs est binaire
+  - type: expect_column_values_to_be_between
+    kwargs: { column: cs, min_value: 0, max_value: 1, mostly: 1.0 }
+    severity: error
+
+  # Métriques comptables : bornes larges (max = record historique + marge)
+  - type: expect_column_values_to_be_between
+    for_each_column: [sota, saves, ga_keeper, gf, ga]
+    kwargs: { min_value: 0, max_value: 30, mostly: 1.0 }
+    severity: error
+
+  - type: expect_column_values_to_be_between
+    for_each_column: [pk_att, pk_allowed, pk_saved, pk_missed]
+    kwargs: { min_value: 0, max_value: 5, mostly: 1.0 }
+    severity: error
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 4. BORNES STATISTIQUES — moyennes cohérentes avec la nature de la métrique
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: sota, min_value: 2.0, max_value: 6.0 }
+    severity: error
+    meta: { description: "Empirique = 3.98" }
+
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: saves, min_value: 1.5, max_value: 4.0 }
+    severity: error
+    meta: { description: "Empirique = 2.77" }
+
+  - type: expect_column_mean_to_be_between
+    for_each_column: [ga_keeper, ga, gf]
+    kwargs: { min_value: 1.0, max_value: 2.0 }
+    severity: error
+    meta: { description: "Empirique gf=1.45 ga=1.34 ga_keeper=1.34" }
+
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: cs, min_value: 0.15, max_value: 0.40 }
+    severity: error
+    meta: { description: "Empirique = 0.28 (28% de clean sheets)" }
+
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: pk_att, min_value: 0.05, max_value: 0.30 }
+    severity: warn
+    meta: { description: "Empirique = 0.15" }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 5. COHÉRENCE CROISÉE — contraintes physiques métier
+  # ────────────────────────────────────────────────────────────────────────────
+  # Doublon volontaire avec dbt : ici on vérifie post-transformation à chaque run
+  # (dbt vérifie à la matérialisation).
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "ga_keeper <= sota"
+    severity: error
+    meta:
+      description: "Buts encaissés ≤ tirs cadrés subis (contrainte physique inattaquable). Attrape le bug save_pct négatif."
+      fires_on_current_bug: true
+
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "pk_allowed + pk_saved + pk_missed <= pk_att"
+    severity: warn
+    meta: { description: "La somme des issues de penalty ne dépasse pas les tentés." }
+
+  # cs cohérent avec ga_keeper (garde-fou clean sheet)
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "(ga_keeper == 0 and cs == 1) or (ga_keeper > 0 and cs == 0)"
+    severity: error
+    meta: { description: "cs = 1 IFF ga_keeper = 0." }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 6. DÉRIVE VOLUMÉTRIQUE INTER-SAISONS
+  # Exclut 2025-2026 (scraping en cours). Compare 2024-2025 aux 2 précédentes.
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.20
+      max_deviation_error: 0.40
+      min_seasons_history: 2
+      exclude_partitions: ['2025-2026']
+    severity: warn
+    meta: { description: "La saison en cours est écartée du calcul." }

@@ -1,0 +1,116 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — intermediate.team_network_features (GÉNÉRÉE AUTO 2026-09-09)
+# Volumétrie : 5,042 lignes, 14 colonnes
+# Bornes empiriques ± marge — à raffiner si nécessaire.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: intermediate.team_network_features
+description: >
+  Suite auto-générée le 2026-09-09 pour intermediate.team_network_features.
+  Volumétrie de référence : 5,042 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT "match_id", "team_id", "season", "league_source", "n_players", "n_edges", "network_density", "top_creator_share", "avg_betweenness", "network_entropy", "centroid_x", "centroid_y", "centroid_x_progressive", "centroid_y_progressive" FROM intermediate."team_network_features"
+
+expectations:
+
+  # ── VOLUMÉTRIE ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 2016, max_value: 10084 }
+    severity: error
+    meta: { description: "Empirique = 5,042. Bornes [2,016, 10,084]." }
+
+  # ── COMPLÉTION STRICTE (0 NULL empirique) ──
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - match_id
+      - team_id
+      - season
+      - league_source
+      - n_players
+      - n_edges
+      - top_creator_share
+      - centroid_x
+      - centroid_y
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # ── COMPLÉTION AVEC NULLs EMPIRIQUES (mostly = 1 - empirique - 5pts) ──
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: network_density, mostly: 0.9498 }
+    severity: warn
+    meta: { description: "Empirique 0.02% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: avg_betweenness, mostly: 0.9498 }
+    severity: warn
+    meta: { description: "Empirique 0.02% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: network_entropy, mostly: 0.9498 }
+    severity: warn
+    meta: { description: "Empirique 0.02% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: centroid_x_progressive, mostly: 0.9498 }
+    severity: warn
+    meta: { description: "Empirique 0.02% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: centroid_y_progressive, mostly: 0.9498 }
+    severity: warn
+    meta: { description: "Empirique 0.02% NULL." }
+
+  # ── BORNES DE VALEURS NUMÉRIQUES ──
+  - type: expect_column_values_to_be_between
+    kwargs: { column: team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100001, 202606100426], mean=2.03e+11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: n_players, min_value: 0, max_value: 19, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1, 17], mean=15.1." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: n_edges, min_value: -15, max_value: 186, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1, 169], mean=113." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: network_density, min_value: 0.21624999999999997, max_value: 1.07125, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.2875, 1.0], mean=0.537." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: top_creator_share, min_value: 0.012090000000000004, max_value: 1.08981, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.1019, 1.0], mean=0.152." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: avg_betweenness, min_value: 0.016890000000000002, max_value: 0.8270099999999999, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0844, 0.7595], mean=0.301." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: network_entropy, min_value: 0.8045300000000001, max_value: 1.01777, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.8223, 1.0], mean=0.909." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: centroid_x, min_value: 22.819, max_value: 106.471, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [29.79, 99.5], mean=45.8." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: centroid_y, min_value: 32.323, max_value: 105.607, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [38.43, 99.5], mean=50.6." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: centroid_x_progressive, min_value: 18.927, max_value: 60.603, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [22.4, 57.13], mean=39." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: centroid_y_progressive, min_value: 31.421, max_value: 69.209, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [34.57, 66.06], mean=50.1." }
+
+  # ── DÉRIVE VOLUMÉTRIQUE INTER-SAISONS ──
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.20
+      max_deviation_error: 0.40
+      min_seasons_history: 2
+      exclude_partitions: ['2025-2026']
+    severity: warn

@@ -1,0 +1,282 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — intermediate.int_whoscored_team_season (GÉNÉRÉE AUTO 2026-09-09)
+# Volumétrie : 390 lignes, 53 colonnes
+# Bornes empiriques ± marge — à raffiner si nécessaire.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: intermediate.int_whoscored_team_season
+description: >
+  Suite auto-générée le 2026-09-09 pour intermediate.int_whoscored_team_season.
+  Volumétrie de référence : 390 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT "team_id", "season", "league_source", "ws_away_shots_conceded_pg", "ws_away_tackles_pg", "ws_away_interceptions_pg", "ws_away_fouls_pg", "ws_away_offsides_pg", "ws_away_def_rating", "ws_home_shots_conceded_pg", "ws_home_tackles_pg", "ws_home_interceptions_pg", "ws_home_fouls_pg", "ws_home_offsides_pg", "ws_home_def_rating", "ws_away_shots_pg", "ws_away_shots_ot_pg", "ws_away_dribbles_pg", "ws_away_fouled_pg", "ws_away_att_rating", "ws_home_shots_pg", "ws_home_shots_ot_pg", "ws_home_dribbles_pg", "ws_home_fouled_pg", "ws_home_att_rating", "ws_away_xg_against", "ws_away_goals_against", "ws_away_xg_diff_against", "ws_away_shots_against", "ws_away_xg_per_shot_against", "ws_away_xg_against_rating", "ws_away_xg_for", "ws_away_goals_for", "ws_away_xg_diff_for", "ws_away_shots_for", "ws_away_xg_per_shot_for", "ws_away_xg_for_rating", "ws_home_xg_against", "ws_home_goals_against", "ws_home_xg_diff_against", "ws_home_shots_against", "ws_home_xg_per_shot_against", "ws_home_xg_against_rating", "ws_home_xg_for", "ws_home_goals_for", "ws_home_xg_diff_for", "ws_home_shots_for", "ws_home_xg_per_shot_for", "ws_home_xg_for_rating", "source", "scraped_at", "comp_category", "raw_team" FROM intermediate."int_whoscored_team_season"
+
+expectations:
+
+  # ── VOLUMÉTRIE ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 156, max_value: 780 }
+    severity: error
+    meta: { description: "Empirique = 390. Bornes [156, 780]." }
+
+  # ── COMPLÉTION STRICTE (0 NULL empirique) ──
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - team_id
+      - season
+      - league_source
+      - ws_away_shots_conceded_pg
+      - ws_away_tackles_pg
+      - ws_away_interceptions_pg
+      - ws_away_fouls_pg
+      - ws_away_offsides_pg
+      - ws_away_def_rating
+      - ws_home_shots_conceded_pg
+      - ws_home_tackles_pg
+      - ws_home_interceptions_pg
+      - ws_home_fouls_pg
+      - ws_home_offsides_pg
+      - ws_home_def_rating
+      - ws_away_shots_pg
+      - ws_away_shots_ot_pg
+      - ws_away_dribbles_pg
+      - ws_away_fouled_pg
+      - ws_away_att_rating
+      - ws_home_shots_pg
+      - ws_home_shots_ot_pg
+      - ws_home_dribbles_pg
+      - ws_home_fouled_pg
+      - ws_home_att_rating
+      - ws_away_xg_against
+      - ws_away_goals_against
+      - ws_away_xg_diff_against
+      - ws_away_shots_against
+      - ws_away_xg_per_shot_against
+      - ws_away_xg_against_rating
+      - ws_away_xg_for
+      - ws_away_goals_for
+      - ws_away_xg_diff_for
+      - ws_away_shots_for
+      - ws_away_xg_per_shot_for
+      - ws_away_xg_for_rating
+      - ws_home_xg_against
+      - ws_home_goals_against
+      - ws_home_xg_diff_against
+      - ws_home_shots_against
+      - ws_home_xg_per_shot_against
+      - ws_home_xg_against_rating
+      - ws_home_xg_for
+      - ws_home_goals_for
+      - ws_home_xg_diff_for
+      - ws_home_shots_for
+      - ws_home_xg_per_shot_for
+      - ws_home_xg_for_rating
+      - source
+      - scraped_at
+      - comp_category
+      - raw_team
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # ── BORNES DE VALEURS NUMÉRIQUES ──
+  - type: expect_column_values_to_be_between
+    kwargs: { column: team_id, min_value: 202606099965, max_value: 202606100468, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100007, 202606100426], mean=2.03e+11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_away_shots_conceded_pg, min_value: 5.42, max_value: 21.98, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [6.8, 20.6], mean=13.9." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_away_tackles_pg, min_value: 9.65, max_value: 24.65, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [10.9, 23.4], mean=16.6." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_away_interceptions_pg, min_value: 4.449999999999999, max_value: 14.65, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [5.3, 13.8], mean=8.98." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_away_fouls_pg, min_value: 6.29, max_value: 19.61, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [7.4, 18.5], mean=12.1." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_away_offsides_pg, min_value: 0.4799999999999999, max_value: 3.12, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.7, 2.9], mean=1.68." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_away_def_rating, min_value: 6.177, max_value: 7.173, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [6.26, 7.09], mean=6.58." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_home_shots_conceded_pg, min_value: 4.050000000000001, max_value: 20.25, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [5.4, 18.9], mean=11.4." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_home_tackles_pg, min_value: 10.16, max_value: 23.84, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [11.3, 22.7], mean=16.2." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_home_interceptions_pg, min_value: 4.61, max_value: 14.09, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [5.4, 13.3], mean=8.8." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_home_fouls_pg, min_value: 6.55, max_value: 17.95, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [7.5, 17.0], mean=11.7." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_home_offsides_pg, min_value: 0.3999999999999999, max_value: 4.0, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.7, 3.7], mean=1.85." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_home_def_rating, min_value: 6.2490000000000006, max_value: 7.221, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [6.33, 7.14], mean=6.67." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_away_shots_pg, min_value: 5.619999999999999, max_value: 19.78, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [6.8, 18.6], mean=11.4." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_away_shots_ot_pg, min_value: 1.62, max_value: 8.58, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.2, 8.0], mean=3.97." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_away_dribbles_pg, min_value: 3.0700000000000003, max_value: 16.63, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [4.2, 15.5], mean=8.03." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_away_fouled_pg, min_value: 6.01, max_value: 16.69, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [6.9, 15.8], mean=11.2." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_away_att_rating, min_value: 6.177, max_value: 7.173, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [6.26, 7.09], mean=6.58." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_home_shots_pg, min_value: 6.9399999999999995, max_value: 26.86, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [8.6, 25.2], mean=13.9." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_home_shots_ot_pg, min_value: 1.81, max_value: 10.09, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.5, 9.4], mean=4.81." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_home_dribbles_pg, min_value: 3.1199999999999997, max_value: 14.88, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [4.1, 13.9], mean=8.52." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_home_fouled_pg, min_value: 6.209999999999999, max_value: 16.89, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [7.1, 16.0], mean=11.5." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_home_att_rating, min_value: 6.2490000000000006, max_value: 7.221, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [6.33, 7.14], mean=6.67." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_away_xg_against, min_value: 9.739, max_value: 56.431, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [13.63, 52.54], mean=29.7." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_away_goals_against, min_value: 5.3, max_value: 61.7, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [10.0, 57.0], mean=27.6." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_away_xg_diff_against, min_value: -24.547000000000004, max_value: 24.977000000000004, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [-20.42, 20.85], mean=-2.07." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_away_shots_against, min_value: 87.4, max_value: 418.6, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [115.0, 391.0], mean=257." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_away_xg_per_shot_against, min_value: 0.07200000000000001, max_value: 0.168, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.08, 0.16], mean=0.116." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_away_xg_against_rating, min_value: 6.177, max_value: 7.173, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [6.26, 7.09], mean=6.58." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_away_xg_for, min_value: 9.494, max_value: 53.366, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [13.15, 49.71], mean=24.1." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_away_goals_for, min_value: 1.7000000000000002, max_value: 53.3, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [6.0, 49.0], mean=22.8." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_away_xg_diff_for, min_value: -14.457, max_value: 15.867, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [-11.93, 13.34], mean=-1.38." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_away_shots_for, min_value: 107.6, max_value: 376.4, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [130.0, 354.0], mean=211." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_away_xg_per_shot_for, min_value: 0.061000000000000006, max_value: 0.169, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.07, 0.16], mean=0.113." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_away_xg_for_rating, min_value: 6.177, max_value: 7.173, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [6.26, 7.09], mean=6.58." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_home_xg_against, min_value: 8.003999999999998, max_value: 54.396, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [11.87, 50.53], mean=24.1." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_home_goals_against, min_value: -2.0, max_value: 58.0, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [3.0, 53.0], mean=22.8." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_home_xg_diff_against, min_value: -13.909, max_value: 14.399, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [-11.55, 12.04], mean=-1.38." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_home_shots_against, min_value: 77.3, max_value: 385.7, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [103.0, 360.0], mean=211." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_home_xg_per_shot_against, min_value: 0.049999999999999996, max_value: 0.17, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.06, 0.16], mean=0.115." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_home_xg_against_rating, min_value: 6.2490000000000006, max_value: 7.221, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [6.33, 7.14], mean=6.67." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_home_xg_for, min_value: 9.921, max_value: 63.069, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [14.35, 58.64], mean=29.7." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_home_goals_for, min_value: 4.0, max_value: 64.0, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [9.0, 59.0], mean=27.6." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_home_xg_diff_for, min_value: -20.649, max_value: 18.219, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [-17.41, 14.98], mean=-2.07." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_home_shots_for, min_value: 122.69999999999999, max_value: 510.3, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [155.0, 478.0], mean=257." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_home_xg_per_shot_for, min_value: 0.061000000000000006, max_value: 0.169, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.07, 0.16], mean=0.115." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_home_xg_for_rating, min_value: 6.2490000000000006, max_value: 7.221, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [6.33, 7.14], mean=6.67." }
+
+  # ── DÉRIVE VOLUMÉTRIQUE INTER-SAISONS ──
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.20
+      max_deviation_error: 0.40
+      min_seasons_history: 2
+      exclude_partitions: ['2025-2026']
+    severity: warn

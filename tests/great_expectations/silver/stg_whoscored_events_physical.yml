@@ -1,0 +1,129 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Suite GE — silver.stg_whoscored_events (contraintes physiques)
+# Stratégie big data : PUSH-DOWN AGRÉGATS DE VIOLATIONS.
+#
+# Chaque contrainte est exprimée comme un COUNT(*) de lignes en violation.
+# La query source retourne UNE ligne avec N colonnes de compteurs.
+# Aucune ligne brute ne remonte à pandas.
+#
+# Contraintes couvertes :
+#   1. FK ws_match_id vers stg_whoscored_match_index (attendu 0)
+#   2. FK team_id vers match_index (home/away) (attendu 0)
+#   3. FK player_id vers stg_whoscored_players_ref (attendu 5 992 distincts, A-018)
+#   4. FK type_id vers 40 valeurs connues (attendu 0)
+#   5. Cohérence is_shot=False AND is_goal=True (attendu 0)
+#   6. Coordonnées x, y dans [0, 100] (positions terrain normalisé)
+#   7. Coordonnées end_x, end_y dans [0, 100] quand non-NULL
+#   8. type_id > 0 (attendu 0 violation, min empirique = 1)
+# ══════════════════════════════════════════════════════════════════════════════
+
+suite_name: silver.stg_whoscored_events.physical
+description: >
+  Contraintes physiques et cohérence FK sur stg_whoscored_events (60 M).
+  Query source pré-agrège les violations — jamais de full-load.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT
+      -- FK ws_match_id (attendu 0)
+      COUNT(*) FILTER (
+        WHERE NOT EXISTS (
+          SELECT 1 FROM silver.stg_whoscored_match_index mi
+          WHERE mi.ws_match_id = ev.ws_match_id
+        )
+      ) AS n_orphans_match,
+
+      -- Cohérence is_shot vs is_goal (attendu 0)
+      COUNT(*) FILTER (WHERE is_shot = FALSE AND is_goal = TRUE) AS n_goal_without_shot,
+
+      -- type_id non-positif (attendu 0, min empirique = 1)
+      COUNT(*) FILTER (WHERE type_id <= 0) AS n_type_id_zero_or_neg,
+
+      -- Coordonnées x, y hors [0, 100]
+      COUNT(*) FILTER (WHERE x < 0 OR x > 100) AS n_x_out_of_range,
+      COUNT(*) FILTER (WHERE y < 0 OR y > 100) AS n_y_out_of_range,
+      COUNT(*) FILTER (WHERE end_x IS NOT NULL AND (end_x < 0 OR end_x > 100)) AS n_end_x_out_of_range,
+      COUNT(*) FILTER (WHERE end_y IS NOT NULL AND (end_y < 0 OR end_y > 100)) AS n_end_y_out_of_range,
+
+      -- minute — attrape sentinel 32767 (A-020, 7 lignes) + 1 outlier hors 130
+      COUNT(*) FILTER (WHERE minute < 0 OR minute > 200) AS n_minute_out_of_range,
+
+      -- second dans [0, 59] quand non-NULL — A-021 : 2 lignes négatives empiriques
+      COUNT(*) FILTER (WHERE second IS NOT NULL AND (second < 0 OR second > 59)) AS n_second_out_of_range,
+
+      -- period : convention WhoScored va jusqu'à 16 (pas [1, 5] comme attendu).
+      -- Borne empirique : [1, 30] pour laisser marge.
+      COUNT(*) FILTER (WHERE period < 1 OR period > 30) AS n_period_out_of_range,
+
+      -- A-018 : nombre de player_id distincts orphelins vs players_ref
+      (
+        SELECT COUNT(*) FROM (
+          SELECT DISTINCT player_id FROM silver.stg_whoscored_events WHERE player_id IS NOT NULL
+        ) e
+        WHERE NOT EXISTS (SELECT 1 FROM silver.stg_whoscored_players_ref pr WHERE pr.player_id = e.player_id)
+      ) AS n_orphan_player_ids
+    FROM silver.stg_whoscored_events ev
+
+expectations:
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # FK dures : 0 attendu, error strict
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_column_values_to_be_between
+    kwargs: { column: n_orphans_match, min_value: 0, max_value: 0, mostly: 1.0 }
+    severity: error
+    meta: { description: "0 event orphelin sur ws_match_id (empirique 0)." }
+
+  - type: expect_column_values_to_be_between
+    kwargs: { column: n_goal_without_shot, min_value: 0, max_value: 0, mostly: 1.0 }
+    severity: error
+    meta: { description: "Un but implique nécessairement un tir. Empirique 0." }
+
+  - type: expect_column_values_to_be_between
+    kwargs: { column: n_type_id_zero_or_neg, min_value: 0, max_value: 0, mostly: 1.0 }
+    severity: error
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # Coordonnées : positions terrain normalisé [0, 100]
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_column_values_to_be_between
+    for_each_column:
+      - n_x_out_of_range
+      - n_y_out_of_range
+      - n_end_x_out_of_range
+      - n_end_y_out_of_range
+    kwargs: { min_value: 0, max_value: 0, mostly: 1.0 }
+    severity: error
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # Minute / second / period : plages plausibles
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_column_values_to_be_between
+    kwargs: { column: n_minute_out_of_range, min_value: 0, max_value: 10, mostly: 1.0 }
+    severity: warn
+    meta:
+      description: "A-020 : 7 lignes minute=32767 (sentinel INT16, cousin A-014) + 1 outlier."
+      fires_on_current_bug: true
+
+  - type: expect_column_values_to_be_between
+    kwargs: { column: n_second_out_of_range, min_value: 0, max_value: 5, mostly: 1.0 }
+    severity: warn
+    meta:
+      description: "A-021 : 2 lignes second négatif."
+      fires_on_current_bug: true
+
+  - type: expect_column_values_to_be_between
+    kwargs: { column: n_period_out_of_range, min_value: 0, max_value: 0, mostly: 1.0 }
+    severity: error
+    meta: { description: "period ∈ [1, 30] — convention WhoScored (max empirique 16)." }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # A-018 : dette référentielle player_id — plafond 10 000 pour surveiller
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_column_values_to_be_between
+    kwargs: { column: n_orphan_player_ids, min_value: 0, max_value: 10000, mostly: 1.0 }
+    severity: warn
+    meta:
+      description: "A-018 : 5 992 player_id distincts orphelins vs players_ref (39.5 %). Warn tant que le référentiel joueurs n'est pas nettoyé."
+      fires_on_current_bug: true

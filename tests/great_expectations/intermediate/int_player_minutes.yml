@@ -1,0 +1,47 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — intermediate.int_player_minutes (GÉNÉRÉE AUTO 2026-09-09)
+# Volumétrie : 490,910 lignes, 4 colonnes
+# Bornes empiriques ± marge — à raffiner si nécessaire.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: intermediate.int_player_minutes
+description: >
+  Suite auto-générée le 2026-09-09 pour intermediate.int_player_minutes.
+  Volumétrie de référence : 490,910 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT "match_id", "team_id", "player_id", "minutes_played" FROM intermediate."int_player_minutes"
+
+expectations:
+
+  # ── VOLUMÉTRIE ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 196364, max_value: 981820 }
+    severity: error
+    meta: { description: "Empirique = 490,910. Bornes [196,364, 981,820]." }
+
+  # ── COMPLÉTION STRICTE (0 NULL empirique) ──
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - match_id
+      - team_id
+      - player_id
+      - minutes_played
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # ── BORNES DE VALEURS NUMÉRIQUES ──
+  - type: expect_column_values_to_be_between
+    kwargs: { column: team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100001, 202606100426], mean=2.03e+11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: player_id, min_value: 0, max_value: 617975, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 561795], mean=2.16e+05." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: minutes_played, min_value: 0, max_value: 141, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 128], mean=70.5." }

@@ -1,0 +1,42 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Suite GE — silver.stg_whoscored_team_match
+# Faits équipe par match (33 740). Exactement 2 lignes par match (home + away).
+# ══════════════════════════════════════════════════════════════════════════════
+
+suite_name: silver.stg_whoscored_team_match
+description: Faits WhoScored équipe × match.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT
+      ws_match_id, team_id, field, manager_name,
+      country_name, average_age
+    FROM silver.stg_whoscored_team_match
+
+expectations:
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 25000, max_value: 50000 }
+    severity: error
+    meta: { description: "Empirique = 33 740 = 2 × 16 870 matches." }
+
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - ws_match_id
+      - team_id
+      - field
+      - manager_name
+      - country_name
+      - average_age
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # average_age plausible (empirique 21.9-38.7 — moyenne du groupe convoqué)
+  - type: expect_column_values_to_be_between
+    kwargs: { column: average_age, min_value: 18, max_value: 45, mostly: 1.0 }
+    severity: error
+
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: average_age, min_value: 25, max_value: 35 }
+    severity: error
+    meta: { description: "Empirique = 31.2." }

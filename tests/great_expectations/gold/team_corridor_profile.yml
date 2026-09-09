@@ -1,0 +1,81 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — gold.team_corridor_profile (GÉNÉRÉE AUTO 2026-09-09)
+# Volumétrie : 100,206 lignes, 11 colonnes
+# Bornes empiriques ± marge — à raffiner si nécessaire.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: gold.team_corridor_profile
+description: >
+  Suite auto-générée le 2026-09-09 pour gold.team_corridor_profile.
+  Volumétrie de référence : 100,206 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT "match_id", "team_id", "opponent_id", "corridor", "off_strength", "off_cross_strength", "off_dribble_strength", "off_central_progression", "off_central_touch", "def_central_density", "def_solidity" FROM gold."team_corridor_profile"
+
+expectations:
+
+  # ── VOLUMÉTRIE ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 40082, max_value: 200412 }
+    severity: error
+    meta: { description: "Empirique = 100,206. Bornes [40,082, 200,412]." }
+
+  # ── COMPLÉTION STRICTE (0 NULL empirique) ──
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - match_id
+      - team_id
+      - corridor
+      - off_strength
+      - off_cross_strength
+      - off_dribble_strength
+      - off_central_progression
+      - off_central_touch
+      - def_central_density
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # ── COMPLÉTION AVEC NULLs EMPIRIQUES (mostly = 1 - empirique - 5pts) ──
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: opponent_id, mostly: 0.9441 }
+    severity: warn
+    meta: { description: "Empirique 0.59% NULL." }
+
+  # ── COLONNES 100% NULL (documentées, pas testées) ──
+  # def_solidity : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+
+  # ── BORNES DE VALEURS NUMÉRIQUES ──
+  - type: expect_column_values_to_be_between
+    kwargs: { column: team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100001, 202606100426], mean=2.03e+11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: opponent_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100001, 202606100426], mean=2.03e+11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: off_strength, min_value: 0.0, max_value: 0.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.0], mean=0." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: off_cross_strength, min_value: 0.0, max_value: 0.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.0], mean=0." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: off_dribble_strength, min_value: 0.0, max_value: 0.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.0], mean=0." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: off_central_progression, min_value: 0.0, max_value: 0.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.0], mean=0." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: off_central_touch, min_value: 0.0, max_value: 0.8192522257479637, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.744774750679967], mean=0.178." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: def_central_density, min_value: 0.0, max_value: 0.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.0], mean=0." }

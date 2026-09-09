@@ -1,0 +1,265 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — intermediate.backbone (couche universelle)
+# Rôle : SIGNAL & DISTRIBUTIONS
+# Périmètre : TOUTES lignes (tous comp_category confondus)
+# Contrainte spatiotemporelle : les colonnes Understat/WhoScored/Odds sont
+# testées dans une suite séparée `backbone_big5.yml` (segmentation Big5-only).
+#
+# Colonnes CASE booléennes (pré-calcul SQL) :
+#   - saves_bounds_ok         : cascade A-024 (296 violations attendues)
+#   - clean_sheet_consistency : cascade A-025 (23 violations attendues)
+#   - save_pct_bounds_ok      : cascade A-026 (36 violations attendues)
+# Elles sont surveillées via `expect_row_condition_to_hold` en warn.
+# ══════════════════════════════════════════════════════════════════════════════
+
+suite_name: intermediate.backbone_all
+description: >
+  Signal statistique du modèle intermediate backbone — couche universelle
+  (colonnes FBref présentes pour toutes les compétitions).
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT
+      match_id, team_id, opponent_id, date, season,
+      venue, result_1n2, comp_category, formation, league_source,
+      gf, ga, possession,
+      shots_on_target_faced, saves, save_pct, clean_sheet,
+      shots_total, shots_on_target, goals_per_shot,
+      yellow_cards, second_yellow_cards, red_cards,
+      fouls_committed, interceptions, tackles_won,
+      CASE
+        WHEN saves IS NULL OR shots_on_target_faced IS NULL THEN 1
+        WHEN saves <= shots_on_target_faced THEN 1
+        ELSE 0
+      END AS saves_bounds_ok,
+      CASE
+        WHEN clean_sheet IS NULL THEN 1
+        WHEN clean_sheet = 0 THEN 1
+        WHEN ga = 0 THEN 1
+        ELSE 0
+      END AS clean_sheet_consistency_ok,
+      CASE
+        WHEN save_pct IS NULL THEN 1
+        WHEN save_pct BETWEEN 0 AND 100 THEN 1
+        ELSE 0
+      END AS save_pct_bounds_ok
+    FROM intermediate.backbone
+
+expectations:
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 1. VOLUMÉTRIE
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 40000, max_value: 100000 }
+    severity: error
+    meta: { description: "Empirique = 56 616 lignes." }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 2. COMPLÉTION
+  # ────────────────────────────────────────────────────────────────────────────
+  # Structurels : 0 % NULL toléré
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - team_id
+      - date
+      - season
+      - venue
+      - comp_category
+      - league_source
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # match_id : 49 NULL empiriques (0.09 %) — A-005
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: match_id, mostly: 0.995 }
+    severity: warn
+    meta: { description: "A-005 : 49 NULL." }
+
+  # opponent_id : ~3.62 % NULL — A-002
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: opponent_id, mostly: 0.914 }
+    severity: error
+    meta: { description: "A-002 : ~2 047 NULL, tous hors Big5." }
+
+  # result_1n2 : ~1.49 % NULL (matches non joués filtrés en amont)
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: result_1n2, mostly: 0.94 }
+    severity: warn
+    meta: { description: "Empirique 1.49 % NULL (matches non joués)." }
+
+  # gf, ga : mêmes NULL que result_1n2
+  - type: expect_column_values_to_not_be_null
+    for_each_column: [gf, ga]
+    kwargs: { mostly: 0.94 }
+    severity: warn
+    meta: { description: "NULL synchros avec result_1n2." }
+
+  # Colonnes FBref keeper/shooting/misc : ~1.7-1.8 % NULL (matches non joués)
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - shots_on_target_faced
+      - saves
+      - clean_sheet
+      - shots_total
+      - shots_on_target
+      - yellow_cards
+      - second_yellow_cards
+      - red_cards
+      - fouls_committed
+      - interceptions
+      - tackles_won
+    kwargs: { mostly: 0.94 }
+    severity: warn
+    meta: { description: "NULL synchros avec matches non joués (~1.7 %)." }
+
+  # save_pct : 7.09 % NULL (division par sota=0)
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: save_pct, mostly: 0.85 }
+    severity: warn
+    meta: { description: "Empirique 7.09 % NULL (sota=0)." }
+
+  # goals_per_shot : 5.12 % NULL (division par shots_total=0)
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: goals_per_shot, mostly: 0.90 }
+    severity: warn
+
+  # possession : 3.57 % NULL
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: possession, mostly: 0.92 }
+    severity: warn
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 3. BORNES DE VALEURS
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_column_values_to_be_between
+    for_each_column: [gf, ga]
+    kwargs: { min_value: 0, max_value: 20, mostly: 1.0 }
+    severity: error
+    meta: { description: "Empirique gf 0-14, ga 0-9." }
+
+  - type: expect_column_values_to_be_between
+    kwargs: { column: possession, min_value: 0, max_value: 100, mostly: 1.0 }
+    severity: error
+
+  - type: expect_column_values_to_be_between
+    kwargs: { column: shots_total, min_value: 0, max_value: 60, mostly: 1.0 }
+    severity: error
+    meta: { description: "Empirique 0-47." }
+
+  - type: expect_column_values_to_be_between
+    kwargs: { column: shots_on_target, min_value: 0, max_value: 30, mostly: 1.0 }
+    severity: error
+    meta: { description: "Empirique 0-25." }
+
+  - type: expect_column_values_to_be_between
+    kwargs: { column: shots_on_target_faced, min_value: 0, max_value: 30, mostly: 1.0 }
+    severity: error
+    meta: { description: "Empirique 0-20." }
+
+  - type: expect_column_values_to_be_between
+    kwargs: { column: saves, min_value: 0, max_value: 25, mostly: 1.0 }
+    severity: error
+    meta: { description: "Empirique 0-19." }
+
+  - type: expect_column_values_to_be_between
+    kwargs: { column: goals_per_shot, min_value: 0, max_value: 1, mostly: 1.0 }
+    severity: error
+
+  - type: expect_column_values_to_be_between
+    kwargs: { column: clean_sheet, min_value: 0, max_value: 1, mostly: 1.0 }
+    severity: error
+
+  - type: expect_column_values_to_be_between
+    kwargs: { column: yellow_cards, min_value: 0, max_value: 15, mostly: 1.0 }
+    severity: error
+    meta: { description: "Empirique 0-9." }
+
+  - type: expect_column_values_to_be_between
+    for_each_column: [second_yellow_cards, red_cards]
+    kwargs: { min_value: 0, max_value: 5, mostly: 1.0 }
+    severity: error
+
+  - type: expect_column_values_to_be_between
+    for_each_column: [fouls_committed]
+    kwargs: { min_value: 0, max_value: 45, mostly: 1.0 }
+    severity: error
+
+  - type: expect_column_values_to_be_between
+    for_each_column: [interceptions, tackles_won]
+    kwargs: { min_value: 0, max_value: 55, mostly: 1.0 }
+    severity: error
+
+  # save_pct : borne physique [0, 100] — 36 violations empiriques (A-026, warn)
+  - type: expect_column_values_to_be_between
+    kwargs: { column: save_pct, min_value: 0, max_value: 100, mostly: 1.0 }
+    severity: warn
+    meta: { description: "A-026 : 36 lignes < 0 (dérivées d'A-024)." }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 4. BORNES STATISTIQUES
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: gf, min_value: 1.0, max_value: 1.8 }
+    severity: error
+    meta: { description: "Empirique 1.433." }
+
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: ga, min_value: 0.9, max_value: 1.7 }
+    severity: error
+    meta: { description: "Empirique 1.314." }
+
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: possession, min_value: 45, max_value: 55 }
+    severity: warn
+    meta: { description: "Structural : deux équipes somment à 100." }
+
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: shots_total, min_value: 10, max_value: 15 }
+    severity: error
+    meta: { description: "Empirique 12.44." }
+
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: shots_on_target, min_value: 3, max_value: 6 }
+    severity: error
+    meta: { description: "Empirique 4.33." }
+
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: save_pct, min_value: 55, max_value: 80 }
+    severity: warn
+    meta: { description: "Empirique 68.9 (biaisé négatif par A-026)." }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 5. COHÉRENCES CROISÉES — cascades A-024/A-025/A-026 (warn car scraping bug)
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "saves_bounds_ok == 1"
+    severity: warn
+    meta: { description: "A-024 : 296 lignes saves > shots_on_target_faced (cascade silver.fbref_keeper)." }
+
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "clean_sheet_consistency_ok == 1"
+    severity: warn
+    meta: { description: "A-025 : 23 lignes clean_sheet=1 avec ga>0." }
+
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "save_pct_bounds_ok == 1"
+    severity: warn
+    meta: { description: "A-026 : 36 lignes save_pct hors [0,100]." }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 6. DÉRIVE VOLUMÉTRIQUE INTER-SAISONS
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.20
+      max_deviation_error: 0.40
+      min_seasons_history: 2
+      exclude_partitions: ['2025-2026']
+    severity: warn
+    meta: { description: "Saison en cours écartée." }

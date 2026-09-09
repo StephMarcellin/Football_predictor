@@ -1,0 +1,162 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — intermediate.int_fbref_schedule
+# Rôle : SIGNAL & DISTRIBUTIONS
+# Contrainte spatiotemporelle : aucune (FBref universel).
+# Test dérive volumétrique : exclut la saison 2025-2026 (scraping en cours).
+#
+# Note technique : `poss` est VARCHAR côté DuckDB — un TRY_CAST(NULLIF(poss,'') AS INTEGER)
+# est appliqué en amont dans la query pour permettre les tests numériques
+# (bornes, moyenne). Les chaînes vides deviennent NULL, ignorées par
+# `expect_column_values_to_be_between` / `expect_column_mean_to_be_between`.
+#
+# `result_consistency_ok` est une colonne booléenne (0/1) pré-calculée en SQL
+# pour la contrainte physique croisée result/gf/ga/result_1n2 — évite les
+# pièges de `df.eval` avec chaînes vides et NaN.
+# ══════════════════════════════════════════════════════════════════════════════
+
+suite_name: intermediate.int_fbref_schedule
+description: >
+  Signal statistique du modèle intermediate int_fbref_schedule (feuille de match
+  FBref rematchée sur match_id + team_id normalisés). Couvre toutes les
+  compétitions (Big5, Cup, D2, Europe, Other).
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT
+      match_id, team_id, opponent_id, date, season,
+      venue, result, result_1n2, comp_category, source,
+      day, league_source,
+      gf, ga,
+      formation, opp_formation,
+      TRY_CAST(NULLIF(poss, '') AS INTEGER) AS poss_int,
+      CASE
+        WHEN result = 'W' AND gf > ga THEN 1
+        WHEN result = 'D' AND gf = ga THEN 1
+        WHEN result = 'L' AND gf < ga THEN 1
+        WHEN result = '' AND result_1n2 IS NULL THEN 1
+        ELSE 0
+      END AS result_consistency_ok,
+      CASE
+        WHEN result = '' THEN 1
+        WHEN venue = 'Neutral' THEN 1
+        WHEN venue = 'Home' AND result = 'W' AND result_1n2 = 'H' THEN 1
+        WHEN venue = 'Home' AND result = 'D' AND result_1n2 = 'D' THEN 1
+        WHEN venue = 'Home' AND result = 'L' AND result_1n2 = 'A' THEN 1
+        WHEN venue = 'Away' AND result = 'W' AND result_1n2 = 'A' THEN 1
+        WHEN venue = 'Away' AND result = 'D' AND result_1n2 = 'D' THEN 1
+        WHEN venue = 'Away' AND result = 'L' AND result_1n2 = 'H' THEN 1
+        ELSE 0
+      END AS venue_result_ok
+    FROM intermediate.int_fbref_schedule
+
+expectations:
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 1. VOLUMÉTRIE
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 40000, max_value: 100000 }
+    severity: error
+    meta: { description: "Empirique = 56 875 lignes." }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 2. COMPLÉTION — NULL rate contrôlé par famille
+  # ────────────────────────────────────────────────────────────────────────────
+  # Colonnes structurelles : 0 % NULL toléré
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - team_id
+      - date
+      - season
+      - venue
+      - comp_category
+      - source
+      - day
+      - league_source
+      - gf
+      - ga
+      - result
+      - formation
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # match_id : 49 NULL empiriques (0.09 %) — cf. A-005
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: match_id, mostly: 0.995 }
+    severity: warn
+    meta: { description: "Empirique = 0.09 % NULL. Marge de +5 pts." }
+
+  # opponent_id : NULL empirique 3.61 % — cascade A-002 (résolution team_mapping)
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: opponent_id, mostly: 0.914 }
+    severity: error
+    meta: { description: "Empirique = 3.61 % NULL (2 052 lignes). Marge de +5 pts." }
+
+  # result_1n2 : NULL empirique 1.92 % — 1 094 matches non joués (result = '')
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: result_1n2, mostly: 0.94 }
+    severity: warn
+    meta: { description: "Empirique = 1.92 % NULL (matches non joués, result = '')." }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 3. BORNES DE VALEURS
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_column_values_to_be_between
+    for_each_column: [gf, ga]
+    kwargs: { min_value: 0, max_value: 20, mostly: 1.0 }
+    severity: error
+    meta: { description: "Max empirique gf=14, ga=9. Plafond large." }
+
+  # poss cast en int — chaînes vides devenues NULL, ignorées
+  - type: expect_column_values_to_be_between
+    kwargs: { column: poss_int, min_value: 0, max_value: 100, mostly: 1.0 }
+    severity: error
+    meta: { description: "Pourcentage de possession — bornes physiques. Empirique [15, 100]." }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 4. BORNES STATISTIQUES
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: gf, min_value: 1.0, max_value: 1.8 }
+    severity: error
+    meta: { description: "Empirique = 1.43" }
+
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: ga, min_value: 0.9, max_value: 1.7 }
+    severity: error
+    meta: { description: "Empirique = 1.31" }
+
+  # Possession moyenne autour de 50 par construction (2 équipes qui somment à 100)
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: poss_int, min_value: 45.0, max_value: 55.0 }
+    severity: warn
+    meta: { description: "Contrainte structurelle : somme poss par match = 100." }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 5. COHÉRENCES CROISÉES — contraintes physiques (miroir dbt, charte v2)
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "result_consistency_ok == 1"
+    severity: error
+    meta: { description: "Cohérence result / gf-ga / result_1n2. W→gf>ga, D→gf=ga, L→gf<ga, ''→result_1n2 IS NULL." }
+
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "venue_result_ok == 1"
+    severity: error
+    meta: { description: "Cohérence venue × result → result_1n2 (matches joués)." }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 6. DÉRIVE VOLUMÉTRIQUE INTER-SAISONS
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.20
+      max_deviation_error: 0.40
+      min_seasons_history: 2
+      exclude_partitions: ['2025-2026']
+    severity: warn
+    meta: { description: "La saison en cours de scraping est écartée du calcul." }

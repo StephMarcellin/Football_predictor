@@ -1,0 +1,192 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — gold.joueur_zone_saison (PUSH-DOWN 2026-09-09)
+# Volumétrie : 1,398,725 lignes, 13 colonnes
+# Stratégie big data : agrégats DuckDB → 1 ligne en pandas.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: gold.joueur_zone_saison
+description: >
+  Push-down agrégats. Volumétrie de référence : 1,398,725 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT
+          COUNT(*) AS n_rows,
+          COUNT(*) FILTER (WHERE "player_id" IS NULL) AS null_player_id,
+          COUNT(*) FILTER (WHERE "zone_5x5" IS NULL) AS null_zone_5x5,
+          COUNT(*) FILTER (WHERE "season" IS NULL) AS null_season,
+          COUNT(*) FILTER (WHERE "off_touch_share_by_zone_lag" IS NULL) AS null_off_touch_share_by_zone_lag,
+          COUNT(*) FILTER (WHERE "off_shot_volume_by_zone_lag" IS NULL) AS null_off_shot_volume_by_zone_lag,
+          COUNT(*) FILTER (WHERE "off_danger_by_zone_lag" IS NULL) AS null_off_danger_by_zone_lag,
+          COUNT(*) FILTER (WHERE "off_progressive_actions_by_zone_lag" IS NULL) AS null_off_progressive_actions_by_zone_lag,
+          COUNT(*) FILTER (WHERE "off_cross_volume_by_zone_lag" IS NULL) AS null_off_cross_volume_by_zone_lag,
+          COUNT(*) FILTER (WHERE "def_duel_win_rate_by_zone_lag" IS NULL) AS null_def_duel_win_rate_by_zone_lag,
+          COUNT(*) FILTER (WHERE "def_actions_by_zone_lag" IS NULL) AS null_def_actions_by_zone_lag,
+          COUNT(*) FILTER (WHERE "n_duels_prev" IS NULL) AS null_n_duels_prev,
+          COUNT(*) FILTER (WHERE "n_matches_prev" IS NULL) AS null_n_matches_prev,
+          COUNT(*) FILTER (WHERE "profile_confidence_flag" IS NULL) AS null_profile_confidence_flag,
+          MIN("player_id") AS min_player_id,
+          MAX("player_id") AS max_player_id,
+          AVG("player_id") AS avg_player_id,
+          MIN("off_touch_share_by_zone_lag") AS min_off_touch_share_by_zone_lag,
+          MAX("off_touch_share_by_zone_lag") AS max_off_touch_share_by_zone_lag,
+          AVG("off_touch_share_by_zone_lag") AS avg_off_touch_share_by_zone_lag,
+          MIN("off_shot_volume_by_zone_lag") AS min_off_shot_volume_by_zone_lag,
+          MAX("off_shot_volume_by_zone_lag") AS max_off_shot_volume_by_zone_lag,
+          AVG("off_shot_volume_by_zone_lag") AS avg_off_shot_volume_by_zone_lag,
+          MIN("off_danger_by_zone_lag") AS min_off_danger_by_zone_lag,
+          MAX("off_danger_by_zone_lag") AS max_off_danger_by_zone_lag,
+          AVG("off_danger_by_zone_lag") AS avg_off_danger_by_zone_lag,
+          MIN("off_progressive_actions_by_zone_lag") AS min_off_progressive_actions_by_zone_lag,
+          MAX("off_progressive_actions_by_zone_lag") AS max_off_progressive_actions_by_zone_lag,
+          AVG("off_progressive_actions_by_zone_lag") AS avg_off_progressive_actions_by_zone_lag,
+          MIN("off_cross_volume_by_zone_lag") AS min_off_cross_volume_by_zone_lag,
+          MAX("off_cross_volume_by_zone_lag") AS max_off_cross_volume_by_zone_lag,
+          AVG("off_cross_volume_by_zone_lag") AS avg_off_cross_volume_by_zone_lag,
+          MIN("def_duel_win_rate_by_zone_lag") AS min_def_duel_win_rate_by_zone_lag,
+          MAX("def_duel_win_rate_by_zone_lag") AS max_def_duel_win_rate_by_zone_lag,
+          AVG("def_duel_win_rate_by_zone_lag") AS avg_def_duel_win_rate_by_zone_lag,
+          MIN("def_actions_by_zone_lag") AS min_def_actions_by_zone_lag,
+          MAX("def_actions_by_zone_lag") AS max_def_actions_by_zone_lag,
+          AVG("def_actions_by_zone_lag") AS avg_def_actions_by_zone_lag,
+          MIN("n_duels_prev") AS min_n_duels_prev,
+          MAX("n_duels_prev") AS max_n_duels_prev,
+          AVG("n_duels_prev") AS avg_n_duels_prev,
+          MIN("n_matches_prev") AS min_n_matches_prev,
+          MAX("n_matches_prev") AS max_n_matches_prev,
+          AVG("n_matches_prev") AS avg_n_matches_prev
+        FROM gold."joueur_zone_saison"
+
+expectations:
+
+  # ── VOLUMÉTRIE (1 ligne agrégée = 1 seule row en output) ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 1, max_value: 1 }
+    severity: error
+    meta: { description: "Agrégat push-down doit renvoyer exactement 1 ligne." }
+
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "n_rows >= 559490 and n_rows <= 2797450"
+    severity: error
+    meta: { description: "Row count empirique = 1,398,725." }
+
+  # ── COMPLÉTION PAR COLONNE (push-down NULL counts) ──
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_player_id / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "player_id empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_zone_5x5 / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "zone_5x5 empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_season / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "season empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_off_touch_share_by_zone_lag / n_rows <= 0.392"
+    severity: warn
+    meta: { description: "off_touch_share_by_zone_lag empirique 34.20% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_off_shot_volume_by_zone_lag / n_rows <= 0.392"
+    severity: warn
+    meta: { description: "off_shot_volume_by_zone_lag empirique 34.20% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_off_danger_by_zone_lag / n_rows <= 0.392"
+    severity: warn
+    meta: { description: "off_danger_by_zone_lag empirique 34.20% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_off_progressive_actions_by_zone_lag / n_rows <= 0.392"
+    severity: warn
+    meta: { description: "off_progressive_actions_by_zone_lag empirique 34.20% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_off_cross_volume_by_zone_lag / n_rows <= 0.392"
+    severity: warn
+    meta: { description: "off_cross_volume_by_zone_lag empirique 34.20% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_def_duel_win_rate_by_zone_lag / n_rows <= 1.0"
+    severity: warn
+    meta: { description: "def_duel_win_rate_by_zone_lag empirique 96.99% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_def_actions_by_zone_lag / n_rows <= 0.392"
+    severity: warn
+    meta: { description: "def_actions_by_zone_lag empirique 34.20% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_n_duels_prev / n_rows <= 0.392"
+    severity: warn
+    meta: { description: "n_duels_prev empirique 34.20% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_n_matches_prev / n_rows <= 0.392"
+    severity: warn
+    meta: { description: "n_matches_prev empirique 34.20% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_profile_confidence_flag / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "profile_confidence_flag empirique 0.00% NULL." }
+
+  # ── BORNES NUMÉRIQUES (push-down MIN/MAX) ──
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_player_id >= 0.0000 and max_player_id <= 684360.6000"
+    severity: warn
+    meta: { description: "player_id empirique [0.0, 622146.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_off_touch_share_by_zone_lag >= 0.0000 and max_off_touch_share_by_zone_lag <= 0.9167"
+    severity: warn
+    meta: { description: "off_touch_share_by_zone_lag empirique [0.0, 0.8333333333333334]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_off_shot_volume_by_zone_lag >= 0.0000 and max_off_shot_volume_by_zone_lag <= 2.9586"
+    severity: warn
+    meta: { description: "off_shot_volume_by_zone_lag empirique [0.0, 2.689655172413793]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_off_danger_by_zone_lag >= 0.0000 and max_off_danger_by_zone_lag <= 19.6281"
+    severity: warn
+    meta: { description: "off_danger_by_zone_lag empirique [0.0, 17.843719999999998]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_off_progressive_actions_by_zone_lag >= 0.0000 and max_off_progressive_actions_by_zone_lag <= 15.6200"
+    severity: warn
+    meta: { description: "off_progressive_actions_by_zone_lag empirique [0.0, 14.2]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_off_cross_volume_by_zone_lag >= 0.0000 and max_off_cross_volume_by_zone_lag <= 2.7042"
+    severity: warn
+    meta: { description: "off_cross_volume_by_zone_lag empirique [0.0, 2.4583333333333335]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_def_duel_win_rate_by_zone_lag >= 0.0000 and max_def_duel_win_rate_by_zone_lag <= 1.1000"
+    severity: warn
+    meta: { description: "def_duel_win_rate_by_zone_lag empirique [0.0, 1.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_def_actions_by_zone_lag >= 0.0000 and max_def_actions_by_zone_lag <= 7.7000"
+    severity: warn
+    meta: { description: "def_actions_by_zone_lag empirique [0.0, 7.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_n_duels_prev >= 0.0000 and max_n_duels_prev <= 71.5000"
+    severity: warn
+    meta: { description: "n_duels_prev empirique [0.0, 65.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_n_matches_prev >= -4.9000 and max_n_matches_prev <= 65.9000"
+    severity: warn
+    meta: { description: "n_matches_prev empirique [1.0, 60.0]." }

@@ -1,0 +1,99 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — intermediate.int_fouls_drawn (GÉNÉRÉE AUTO 2026-09-09)
+# Volumétrie : 955,764 lignes, 15 colonnes
+# Bornes empiriques ± marge — à raffiner si nécessaire.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: intermediate.int_fouls_drawn
+description: >
+  Suite auto-générée le 2026-09-09 pour intermediate.int_fouls_drawn.
+  Volumétrie de référence : 955,764 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT "match_id", "row_num", "event_id", "season", "league_source", "scraped_at", "expanded_minute", "drawing_team_id", "drawer_player_id", "committed_by_player_id", "x", "y", "foul_zone", "is_attacking_third", "leads_to_penalty" FROM intermediate."int_fouls_drawn"
+
+expectations:
+
+  # ── VOLUMÉTRIE ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 382305, max_value: 1911528 }
+    severity: error
+    meta: { description: "Empirique = 955,764. Bornes [382,305, 1,911,528]." }
+
+  # ── COMPLÉTION STRICTE (0 NULL empirique) ──
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - match_id
+      - row_num
+      - event_id
+      - season
+      - league_source
+      - scraped_at
+      - expanded_minute
+      - drawing_team_id
+      - x
+      - y
+      - is_attacking_third
+      - leads_to_penalty
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # ── COMPLÉTION AVEC NULLs EMPIRIQUES (mostly = 1 - empirique - 5pts) ──
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: drawer_player_id, mostly: 0.902 }
+    severity: warn
+    meta: { description: "Empirique 4.80% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: committed_by_player_id, mostly: 0.7321 }
+    severity: warn
+    meta: { description: "Empirique 21.79% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: foul_zone, mostly: 0.902 }
+    severity: warn
+    meta: { description: "Empirique 4.80% NULL." }
+
+  # ── BORNES DE VALEURS NUMÉRIQUES ──
+  - type: expect_column_values_to_be_between
+    kwargs: { column: row_num, min_value: -195, max_value: 2176, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2, 1978], mean=798." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: event_id, min_value: -100094, max_value: 1101071, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [3, 1000973], mean=469." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: expanded_minute, min_value: 0, max_value: 151, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 137], mean=48.8." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: drawing_team_id, min_value: 202606099958, max_value: 202606100473, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100001, 202606100430], mean=2.03e+11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: drawer_player_id, min_value: 0, max_value: 684361, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 622146], mean=1.56e+05." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: committed_by_player_id, min_value: 0, max_value: 684361, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 622146], mean=1.83e+05." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: x, min_value: 0, max_value: 110.0, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 100.0], mean=46.7." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: y, min_value: 0, max_value: 110.0, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 100.0], mean=50.5." }
+
+  # ── DÉRIVE VOLUMÉTRIQUE INTER-SAISONS ──
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.20
+      max_deviation_error: 0.40
+      min_seasons_history: 2
+      exclude_partitions: ['2025-2026']
+    severity: warn

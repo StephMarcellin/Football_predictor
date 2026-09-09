@@ -1,0 +1,277 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — intermediate.backbone (couche Big5-only)
+# Rôle : SIGNAL & DISTRIBUTIONS des colonnes Understat / WhoScored saison / Odds
+# Périmètre : WHERE comp_category = 'Big5'
+#
+# Charte v2 : ces colonnes sont 100 % NULL hors Big5 par design — testées ici.
+# Note A-007 : ppda max 193 (empirique légitime).
+# Note A-027 : season_att_rating == season_def_rating (bug scraper WhoScored).
+# ══════════════════════════════════════════════════════════════════════════════
+
+suite_name: intermediate.backbone_big5
+description: >
+  Signal statistique des colonnes Big5-only de backbone :
+  Understat (np_xg, ppda), WhoScored saison (ratings), Odds Pinnacle + marché.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT
+      match_id, team_id, season, comp_category,
+      np_xg, np_xg_conceded, ppda, ppda_allowed, np_xg_diff_match,
+      season_att_rating, season_def_rating,
+      ws_dribbles_pg, ws_fouled_pg, ws_shots_ot_pg,
+      odds_pinnacle_team, odds_pinnacle_draw, odds_pinnacle_opp,
+      odds_avg_team, odds_avg_draw, odds_avg_opp,
+      pinnacle_prob_team, pinnacle_prob_draw, pinnacle_prob_opp,
+      market_prob_team, market_prob_draw, market_prob_opp,
+      pinnacle_prob_close_team, pinnacle_prob_close_draw, pinnacle_prob_close_opp,
+      market_prob_close_team, market_prob_close_draw, market_prob_close_opp,
+      pinnacle_drift_team, pinnacle_drift_draw, pinnacle_drift_opp,
+      pinnacle_prob_over25, pinnacle_prob_under25,
+      pinnacle_prob_close_over25, pinnacle_prob_close_under25,
+      CASE
+        WHEN pinnacle_prob_team IS NULL THEN 1
+        WHEN ABS(pinnacle_prob_team + pinnacle_prob_draw + pinnacle_prob_opp - 1) < 0.001 THEN 1
+        ELSE 0
+      END AS pinnacle_prob_sum_ok,
+      CASE
+        WHEN market_prob_team IS NULL THEN 1
+        WHEN ABS(market_prob_team + market_prob_draw + market_prob_opp - 1) < 0.001 THEN 1
+        ELSE 0
+      END AS market_prob_sum_ok,
+      CASE
+        WHEN pinnacle_prob_over25 IS NULL THEN 1
+        WHEN ABS(pinnacle_prob_over25 + pinnacle_prob_under25 - 1) < 0.001 THEN 1
+        ELSE 0
+      END AS over_under_sum_ok,
+      CASE
+        WHEN np_xg IS NULL OR np_xg_conceded IS NULL THEN 1
+        WHEN ABS(np_xg_diff_match - (np_xg - np_xg_conceded)) < 0.001 THEN 1
+        ELSE 0
+      END AS np_xg_diff_ok
+    FROM intermediate.backbone
+    WHERE comp_category = 'Big5'
+
+expectations:
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 1. VOLUMÉTRIE (Big5 uniquement)
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 20000, max_value: 50000 }
+    severity: error
+    meta: { description: "Empirique = 32 218 lignes Big5." }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 2. COMPLÉTION — Understat ~2 % NULL en Big5, WhoScored ~55 %, Odds ~52-64 %
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_column_values_to_not_be_null
+    for_each_column: [np_xg, np_xg_conceded, ppda, ppda_allowed, np_xg_diff_match]
+    kwargs: { mostly: 0.95 }
+    severity: warn
+    meta: { description: "Empirique 2.0-2.1 % NULL en Big5 (matches Cup/Europe qui débordent)." }
+
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - season_att_rating
+      - season_def_rating
+      - ws_dribbles_pg
+      - ws_fouled_pg
+      - ws_shots_ot_pg
+    kwargs: { mostly: 0.40 }
+    severity: warn
+    meta: { description: "Empirique ~55 % NULL en Big5 (WhoScored team_season pas exhaustif)." }
+
+  # Odds Pinnacle : 52.7 % NULL empirique en Big5
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - odds_pinnacle_team
+      - odds_pinnacle_draw
+      - odds_pinnacle_opp
+      - pinnacle_prob_team
+      - pinnacle_prob_draw
+      - pinnacle_prob_opp
+      - pinnacle_prob_close_team
+      - pinnacle_prob_close_draw
+      - pinnacle_prob_close_opp
+      - pinnacle_drift_team
+      - pinnacle_drift_draw
+      - pinnacle_drift_opp
+    kwargs: { mostly: 0.42 }
+    severity: warn
+    meta: { description: "Empirique ~52.7 % NULL." }
+
+  # Odds marché : 64 % NULL empirique
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - odds_avg_team
+      - odds_avg_draw
+      - odds_avg_opp
+      - market_prob_team
+      - market_prob_draw
+      - market_prob_opp
+      - market_prob_close_team
+      - market_prob_close_draw
+      - market_prob_close_opp
+    kwargs: { mostly: 0.30 }
+    severity: warn
+    meta: { description: "Empirique ~64 % NULL." }
+
+  # Over/Under 2.5 : 64 % NULL empirique
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - pinnacle_prob_over25
+      - pinnacle_prob_under25
+      - pinnacle_prob_close_over25
+      - pinnacle_prob_close_under25
+    kwargs: { mostly: 0.30 }
+    severity: warn
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 3. BORNES DE VALEURS
+  # ────────────────────────────────────────────────────────────────────────────
+  # Understat xG
+  - type: expect_column_values_to_be_between
+    for_each_column: [np_xg, np_xg_conceded]
+    kwargs: { min_value: 0, max_value: 10, mostly: 1.0 }
+    severity: error
+    meta: { description: "Empirique 0-7.11." }
+
+  - type: expect_column_values_to_be_between
+    kwargs: { column: np_xg_diff_match, min_value: -10, max_value: 10, mostly: 1.0 }
+    severity: error
+    meta: { description: "Empirique -6.27 à +6.27." }
+
+  # PPDA — attention A-007 max 193
+  - type: expect_column_values_to_be_between
+    for_each_column: [ppda, ppda_allowed]
+    kwargs: { min_value: 0, max_value: 250, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique 2-193 (A-007 : max extrême légitime)." }
+
+  # WhoScored ratings — bornes empiriques resserrées
+  - type: expect_column_values_to_be_between
+    for_each_column: [season_att_rating, season_def_rating]
+    kwargs: { min_value: 5, max_value: 8, mostly: 1.0 }
+    severity: error
+    meta: { description: "Empirique 6.26-7.14. A-027 : att == def (bug scraper)." }
+
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_dribbles_pg, min_value: 3, max_value: 20, mostly: 1.0 }
+    severity: error
+
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_fouled_pg, min_value: 5, max_value: 20, mostly: 1.0 }
+    severity: error
+
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ws_shots_ot_pg, min_value: 1, max_value: 15, mostly: 1.0 }
+    severity: error
+
+  # Cotes bookmakers — bornes physiques
+  - type: expect_column_values_to_be_between
+    for_each_column:
+      - odds_pinnacle_team
+      - odds_pinnacle_draw
+      - odds_pinnacle_opp
+      - odds_avg_team
+      - odds_avg_draw
+      - odds_avg_opp
+    kwargs: { min_value: 1.01, max_value: 100, mostly: 1.0 }
+    severity: error
+
+  # Probabilités : [0, 1]
+  - type: expect_column_values_to_be_between
+    for_each_column:
+      - pinnacle_prob_team
+      - pinnacle_prob_draw
+      - pinnacle_prob_opp
+      - market_prob_team
+      - market_prob_draw
+      - market_prob_opp
+      - pinnacle_prob_close_team
+      - pinnacle_prob_close_draw
+      - pinnacle_prob_close_opp
+      - market_prob_close_team
+      - market_prob_close_draw
+      - market_prob_close_opp
+      - pinnacle_prob_over25
+      - pinnacle_prob_under25
+      - pinnacle_prob_close_over25
+      - pinnacle_prob_close_under25
+    kwargs: { min_value: 0, max_value: 1, mostly: 1.0 }
+    severity: error
+
+  # Drifts : [-1, +1] (empirique -0.19 à +0.26)
+  - type: expect_column_values_to_be_between
+    for_each_column:
+      - pinnacle_drift_team
+      - pinnacle_drift_draw
+      - pinnacle_drift_opp
+    kwargs: { min_value: -1, max_value: 1, mostly: 1.0 }
+    severity: error
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 4. BORNES STATISTIQUES
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_column_mean_to_be_between
+    for_each_column: [np_xg, np_xg_conceded]
+    kwargs: { min_value: 0.8, max_value: 2.0 }
+    severity: error
+    meta: { description: "Empirique 1.308." }
+
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: np_xg_diff_match, min_value: -0.1, max_value: 0.1 }
+    severity: warn
+    meta: { description: "Structural : diff moyen ≈ 0 (deux équipes miroirs)." }
+
+  - type: expect_column_mean_to_be_between
+    for_each_column: [ppda, ppda_allowed]
+    kwargs: { min_value: 8, max_value: 18 }
+    severity: warn
+    meta: { description: "Empirique 12.46." }
+
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: pinnacle_prob_team, min_value: 0.35, max_value: 0.55 }
+    severity: warn
+    meta: { description: "Empirique 0.44 (avantage domicile)." }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 5. COHÉRENCES CROISÉES — contraintes physiques (miroir dbt, charte v2)
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "np_xg_diff_ok == 1"
+    severity: error
+    meta: { description: "np_xg_diff_match = np_xg - np_xg_conceded (0 violation empirique)." }
+
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "pinnacle_prob_sum_ok == 1"
+    severity: error
+    meta: { description: "Somme des 3 probas Pinnacle 1n2 = 1." }
+
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "market_prob_sum_ok == 1"
+    severity: error
+    meta: { description: "Somme des 3 probas marché 1n2 = 1." }
+
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "over_under_sum_ok == 1"
+    severity: error
+    meta: { description: "Somme over25 + under25 = 1." }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 6. DÉRIVE VOLUMÉTRIQUE INTER-SAISONS (Big5 uniquement)
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.20
+      max_deviation_error: 0.40
+      min_seasons_history: 2
+      exclude_partitions: ['2025-2026']
+    severity: warn

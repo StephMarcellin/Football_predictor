@@ -1,0 +1,135 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — gold.equipe_confrontation_match (GÉNÉRÉE AUTO 2026-09-09)
+# Volumétrie : 56,567 lignes, 14 colonnes
+# Bornes empiriques ± marge — à raffiner si nécessaire.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: gold.equipe_confrontation_match
+description: >
+  Suite auto-générée le 2026-09-09 pour gold.equipe_confrontation_match.
+  Volumétrie de référence : 56,567 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT "match_id", "team_id", "opponent_id", "opp_press_ppda_rolling_3", "self_buildup_resistance_rolling_3", "matchup_high_press_vs_buildup_rolling_3", "opp_press_ppda_rolling_5", "self_buildup_resistance_rolling_5", "matchup_high_press_vs_buildup_rolling_5", "opp_press_ppda_rolling_10", "self_buildup_resistance_rolling_10", "matchup_high_press_vs_buildup_rolling_10", "self_team_xgbuildup_lag", "opp_team_xgbuildup_lag" FROM gold."equipe_confrontation_match"
+
+expectations:
+
+  # ── VOLUMÉTRIE ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 22626, max_value: 113134 }
+    severity: error
+    meta: { description: "Empirique = 56,567. Bornes [22,626, 113,134]." }
+
+  # ── COMPLÉTION STRICTE (0 NULL empirique) ──
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - match_id
+      - team_id
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # ── COMPLÉTION AVEC NULLs EMPIRIQUES (mostly = 1 - empirique - 5pts) ──
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: opponent_id, mostly: 0.9138 }
+    severity: warn
+    meta: { description: "Empirique 3.62% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: opp_press_ppda_rolling_3, mostly: 0.4975 }
+    severity: warn
+    meta: { description: "Empirique 45.25% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: self_buildup_resistance_rolling_3, mostly: 0.4975 }
+    severity: warn
+    meta: { description: "Empirique 45.25% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: matchup_high_press_vs_buildup_rolling_3, mostly: 0.4969 }
+    severity: warn
+    meta: { description: "Empirique 45.31% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: opp_press_ppda_rolling_5, mostly: 0.5009 }
+    severity: warn
+    meta: { description: "Empirique 44.91% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: self_buildup_resistance_rolling_5, mostly: 0.5009 }
+    severity: warn
+    meta: { description: "Empirique 44.91% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: matchup_high_press_vs_buildup_rolling_5, mostly: 0.5004 }
+    severity: warn
+    meta: { description: "Empirique 44.96% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: opp_press_ppda_rolling_10, mostly: 0.5041 }
+    severity: warn
+    meta: { description: "Empirique 44.59% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: self_buildup_resistance_rolling_10, mostly: 0.5041 }
+    severity: warn
+    meta: { description: "Empirique 44.59% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: matchup_high_press_vs_buildup_rolling_10, mostly: 0.5036 }
+    severity: warn
+    meta: { description: "Empirique 44.64% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: self_team_xgbuildup_lag, mostly: 0.5405 }
+    severity: warn
+    meta: { description: "Empirique 40.95% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: opp_team_xgbuildup_lag, mostly: 0.537 }
+    severity: warn
+    meta: { description: "Empirique 41.30% NULL." }
+
+  # ── BORNES DE VALEURS NUMÉRIQUES ──
+  - type: expect_column_values_to_be_between
+    kwargs: { column: team_id, min_value: 202606099958, max_value: 202606100471, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100001, 202606100428], mean=2.03e+11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: opponent_id, min_value: 202606099000, max_value: 202606111006, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100001, 202606110005], mean=2.03e+11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: opp_press_ppda_rolling_3, min_value: -5.76380341880342, max_value: 93.86337606837607, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.5384615384615383, 85.56111111111112], mean=12.4." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: self_buildup_resistance_rolling_3, min_value: -4.871328671328673, max_value: 84.04615384615386, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.5384615384615383, 76.63636363636364], mean=12.4." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: matchup_high_press_vs_buildup_rolling_3, min_value: -1.140977365453081, max_value: 13.52104804968686, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.08085808580858087, 12.299212598425198], mean=1.12." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: opp_press_ppda_rolling_5, min_value: -4.307692307692308, max_value: 77.84615384615384, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.5384615384615383, 71.0], mean=12.4." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: self_buildup_resistance_rolling_5, min_value: -4.307692307692308, max_value: 77.84615384615384, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.5384615384615383, 71.0], mean=12.4." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: matchup_high_press_vs_buildup_rolling_5, min_value: -1.140977365453081, max_value: 13.52104804968686, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.08085808580858087, 12.299212598425198], mean=1.1." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: opp_press_ppda_rolling_10, min_value: -4.307692307692308, max_value: 77.84615384615384, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.5384615384615383, 71.0], mean=12.4." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: self_buildup_resistance_rolling_10, min_value: -4.307692307692308, max_value: 77.84615384615384, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.5384615384615383, 71.0], mean=12.4." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: matchup_high_press_vs_buildup_rolling_10, min_value: -1.140977365453081, max_value: 13.52104804968686, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.08085808580858087, 12.299212598425198], mean=1.08." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: self_team_xgbuildup_lag, min_value: 0.0, max_value: 69.1058931797152, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 62.82353925428654], mean=0.897." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: opp_team_xgbuildup_lag, min_value: 0.0, max_value: 69.1058931797152, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 62.82353925428654], mean=0.898." }

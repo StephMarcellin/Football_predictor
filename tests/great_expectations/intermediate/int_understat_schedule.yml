@@ -1,0 +1,116 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — intermediate.int_understat_schedule
+# Rôle : SIGNAL & DISTRIBUTIONS
+# Périmètre : Big5 domestique uniquement — pas de segmentation nécessaire.
+# ══════════════════════════════════════════════════════════════════════════════
+
+suite_name: intermediate.int_understat_schedule
+description: >
+  Signal statistique du calendrier Understat rematché sur match_id unifié.
+  Understat couvre uniquement les 5 grands championnats domestiques — une seule
+  suite couvre tout le périmètre.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT
+      match_id, us_match_id, team_id, opponent_id, season, league_source,
+      comp_category, source, is_result, match_url,
+      home_goals, away_goals, home_xg, away_xg
+    FROM intermediate.int_understat_schedule
+
+expectations:
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 1. VOLUMÉTRIE
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 12000, max_value: 25000 }
+    severity: error
+    meta: { description: "Empirique = 16 258 (9 saisons × ~1 800 matchs Big5)." }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 2. COMPLÉTION
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - match_id
+      - us_match_id
+      - team_id
+      - opponent_id
+      - season
+      - league_source
+      - comp_category
+      - source
+      - is_result
+      - match_url
+      - home_goals
+      - away_goals
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # home_xg / away_xg : 2.9 % NULL empirique + marge 5 pts
+  - type: expect_column_values_to_not_be_null
+    for_each_column: [home_xg, away_xg]
+    kwargs: { mostly: 0.92 }
+    severity: error
+    meta: { description: "Empirique 2.9 % NULL — matchs sans xG calculé." }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 3. BORNES DE VALEURS
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_column_values_to_be_between
+    for_each_column: [home_goals, away_goals]
+    kwargs: { min_value: 0, max_value: 15, mostly: 1.0 }
+    severity: error
+
+  - type: expect_column_values_to_be_between
+    for_each_column: [home_xg, away_xg]
+    kwargs: { min_value: 0, max_value: 10, mostly: 1.0 }
+    severity: error
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 4. BORNES STATISTIQUES
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: home_goals, min_value: 1.2, max_value: 1.8 }
+    severity: error
+    meta: { description: "Empirique = 1.49" }
+
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: away_goals, min_value: 0.9, max_value: 1.5 }
+    severity: error
+    meta: { description: "Empirique = 1.22" }
+
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: home_xg, min_value: 1.3, max_value: 1.9 }
+    severity: error
+    meta: { description: "Empirique = 1.59" }
+
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: away_xg, min_value: 1.0, max_value: 1.6 }
+    severity: error
+    meta: { description: "Empirique = 1.27" }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 5. COHÉRENCE CROISÉE
+  # ────────────────────────────────────────────────────────────────────────────
+  # is_result = 0 → home_goals = 0 AND away_goals = 0 (match à venir)
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "is_result == True or (home_goals == 0 and away_goals == 0)"
+    severity: error
+    meta: { description: "Un match à venir ne peut pas avoir de buts marqués." }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 6. DÉRIVE VOLUMÉTRIQUE INTER-SAISONS — exclut 2025-2026
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.10
+      max_deviation_error: 0.30
+      min_seasons_history: 2
+      exclude_partitions: ['2025-2026']
+    severity: warn
+    meta: { description: "Volumétrie très stable (~1826 matchs/saison Big5)." }

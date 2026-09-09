@@ -1,0 +1,607 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — gold.rolling_freekicks (GÉNÉRÉE AUTO 2026-09-09)
+# Volumétrie : 56,616 lignes, 74 colonnes
+# Bornes empiriques ± marge — à raffiner si nécessaire.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: gold.rolling_freekicks
+description: >
+  Suite auto-générée le 2026-09-09 pour gold.rolling_freekicks.
+  Volumétrie de référence : 56,616 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT "match_id", "team_id", "date", "season", "league_source", "freekicks_for_3", "freekick_danger_rate_for_3", "freekick_conversion_rate_for_3", "freekicks_against_3", "freekick_danger_rate_against_3", "freekick_conversion_rate_against_3", "freekick_danger_intensity_for_3", "freekick_danger_intensity_against_3", "freekick_header_share_for_3", "freekick_header_share_against_3", "freekick_header_goal_share_for_3", "freekick_header_goal_share_against_3", "freekick_forced_bad_clearance_rate_for_3", "freekick_clearance_fail_rate_against_3", "freekick_headed_clearance_rate_against_3", "freekick_direct_distance_avg_for_3", "freekick_direct_distance_avg_against_3", "freekick_direct_angle_avg_for_3", "freekick_direct_angle_avg_against_3", "freekick_zone_direct_rate_for_3", "freekick_zone_direct_rate_against_3", "freekick_zone_crossed_rate_for_3", "freekick_zone_crossed_rate_against_3", "freekicks_for_5", "freekick_danger_rate_for_5", "freekick_conversion_rate_for_5", "freekicks_against_5", "freekick_danger_rate_against_5", "freekick_conversion_rate_against_5", "freekick_danger_intensity_for_5", "freekick_danger_intensity_against_5", "freekick_header_share_for_5", "freekick_header_share_against_5", "freekick_header_goal_share_for_5", "freekick_header_goal_share_against_5", "freekick_forced_bad_clearance_rate_for_5", "freekick_clearance_fail_rate_against_5", "freekick_headed_clearance_rate_against_5", "freekick_direct_distance_avg_for_5", "freekick_direct_distance_avg_against_5", "freekick_direct_angle_avg_for_5", "freekick_direct_angle_avg_against_5", "freekick_zone_direct_rate_for_5", "freekick_zone_direct_rate_against_5", "freekick_zone_crossed_rate_for_5", "freekick_zone_crossed_rate_against_5", "freekicks_for_10", "freekick_danger_rate_for_10", "freekick_conversion_rate_for_10", "freekicks_against_10", "freekick_danger_rate_against_10", "freekick_conversion_rate_against_10", "freekick_danger_intensity_for_10", "freekick_danger_intensity_against_10", "freekick_header_share_for_10", "freekick_header_share_against_10", "freekick_header_goal_share_for_10", "freekick_header_goal_share_against_10", "freekick_forced_bad_clearance_rate_for_10", "freekick_clearance_fail_rate_against_10", "freekick_headed_clearance_rate_against_10", "freekick_direct_distance_avg_for_10", "freekick_direct_distance_avg_against_10", "freekick_direct_angle_avg_for_10", "freekick_direct_angle_avg_against_10", "freekick_zone_direct_rate_for_10", "freekick_zone_direct_rate_against_10", "freekick_zone_crossed_rate_for_10", "freekick_zone_crossed_rate_against_10" FROM gold."rolling_freekicks"
+
+expectations:
+
+  # ── VOLUMÉTRIE ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 22646, max_value: 113232 }
+    severity: error
+    meta: { description: "Empirique = 56,616. Bornes [22,646, 113,232]." }
+
+  # ── COMPLÉTION STRICTE (0 NULL empirique) ──
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - team_id
+      - date
+      - season
+      - league_source
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # ── COMPLÉTION AVEC NULLs EMPIRIQUES (mostly = 1 - empirique - 5pts) ──
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: match_id, mostly: 0.9491 }
+    severity: warn
+    meta: { description: "Empirique 0.09% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekicks_for_3, mostly: 0.0246 }
+    severity: warn
+    meta: { description: "Empirique 92.54% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_danger_rate_for_3, mostly: 0.0211 }
+    severity: warn
+    meta: { description: "Empirique 92.89% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_conversion_rate_for_3, mostly: 0.0 }
+    severity: warn
+    meta: { description: "Empirique 95.20% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekicks_against_3, mostly: 0.0246 }
+    severity: warn
+    meta: { description: "Empirique 92.54% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_danger_rate_against_3, mostly: 0.0204 }
+    severity: warn
+    meta: { description: "Empirique 92.96% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_conversion_rate_against_3, mostly: 0.0 }
+    severity: warn
+    meta: { description: "Empirique 95.28% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_danger_intensity_for_3, mostly: 0.0211 }
+    severity: warn
+    meta: { description: "Empirique 92.89% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_danger_intensity_against_3, mostly: 0.0204 }
+    severity: warn
+    meta: { description: "Empirique 92.96% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_header_share_for_3, mostly: 0.0 }
+    severity: warn
+    meta: { description: "Empirique 95.20% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_header_share_against_3, mostly: 0.0 }
+    severity: warn
+    meta: { description: "Empirique 95.28% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_header_goal_share_for_3, mostly: 0.0 }
+    severity: warn
+    meta: { description: "Empirique 99.27% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_header_goal_share_against_3, mostly: 0.0 }
+    severity: warn
+    meta: { description: "Empirique 99.27% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_forced_bad_clearance_rate_for_3, mostly: 0.0113 }
+    severity: warn
+    meta: { description: "Empirique 93.87% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_clearance_fail_rate_against_3, mostly: 0.0109 }
+    severity: warn
+    meta: { description: "Empirique 93.91% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_headed_clearance_rate_against_3, mostly: 0.0061 }
+    severity: warn
+    meta: { description: "Empirique 94.39% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_direct_distance_avg_for_3, mostly: 0.0 }
+    severity: warn
+    meta: { description: "Empirique 99.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_direct_distance_avg_against_3, mostly: 0.0 }
+    severity: warn
+    meta: { description: "Empirique 99.73% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_direct_angle_avg_for_3, mostly: 0.0 }
+    severity: warn
+    meta: { description: "Empirique 99.74% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_direct_angle_avg_against_3, mostly: 0.0 }
+    severity: warn
+    meta: { description: "Empirique 99.73% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_zone_direct_rate_for_3, mostly: 0.0246 }
+    severity: warn
+    meta: { description: "Empirique 92.54% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_zone_direct_rate_against_3, mostly: 0.0243 }
+    severity: warn
+    meta: { description: "Empirique 92.57% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_zone_crossed_rate_for_3, mostly: 0.0246 }
+    severity: warn
+    meta: { description: "Empirique 92.54% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_zone_crossed_rate_against_3, mostly: 0.0243 }
+    severity: warn
+    meta: { description: "Empirique 92.57% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekicks_for_5, mostly: 0.0247 }
+    severity: warn
+    meta: { description: "Empirique 92.53% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_danger_rate_for_5, mostly: 0.0236 }
+    severity: warn
+    meta: { description: "Empirique 92.64% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_conversion_rate_for_5, mostly: 0.0096 }
+    severity: warn
+    meta: { description: "Empirique 94.04% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekicks_against_5, mostly: 0.0247 }
+    severity: warn
+    meta: { description: "Empirique 92.53% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_danger_rate_against_5, mostly: 0.0231 }
+    severity: warn
+    meta: { description: "Empirique 92.69% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_conversion_rate_against_5, mostly: 0.0092 }
+    severity: warn
+    meta: { description: "Empirique 94.08% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_danger_intensity_for_5, mostly: 0.0236 }
+    severity: warn
+    meta: { description: "Empirique 92.64% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_danger_intensity_against_5, mostly: 0.0231 }
+    severity: warn
+    meta: { description: "Empirique 92.69% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_header_share_for_5, mostly: 0.0096 }
+    severity: warn
+    meta: { description: "Empirique 94.04% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_header_share_against_5, mostly: 0.0092 }
+    severity: warn
+    meta: { description: "Empirique 94.08% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_header_goal_share_for_5, mostly: 0.0 }
+    severity: warn
+    meta: { description: "Empirique 98.84% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_header_goal_share_against_5, mostly: 0.0 }
+    severity: warn
+    meta: { description: "Empirique 98.84% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_forced_bad_clearance_rate_for_5, mostly: 0.0193 }
+    severity: warn
+    meta: { description: "Empirique 93.07% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_clearance_fail_rate_against_5, mostly: 0.0186 }
+    severity: warn
+    meta: { description: "Empirique 93.14% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_headed_clearance_rate_against_5, mostly: 0.0159 }
+    severity: warn
+    meta: { description: "Empirique 93.41% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_direct_distance_avg_for_5, mostly: 0.0 }
+    severity: warn
+    meta: { description: "Empirique 99.58% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_direct_distance_avg_against_5, mostly: 0.0 }
+    severity: warn
+    meta: { description: "Empirique 99.56% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_direct_angle_avg_for_5, mostly: 0.0 }
+    severity: warn
+    meta: { description: "Empirique 99.58% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_direct_angle_avg_against_5, mostly: 0.0 }
+    severity: warn
+    meta: { description: "Empirique 99.56% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_zone_direct_rate_for_5, mostly: 0.0247 }
+    severity: warn
+    meta: { description: "Empirique 92.53% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_zone_direct_rate_against_5, mostly: 0.0247 }
+    severity: warn
+    meta: { description: "Empirique 92.53% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_zone_crossed_rate_for_5, mostly: 0.0247 }
+    severity: warn
+    meta: { description: "Empirique 92.53% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_zone_crossed_rate_against_5, mostly: 0.0247 }
+    severity: warn
+    meta: { description: "Empirique 92.53% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekicks_for_10, mostly: 0.0247 }
+    severity: warn
+    meta: { description: "Empirique 92.53% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_danger_rate_for_10, mostly: 0.0238 }
+    severity: warn
+    meta: { description: "Empirique 92.62% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_conversion_rate_for_10, mostly: 0.0179 }
+    severity: warn
+    meta: { description: "Empirique 93.21% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekicks_against_10, mostly: 0.0247 }
+    severity: warn
+    meta: { description: "Empirique 92.53% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_danger_rate_against_10, mostly: 0.0237 }
+    severity: warn
+    meta: { description: "Empirique 92.63% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_conversion_rate_against_10, mostly: 0.0181 }
+    severity: warn
+    meta: { description: "Empirique 93.19% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_danger_intensity_for_10, mostly: 0.0238 }
+    severity: warn
+    meta: { description: "Empirique 92.62% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_danger_intensity_against_10, mostly: 0.0237 }
+    severity: warn
+    meta: { description: "Empirique 92.63% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_header_share_for_10, mostly: 0.0179 }
+    severity: warn
+    meta: { description: "Empirique 93.21% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_header_share_against_10, mostly: 0.0181 }
+    severity: warn
+    meta: { description: "Empirique 93.19% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_header_goal_share_for_10, mostly: 0.0 }
+    severity: warn
+    meta: { description: "Empirique 98.00% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_header_goal_share_against_10, mostly: 0.0 }
+    severity: warn
+    meta: { description: "Empirique 98.05% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_forced_bad_clearance_rate_for_10, mostly: 0.022 }
+    severity: warn
+    meta: { description: "Empirique 92.80% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_clearance_fail_rate_against_10, mostly: 0.0216 }
+    severity: warn
+    meta: { description: "Empirique 92.84% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_headed_clearance_rate_against_10, mostly: 0.0207 }
+    severity: warn
+    meta: { description: "Empirique 92.93% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_direct_distance_avg_for_10, mostly: 0.0 }
+    severity: warn
+    meta: { description: "Empirique 99.29% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_direct_distance_avg_against_10, mostly: 0.0 }
+    severity: warn
+    meta: { description: "Empirique 99.24% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_direct_angle_avg_for_10, mostly: 0.0 }
+    severity: warn
+    meta: { description: "Empirique 99.29% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_direct_angle_avg_against_10, mostly: 0.0 }
+    severity: warn
+    meta: { description: "Empirique 99.24% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_zone_direct_rate_for_10, mostly: 0.0247 }
+    severity: warn
+    meta: { description: "Empirique 92.53% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_zone_direct_rate_against_10, mostly: 0.0247 }
+    severity: warn
+    meta: { description: "Empirique 92.53% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_zone_crossed_rate_for_10, mostly: 0.0247 }
+    severity: warn
+    meta: { description: "Empirique 92.53% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: freekick_zone_crossed_rate_against_10, mostly: 0.0247 }
+    severity: warn
+    meta: { description: "Empirique 92.53% NULL." }
+
+  # ── BORNES DE VALEURS NUMÉRIQUES ──
+  - type: expect_column_values_to_be_between
+    kwargs: { column: team_id, min_value: 202606099958, max_value: 202606100471, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100001, 202606100428], mean=2.03e+11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekicks_for_3, min_value: 0, max_value: 16, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 14], mean=3.58." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_danger_rate_for_3, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.31." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_conversion_rate_for_3, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.0961." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekicks_against_3, min_value: 0, max_value: 15, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 13], mean=3.56." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_danger_rate_against_3, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.311." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_conversion_rate_against_3, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.0982." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_danger_intensity_for_3, min_value: 0.0, max_value: 2.1097324839717615, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.9179386217925103], mean=0.3." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_danger_intensity_against_3, min_value: 0.0, max_value: 2.7151810524259217, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 2.4683464112962925], mean=0.3." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_header_share_for_3, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.537." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_header_share_against_3, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.534." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_header_goal_share_for_3, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.485." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_header_goal_share_against_3, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.472." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_forced_bad_clearance_rate_for_3, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.48." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_clearance_fail_rate_against_3, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.476." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_headed_clearance_rate_against_3, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.984." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_direct_distance_avg_for_3, min_value: 17.469791954616795, max_value: 35.78024550694969, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [18.99566308397787, 34.25437437758862], mean=25.4." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_direct_distance_avg_against_3, min_value: 17.469791954616795, max_value: 35.78024550694969, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [18.99566308397787, 34.25437437758862], mean=25.3." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_direct_angle_avg_for_3, min_value: 0.19612000484003067, max_value: 0.3955682810118144, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.21274069452101266, 0.37894759133083245], mean=0.281." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_direct_angle_avg_against_3, min_value: 0.19612000484003067, max_value: 0.3955682810118144, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.21274069452101266, 0.37894759133083245], mean=0.282." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_zone_direct_rate_for_3, min_value: 0.0, max_value: 0.07857142857142857, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.07142857142857142], mean=0.000975." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_zone_direct_rate_against_3, min_value: 0.0, max_value: 0.08461538461538462, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.07692307692307693], mean=0.00108." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_zone_crossed_rate_for_3, min_value: 0.0, max_value: 0.4714285714285714, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.42857142857142855], mean=0.103." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_zone_crossed_rate_against_3, min_value: 0.0, max_value: 0.5041666666666667, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.4583333333333333], mean=0.104." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekicks_for_5, min_value: 0, max_value: 23, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 20], mean=5.79." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_danger_rate_for_5, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.308." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_conversion_rate_for_5, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.0961." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekicks_against_5, min_value: 0, max_value: 20, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 18], mean=5.76." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_danger_rate_against_5, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.31." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_conversion_rate_against_5, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.0985." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_danger_intensity_for_5, min_value: 0.0, max_value: 1.7171352977666472, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.56103208887877], mean=0.298." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_danger_intensity_against_5, min_value: 0.0, max_value: 2.370043389847223, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 2.1545848998611117], mean=0.298." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_header_share_for_5, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.533." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_header_share_against_5, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.528." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_header_goal_share_for_5, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.475." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_header_goal_share_against_5, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.46." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_forced_bad_clearance_rate_for_5, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.48." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_clearance_fail_rate_against_5, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.476." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_headed_clearance_rate_against_5, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.986." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_direct_distance_avg_for_5, min_value: 17.469791954616795, max_value: 35.78024550694969, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [18.99566308397787, 34.25437437758862], mean=25.4." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_direct_distance_avg_against_5, min_value: 17.469791954616795, max_value: 35.78024550694969, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [18.99566308397787, 34.25437437758862], mean=25.3." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_direct_angle_avg_for_5, min_value: 0.19612000484003067, max_value: 0.3955682810118144, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.21274069452101266, 0.37894759133083245], mean=0.282." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_direct_angle_avg_against_5, min_value: 0.19612000484003067, max_value: 0.3955682810118144, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.21274069452101266, 0.37894759133083245], mean=0.282." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_zone_direct_rate_for_5, min_value: 0.0, max_value: 0.07857142857142857, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.07142857142857142], mean=0.000981." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_zone_direct_rate_against_5, min_value: 0.0, max_value: 0.08461538461538462, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.07692307692307693], mean=0.00107." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_zone_crossed_rate_for_5, min_value: 0.0, max_value: 0.4714285714285714, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.42857142857142855], mean=0.103." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_zone_crossed_rate_against_5, min_value: 0.0, max_value: 0.4714285714285714, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.42857142857142855], mean=0.104." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekicks_for_10, min_value: 0, max_value: 35, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 31], mean=10.7." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_danger_rate_for_10, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.307." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_conversion_rate_for_10, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.0927." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekicks_against_10, min_value: 0, max_value: 32, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 29], mean=10.7." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_danger_rate_against_10, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.309." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_conversion_rate_against_10, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.0942." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_danger_intensity_for_10, min_value: 0.0, max_value: 1.7163488001079252, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.5603170910072048], mean=0.298." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_danger_intensity_against_10, min_value: 0.0, max_value: 2.1195592459297825, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.9268720417543477], mean=0.297." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_header_share_for_10, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.524." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_header_share_against_10, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.523." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_header_goal_share_for_10, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.44." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_header_goal_share_against_10, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.43." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_forced_bad_clearance_rate_for_10, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.478." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_clearance_fail_rate_against_10, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.474." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_headed_clearance_rate_against_10, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.985." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_direct_distance_avg_for_10, min_value: 17.469791954616795, max_value: 35.78024550694969, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [18.99566308397787, 34.25437437758862], mean=25.3." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_direct_distance_avg_against_10, min_value: 17.469791954616795, max_value: 35.78024550694969, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [18.99566308397787, 34.25437437758862], mean=25.3." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_direct_angle_avg_for_10, min_value: 0.19612000484003067, max_value: 0.3955682810118144, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.21274069452101266, 0.37894759133083245], mean=0.283." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_direct_angle_avg_against_10, min_value: 0.19612000484003067, max_value: 0.3955682810118144, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.21274069452101266, 0.37894759133083245], mean=0.283." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_zone_direct_rate_for_10, min_value: 0.0, max_value: 0.07857142857142857, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.07142857142857142], mean=0.000984." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_zone_direct_rate_against_10, min_value: 0.0, max_value: 0.07857142857142857, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.07142857142857142], mean=0.00105." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_zone_crossed_rate_for_10, min_value: 0.0, max_value: 0.4714285714285714, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.42857142857142855], mean=0.103." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: freekick_zone_crossed_rate_against_10, min_value: 0.0, max_value: 0.4714285714285714, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.42857142857142855], mean=0.103." }
+
+  # ── DÉRIVE VOLUMÉTRIQUE INTER-SAISONS ──
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.20
+      max_deviation_error: 0.40
+      min_seasons_history: 2
+      exclude_partitions: ['2025-2026']
+    severity: warn

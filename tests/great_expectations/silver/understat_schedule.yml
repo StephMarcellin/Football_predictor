@@ -1,0 +1,86 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — silver.understat_schedule
+# Rôle : SIGNAL & DISTRIBUTIONS
+# Contrainte spatiotemporelle : Understat = 100 % Big5 domestique. Aucune segmentation.
+# Test dérive volumétrique : exclut 2025-2026.
+# ══════════════════════════════════════════════════════════════════════════════
+
+suite_name: silver.understat_schedule
+description: >
+  Signal statistique de la source silver.understat_schedule. 100 % Big5 domestique
+  par nature (Understat ne couvre pas les autres compétitions).
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT
+      match_id, match_url, home_team, away_team,
+      home_goals, away_goals, home_xg, away_xg,
+      is_result, league_source, season, comp_category, source
+    FROM silver.understat_schedule
+
+expectations:
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 12000, max_value: 25000 }
+    severity: error
+    meta: { description: "Empirique = 16 212." }
+
+  # NULL rate
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - match_id
+      - match_url
+      - home_team
+      - away_team
+      - home_goals
+      - away_goals
+      - is_result
+      - league_source
+      - season
+      - comp_category
+      - source
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # xG : NULL légitime quand is_result=false (~2.66 %)
+  - type: expect_column_values_to_not_be_null
+    for_each_column: [home_xg, away_xg]
+    kwargs: { mostly: 0.92 }
+    severity: warn
+    meta: { description: "Empirique = 2.66 % NULL (matches à venir). Marge +5 pts." }
+
+  # Bornes goals et xG
+  - type: expect_column_values_to_be_between
+    for_each_column: [home_goals, away_goals]
+    kwargs: { min_value: 0, max_value: 15, mostly: 1.0 }
+    severity: error
+
+  - type: expect_column_values_to_be_between
+    for_each_column: [home_xg, away_xg]
+    kwargs: { min_value: 0, max_value: 10, mostly: 1.0 }
+    severity: error
+    meta: { description: "Max empirique 6.88/7.11." }
+
+  # Moyennes
+  - type: expect_column_mean_to_be_between
+    for_each_column: [home_goals, away_goals, home_xg, away_xg]
+    kwargs: { min_value: 1.0, max_value: 2.0 }
+    severity: error
+    meta: { description: "Empirique hg=1.50 ag=1.22 hxg=1.59 axg=1.27" }
+
+  # ── Cohérence croisée : is_result=false ↔ xG NULL ──
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "(is_result == True and home_xg == home_xg) or (is_result == False and home_xg != home_xg)"
+    severity: warn
+    meta: { description: "is_result=false doit coïncider avec xG NULL (NaN en pandas)." }
+
+  # Dérive volumétrique
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.20
+      max_deviation_error: 0.40
+      min_seasons_history: 2
+      exclude_partitions: ['2025-2026']
+    severity: warn

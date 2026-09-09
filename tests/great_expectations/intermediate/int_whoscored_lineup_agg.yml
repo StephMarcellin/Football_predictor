@@ -1,0 +1,80 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — intermediate.int_whoscored_lineup_agg (GÉNÉRÉE AUTO 2026-09-09)
+# Volumétrie : 492,793 lignes, 8 colonnes
+# Bornes empiriques ± marge — à raffiner si nécessaire.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: intermediate.int_whoscored_lineup_agg
+description: >
+  Suite auto-générée le 2026-09-09 pour intermediate.int_whoscored_lineup_agg.
+  Volumétrie de référence : 492,793 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT "match_id", "team_id", "player_id", "avg_vertical", "avg_horizontal", "primary_slot", "is_captain", "n_formation_periods" FROM intermediate."int_whoscored_lineup_agg"
+
+expectations:
+
+  # ── VOLUMÉTRIE ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 197117, max_value: 985586 }
+    severity: error
+    meta: { description: "Empirique = 492,793. Bornes [197,117, 985,586]." }
+
+  # ── COMPLÉTION STRICTE (0 NULL empirique) ──
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - player_id
+      - primary_slot
+      - n_formation_periods
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # ── COMPLÉTION AVEC NULLs EMPIRIQUES (mostly = 1 - empirique - 5pts) ──
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: match_id, mostly: 0.9462 }
+    severity: warn
+    meta: { description: "Empirique 0.38% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: team_id, mostly: 0.9496 }
+    severity: warn
+    meta: { description: "Empirique 0.04% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: avg_vertical, mostly: 0.9473 }
+    severity: warn
+    meta: { description: "Empirique 0.27% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: avg_horizontal, mostly: 0.9473 }
+    severity: warn
+    meta: { description: "Empirique 0.27% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: is_captain, mostly: 0.9499 }
+    severity: warn
+    meta: { description: "Empirique 0.01% NULL." }
+
+  # ── BORNES DE VALEURS NUMÉRIQUES ──
+  - type: expect_column_values_to_be_between
+    kwargs: { column: team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100001, 202606100426], mean=2.03e+11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: player_id, min_value: 0, max_value: 617975, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 561795], mean=2.16e+05." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: avg_vertical, min_value: 0, max_value: 9.9, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 9.0], mean=5.03." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: avg_horizontal, min_value: 0.19999999999999996, max_value: 9.8, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.0, 9.0], mean=4.99." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: primary_slot, min_value: 0, max_value: 13, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1, 11], mean=6.39." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: n_formation_periods, min_value: -40, max_value: 454, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1, 412], mean=3.57." }

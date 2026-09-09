@@ -1,0 +1,982 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — gold.equipe_match (GÉNÉRÉE AUTO 2026-09-09)
+# Volumétrie : 56,616 lignes, 123 colonnes
+# Bornes empiriques ± marge — à raffiner si nécessaire.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: gold.equipe_match
+description: >
+  Suite auto-générée le 2026-09-09 pour gold.equipe_match.
+  Volumétrie de référence : 56,616 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT "match_id", "team_id", "opponent_id", "date", "season", "league_source", "venue", "comp_category", "is_home", "days_since_last_game", "avg_gf_rolling_3", "avg_ga_rolling_3", "avg_np_xg_rolling_3", "avg_np_xg_conceded_rolling_3", "avg_np_xg_diff_rolling_3", "points_rolling_3", "win_rate_rolling_3", "draw_rate_rolling_3", "loss_rate_rolling_3", "clean_sheet_rate_rolling_3", "failed_to_score_rate_rolling_3", "shots_rolling_3", "shots_ot_rolling_3", "ppda_rolling_3", "ppda_allowed_rolling_3", "field_tilt_rolling_3", "counter_attack_dna_rolling_3", "attack_left_pct_rolling_3", "attack_center_pct_rolling_3", "attack_right_pct_rolling_3", "def_exposed_left_pct_rolling_3", "def_exposed_center_pct_rolling_3", "def_exposed_right_pct_rolling_3", "cross_rate_rolling_3", "through_ball_rate_rolling_3", "long_ball_rate_rolling_3", "shot_six_yard_pct_rolling_3", "shot_open_play_pct_rolling_3", "shot_set_piece_pct_rolling_3", "set_piece_reliance_rolling_3", "defensive_line_height_rolling_3", "yellow_cards_rolling_3", "fouls_committed_rolling_3", "fouls_drawn_rolling_3", "corners_for_rolling_3", "corners_against_rolling_3", "shots_blocked_rolling_3", "avg_gf_rolling_5", "avg_ga_rolling_5", "avg_np_xg_rolling_5", "avg_np_xg_conceded_rolling_5", "avg_np_xg_diff_rolling_5", "points_rolling_5", "win_rate_rolling_5", "draw_rate_rolling_5", "loss_rate_rolling_5", "clean_sheet_rate_rolling_5", "failed_to_score_rate_rolling_5", "shots_rolling_5", "shots_ot_rolling_5", "ppda_rolling_5", "ppda_allowed_rolling_5", "field_tilt_rolling_5", "counter_attack_dna_rolling_5", "attack_left_pct_rolling_5", "attack_center_pct_rolling_5", "attack_right_pct_rolling_5", "def_exposed_left_pct_rolling_5", "def_exposed_center_pct_rolling_5", "def_exposed_right_pct_rolling_5", "cross_rate_rolling_5", "through_ball_rate_rolling_5", "long_ball_rate_rolling_5", "shot_six_yard_pct_rolling_5", "shot_open_play_pct_rolling_5", "shot_set_piece_pct_rolling_5", "set_piece_reliance_rolling_5", "defensive_line_height_rolling_5", "yellow_cards_rolling_5", "fouls_committed_rolling_5", "fouls_drawn_rolling_5", "corners_for_rolling_5", "corners_against_rolling_5", "shots_blocked_rolling_5", "avg_gf_rolling_10", "avg_ga_rolling_10", "avg_np_xg_rolling_10", "avg_np_xg_conceded_rolling_10", "avg_np_xg_diff_rolling_10", "points_rolling_10", "win_rate_rolling_10", "draw_rate_rolling_10", "loss_rate_rolling_10", "clean_sheet_rate_rolling_10", "failed_to_score_rate_rolling_10", "shots_rolling_10", "shots_ot_rolling_10", "ppda_rolling_10", "ppda_allowed_rolling_10", "field_tilt_rolling_10", "counter_attack_dna_rolling_10", "attack_left_pct_rolling_10", "attack_center_pct_rolling_10", "attack_right_pct_rolling_10", "def_exposed_left_pct_rolling_10", "def_exposed_center_pct_rolling_10", "def_exposed_right_pct_rolling_10", "cross_rate_rolling_10", "through_ball_rate_rolling_10", "long_ball_rate_rolling_10", "shot_six_yard_pct_rolling_10", "shot_open_play_pct_rolling_10", "shot_set_piece_pct_rolling_10", "set_piece_reliance_rolling_10", "defensive_line_height_rolling_10", "yellow_cards_rolling_10", "fouls_committed_rolling_10", "fouls_drawn_rolling_10", "corners_for_rolling_10", "corners_against_rolling_10", "shots_blocked_rolling_10", "season_xg_per_shot_for_lag", "season_xg_per_shot_against_lag" FROM gold."equipe_match"
+
+expectations:
+
+  # ── VOLUMÉTRIE ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 22646, max_value: 113232 }
+    severity: error
+    meta: { description: "Empirique = 56,616. Bornes [22,646, 113,232]." }
+
+  # ── COMPLÉTION STRICTE (0 NULL empirique) ──
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - team_id
+      - date
+      - season
+      - league_source
+      - venue
+      - comp_category
+      - is_home
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # ── COMPLÉTION AVEC NULLs EMPIRIQUES (mostly = 1 - empirique - 5pts) ──
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: match_id, mostly: 0.9491 }
+    severity: warn
+    meta: { description: "Empirique 0.09% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: opponent_id, mostly: 0.9138 }
+    severity: warn
+    meta: { description: "Empirique 3.62% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: days_since_last_game, mostly: 0.9466 }
+    severity: warn
+    meta: { description: "Empirique 0.34% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: avg_gf_rolling_3, mostly: 0.8908 }
+    severity: warn
+    meta: { description: "Empirique 5.92% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: avg_ga_rolling_3, mostly: 0.8908 }
+    severity: warn
+    meta: { description: "Empirique 5.92% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: avg_np_xg_rolling_3, mostly: 0.497 }
+    severity: warn
+    meta: { description: "Empirique 45.30% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: avg_np_xg_conceded_rolling_3, mostly: 0.497 }
+    severity: warn
+    meta: { description: "Empirique 45.30% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: avg_np_xg_diff_rolling_3, mostly: 0.497 }
+    severity: warn
+    meta: { description: "Empirique 45.30% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: points_rolling_3, mostly: 0.8908 }
+    severity: warn
+    meta: { description: "Empirique 5.92% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: win_rate_rolling_3, mostly: 0.8908 }
+    severity: warn
+    meta: { description: "Empirique 5.92% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: draw_rate_rolling_3, mostly: 0.8908 }
+    severity: warn
+    meta: { description: "Empirique 5.92% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: loss_rate_rolling_3, mostly: 0.8908 }
+    severity: warn
+    meta: { description: "Empirique 5.92% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: clean_sheet_rate_rolling_3, mostly: 0.8817 }
+    severity: warn
+    meta: { description: "Empirique 6.83% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: failed_to_score_rate_rolling_3, mostly: 0.8908 }
+    severity: warn
+    meta: { description: "Empirique 5.92% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: shots_rolling_3, mostly: 0.8817 }
+    severity: warn
+    meta: { description: "Empirique 6.83% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: shots_ot_rolling_3, mostly: 0.8817 }
+    severity: warn
+    meta: { description: "Empirique 6.83% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: ppda_rolling_3, mostly: 0.497 }
+    severity: warn
+    meta: { description: "Empirique 45.30% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: ppda_allowed_rolling_3, mostly: 0.497 }
+    severity: warn
+    meta: { description: "Empirique 45.30% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: field_tilt_rolling_3, mostly: 0.6686 }
+    severity: warn
+    meta: { description: "Empirique 28.14% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: counter_attack_dna_rolling_3, mostly: 0.6686 }
+    severity: warn
+    meta: { description: "Empirique 28.14% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: attack_left_pct_rolling_3, mostly: 0.6686 }
+    severity: warn
+    meta: { description: "Empirique 28.14% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: attack_center_pct_rolling_3, mostly: 0.6686 }
+    severity: warn
+    meta: { description: "Empirique 28.14% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: attack_right_pct_rolling_3, mostly: 0.6686 }
+    severity: warn
+    meta: { description: "Empirique 28.14% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: def_exposed_left_pct_rolling_3, mostly: 0.6686 }
+    severity: warn
+    meta: { description: "Empirique 28.14% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: def_exposed_center_pct_rolling_3, mostly: 0.6686 }
+    severity: warn
+    meta: { description: "Empirique 28.14% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: def_exposed_right_pct_rolling_3, mostly: 0.6686 }
+    severity: warn
+    meta: { description: "Empirique 28.14% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: cross_rate_rolling_3, mostly: 0.6686 }
+    severity: warn
+    meta: { description: "Empirique 28.14% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: through_ball_rate_rolling_3, mostly: 0.6686 }
+    severity: warn
+    meta: { description: "Empirique 28.14% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: long_ball_rate_rolling_3, mostly: 0.6686 }
+    severity: warn
+    meta: { description: "Empirique 28.14% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: shot_six_yard_pct_rolling_3, mostly: 0.6686 }
+    severity: warn
+    meta: { description: "Empirique 28.14% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: shot_open_play_pct_rolling_3, mostly: 0.6686 }
+    severity: warn
+    meta: { description: "Empirique 28.14% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: shot_set_piece_pct_rolling_3, mostly: 0.6686 }
+    severity: warn
+    meta: { description: "Empirique 28.14% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: set_piece_reliance_rolling_3, mostly: 0.6686 }
+    severity: warn
+    meta: { description: "Empirique 28.14% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: defensive_line_height_rolling_3, mostly: 0.6686 }
+    severity: warn
+    meta: { description: "Empirique 28.14% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: yellow_cards_rolling_3, mostly: 0.8808 }
+    severity: warn
+    meta: { description: "Empirique 6.92% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: fouls_committed_rolling_3, mostly: 0.8808 }
+    severity: warn
+    meta: { description: "Empirique 6.92% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: fouls_drawn_rolling_3, mostly: 0.6686 }
+    severity: warn
+    meta: { description: "Empirique 28.14% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corners_for_rolling_3, mostly: 0.5424 }
+    severity: warn
+    meta: { description: "Empirique 40.76% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corners_against_rolling_3, mostly: 0.5419 }
+    severity: warn
+    meta: { description: "Empirique 40.81% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: shots_blocked_rolling_3, mostly: 0.0243 }
+    severity: warn
+    meta: { description: "Empirique 92.57% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: avg_gf_rolling_5, mostly: 0.8908 }
+    severity: warn
+    meta: { description: "Empirique 5.92% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: avg_ga_rolling_5, mostly: 0.8908 }
+    severity: warn
+    meta: { description: "Empirique 5.92% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: avg_np_xg_rolling_5, mostly: 0.5004 }
+    severity: warn
+    meta: { description: "Empirique 44.96% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: avg_np_xg_conceded_rolling_5, mostly: 0.5004 }
+    severity: warn
+    meta: { description: "Empirique 44.96% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: avg_np_xg_diff_rolling_5, mostly: 0.5004 }
+    severity: warn
+    meta: { description: "Empirique 44.96% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: points_rolling_5, mostly: 0.8908 }
+    severity: warn
+    meta: { description: "Empirique 5.92% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: win_rate_rolling_5, mostly: 0.8908 }
+    severity: warn
+    meta: { description: "Empirique 5.92% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: draw_rate_rolling_5, mostly: 0.8908 }
+    severity: warn
+    meta: { description: "Empirique 5.92% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: loss_rate_rolling_5, mostly: 0.8908 }
+    severity: warn
+    meta: { description: "Empirique 5.92% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: clean_sheet_rate_rolling_5, mostly: 0.8854 }
+    severity: warn
+    meta: { description: "Empirique 6.46% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: failed_to_score_rate_rolling_5, mostly: 0.8908 }
+    severity: warn
+    meta: { description: "Empirique 5.92% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: shots_rolling_5, mostly: 0.8854 }
+    severity: warn
+    meta: { description: "Empirique 6.46% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: shots_ot_rolling_5, mostly: 0.8854 }
+    severity: warn
+    meta: { description: "Empirique 6.46% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: ppda_rolling_5, mostly: 0.5004 }
+    severity: warn
+    meta: { description: "Empirique 44.96% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: ppda_allowed_rolling_5, mostly: 0.5004 }
+    severity: warn
+    meta: { description: "Empirique 44.96% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: field_tilt_rolling_5, mostly: 0.6739 }
+    severity: warn
+    meta: { description: "Empirique 27.61% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: counter_attack_dna_rolling_5, mostly: 0.6739 }
+    severity: warn
+    meta: { description: "Empirique 27.61% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: attack_left_pct_rolling_5, mostly: 0.6739 }
+    severity: warn
+    meta: { description: "Empirique 27.61% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: attack_center_pct_rolling_5, mostly: 0.6739 }
+    severity: warn
+    meta: { description: "Empirique 27.61% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: attack_right_pct_rolling_5, mostly: 0.6739 }
+    severity: warn
+    meta: { description: "Empirique 27.61% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: def_exposed_left_pct_rolling_5, mostly: 0.6739 }
+    severity: warn
+    meta: { description: "Empirique 27.61% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: def_exposed_center_pct_rolling_5, mostly: 0.6739 }
+    severity: warn
+    meta: { description: "Empirique 27.61% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: def_exposed_right_pct_rolling_5, mostly: 0.6739 }
+    severity: warn
+    meta: { description: "Empirique 27.61% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: cross_rate_rolling_5, mostly: 0.6739 }
+    severity: warn
+    meta: { description: "Empirique 27.61% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: through_ball_rate_rolling_5, mostly: 0.6739 }
+    severity: warn
+    meta: { description: "Empirique 27.61% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: long_ball_rate_rolling_5, mostly: 0.6739 }
+    severity: warn
+    meta: { description: "Empirique 27.61% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: shot_six_yard_pct_rolling_5, mostly: 0.6739 }
+    severity: warn
+    meta: { description: "Empirique 27.61% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: shot_open_play_pct_rolling_5, mostly: 0.6739 }
+    severity: warn
+    meta: { description: "Empirique 27.61% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: shot_set_piece_pct_rolling_5, mostly: 0.6739 }
+    severity: warn
+    meta: { description: "Empirique 27.61% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: set_piece_reliance_rolling_5, mostly: 0.6739 }
+    severity: warn
+    meta: { description: "Empirique 27.61% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: defensive_line_height_rolling_5, mostly: 0.6739 }
+    severity: warn
+    meta: { description: "Empirique 27.61% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: yellow_cards_rolling_5, mostly: 0.8844 }
+    severity: warn
+    meta: { description: "Empirique 6.56% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: fouls_committed_rolling_5, mostly: 0.8844 }
+    severity: warn
+    meta: { description: "Empirique 6.56% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: fouls_drawn_rolling_5, mostly: 0.6739 }
+    severity: warn
+    meta: { description: "Empirique 27.61% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corners_for_rolling_5, mostly: 0.5458 }
+    severity: warn
+    meta: { description: "Empirique 40.42% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corners_against_rolling_5, mostly: 0.5455 }
+    severity: warn
+    meta: { description: "Empirique 40.45% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: shots_blocked_rolling_5, mostly: 0.0247 }
+    severity: warn
+    meta: { description: "Empirique 92.53% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: avg_gf_rolling_10, mostly: 0.8908 }
+    severity: warn
+    meta: { description: "Empirique 5.92% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: avg_ga_rolling_10, mostly: 0.8908 }
+    severity: warn
+    meta: { description: "Empirique 5.92% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: avg_np_xg_rolling_10, mostly: 0.5036 }
+    severity: warn
+    meta: { description: "Empirique 44.64% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: avg_np_xg_conceded_rolling_10, mostly: 0.5036 }
+    severity: warn
+    meta: { description: "Empirique 44.64% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: avg_np_xg_diff_rolling_10, mostly: 0.5036 }
+    severity: warn
+    meta: { description: "Empirique 44.64% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: points_rolling_10, mostly: 0.8908 }
+    severity: warn
+    meta: { description: "Empirique 5.92% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: win_rate_rolling_10, mostly: 0.8908 }
+    severity: warn
+    meta: { description: "Empirique 5.92% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: draw_rate_rolling_10, mostly: 0.8908 }
+    severity: warn
+    meta: { description: "Empirique 5.92% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: loss_rate_rolling_10, mostly: 0.8908 }
+    severity: warn
+    meta: { description: "Empirique 5.92% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: clean_sheet_rate_rolling_10, mostly: 0.89 }
+    severity: warn
+    meta: { description: "Empirique 6.00% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: failed_to_score_rate_rolling_10, mostly: 0.8908 }
+    severity: warn
+    meta: { description: "Empirique 5.92% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: shots_rolling_10, mostly: 0.89 }
+    severity: warn
+    meta: { description: "Empirique 6.00% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: shots_ot_rolling_10, mostly: 0.89 }
+    severity: warn
+    meta: { description: "Empirique 6.00% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: ppda_rolling_10, mostly: 0.5036 }
+    severity: warn
+    meta: { description: "Empirique 44.64% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: ppda_allowed_rolling_10, mostly: 0.5036 }
+    severity: warn
+    meta: { description: "Empirique 44.64% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: field_tilt_rolling_10, mostly: 0.6806 }
+    severity: warn
+    meta: { description: "Empirique 26.94% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: counter_attack_dna_rolling_10, mostly: 0.6806 }
+    severity: warn
+    meta: { description: "Empirique 26.94% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: attack_left_pct_rolling_10, mostly: 0.6806 }
+    severity: warn
+    meta: { description: "Empirique 26.94% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: attack_center_pct_rolling_10, mostly: 0.6806 }
+    severity: warn
+    meta: { description: "Empirique 26.94% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: attack_right_pct_rolling_10, mostly: 0.6806 }
+    severity: warn
+    meta: { description: "Empirique 26.94% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: def_exposed_left_pct_rolling_10, mostly: 0.6806 }
+    severity: warn
+    meta: { description: "Empirique 26.94% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: def_exposed_center_pct_rolling_10, mostly: 0.6806 }
+    severity: warn
+    meta: { description: "Empirique 26.94% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: def_exposed_right_pct_rolling_10, mostly: 0.6806 }
+    severity: warn
+    meta: { description: "Empirique 26.94% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: cross_rate_rolling_10, mostly: 0.6806 }
+    severity: warn
+    meta: { description: "Empirique 26.94% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: through_ball_rate_rolling_10, mostly: 0.6806 }
+    severity: warn
+    meta: { description: "Empirique 26.94% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: long_ball_rate_rolling_10, mostly: 0.6806 }
+    severity: warn
+    meta: { description: "Empirique 26.94% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: shot_six_yard_pct_rolling_10, mostly: 0.6806 }
+    severity: warn
+    meta: { description: "Empirique 26.94% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: shot_open_play_pct_rolling_10, mostly: 0.6806 }
+    severity: warn
+    meta: { description: "Empirique 26.94% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: shot_set_piece_pct_rolling_10, mostly: 0.6806 }
+    severity: warn
+    meta: { description: "Empirique 26.94% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: set_piece_reliance_rolling_10, mostly: 0.6806 }
+    severity: warn
+    meta: { description: "Empirique 26.94% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: defensive_line_height_rolling_10, mostly: 0.6806 }
+    severity: warn
+    meta: { description: "Empirique 26.94% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: yellow_cards_rolling_10, mostly: 0.889 }
+    severity: warn
+    meta: { description: "Empirique 6.10% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: fouls_committed_rolling_10, mostly: 0.889 }
+    severity: warn
+    meta: { description: "Empirique 6.10% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: fouls_drawn_rolling_10, mostly: 0.6806 }
+    severity: warn
+    meta: { description: "Empirique 26.94% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corners_for_rolling_10, mostly: 0.5498 }
+    severity: warn
+    meta: { description: "Empirique 40.02% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: corners_against_rolling_10, mostly: 0.5496 }
+    severity: warn
+    meta: { description: "Empirique 40.04% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: shots_blocked_rolling_10, mostly: 0.0247 }
+    severity: warn
+    meta: { description: "Empirique 92.53% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: season_xg_per_shot_for_lag, mostly: 0.2492 }
+    severity: warn
+    meta: { description: "Empirique 70.08% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: season_xg_per_shot_against_lag, mostly: 0.2492 }
+    severity: warn
+    meta: { description: "Empirique 70.08% NULL." }
+
+  # ── BORNES DE VALEURS NUMÉRIQUES ──
+  - type: expect_column_values_to_be_between
+    kwargs: { column: team_id, min_value: 202606099958, max_value: 202606100471, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100001, 202606100428], mean=2.03e+11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: opponent_id, min_value: 202606099000, max_value: 202606111006, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100001, 202606110005], mean=2.03e+11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: is_home, min_value: 0, max_value: 2, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 1], mean=0.491." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: days_since_last_game, min_value: 0, max_value: 2125, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 1931], mean=8.14." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: avg_gf_rolling_3, min_value: 0.0, max_value: 13.2, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 12.0], mean=1.47." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: avg_ga_rolling_3, min_value: 0.0, max_value: 8.8, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 8.0], mean=1.28." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: avg_np_xg_rolling_3, min_value: -0.4553112666666667, max_value: 5.379631933333334, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.030934, 4.893386666666667], mean=1.3." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: avg_np_xg_conceded_rolling_3, min_value: -0.4339396, max_value: 5.1445435999999996, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.030934, 4.67967], mean=1.3." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: avg_np_xg_diff_rolling_3, min_value: -5.033621999999999, max_value: 5.033621999999999, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [-4.194685, 4.194685], mean=0.000215." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: points_rolling_3, min_value: 0.0, max_value: 3.3, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 3.0], mean=1.49." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: win_rate_rolling_3, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.411." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: draw_rate_rolling_3, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.261." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: loss_rate_rolling_3, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.329." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: clean_sheet_rate_rolling_3, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.292." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: failed_to_score_rate_rolling_3, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.254." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: shots_rolling_3, min_value: 0.0, max_value: 48.4, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 44.0], mean=12.5." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: shots_ot_rolling_3, min_value: 0.0, max_value: 27.5, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 25.0], mean=4.35." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ppda_rolling_3, min_value: -5.76380341880342, max_value: 93.86337606837607, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.5384615384615383, 85.56111111111112], mean=12.4." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ppda_allowed_rolling_3, min_value: -4.871328671328673, max_value: 84.04615384615386, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.5384615384615383, 76.63636363636364], mean=12.4." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: field_tilt_rolling_3, min_value: 0.03898716755173367, max_value: 0.5782535324643578, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.08392603129445235, 0.5333146687216391], mean=0.241." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: counter_attack_dna_rolling_3, min_value: 0.0, max_value: 0.9428571428571428, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.8571428571428571], mean=0.237." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: attack_left_pct_rolling_3, min_value: 0.13849607018856905, max_value: 0.6120753603652086, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.17796101103662235, 0.5726104195171553], mean=0.366." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: attack_center_pct_rolling_3, min_value: 0.09249365452591912, max_value: 0.47250268612092994, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.12416107382550336, 0.4408352668213457], mean=0.26." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: attack_right_pct_rolling_3, min_value: 0.13681824032603543, max_value: 0.6488455102597641, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.1794871794871795, 0.6061765710986201], mean=0.373." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: def_exposed_left_pct_rolling_3, min_value: 0.14052788125550902, max_value: 0.5986799982046098, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.17870722433460076, 0.560500655125518], mean=0.367." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: def_exposed_center_pct_rolling_3, min_value: 0.09249365452591912, max_value: 0.47250268612092994, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.12416107382550336, 0.4408352668213457], mean=0.26." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: def_exposed_right_pct_rolling_3, min_value: 0.14658000205528723, max_value: 0.6254578152296784, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.1864864864864865, 0.5855513307984791], mean=0.373." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: cross_rate_rolling_3, min_value: -0.009005907748239037, max_value: 0.12128720745285163, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.001851851851851852, 0.11042944785276074], mean=0.0385." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: through_ball_rate_rolling_3, min_value: 0.013761310740911234, max_value: 0.26518098905958926, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.03471295060080107, 0.2442293491996994], mean=0.11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: long_ball_rate_rolling_3, min_value: -0.0074100120887859305, max_value: 0.4697118456312599, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.03235014272121789, 0.42995169082125606], mean=0.16." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: shot_six_yard_pct_rolling_3, min_value: 0.0, max_value: 0.55, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.5], mean=0.0792." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: shot_open_play_pct_rolling_3, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.666." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: shot_set_piece_pct_rolling_3, min_value: 0.0, max_value: 0.6285714285714286, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.5714285714285714], mean=0.044." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: set_piece_reliance_rolling_3, min_value: 0.0, max_value: 0.36666666666666664, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.3333333333333333], mean=0.0801." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: defensive_line_height_rolling_3, min_value: 9.367409090909092, max_value: 55.5385, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [13.215, 51.69090909090909], mean=26.6." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: yellow_cards_rolling_3, min_value: 0.0, max_value: 9.9, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 9.0], mean=2.04." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: fouls_committed_rolling_3, min_value: 0.0, max_value: 30.8, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 28.0], mean=12." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: fouls_drawn_rolling_3, min_value: -1.0, max_value: 35.0, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.0, 32.0], mean=12.3." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corners_for_rolling_3, min_value: 0.0, max_value: 17.6, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 16.0], mean=4.95." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corners_against_rolling_3, min_value: 0.0, max_value: 17.6, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 16.0], mean=4.94." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: shots_blocked_rolling_3, min_value: 0.0, max_value: 13.2, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 12.0], mean=3.5." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: avg_gf_rolling_5, min_value: 0.0, max_value: 13.2, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 12.0], mean=1.47." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: avg_ga_rolling_5, min_value: 0.0, max_value: 8.8, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 8.0], mean=1.28." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: avg_np_xg_rolling_5, min_value: -0.4339396, max_value: 5.1445435999999996, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.030934, 4.67967], mean=1.3." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: avg_np_xg_conceded_rolling_5, min_value: -0.4339396, max_value: 5.1445435999999996, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.030934, 4.67967], mean=1.3." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: avg_np_xg_diff_rolling_5, min_value: -5.033621999999999, max_value: 5.033621999999999, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [-4.194685, 4.194685], mean=0.00049." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: points_rolling_5, min_value: 0.0, max_value: 3.3, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 3.0], mean=1.5." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: win_rate_rolling_5, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.413." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: draw_rate_rolling_5, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.259." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: loss_rate_rolling_5, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.328." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: clean_sheet_rate_rolling_5, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.294." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: failed_to_score_rate_rolling_5, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.253." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: shots_rolling_5, min_value: 0.0, max_value: 48.4, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 44.0], mean=12.5." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: shots_ot_rolling_5, min_value: 0.0, max_value: 27.5, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 25.0], mean=4.36." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ppda_rolling_5, min_value: -4.307692307692308, max_value: 77.84615384615384, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.5384615384615383, 71.0], mean=12.4." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ppda_allowed_rolling_5, min_value: -4.307692307692308, max_value: 77.84615384615384, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.5384615384615383, 71.0], mean=12.4." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: field_tilt_rolling_5, min_value: 0.04132196298277262, max_value: 0.5525707827229294, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.08392603129445235, 0.5099667144112496], mean=0.241." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: counter_attack_dna_rolling_5, min_value: 0.0, max_value: 0.825, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.75], mean=0.237." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: attack_left_pct_rolling_5, min_value: 0.1592539303191403, max_value: 0.5831821359475848, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.19458128078817735, 0.5478547854785478], mean=0.366." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: attack_center_pct_rolling_5, min_value: 0.09249365452591912, max_value: 0.47250268612092994, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.12416107382550336, 0.4408352668213457], mean=0.26." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: attack_right_pct_rolling_5, min_value: 0.17621783741120758, max_value: 0.5987466456195738, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.21142857142857144, 0.56353591160221], mean=0.374." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: def_exposed_left_pct_rolling_5, min_value: 0.1592539303191403, max_value: 0.5831821359475848, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.19458128078817735, 0.5478547854785478], mean=0.367." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: def_exposed_center_pct_rolling_5, min_value: 0.09249365452591912, max_value: 0.47250268612092994, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.12416107382550336, 0.4408352668213457], mean=0.26." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: def_exposed_right_pct_rolling_5, min_value: 0.16364640883977902, max_value: 0.5998895027624309, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.2, 0.56353591160221], mean=0.373." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: cross_rate_rolling_5, min_value: -0.009005907748239037, max_value: 0.12128720745285163, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.001851851851851852, 0.11042944785276074], mean=0.0385." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: through_ball_rate_rolling_5, min_value: 0.018907809747504403, max_value: 0.2500293599530241, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.03816793893129771, 0.23076923076923078], mean=0.11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: long_ball_rate_rolling_5, min_value: -0.004698237722558445, max_value: 0.43988232760275753, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.03235014272121789, 0.4028339471589812], mean=0.16." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: shot_six_yard_pct_rolling_5, min_value: 0.0, max_value: 0.55, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.5], mean=0.0791." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: shot_open_play_pct_rolling_5, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.666." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: shot_set_piece_pct_rolling_5, min_value: 0.0, max_value: 0.6285714285714286, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.5714285714285714], mean=0.0437." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: set_piece_reliance_rolling_5, min_value: 0.0, max_value: 0.28518518518518515, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.25925925925925924], mean=0.0802." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: defensive_line_height_rolling_5, min_value: 9.367409090909092, max_value: 55.5385, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [13.215, 51.69090909090909], mean=26.6." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: yellow_cards_rolling_5, min_value: 0.0, max_value: 9.9, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 9.0], mean=2.04." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: fouls_committed_rolling_5, min_value: 0.0, max_value: 30.8, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 28.0], mean=12." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: fouls_drawn_rolling_5, min_value: 0.5, max_value: 30.5, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [3.0, 28.0], mean=12.3." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corners_for_rolling_5, min_value: 0.0, max_value: 17.6, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 16.0], mean=4.95." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corners_against_rolling_5, min_value: 0.0, max_value: 17.6, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 16.0], mean=4.95." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: shots_blocked_rolling_5, min_value: 0.0, max_value: 13.2, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 12.0], mean=3.51." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: avg_gf_rolling_10, min_value: 0.0, max_value: 13.2, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 12.0], mean=1.48." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: avg_ga_rolling_10, min_value: 0.0, max_value: 8.8, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 8.0], mean=1.28." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: avg_np_xg_rolling_10, min_value: -0.4339396, max_value: 5.1445435999999996, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.030934, 4.67967], mean=1.3." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: avg_np_xg_conceded_rolling_10, min_value: -0.4339396, max_value: 5.1445435999999996, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.030934, 4.67967], mean=1.3." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: avg_np_xg_diff_rolling_10, min_value: -5.033621999999999, max_value: 5.033621999999999, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [-4.194685, 4.194685], mean=0.000756." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: points_rolling_10, min_value: 0.0, max_value: 3.3, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 3.0], mean=1.5." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: win_rate_rolling_10, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.415." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: draw_rate_rolling_10, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.257." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: loss_rate_rolling_10, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.329." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: clean_sheet_rate_rolling_10, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.295." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: failed_to_score_rate_rolling_10, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.25." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: shots_rolling_10, min_value: 0.0, max_value: 48.4, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 44.0], mean=12.5." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: shots_ot_rolling_10, min_value: 0.0, max_value: 27.5, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 25.0], mean=4.36." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ppda_rolling_10, min_value: -4.307692307692308, max_value: 77.84615384615384, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.5384615384615383, 71.0], mean=12.4." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: ppda_allowed_rolling_10, min_value: -4.307692307692308, max_value: 77.84615384615384, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2.5384615384615383, 71.0], mean=12.4." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: field_tilt_rolling_10, min_value: 0.04141646982496312, max_value: 0.5515312074588339, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.08392603129445235, 0.5090216459893446], mean=0.241." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: counter_attack_dna_rolling_10, min_value: 0.0, max_value: 0.825, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.75], mean=0.237." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: attack_left_pct_rolling_10, min_value: 0.1592539303191403, max_value: 0.5831821359475848, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.19458128078817735, 0.5478547854785478], mean=0.366." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: attack_center_pct_rolling_10, min_value: 0.09249365452591912, max_value: 0.47250268612092994, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.12416107382550336, 0.4408352668213457], mean=0.26." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: attack_right_pct_rolling_10, min_value: 0.17621783741120758, max_value: 0.5987466456195738, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.21142857142857144, 0.56353591160221], mean=0.374." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: def_exposed_left_pct_rolling_10, min_value: 0.1592539303191403, max_value: 0.5831821359475848, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.19458128078817735, 0.5478547854785478], mean=0.367." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: def_exposed_center_pct_rolling_10, min_value: 0.09249365452591912, max_value: 0.47250268612092994, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.12416107382550336, 0.4408352668213457], mean=0.26." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: def_exposed_right_pct_rolling_10, min_value: 0.17621783741120758, max_value: 0.5987466456195738, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.21142857142857144, 0.56353591160221], mean=0.373." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: cross_rate_rolling_10, min_value: -0.009005907748239037, max_value: 0.12128720745285163, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.001851851851851852, 0.11042944785276074], mean=0.0385." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: through_ball_rate_rolling_10, min_value: 0.018907809747504403, max_value: 0.2500293599530241, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.03816793893129771, 0.23076923076923078], mean=0.11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: long_ball_rate_rolling_10, min_value: -0.0037970823888997043, max_value: 0.4299696189325114, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.03235014272121789, 0.3938223938223938], mean=0.16." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: shot_six_yard_pct_rolling_10, min_value: 0.0, max_value: 0.55, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.5], mean=0.0787." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: shot_open_play_pct_rolling_10, min_value: 0.0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.667." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: shot_set_piece_pct_rolling_10, min_value: 0.0, max_value: 0.6285714285714286, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.5714285714285714], mean=0.0432." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: set_piece_reliance_rolling_10, min_value: 0.0, max_value: 0.28518518518518515, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 0.25925925925925924], mean=0.0803." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: defensive_line_height_rolling_10, min_value: 9.59825, max_value: 52.99925000000001, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [13.215, 49.38250000000001], mean=26.6." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: yellow_cards_rolling_10, min_value: 0.0, max_value: 9.9, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 9.0], mean=2.04." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: fouls_committed_rolling_10, min_value: 0.0, max_value: 30.8, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 28.0], mean=12." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: fouls_drawn_rolling_10, min_value: 0.5, max_value: 30.5, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [3.0, 28.0], mean=12.4." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corners_for_rolling_10, min_value: 0.0, max_value: 17.6, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 16.0], mean=4.95." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: corners_against_rolling_10, min_value: 0.0, max_value: 17.6, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 16.0], mean=4.95." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: shots_blocked_rolling_10, min_value: 0.0, max_value: 13.2, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 12.0], mean=3.52." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: season_xg_per_shot_for_lag, min_value: 0.07250000000000001, max_value: 0.1625, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.08, 0.155], mean=0.116." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: season_xg_per_shot_against_lag, min_value: 0.061000000000000006, max_value: 0.169, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.07, 0.16], mean=0.114." }
+
+  # ── DÉRIVE VOLUMÉTRIQUE INTER-SAISONS ──
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.20
+      max_deviation_error: 0.40
+      min_seasons_history: 2
+      exclude_partitions: ['2025-2026']
+    severity: warn

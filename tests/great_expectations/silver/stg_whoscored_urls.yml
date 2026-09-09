@@ -1,0 +1,51 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Suite GE — silver.stg_whoscored_urls
+# Registre de scraping (39 641). Table de gouvernance : is_scraped ↔ scraped_at.
+# ══════════════════════════════════════════════════════════════════════════════
+
+suite_name: silver.stg_whoscored_urls
+description: Registre de scraping WhoScored — statut, timestamps, raisons de skip.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT
+      ws_match_id, url, league_source, season,
+      month_abbr, match_year, is_scraped,
+      indexed_at, scraped_at, skip_reason
+    FROM silver.stg_whoscored_urls
+
+expectations:
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 30000, max_value: 60000 }
+    severity: error
+    meta: { description: "Empirique = 39 641." }
+
+  # NULL rate structurel
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - ws_match_id
+      - url
+      - league_source
+      - season
+      - month_abbr
+      - match_year
+      - is_scraped
+      - indexed_at
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # scraped_at : 0.83 % NULL (matches skippés)
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: scraped_at, mostly: 0.94 }
+    severity: warn
+    meta: { description: "Empirique = 0.83 % NULL — matches skippés. Marge +5 pts." }
+
+  # skip_reason : 99.16 % NULL (majorité des matches scrapés avec succès)
+  # → test descriptif, aucune contrainte à imposer
+
+  # match_year plausible
+  - type: expect_column_values_to_be_between
+    kwargs: { column: match_year, min_value: 2005, max_value: 2030, mostly: 1.0 }
+    severity: error
+    meta: { description: "Empirique min=2009 max=2026." }

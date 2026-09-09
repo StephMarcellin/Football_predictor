@@ -1,0 +1,300 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — intermediate.event_values (PUSH-DOWN 2026-09-09)
+# Volumétrie : 3,766,641 lignes, 23 colonnes
+# Stratégie big data : agrégats DuckDB → 1 ligne en pandas.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: intermediate.event_values
+description: >
+  Push-down agrégats. Volumétrie de référence : 3,766,641 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT
+          COUNT(*) AS n_rows,
+          COUNT(*) FILTER (WHERE "match_id" IS NULL) AS null_match_id,
+          COUNT(*) FILTER (WHERE "team_id" IS NULL) AS null_team_id,
+          COUNT(*) FILTER (WHERE "player_id" IS NULL) AS null_player_id,
+          COUNT(*) FILTER (WHERE "event_id" IS NULL) AS null_event_id,
+          COUNT(*) FILTER (WHERE "row_num" IS NULL) AS null_row_num,
+          COUNT(*) FILTER (WHERE "expanded_minute" IS NULL) AS null_expanded_minute,
+          COUNT(*) FILTER (WHERE "period" IS NULL) AS null_period,
+          COUNT(*) FILTER (WHERE "type_id" IS NULL) AS null_type_id,
+          COUNT(*) FILTER (WHERE "type_name" IS NULL) AS null_type_name,
+          COUNT(*) FILTER (WHERE "outcome_id" IS NULL) AS null_outcome_id,
+          COUNT(*) FILTER (WHERE "is_shot" IS NULL) AS null_is_shot,
+          COUNT(*) FILTER (WHERE "x" IS NULL) AS null_x,
+          COUNT(*) FILTER (WHERE "y" IS NULL) AS null_y,
+          COUNT(*) FILTER (WHERE "match_date" IS NULL) AS null_match_date,
+          COUNT(*) FILTER (WHERE "season" IS NULL) AS null_season,
+          COUNT(*) FILTER (WHERE "league_source" IS NULL) AS null_league_source,
+          COUNT(*) FILTER (WHERE "scraped_at" IS NULL) AS null_scraped_at,
+          COUNT(*) FILTER (WHERE "danger_position" IS NULL) AS null_danger_position,
+          COUNT(*) FILTER (WHERE "chance_creation" IS NULL) AS null_chance_creation,
+          COUNT(*) FILTER (WHERE "def_execution_quality" IS NULL) AS null_def_execution_quality,
+          COUNT(*) FILTER (WHERE "pressure_context" IS NULL) AS null_pressure_context,
+          COUNT(*) FILTER (WHERE "context_weight" IS NULL) AS null_context_weight,
+          COUNT(*) FILTER (WHERE "action_value" IS NULL) AS null_action_value,
+          MIN("team_id") AS min_team_id,
+          MAX("team_id") AS max_team_id,
+          AVG("team_id") AS avg_team_id,
+          MIN("player_id") AS min_player_id,
+          MAX("player_id") AS max_player_id,
+          AVG("player_id") AS avg_player_id,
+          MIN("event_id") AS min_event_id,
+          MAX("event_id") AS max_event_id,
+          AVG("event_id") AS avg_event_id,
+          MIN("row_num") AS min_row_num,
+          MAX("row_num") AS max_row_num,
+          AVG("row_num") AS avg_row_num,
+          MIN("expanded_minute") AS min_expanded_minute,
+          MAX("expanded_minute") AS max_expanded_minute,
+          AVG("expanded_minute") AS avg_expanded_minute,
+          MIN("period") AS min_period,
+          MAX("period") AS max_period,
+          AVG("period") AS avg_period,
+          MIN("type_id") AS min_type_id,
+          MAX("type_id") AS max_type_id,
+          AVG("type_id") AS avg_type_id,
+          MIN("outcome_id") AS min_outcome_id,
+          MAX("outcome_id") AS max_outcome_id,
+          AVG("outcome_id") AS avg_outcome_id,
+          MIN("x") AS min_x,
+          MAX("x") AS max_x,
+          AVG("x") AS avg_x,
+          MIN("y") AS min_y,
+          MAX("y") AS max_y,
+          AVG("y") AS avg_y,
+          MIN("danger_position") AS min_danger_position,
+          MAX("danger_position") AS max_danger_position,
+          AVG("danger_position") AS avg_danger_position,
+          MIN("chance_creation") AS min_chance_creation,
+          MAX("chance_creation") AS max_chance_creation,
+          AVG("chance_creation") AS avg_chance_creation,
+          MIN("def_execution_quality") AS min_def_execution_quality,
+          MAX("def_execution_quality") AS max_def_execution_quality,
+          AVG("def_execution_quality") AS avg_def_execution_quality,
+          MIN("pressure_context") AS min_pressure_context,
+          MAX("pressure_context") AS max_pressure_context,
+          AVG("pressure_context") AS avg_pressure_context,
+          MIN("context_weight") AS min_context_weight,
+          MAX("context_weight") AS max_context_weight,
+          AVG("context_weight") AS avg_context_weight,
+          MIN("action_value") AS min_action_value,
+          MAX("action_value") AS max_action_value,
+          AVG("action_value") AS avg_action_value
+        FROM intermediate."event_values"
+
+expectations:
+
+  # ── VOLUMÉTRIE (1 ligne agrégée = 1 seule row en output) ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 1, max_value: 1 }
+    severity: error
+    meta: { description: "Agrégat push-down doit renvoyer exactement 1 ligne." }
+
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "n_rows >= 1506656 and n_rows <= 7533282"
+    severity: error
+    meta: { description: "Row count empirique = 3,766,641." }
+
+  # ── COMPLÉTION PAR COLONNE (push-down NULL counts) ──
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_match_id / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "match_id empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_team_id / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "team_id empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_player_id / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "player_id empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_event_id / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "event_id empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_row_num / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "row_num empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_expanded_minute / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "expanded_minute empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_period / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "period empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_type_id / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "type_id empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_type_name / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "type_name empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_outcome_id / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "outcome_id empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_is_shot / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "is_shot empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_x / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "x empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_y / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "y empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_match_date / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "match_date empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_season / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "season empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_league_source / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "league_source empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_scraped_at / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "scraped_at empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_danger_position / n_rows <= 0.1506"
+    severity: warn
+    meta: { description: "danger_position empirique 10.06% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_chance_creation / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "chance_creation empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_def_execution_quality / n_rows <= 0.8738"
+    severity: warn
+    meta: { description: "def_execution_quality empirique 82.38% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_pressure_context / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "pressure_context empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_context_weight / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "context_weight empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_action_value / n_rows <= 0.1506"
+    severity: warn
+    meta: { description: "action_value empirique 10.06% NULL." }
+
+  # ── BORNES NUMÉRIQUES (push-down MIN/MAX) ──
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_team_id >= 202606099958.5000 and max_team_id <= 202606100468.5000"
+    severity: warn
+    meta: { description: "team_id empirique [202606100001.0, 202606100426.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_player_id >= -52893.8000 and max_player_id <= 617675.8000"
+    severity: warn
+    meta: { description: "player_id empirique [2987.0, 561795.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_event_id >= -1219.8000 and max_event_id <= 13441.8000"
+    severity: warn
+    meta: { description: "event_id empirique [2.0, 12220.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_row_num >= 0.0000 and max_row_num <= 2057.0000"
+    severity: warn
+    meta: { description: "row_num empirique [0.0, 1870.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_expanded_minute >= 0.0000 and max_expanded_minute <= 140.8000"
+    severity: warn
+    meta: { description: "expanded_minute empirique [0.0, 128.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_period >= 0.9000 and max_period <= 2.1000"
+    severity: warn
+    meta: { description: "period empirique [1.0, 2.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_type_id >= -998.9000 and max_type_id <= 10999.9000"
+    severity: warn
+    meta: { description: "type_id empirique [1.0, 10000.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_outcome_id >= 0.0000 and max_outcome_id <= 1.1000"
+    severity: warn
+    meta: { description: "outcome_id empirique [0.0, 1.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_x >= 0.0000 and max_x <= 110.0000"
+    severity: warn
+    meta: { description: "x empirique [0.0, 100.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_y >= 0.0000 and max_y <= 110.0000"
+    severity: warn
+    meta: { description: "y empirique [0.0, 100.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_danger_position >= -0.0988 and max_danger_position <= 1.0988"
+    severity: warn
+    meta: { description: "danger_position empirique [0.001, 0.9990000000000001]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_chance_creation >= 0.0000 and max_chance_creation <= 1.1000"
+    severity: warn
+    meta: { description: "chance_creation empirique [0.0, 1.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_def_execution_quality >= 0.2300 and max_def_execution_quality <= 1.0700"
+    severity: warn
+    meta: { description: "def_execution_quality empirique [0.3, 1.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_pressure_context >= 0.0000 and max_pressure_context <= 1.1000"
+    severity: warn
+    meta: { description: "pressure_context empirique [0.0, 1.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_context_weight >= 0.2300 and max_context_weight <= 1.0700"
+    severity: warn
+    meta: { description: "context_weight empirique [0.3, 1.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_action_value >= 0.0000 and max_action_value <= 1.0934"
+    severity: warn
+    meta: { description: "action_value empirique [0.0, 0.9940000000000001]." }

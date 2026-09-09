@@ -1,0 +1,76 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — gold.equipe_lineup_match (GÉNÉRÉE AUTO 2026-09-09)
+# Volumétrie : 33,408 lignes, 7 colonnes
+# Bornes empiriques ± marge — à raffiner si nécessaire.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: gold.equipe_lineup_match
+description: >
+  Suite auto-générée le 2026-09-09 pour gold.equipe_lineup_match.
+  Volumétrie de référence : 33,408 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT "match_id", "team_id", "lineup_sum_xg_per90_lag", "lineup_avg_shots_per90_lag", "lineup_avg_def_actions_per90_lag", "lineup_avg_aerial_win_rate_lag", "n_starters_profiled" FROM gold."equipe_lineup_match"
+
+expectations:
+
+  # ── VOLUMÉTRIE ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 13363, max_value: 66816 }
+    severity: error
+    meta: { description: "Empirique = 33,408. Bornes [13,363, 66,816]." }
+
+  # ── COMPLÉTION STRICTE (0 NULL empirique) ──
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - match_id
+      - team_id
+      - n_starters_profiled
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # ── COMPLÉTION AVEC NULLs EMPIRIQUES (mostly = 1 - empirique - 5pts) ──
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: lineup_sum_xg_per90_lag, mostly: 0.9457 }
+    severity: warn
+    meta: { description: "Empirique 0.43% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: lineup_avg_shots_per90_lag, mostly: 0.9457 }
+    severity: warn
+    meta: { description: "Empirique 0.43% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: lineup_avg_def_actions_per90_lag, mostly: 0.9457 }
+    severity: warn
+    meta: { description: "Empirique 0.43% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: lineup_avg_aerial_win_rate_lag, mostly: 0.95 }
+    severity: warn
+    meta: { description: "Empirique 0.00% NULL." }
+
+  # ── BORNES DE VALEURS NUMÉRIQUES ──
+  - type: expect_column_values_to_be_between
+    kwargs: { column: team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100001, 202606100426], mean=2.03e+11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: lineup_sum_xg_per90_lag, min_value: -21.597465578105428, max_value: 237.97818523022565, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.03383865592216294, 216.34688099619805], mean=1.45." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: lineup_avg_shots_per90_lag, min_value: -34.50806992948711, max_value: 381.84016954167924, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.18761669311009285, 347.14448291908207], mean=2.23." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: lineup_avg_def_actions_per90_lag, min_value: -167.32360752616668, max_value: 1856.9972173670942, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1.3697945482717353, 1688.3038152926558], mean=5.47." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: lineup_avg_aerial_win_rate_lag, min_value: 0.21332522252087469, max_value: 0.7722299310777572, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.2599006149006149, 0.725654538698017], mean=0.508." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: n_starters_profiled, min_value: 0, max_value: 15, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0, 13], mean=10.9." }

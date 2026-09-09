@@ -1,0 +1,168 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — intermediate.int_xt_actions (PUSH-DOWN 2026-09-09)
+# Volumétrie : 2,681,302 lignes, 13 colonnes
+# Stratégie big data : agrégats DuckDB → 1 ligne en pandas.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: intermediate.int_xt_actions
+description: >
+  Push-down agrégats. Volumétrie de référence : 2,681,302 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT
+          COUNT(*) AS n_rows,
+          COUNT(*) FILTER (WHERE "match_id" IS NULL) AS null_match_id,
+          COUNT(*) FILTER (WHERE "row_num" IS NULL) AS null_row_num,
+          COUNT(*) FILTER (WHERE "season" IS NULL) AS null_season,
+          COUNT(*) FILTER (WHERE "league_source" IS NULL) AS null_league_source,
+          COUNT(*) FILTER (WHERE "team_id" IS NULL) AS null_team_id,
+          COUNT(*) FILTER (WHERE "player_id" IS NULL) AS null_player_id,
+          COUNT(*) FILTER (WHERE "action_kind" IS NULL) AS null_action_kind,
+          COUNT(*) FILTER (WHERE "is_shot" IS NULL) AS null_is_shot,
+          COUNT(*) FILTER (WHERE "is_goal" IS NULL) AS null_is_goal,
+          COUNT(*) FILTER (WHERE "col_from" IS NULL) AS null_col_from,
+          COUNT(*) FILTER (WHERE "row_from" IS NULL) AS null_row_from,
+          COUNT(*) FILTER (WHERE "col_to" IS NULL) AS null_col_to,
+          COUNT(*) FILTER (WHERE "row_to" IS NULL) AS null_row_to,
+          MIN("row_num") AS min_row_num,
+          MAX("row_num") AS max_row_num,
+          AVG("row_num") AS avg_row_num,
+          MIN("team_id") AS min_team_id,
+          MAX("team_id") AS max_team_id,
+          AVG("team_id") AS avg_team_id,
+          MIN("player_id") AS min_player_id,
+          MAX("player_id") AS max_player_id,
+          AVG("player_id") AS avg_player_id,
+          MIN("col_from") AS min_col_from,
+          MAX("col_from") AS max_col_from,
+          AVG("col_from") AS avg_col_from,
+          MIN("row_from") AS min_row_from,
+          MAX("row_from") AS max_row_from,
+          AVG("row_from") AS avg_row_from,
+          MIN("col_to") AS min_col_to,
+          MAX("col_to") AS max_col_to,
+          AVG("col_to") AS avg_col_to,
+          MIN("row_to") AS min_row_to,
+          MAX("row_to") AS max_row_to,
+          AVG("row_to") AS avg_row_to
+        FROM intermediate."int_xt_actions"
+
+expectations:
+
+  # ── VOLUMÉTRIE (1 ligne agrégée = 1 seule row en output) ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 1, max_value: 1 }
+    severity: error
+    meta: { description: "Agrégat push-down doit renvoyer exactement 1 ligne." }
+
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "n_rows >= 1072520 and n_rows <= 5362604"
+    severity: error
+    meta: { description: "Row count empirique = 2,681,302." }
+
+  # ── COMPLÉTION PAR COLONNE (push-down NULL counts) ──
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_match_id / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "match_id empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_row_num / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "row_num empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_season / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "season empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_league_source / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "league_source empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_team_id / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "team_id empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_player_id / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "player_id empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_action_kind / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "action_kind empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_is_shot / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "is_shot empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_is_goal / n_rows <= 1.0"
+    severity: warn
+    meta: { description: "is_goal empirique 97.66% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_col_from / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "col_from empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_row_from / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "row_from empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_col_to / n_rows <= 0.3166"
+    severity: warn
+    meta: { description: "col_to empirique 26.66% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_row_to / n_rows <= 0.3166"
+    severity: warn
+    meta: { description: "row_to empirique 26.66% NULL." }
+
+  # ── BORNES NUMÉRIQUES (push-down MIN/MAX) ──
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_row_num >= -184.8000 and max_row_num <= 2056.8000"
+    severity: warn
+    meta: { description: "row_num empirique [2.0, 1870.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_team_id >= 202606099958.5000 and max_team_id <= 202606100468.5000"
+    severity: warn
+    meta: { description: "team_id empirique [202606100001.0, 202606100426.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_player_id >= -52893.8000 and max_player_id <= 617675.8000"
+    severity: warn
+    meta: { description: "player_id empirique [2987.0, 561795.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_col_from >= 0.0000 and max_col_from <= 16.5000"
+    severity: warn
+    meta: { description: "col_from empirique [0.0, 15.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_row_from >= 0.0000 and max_row_from <= 12.1000"
+    severity: warn
+    meta: { description: "row_from empirique [0.0, 11.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_col_to >= 0.0000 and max_col_to <= 16.5000"
+    severity: warn
+    meta: { description: "col_to empirique [0.0, 15.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_row_to >= 0.0000 and max_row_to <= 12.1000"
+    severity: warn
+    meta: { description: "row_to empirique [0.0, 11.0]." }

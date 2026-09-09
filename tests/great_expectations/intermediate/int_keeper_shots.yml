@@ -1,0 +1,72 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — intermediate.int_keeper_shots (GÉNÉRÉE AUTO 2026-09-09)
+# Volumétrie : 16,629 lignes, 11 colonnes
+# Bornes empiriques ± marge — à raffiner si nécessaire.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: intermediate.int_keeper_shots
+description: >
+  Suite auto-générée le 2026-09-09 pour intermediate.int_keeper_shots.
+  Volumétrie de référence : 16,629 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT "match_id", "row_num", "season", "league_source", "type_id", "is_goal", "xgot", "def_team", "keeper_id", "attribution_method", "def_gk_available" FROM intermediate."int_keeper_shots"
+
+expectations:
+
+  # ── VOLUMÉTRIE ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 6651, max_value: 33258 }
+    severity: error
+    meta: { description: "Empirique = 16,629. Bornes [6,651, 33,258]." }
+
+  # ── COMPLÉTION STRICTE (0 NULL empirique) ──
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - match_id
+      - row_num
+      - season
+      - league_source
+      - type_id
+      - is_goal
+      - xgot
+      - def_team
+      - keeper_id
+      - attribution_method
+      - def_gk_available
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # ── BORNES DE VALEURS NUMÉRIQUES ──
+  - type: expect_column_values_to_be_between
+    kwargs: { column: row_num, min_value: -183, max_value: 2057, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [3, 1870], mean=809." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: type_id, min_value: 14, max_value: 17, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [15, 16], mean=15.3." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: xgot, min_value: 0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.3." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: def_team, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100001, 202606100426], mean=2.03e+11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: keeper_id, min_value: -51942, max_value: 607208, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2987, 552278], mean=2.49e+05." }
+
+  # ── DÉRIVE VOLUMÉTRIQUE INTER-SAISONS ──
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.20
+      max_deviation_error: 0.40
+      min_seasons_history: 2
+      exclude_partitions: ['2025-2026']
+    severity: warn

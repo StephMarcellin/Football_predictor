@@ -1,0 +1,50 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Suite GE — silver.stg_whoscored_match_meta
+# Métadonnées des matchs (16 870). ws_match_id unique. et_score et pk_score
+# 100 % vides — colonnes dead (A-017).
+# ══════════════════════════════════════════════════════════════════════════════
+
+suite_name: silver.stg_whoscored_match_meta
+description: Métadonnées WhoScored — arbitre, stade, affluence, scores mi-temps/final.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT
+      ws_match_id, referee_id, referee_name, venue_name,
+      attendance, weather_code, kickoff_time,
+      ht_score, ft_score, et_score, pk_score
+    FROM silver.stg_whoscored_match_meta
+
+expectations:
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 12000, max_value: 25000 }
+    severity: error
+    meta: { description: "Empirique = 16 870." }
+
+  # NULL rate structurel
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - ws_match_id
+      - venue_name
+      - kickoff_time
+      - ht_score
+      - ft_score
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # referee_id / referee_name : 3 NULL (0.02%) → warn strict
+  - type: expect_column_values_to_not_be_null
+    for_each_column: [referee_id, referee_name]
+    kwargs: { mostly: 0.999 }
+    severity: warn
+    meta: { description: "Empirique = 0.02 % NULL (3 lignes)." }
+
+  # Affluence : 0 accepté (huis clos)
+  - type: expect_column_values_to_be_between
+    kwargs: { column: attendance, min_value: 0, max_value: 130000, mostly: 1.0 }
+    severity: error
+    meta: { description: "Max empirique 97 939." }
+
+  # A-017 : et_score / pk_score attendus 100 % vides
+  # (test descriptif, ne bloque rien)

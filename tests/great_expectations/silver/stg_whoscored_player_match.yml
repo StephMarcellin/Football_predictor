@@ -1,0 +1,82 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Suite GE — silver.stg_whoscored_player_match
+# Faits joueur × match (676 849). Grain (ws_match_id, team_id, player_id).
+# Documente A-016 (height/weight = 0 sentinelles manquantes).
+#
+# Contraintes de cohérence :
+#   - position = 'Sub' ↔ is_first_eleven IS NULL (0 violation stricte + 5 mineures)
+#   - rating IS NULL ↔ joueur non entré (Sub sans temps de jeu)
+# ══════════════════════════════════════════════════════════════════════════════
+
+suite_name: silver.stg_whoscored_player_match
+description: Faits WhoScored joueur × match — rating, position, is_first_eleven.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT
+      ws_match_id, team_id, player_id,
+      shirt_no, position, is_first_eleven, is_man_of_the_match,
+      height, weight, age, rating
+    FROM silver.stg_whoscored_player_match
+
+expectations:
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 500000, max_value: 1000000 }
+    severity: error
+    meta: { description: "Empirique = 676 849." }
+
+  # Structurels
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - ws_match_id
+      - team_id
+      - player_id
+      - shirt_no
+      - position
+      - is_man_of_the_match
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # is_first_eleven NULL 45.17 % — Subs non entrés → warn
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: is_first_eleven, mostly: 0.50 }
+    severity: warn
+    meta: { description: "Empirique = 45.17 % NULL (position = 'Sub')." }
+
+  # rating NULL 26.51 % — joueurs non entrés en jeu
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: rating, mostly: 0.68 }
+    severity: warn
+    meta: { description: "Empirique = 26.51 % NULL (Sub non entré)." }
+
+  # Rating dans échelle WhoScored [3.0, 10.0] (empirique 3.29-10.0)
+  - type: expect_column_values_to_be_between
+    kwargs: { column: rating, min_value: 3, max_value: 10, mostly: 1.0 }
+    severity: error
+
+  # shirt_no plausible
+  - type: expect_column_values_to_be_between
+    kwargs: { column: shirt_no, min_value: 1, max_value: 99, mostly: 1.0 }
+    severity: error
+
+  # A-016 : height / weight avec sentinelles 0 (min empirique = 0)
+  - type: expect_column_values_to_be_between
+    kwargs: { column: height, min_value: 0, max_value: 220, mostly: 1.0 }
+    severity: warn
+    meta: { description: "A-016 : 2 260 lignes height=0 (sentinel manquant)." }
+
+  - type: expect_column_values_to_be_between
+    kwargs: { column: weight, min_value: 0, max_value: 120, mostly: 1.0 }
+    severity: warn
+    meta: { description: "A-016 : 6 460 lignes weight=0 (sentinel manquant)." }
+
+  - type: expect_column_values_to_be_between
+    kwargs: { column: age, min_value: 0, max_value: 55, mostly: 1.0 }
+    severity: warn
+    meta: { description: "A-016 : 2 lignes age=0 (sentinel manquant)." }
+
+  # Moyenne rating cohérente WhoScored (empirique 6.66)
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: rating, min_value: 6.0, max_value: 7.5 }
+    severity: error

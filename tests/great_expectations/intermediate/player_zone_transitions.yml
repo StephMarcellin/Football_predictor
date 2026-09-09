@@ -1,0 +1,83 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — intermediate.player_zone_transitions (GÉNÉRÉE AUTO 2026-09-09)
+# Volumétrie : 1,393,062 lignes, 13 colonnes
+# Bornes empiriques ± marge — à raffiner si nécessaire.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: intermediate.player_zone_transitions
+description: >
+  Suite auto-générée le 2026-09-09 pour intermediate.player_zone_transitions.
+  Volumétrie de référence : 1,393,062 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT "match_id", "team_id", "player_id", "season", "league_source", "period", "score_state", "formation", "zone_from", "zone_to", "n_transitions", "pct_transitions", "progressive_rate" FROM intermediate."player_zone_transitions"
+
+expectations:
+
+  # ── VOLUMÉTRIE ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 557224, max_value: 2786124 }
+    severity: error
+    meta: { description: "Empirique = 1,393,062. Bornes [557,224, 2,786,124]." }
+
+  # ── COMPLÉTION STRICTE (0 NULL empirique) ──
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - match_id
+      - team_id
+      - player_id
+      - season
+      - league_source
+      - period
+      - score_state
+      - zone_from
+      - zone_to
+      - n_transitions
+      - pct_transitions
+      - progressive_rate
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # ── COMPLÉTION AVEC NULLs EMPIRIQUES (mostly = 1 - empirique - 5pts) ──
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: formation, mostly: 0.0 }
+    severity: warn
+    meta: { description: "Empirique 99.74% NULL." }
+
+  # ── BORNES DE VALEURS NUMÉRIQUES ──
+  - type: expect_column_values_to_be_between
+    kwargs: { column: team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100001, 202606100426], mean=2.03e+11." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: player_id, min_value: -52893, max_value: 617676, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [2987, 561795], mean=3.16e+05." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: period, min_value: 0, max_value: 3, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1, 2], mean=1.49." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: n_transitions, min_value: -1, max_value: 32, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [1, 29], mean=1.39." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: pct_transitions, min_value: -0.08801, max_value: 1.09891, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0109, 1.0], mean=0.137." }
+  - type: expect_column_values_to_be_between
+    kwargs: { column: progressive_rate, min_value: 0, max_value: 1.1, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [0.0, 1.0], mean=0.236." }
+
+  # ── DÉRIVE VOLUMÉTRIQUE INTER-SAISONS ──
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.20
+      max_deviation_error: 0.40
+      min_seasons_history: 2
+      exclude_partitions: ['2025-2026']
+    severity: warn

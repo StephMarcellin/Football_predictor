@@ -1,0 +1,130 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — silver.understat_stats
+# Rôle : SIGNAL & DISTRIBUTIONS
+# Contrainte spatiotemporelle : 100 % Big5 par nature.
+# Test dérive volumétrique : exclut 2025-2026.
+# ══════════════════════════════════════════════════════════════════════════════
+
+suite_name: silver.understat_stats
+description: >
+  Signal statistique de silver.understat_stats. 100 % Big5. Contient les métriques
+  xG, xpts, PPDA, deep — inputs directs de la couche gold features avancées.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT
+      match_id, home_xpts, away_xpts,
+      home_np_xg, away_np_xg,
+      home_np_xg_diff, away_np_xg_diff,
+      home_ppda, away_ppda,
+      home_deep, away_deep,
+      season, league_source, comp_category, source
+    FROM silver.understat_stats
+
+expectations:
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 12000, max_value: 25000 }
+    severity: error
+    meta: { description: "Empirique = 15 781." }
+
+  # NULL rate
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - match_id
+      - home_xpts
+      - away_xpts
+      - home_np_xg
+      - away_np_xg
+      - home_np_xg_diff
+      - away_np_xg_diff
+      - home_deep
+      - away_deep
+      - season
+      - league_source
+      - comp_category
+      - source
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # PPDA : 1 NULL empirique → warn
+  - type: expect_column_values_to_not_be_null
+    for_each_column: [home_ppda, away_ppda]
+    kwargs: { mostly: 0.9995 }
+    severity: warn
+    meta: { description: "Empirique = 1 ligne NULL." }
+
+  # Bornes
+  - type: expect_column_values_to_be_between
+    for_each_column: [home_xpts, away_xpts]
+    kwargs: { min_value: 0, max_value: 3, mostly: 1.0 }
+    severity: error
+
+  - type: expect_column_values_to_be_between
+    for_each_column: [home_np_xg, away_np_xg]
+    kwargs: { min_value: 0, max_value: 10, mostly: 1.0 }
+    severity: error
+
+  - type: expect_column_values_to_be_between
+    for_each_column: [home_np_xg_diff, away_np_xg_diff]
+    kwargs: { min_value: -8, max_value: 8, mostly: 1.0 }
+    severity: error
+
+  - type: expect_column_values_to_be_between
+    for_each_column: [home_deep, away_deep]
+    kwargs: { min_value: 0, max_value: 60, mostly: 1.0 }
+    severity: error
+    meta: { description: "Max empirique 42/30." }
+
+  - type: expect_column_values_to_be_between
+    for_each_column: [home_ppda, away_ppda]
+    kwargs: { min_value: 1.0, max_value: 250, mostly: 1.0 }
+    severity: warn
+    meta: { description: "A-007 : PPDA max 193 (physiquement inhabituel mais légitime)." }
+
+  # Moyennes
+  - type: expect_column_mean_to_be_between
+    for_each_column: [home_np_xg, away_np_xg]
+    kwargs: { min_value: 1.0, max_value: 2.0 }
+    severity: error
+
+  - type: expect_column_mean_to_be_between
+    for_each_column: [home_xpts, away_xpts]
+    kwargs: { min_value: 1.0, max_value: 2.0 }
+    severity: error
+
+  - type: expect_column_mean_to_be_between
+    for_each_column: [home_ppda, away_ppda]
+    kwargs: { min_value: 8, max_value: 16 }
+    severity: error
+    meta: { description: "Empirique hp=11.8 ap=13.1" }
+
+  # ── Contraintes physiques (doublon volontaire avec dbt) ──
+  # Miroir xG diff
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "abs(home_np_xg_diff + away_np_xg_diff) < 0.001"
+    severity: error
+    meta: { description: "Miroir xG : home_diff = -away_diff. 0 violation empirique." }
+
+  # Cohérence xG diff = home_xg - away_xg
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "abs((home_np_xg - away_np_xg) - home_np_xg_diff) < 0.001"
+    severity: error
+
+  # Points attendus somment à ≤ 3
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "home_xpts + away_xpts <= 3.001"
+    severity: error
+
+  # Dérive volumétrique
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.20
+      max_deviation_error: 0.40
+      min_seasons_history: 2
+      exclude_partitions: ['2025-2026']
+    severity: warn

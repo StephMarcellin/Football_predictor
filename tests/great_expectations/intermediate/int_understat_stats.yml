@@ -1,0 +1,167 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — intermediate.int_understat_stats
+# Rôle : SIGNAL & DISTRIBUTIONS
+# Périmètre : Big5 domestique uniquement.
+# ══════════════════════════════════════════════════════════════════════════════
+
+suite_name: intermediate.int_understat_stats
+description: >
+  Signal statistique des stats Understat par match (npxG, xpts, PPDA, deep).
+  Big5 domestique uniquement. Contrainte de miroir xG et cohérence des points
+  attendus vérifiées côté dbt ET GE (doublon volontaire, contraintes critiques).
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT
+      match_id, us_match_id, season, league_source, comp_category, source,
+      home_xpts, away_xpts, home_np_xg, away_np_xg,
+      home_np_xg_diff, away_np_xg_diff,
+      home_ppda, away_ppda, home_deep, away_deep
+    FROM intermediate.int_understat_stats
+
+expectations:
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 1. VOLUMÉTRIE
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 11000, max_value: 25000 }
+    severity: error
+    meta: { description: "Empirique = 15 782." }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 2. COMPLÉTION — quasi 0 % NULL partout
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - match_id
+      - us_match_id
+      - season
+      - league_source
+      - comp_category
+      - source
+      - home_xpts
+      - away_xpts
+      - home_np_xg
+      - away_np_xg
+      - home_np_xg_diff
+      - away_np_xg_diff
+      - home_deep
+      - away_deep
+    kwargs: { mostly: 1.0 }
+    severity: error
+
+  # ppda : 1 NULL empirique — extrêmement rare
+  - type: expect_column_values_to_not_be_null
+    for_each_column: [home_ppda, away_ppda]
+    kwargs: { mostly: 0.995 }
+    severity: error
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 3. BORNES DE VALEURS
+  # ────────────────────────────────────────────────────────────────────────────
+  # xpts ∈ [0, 3] par définition
+  - type: expect_column_values_to_be_between
+    for_each_column: [home_xpts, away_xpts]
+    kwargs: { min_value: 0, max_value: 3, mostly: 1.0 }
+    severity: error
+
+  # np_xg ∈ [0, 10]
+  - type: expect_column_values_to_be_between
+    for_each_column: [home_np_xg, away_np_xg]
+    kwargs: { min_value: 0, max_value: 10, mostly: 1.0 }
+    severity: error
+
+  # np_xg_diff ∈ [-10, +10]
+  - type: expect_column_values_to_be_between
+    for_each_column: [home_np_xg_diff, away_np_xg_diff]
+    kwargs: { min_value: -10, max_value: 10, mostly: 1.0 }
+    severity: error
+
+  # PPDA > 0 (mesure). Max théorique élevé (194 empirique = anomalie flaguée).
+  - type: expect_column_values_to_be_between
+    for_each_column: [home_ppda, away_ppda]
+    kwargs: { min_value: 0, max_value: 200, mostly: 1.0 }
+    severity: error
+
+  # deep ≥ 0
+  - type: expect_column_values_to_be_between
+    for_each_column: [home_deep, away_deep]
+    kwargs: { min_value: 0, max_value: 60, mostly: 1.0 }
+    severity: error
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 4. BORNES STATISTIQUES
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: home_xpts, min_value: 1.3, max_value: 1.8 }
+    severity: error
+    meta: { description: "Empirique = 1.58" }
+
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: away_xpts, min_value: 1.0, max_value: 1.4 }
+    severity: error
+    meta: { description: "Empirique = 1.20" }
+
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: home_np_xg, min_value: 1.2, max_value: 1.7 }
+    severity: error
+    meta: { description: "Empirique = 1.45" }
+
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: away_np_xg, min_value: 0.9, max_value: 1.4 }
+    severity: error
+    meta: { description: "Empirique = 1.17" }
+
+  - type: expect_column_mean_to_be_between
+    for_each_column: [home_ppda, away_ppda]
+    kwargs: { min_value: 8, max_value: 16 }
+    severity: warn
+    meta: { description: "Empirique home=11.8 away=13.1" }
+
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: home_deep, min_value: 5, max_value: 9 }
+    severity: warn
+    meta: { description: "Empirique = 6.83" }
+
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: away_deep, min_value: 4, max_value: 7 }
+    severity: warn
+    meta: { description: "Empirique = 5.64" }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 5. COHÉRENCE CROISÉE — miroir et cohérence xG
+  # ────────────────────────────────────────────────────────────────────────────
+  # Miroir : home_diff + away_diff = 0
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "abs(home_np_xg_diff + away_np_xg_diff) < 0.001"
+    severity: error
+    meta: { description: "Miroir xG (contrainte physique)." }
+
+  # Cohérence : diff = home - away
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "abs((home_np_xg - away_np_xg) - home_np_xg_diff) < 0.001"
+    severity: error
+    meta: { description: "home_np_xg_diff dérive de home_np_xg − away_np_xg." }
+
+  # Points attendus ≤ 3
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "home_xpts + away_xpts <= 3.001"
+    severity: error
+    meta: { description: "Somme xpts_h + xpts_a bornée par 3 (le 3e point = xpts_draw)." }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 6. DÉRIVE VOLUMÉTRIQUE — exclut 2025-2026
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.10
+      max_deviation_error: 0.30
+      min_seasons_history: 2
+      exclude_partitions: ['2025-2026']
+    severity: warn

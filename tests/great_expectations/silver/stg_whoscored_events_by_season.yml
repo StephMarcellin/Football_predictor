@@ -1,0 +1,108 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Suite GE — silver.stg_whoscored_events (agrégats par saison)
+# Stratégie big data : PUSH-DOWN AGRÉGATS.
+#
+# Table = 60 074 480 lignes (32 colonnes). Ne PAS charger en pandas.
+# La query source GROUP BY season → 17 lignes agrégées.
+# Chaque expectation teste une colonne agrégée (pas la table brute).
+#
+# Complexité : O(60M) côté DuckDB (5 s environ), O(17) côté pandas.
+# ══════════════════════════════════════════════════════════════════════════════
+
+suite_name: silver.stg_whoscored_events.by_season
+description: >
+  Signal statistique de stg_whoscored_events agrégé par saison. Push-down :
+  aucune ligne brute ne remonte à pandas, seulement les agrégats saison.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT
+      season,
+      COUNT(*)                                      AS n_events,
+      COUNT(DISTINCT ws_match_id)                   AS n_matches,
+      COUNT(DISTINCT team_id)                       AS n_teams,
+      COUNT(DISTINCT player_id) FILTER (WHERE player_id IS NOT NULL) AS n_players,
+      COUNT(DISTINCT type_id)                       AS n_type_ids,
+      SUM(CASE WHEN is_shot THEN 1 ELSE 0 END)      AS n_shots,
+      SUM(CASE WHEN is_goal THEN 1 ELSE 0 END)      AS n_goals,
+      SUM(CASE WHEN is_own_goal THEN 1 ELSE 0 END)  AS n_own_goals,
+      SUM(CASE WHEN type_id = 1 THEN 1 ELSE 0 END)  AS n_passes,
+      SUM(CASE WHEN type_id = 4 THEN 1 ELSE 0 END)  AS n_fouls,
+      -- Taux NULL sur les colonnes conditionnelles
+      SUM(CASE WHEN second IS NULL THEN 1 ELSE 0 END)     AS n_null_second,
+      SUM(CASE WHEN player_id IS NULL THEN 1 ELSE 0 END)  AS n_null_player_id,
+      SUM(CASE WHEN end_x IS NULL THEN 1 ELSE 0 END)      AS n_null_end_x
+    FROM silver.stg_whoscored_events
+    GROUP BY season
+    ORDER BY season
+
+expectations:
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 1. Nombre de saisons — 17 empirique (2009-2010 à 2025-2026)
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 15, max_value: 20 }
+    severity: error
+    meta: { description: "Empirique = 17 saisons." }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 2. Volume events par saison — plancher / plafond
+  # ────────────────────────────────────────────────────────────────────────────
+  # Empirique : min=2.2M (2009-2010), max=4.2M (2016-2017)
+  - type: expect_column_values_to_be_between
+    kwargs: { column: n_events, min_value: 1500000, max_value: 5500000, mostly: 1.0 }
+    severity: error
+    meta: { description: "Volume events par saison plausible." }
+
+  # Nombre de matches par saison — plancher/plafond
+  - type: expect_column_values_to_be_between
+    kwargs: { column: n_matches, min_value: 1200, max_value: 3200, mostly: 1.0 }
+    severity: error
+    meta: { description: "Empirique : 1441 (2011-12) à 2684 (2020-21)." }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 3. Cohérence types et acteurs
+  # ────────────────────────────────────────────────────────────────────────────
+  # Nombre de types distincts par saison — plafond WhoScored ~40
+  - type: expect_column_values_to_be_between
+    kwargs: { column: n_type_ids, min_value: 30, max_value: 45, mostly: 1.0 }
+    severity: error
+
+  # Équipes par saison
+  - type: expect_column_values_to_be_between
+    kwargs: { column: n_teams, min_value: 30, max_value: 200, mostly: 1.0 }
+    severity: warn
+
+  # Joueurs par saison — empirique 2064 (2012-13) à 3978 (2021-22)
+  - type: expect_column_values_to_be_between
+    kwargs: { column: n_players, min_value: 1500, max_value: 5500, mostly: 1.0 }
+    severity: warn
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 4. Métriques football : passes ≈ 60 % des events, buts ~1 par 10 tirs
+  # ────────────────────────────────────────────────────────────────────────────
+  # n_passes / n_events > 0.55 (empirique ~61.7 %)
+  # Test via un mean : moyenne (n_passes / n_events) sur les 17 saisons
+  # → utilise expect_column_values_to_be_between avec ratio
+  # (le runner ne supporte pas les expressions dans kwargs, donc test simple sur n_passes)
+  - type: expect_column_mean_to_be_between
+    kwargs: { column: n_passes, min_value: 1500000, max_value: 3500000 }
+    severity: error
+    meta: { description: "Moyenne passes/saison — empirique ~2.2M." }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 5. Taux NULL par saison — sur colonnes non-conditionnelles
+  # ────────────────────────────────────────────────────────────────────────────
+  # `second` NULL : dette mineure, empirique 0.27 % total
+  # Test agrégat : max sur les 17 saisons doit rester bas
+  - type: expect_column_values_to_be_between
+    kwargs: { column: n_null_second, min_value: 0, max_value: 50000, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Dette 'second NULL' localisée : max 50 k / saison." }
+
+  # `player_id` NULL par saison — plafond 100 k (empirique < 60 k / saison)
+  - type: expect_column_values_to_be_between
+    kwargs: { column: n_null_player_id, min_value: 0, max_value: 200000, mostly: 1.0 }
+    severity: warn

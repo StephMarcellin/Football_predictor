@@ -1,0 +1,250 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — intermediate.player_passes_raw (PUSH-DOWN 2026-09-09)
+# Volumétrie : 1,930,574 lignes, 20 colonnes
+# Stratégie big data : agrégats DuckDB → 1 ligne en pandas.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: intermediate.player_passes_raw
+description: >
+  Push-down agrégats. Volumétrie de référence : 1,930,574 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT
+          COUNT(*) AS n_rows,
+          COUNT(*) FILTER (WHERE "match_id" IS NULL) AS null_match_id,
+          COUNT(*) FILTER (WHERE "chain_id" IS NULL) AS null_chain_id,
+          COUNT(*) FILTER (WHERE "chain_trigger" IS NULL) AS null_chain_trigger,
+          COUNT(*) FILTER (WHERE "team_id" IS NULL) AS null_team_id,
+          COUNT(*) FILTER (WHERE "passer_id" IS NULL) AS null_passer_id,
+          COUNT(*) FILTER (WHERE "receiver_id" IS NULL) AS null_receiver_id,
+          COUNT(*) FILTER (WHERE "row_num" IS NULL) AS null_row_num,
+          COUNT(*) FILTER (WHERE "expanded_minute" IS NULL) AS null_expanded_minute,
+          COUNT(*) FILTER (WHERE "second" IS NULL) AS null_second,
+          COUNT(*) FILTER (WHERE "x" IS NULL) AS null_x,
+          COUNT(*) FILTER (WHERE "y" IS NULL) AS null_y,
+          COUNT(*) FILTER (WHERE "end_x" IS NULL) AS null_end_x,
+          COUNT(*) FILTER (WHERE "end_y" IS NULL) AS null_end_y,
+          COUNT(*) FILTER (WHERE "is_key_pass" IS NULL) AS null_is_key_pass,
+          COUNT(*) FILTER (WHERE "is_shot_assist" IS NULL) AS null_is_shot_assist,
+          COUNT(*) FILTER (WHERE "season" IS NULL) AS null_season,
+          COUNT(*) FILTER (WHERE "league_source" IS NULL) AS null_league_source,
+          COUNT(*) FILTER (WHERE "is_progressive" IS NULL) AS null_is_progressive,
+          COUNT(*) FILTER (WHERE "is_creative" IS NULL) AS null_is_creative,
+          COUNT(*) FILTER (WHERE "is_buildup" IS NULL) AS null_is_buildup,
+          MIN("team_id") AS min_team_id,
+          MAX("team_id") AS max_team_id,
+          AVG("team_id") AS avg_team_id,
+          MIN("passer_id") AS min_passer_id,
+          MAX("passer_id") AS max_passer_id,
+          AVG("passer_id") AS avg_passer_id,
+          MIN("receiver_id") AS min_receiver_id,
+          MAX("receiver_id") AS max_receiver_id,
+          AVG("receiver_id") AS avg_receiver_id,
+          MIN("row_num") AS min_row_num,
+          MAX("row_num") AS max_row_num,
+          AVG("row_num") AS avg_row_num,
+          MIN("expanded_minute") AS min_expanded_minute,
+          MAX("expanded_minute") AS max_expanded_minute,
+          AVG("expanded_minute") AS avg_expanded_minute,
+          MIN("second") AS min_second,
+          MAX("second") AS max_second,
+          AVG("second") AS avg_second,
+          MIN("x") AS min_x,
+          MAX("x") AS max_x,
+          AVG("x") AS avg_x,
+          MIN("y") AS min_y,
+          MAX("y") AS max_y,
+          AVG("y") AS avg_y,
+          MIN("end_x") AS min_end_x,
+          MAX("end_x") AS max_end_x,
+          AVG("end_x") AS avg_end_x,
+          MIN("end_y") AS min_end_y,
+          MAX("end_y") AS max_end_y,
+          AVG("end_y") AS avg_end_y,
+          MIN("is_key_pass") AS min_is_key_pass,
+          MAX("is_key_pass") AS max_is_key_pass,
+          AVG("is_key_pass") AS avg_is_key_pass,
+          MIN("is_shot_assist") AS min_is_shot_assist,
+          MAX("is_shot_assist") AS max_is_shot_assist,
+          AVG("is_shot_assist") AS avg_is_shot_assist
+        FROM intermediate."player_passes_raw"
+
+expectations:
+
+  # ── VOLUMÉTRIE (1 ligne agrégée = 1 seule row en output) ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 1, max_value: 1 }
+    severity: error
+    meta: { description: "Agrégat push-down doit renvoyer exactement 1 ligne." }
+
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "n_rows >= 772229 and n_rows <= 3861148"
+    severity: error
+    meta: { description: "Row count empirique = 1,930,574." }
+
+  # ── COMPLÉTION PAR COLONNE (push-down NULL counts) ──
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_match_id / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "match_id empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_chain_id / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "chain_id empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_chain_trigger / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "chain_trigger empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_team_id / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "team_id empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_passer_id / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "passer_id empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_receiver_id / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "receiver_id empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_row_num / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "row_num empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_expanded_minute / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "expanded_minute empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_second / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "second empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_x / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "x empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_y / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "y empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_end_x / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "end_x empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_end_y / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "end_y empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_is_key_pass / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "is_key_pass empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_is_shot_assist / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "is_shot_assist empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_season / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "season empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_league_source / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "league_source empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_is_progressive / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "is_progressive empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_is_creative / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "is_creative empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_is_buildup / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "is_buildup empirique 0.00% NULL." }
+
+  # ── BORNES NUMÉRIQUES (push-down MIN/MAX) ──
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_team_id >= 202606099958.5000 and max_team_id <= 202606100468.5000"
+    severity: warn
+    meta: { description: "team_id empirique [202606100001.0, 202606100426.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_passer_id >= -52893.8000 and max_passer_id <= 617675.8000"
+    severity: warn
+    meta: { description: "passer_id empirique [2987.0, 561795.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_receiver_id >= -52893.8000 and max_receiver_id <= 617675.8000"
+    severity: warn
+    meta: { description: "receiver_id empirique [2987.0, 561795.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_row_num >= -184.7000 and max_row_num <= 2055.7000"
+    severity: warn
+    meta: { description: "row_num empirique [2.0, 1869.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_expanded_minute >= 0.0000 and max_expanded_minute <= 138.6000"
+    severity: warn
+    meta: { description: "expanded_minute empirique [0.0, 126.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_second >= 0.0000 and max_second <= 64.9000"
+    severity: warn
+    meta: { description: "second empirique [0.0, 59.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_x >= -9.8800 and max_x <= 109.8800"
+    severity: warn
+    meta: { description: "x empirique [0.1, 99.9]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_y >= 0.0000 and max_y <= 110.0000"
+    severity: warn
+    meta: { description: "y empirique [0.0, 100.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_end_x >= -9.8900 and max_end_x <= 109.9900"
+    severity: warn
+    meta: { description: "end_x empirique [0.1, 100.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_end_y >= 0.0000 and max_end_y <= 110.0000"
+    severity: warn
+    meta: { description: "end_y empirique [0.0, 100.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_is_key_pass >= 0.0000 and max_is_key_pass <= 1.1000"
+    severity: warn
+    meta: { description: "is_key_pass empirique [0.0, 1.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_is_shot_assist >= 0.0000 and max_is_shot_assist <= 1.1000"
+    severity: warn
+    meta: { description: "is_shot_assist empirique [0.0, 1.0]." }
