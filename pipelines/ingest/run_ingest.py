@@ -129,11 +129,11 @@ def build_steps() -> dict:
             "kwargs":   {},
             "critical": True,
         },
-        "odds": {
-            "fn":       odds.main,
-            "kwargs":   {},
-            "critical": False,
-        },
+        # "odds": {
+        #     "fn":       odds.main,
+        #     "kwargs":   {},
+        #     "critical": False,
+        # },
         "process_events": {
             "fn":       pe.main,
             "kwargs":   {},

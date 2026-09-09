@@ -11,6 +11,10 @@ sources:
 
       - name: fbref_schedule
         description: "Table centrale FBref — 1 ligne par équipe par match. Point de départ de toute la chaîne features."
+        tests:
+          # ── Grain silver — 0 doublon empirique ──
+          - dbt_utils.unique_combination_of_columns:
+              combination_of_columns: [date, team, opponent, league_source]
         columns:
           - name: date
             description: "Date du match"
@@ -98,6 +102,33 @@ sources:
 
       - name: fbref_keeper
         description: "Statistiques de gardien FBref — 1 ligne par équipe par match"
+        tests:
+          # ── Grain silver — 0 doublon empirique sur (date, team, opponent, league_source) ──
+          - dbt_utils.unique_combination_of_columns:
+              combination_of_columns: [date, team, opponent, league_source]
+          # ── A-004 (silver.fbref_keeper : bug scraping FBref, 1 186 lignes) ──
+          # Contrainte physique : les buts encaissés ne peuvent excéder les tirs cadrés subis.
+          # Warn ici parce que la dette est connue et suivie via audits.scraping_targets_int_fbref_keeper.
+          - dbt_utils.expression_is_true:
+              expression: "ga_keeper <= sota"
+              config:
+                severity: warn
+          # ── A-012 (nouveau) : cs devrait être binaire {0, 1} ──
+          # 119 lignes avec cs = 2, 203 contradictions cs ↔ ga_keeper.
+          # L'intermediate camoufle en recalculant cs depuis ga_keeper — silver expose la vérité brute.
+          - dbt_utils.expression_is_true:
+              expression: "cs IN (0, 1)"
+              config:
+                severity: warn
+          - dbt_utils.expression_is_true:
+              expression: "(ga_keeper > 0 AND cs = 0) OR (ga_keeper = 0 AND cs = 1)"
+              config:
+                severity: warn
+          # ── Contrainte comptable sur les penaltys ──
+          - dbt_utils.expression_is_true:
+              expression: "pk_allowed + pk_saved + pk_missed <= pk_att"
+              config:
+                severity: warn
         columns:
           - name: date
             description: "Date du match"
@@ -218,6 +249,26 @@ sources:
 
       - name: fbref_shooting
         description: "Statistiques de tir FBref — 1 ligne par équipe par match"
+        tests:
+          # ── Grain silver — 0 doublon empirique ──
+          - dbt_utils.unique_combination_of_columns:
+              combination_of_columns: [date, team, opponent, league_source]
+          # ── Contraintes physiques dures (0 violation empirique) ──
+          - dbt_utils.expression_is_true:
+              expression: "standard_sot <= standard_sh"
+          - dbt_utils.expression_is_true:
+              expression: "standard_pk <= standard_pkatt"
+          # ── A-011 (silver.fbref_shooting : bug scraping FBref suspecté) ──
+          # 1 475 lignes empiriques avec standard_gls > standard_sot + 5 avec standard_gls > gf.
+          # Warn en attendant investigation. Justifie un futur scraping_targets_int_fbref_shooting.
+          - dbt_utils.expression_is_true:
+              expression: "standard_gls <= standard_sot"
+              config:
+                severity: warn
+          - dbt_utils.expression_is_true:
+              expression: "standard_gls <= gf"
+              config:
+                severity: warn
         columns:
           - name: date
             description: "Date du match"
@@ -327,6 +378,16 @@ sources:
 
       - name: fbref_misc
         description: "Statistiques diverses FBref — cartons, fautes, corners, penaltys — 1 ligne par équipe par match"
+        tests:
+          # ── Grain silver — 0 doublon empirique ──
+          - dbt_utils.unique_combination_of_columns:
+              combination_of_columns: [date, team, opponent, league_source]
+          # ── Plafond de plausibilité disciplinaire ──
+          # Empirique max = 9+3+2 = 14. Marge à 15.
+          - dbt_utils.expression_is_true:
+              expression: "crdy + crdr + crdy2 <= 15"
+              config:
+                severity: warn
         columns:
           - name: date
             description: "Date du match"
@@ -465,6 +526,14 @@ sources:
 
       - name: understat_schedule
         description: "Calendrier des matchs Understat — 1 ligne par match (pas par équipe). Contient les identifiants pour jointure avec understat_stats."
+        tests:
+          # ── Grain silver — match_id unique + match_url unique ──
+          - dbt_utils.unique_combination_of_columns:
+              combination_of_columns: [match_id]
+          # ── Cohérence : is_result=false ↔ xG NULL ──
+          # 431 lignes avec is_result=false, 431 avec home_xg NULL — parfaite correspondance.
+          - dbt_utils.expression_is_true:
+              expression: "(is_result = TRUE AND home_xg IS NOT NULL) OR (is_result = FALSE AND home_xg IS NULL)"
         columns:
           - name: match_id
             description: "Identifiant unique Understat du match — clé de jointure avec understat_stats"
@@ -522,6 +591,17 @@ sources:
 
       - name: understat_stats
         description: "Statistiques xG détaillées par match (Understat) — 1 ligne par match. Jointure avec understat_schedule sur match_id."
+        tests:
+          - dbt_utils.unique_combination_of_columns:
+              combination_of_columns: [match_id]
+          # ── Contraintes physiques : miroir xG et xpts sum ──
+          # 0 violation empirique — tests durs.
+          - dbt_utils.expression_is_true:
+              expression: "ABS(home_np_xg_diff + away_np_xg_diff) < 0.001"
+          - dbt_utils.expression_is_true:
+              expression: "ABS((home_np_xg - away_np_xg) - home_np_xg_diff) < 0.001"
+          - dbt_utils.expression_is_true:
+              expression: "home_xpts + away_xpts <= 3.001"
         columns:
           - name: match_id
             description: "Identifiant Understat du match — clé de jointure avec understat_schedule"
@@ -595,6 +675,16 @@ sources:
 
       - name: odds
         description: "Cotes de paris — 1 ligne par match. Source principale : Pinnacle (bookmaker de référence pour la valeur attendue)."
+        tests:
+          # ── Grain silver — 0 doublon empirique ──
+          - dbt_utils.unique_combination_of_columns:
+              combination_of_columns: [date, home_team, away_team, league_source]
+          # ── Contrainte physique : les probabilités no-vig somment exactement à 1 ──
+          # Empirique min=0.9999999999999998 max=1.0000000000000002 → tolérance 1e-6.
+          - dbt_utils.expression_is_true:
+              expression: "pinnacle_prob_h IS NULL OR ABS(pinnacle_prob_h + pinnacle_prob_d + pinnacle_prob_a - 1) < 1e-6"
+          - dbt_utils.expression_is_true:
+              expression: "market_prob_h IS NULL OR ABS(market_prob_h + market_prob_d + market_prob_a - 1) < 1e-6"
         columns:
           - name: date
             description: "Date du match"
@@ -760,6 +850,9 @@ sources:
 
       - name: whoscored_team_season
         description: "Métriques WhoScored agrégées par équipe par saison — ratings et statistiques de jeu moyennes."
+        tests:
+          - dbt_utils.unique_combination_of_columns:
+              combination_of_columns: [team, season, league_source]
         columns:
           - name: team
             description: "Nom normalisé de l'équipe"
@@ -852,6 +945,13 @@ sources:
         description: >
           Index des matchs WhoScored — 1 ligne par match.
           Contient les identifiants équipes et la date pour jointure avec fbref.
+        tests:
+          # ── Grain silver — 0 doublon empirique (contraste avec int_whoscored_match_index : 118 doublons cascade A-003) ──
+          - dbt_utils.unique_combination_of_columns:
+              combination_of_columns: [ws_match_id]
+          # ── Contrainte : équipes différentes ──
+          - dbt_utils.expression_is_true:
+              expression: "home_team_id != away_team_id"
         columns:
           - name: ws_match_id
             description: "Identifiant unique WhoScored du match"
@@ -891,6 +991,9 @@ sources:
         description: >
           Dimension joueurs — 1 ligne par joueur (dédupliqué sur tous les matchs).
           Source : playerIdNameDictionary. Permet de lire les player_id.
+        tests:
+          - dbt_utils.unique_combination_of_columns:
+              combination_of_columns: [player_id]
         columns:
           - name: player_id
             description: "Identifiant WhoScored du joueur"
@@ -904,6 +1007,9 @@ sources:
         description: >
           Dimension formations — catalogue formation_id → nom (ex: 2 → '442').
           Source : formations[].formationId / formationName.
+        tests:
+          - dbt_utils.unique_combination_of_columns:
+              combination_of_columns: [formation_id]
         columns:
           - name: formation_id
             description: "Identifiant WhoScored de la formation"
@@ -917,6 +1023,14 @@ sources:
         description: >
           Faits joueur par match — 1 ligne par joueur par match.
           Note WhoScored (rating) extraite ; stats brutes par minute en JSON.
+        tests:
+          - dbt_utils.unique_combination_of_columns:
+              combination_of_columns: [ws_match_id, team_id, player_id]
+          # ── Cohérence : position = 'Sub' ↔ is_first_eleven IS NULL (5 violations mineures) ──
+          - dbt_utils.expression_is_true:
+              expression: "(position = 'Sub' AND is_first_eleven IS NULL) OR (position != 'Sub' AND is_first_eleven IS NOT NULL)"
+              config:
+                severity: warn
         columns:
           - name: ws_match_id
             description: "Identifiant WhoScored du match"
@@ -943,6 +1057,15 @@ sources:
         description: >
           Timeline tactique — 1 ligne par période de formation par équipe.
           formation_seq = index de la formation dans la liste de l'équipe.
+        tests:
+          - dbt_utils.unique_combination_of_columns:
+              combination_of_columns: [ws_match_id, team_id, formation_seq]
+          # ── A-014 : end_minute >= start_minute (474 violations empiriques + 5 sentinelles 32767) ──
+          # Warn — bug de scraping documenté, dette suivie.
+          - dbt_utils.expression_is_true:
+              expression: "end_minute >= start_minute AND end_minute < 200"
+              config:
+                severity: warn
         columns:
           - name: ws_match_id
             description: "Identifiant WhoScored du match"
@@ -973,6 +1096,9 @@ sources:
         description: >
           Faits équipe par match — 1 ligne par équipe par match.
           Contexte + 35 métriques équipe officielles (JSON brut par minute).
+        tests:
+          - dbt_utils.unique_combination_of_columns:
+              combination_of_columns: [ws_match_id, team_id]
         columns:
           - name: ws_match_id
             description: "Identifiant WhoScored du match"
@@ -993,6 +1119,9 @@ sources:
         description: >
           Métadonnées du match — 1 ligne par match.
           Arbitre, stade, affluence, scores mi-temps / temps plein.
+        tests:
+          - dbt_utils.unique_combination_of_columns:
+              combination_of_columns: [ws_match_id]
         columns:
           - name: ws_match_id
             description: "Identifiant WhoScored du match"
@@ -1013,6 +1142,62 @@ sources:
             description: "Score à la mi-temps"
           - name: ft_score
             description: "Score final"
+          - name: et_score
+            description: "Score en prolongation. A-017 : 100 % vide en pratique — colonne dead."
+          - name: pk_score
+            description: "Score après tirs au but. A-017 : 100 % vide en pratique — colonne dead."
+          - name: weather_code
+            description: "Code météo — 6 valeurs distinctes."
+          - name: attendance
+            description: "Affluence — 0 pour matches sans public (huis clos COVID)."
+
+      - name: stg_whoscored_urls
+        description: >
+          Registre de scraping — 1 ligne par (ws_match_id, url). Statut is_scraped
+          + skip_reason permettent de piloter le prochain run du scraper WhoScored.
+          Table de gouvernance : jamais lue par un modèle dbt en aval.
+        tests:
+          - dbt_utils.unique_combination_of_columns:
+              combination_of_columns: [ws_match_id]
+          - dbt_utils.unique_combination_of_columns:
+              combination_of_columns: [url]
+          # ── Cohérence : is_scraped=false ↔ scraped_at IS NULL ──
+          - dbt_utils.expression_is_true:
+              expression: "(is_scraped = TRUE AND scraped_at IS NOT NULL) OR (is_scraped = FALSE AND scraped_at IS NULL)"
+        columns:
+          - name: ws_match_id
+            description: "Identifiant WhoScored du match"
+            tests:
+              - not_null
+          - name: url
+            description: "URL WhoScored du match"
+            tests:
+              - not_null
+          - name: league_source
+            description: "Championnat"
+            tests:
+              - not_null
+          - name: season
+            description: "Saison au format YYYY-YYYY"
+            tests:
+              - not_null
+          - name: month_abbr
+            description: "Mois abrégé du match"
+          - name: match_year
+            description: "Année du match"
+          - name: is_scraped
+            description: "Booléen : le match a été scrapé avec succès ?"
+            tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: [true, false]
+          - name: indexed_at
+            description: "Timestamp de l'indexation (découverte de l'URL)"
+          - name: scraped_at
+            description: "Timestamp du scraping. NULL si is_scraped=false."
+          - name: skip_reason
+            description: "Raison du skip si is_scraped=false. NULL sinon (99.16 % NULL)."
 
 
   - name: intermediate

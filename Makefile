@@ -89,13 +89,10 @@ rare: check-env
 #  ETAPES BRONZE / SILVER (lancées directement, pas via orchestrateur)
 # ============================================================
 ingest: check-env
-	$(PYTHON) pipelines\ingest\01_ingest.py
+	$(PYTHON) pipelines\ingest\run_ingest.py
 
-odds: check-env
-	$(PYTHON) pipelines\ingest\01b_odds.py
-
-process: check-env
-	$(PYTHON) pipelines\ingest\02_process.py
+# process: check-env
+# 	$(PYTHON) pipelines\ingest\02_process.py
 
 # ============================================================
 #  ETAPES VIA L'ORCHESTRATEUR

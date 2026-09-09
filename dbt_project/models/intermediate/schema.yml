@@ -4,16 +4,68 @@ models:
   - name: backbone
     description: >
       Table pivot centrale — 1 ligne par équipe par match.
-      Jointure de 7 tables silver.* produite par dbt en mode incremental.
+      Jointure de 7 tables silver.*/intermediate.* produite par dbt en mode incremental.
       Schéma intermediate — consommée par les modèles gold.features_*.
+
+      Segmentation Big5-only :
+      - Colonnes Understat (np_xg, ppda, np_xg_diff_match) : 100 % NULL hors Big5
+      - Colonnes WhoScored saison + Odds : 100 % NULL hors Big5, avec sparsité résiduelle en Big5
     config:
       alias: backbone
+    tests:
+      # ── Grain de la table (1 ligne par équipe par match) ──
+      # 1 doublon empirique — hérité d'int_fbref_schedule.
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [match_id, team_id]
+          config:
+            severity: warn
+      # ── Contrainte physique dure : tirs cadrés ≤ tirs totaux (0 violation empirique) ──
+      - dbt_utils.expression_is_true:
+          expression: "shots_on_target <= shots_total"
+          config:
+            severity: error
+      # ── Contrainte physique dure : différentiel npxG = np_xg - np_xg_conceded (0 violation) ──
+      - dbt_utils.expression_is_true:
+          expression: "np_xg IS NULL OR np_xg_conceded IS NULL OR ABS(np_xg_diff_match - (np_xg - np_xg_conceded)) < 0.001"
+          config:
+            severity: error
+      # ── Cascade A-024 : saves ≤ shots_on_target_faced (296 violations depuis silver.fbref_keeper) ──
+      # Rescrap ciblé prévu via scraping_targets_int_fbref_keeper. Warn en attendant.
+      - dbt_utils.expression_is_true:
+          expression: "saves IS NULL OR shots_on_target_faced IS NULL OR saves <= shots_on_target_faced"
+          config:
+            severity: warn
+      # ── Cascade A-025 : clean_sheet = 1 → ga = 0 (23 violations, flag mensonger) ──
+      - dbt_utils.expression_is_true:
+          expression: "clean_sheet IS NULL OR clean_sheet = 0 OR ga = 0"
+          config:
+            severity: warn
+      # ── Cascade A-026 : save_pct doit être dans [0, 100] (36 violations dérivées A-024) ──
+      - dbt_utils.expression_is_true:
+          expression: "save_pct IS NULL OR (save_pct >= 0 AND save_pct <= 100)"
+          config:
+            severity: warn
+      # ── Somme des probabilités Pinnacle 1n2 = 1 (0 violation) ──
+      - dbt_utils.expression_is_true:
+          expression: "pinnacle_prob_team IS NULL OR ABS(pinnacle_prob_team + pinnacle_prob_draw + pinnacle_prob_opp - 1) < 0.001"
+          config:
+            severity: error
+      # ── Somme des probabilités marché moyen 1n2 = 1 (0 violation) ──
+      - dbt_utils.expression_is_true:
+          expression: "market_prob_team IS NULL OR ABS(market_prob_team + market_prob_draw + market_prob_opp - 1) < 0.001"
+          config:
+            severity: error
+      # ── Somme over25 + under25 = 1 (0 violation) ──
+      - dbt_utils.expression_is_true:
+          expression: "pinnacle_prob_over25 IS NULL OR ABS(pinnacle_prob_over25 + pinnacle_prob_under25 - 1) < 0.001"
+          config:
+            severity: error
 
     columns:
 
       # ── Identifiants ────────────────────────────────────────────────────────
       - name: match_id
-        description: "Identifiant Understat du match — NULL si le match n'existe pas dans Understat"
+        description: "Identifiant unifié du match (SHA1). 49 NULL empiriques (0.09 %) — cf. A-005."
         tests:
           - not_null:
               config:
@@ -24,17 +76,19 @@ models:
           - not_null
 
       - name: team_id
-        description: "Nom normalisé de l'équipe"
+        description: "Id canonique de l'équipe"
         tests:
           - not_null
 
       - name: opponent_id
-        description: "Nom normalisé de l'adversaire"
+        description: "Id canonique de l'adversaire. NULL toléré ~3.6 % — cascade A-002."
         tests:
-          - not_null
+          - not_null:
+              config:
+                severity: warn
 
       - name: venue
-        description: "Lieu du match du point de vue de l'équipe : Home ou Away"
+        description: "Lieu du match du point de vue de l'équipe : Home, Away ou Neutral (finales Cup/Europe)"
         tests:
           - not_null
           - accepted_values:
@@ -52,12 +106,15 @@ models:
           - not_null
 
       - name: comp_category
-        description: "Catégorie de compétition : Big5, Cup, Europe"
+        description: "Catégorie de compétition : Big5, Cup, D2, Europe, Other"
         tests:
           - not_null
+          - accepted_values:
+              arguments:
+                values: ['Big5', 'Cup', 'D2', 'Europe', 'Other']
 
       - name: result_1n2
-        description: "Résultat du point de vue de l'équipe : H (victoire), D (nul), A (défaite)"
+        description: "Résultat du point de vue de l'équipe : H (victoire), D (nul), A (défaite). NULL sur les matches non joués (~1.5 %)."
         tests:
           - not_null:
               config:
@@ -69,7 +126,7 @@ models:
                 values: ['H', 'D', 'A']
 
       - name: formation
-        description: "Formation tactique de l'équipe (ex: 4-3-3)"
+        description: "Formation tactique de l'équipe (ex: 4-3-3). Peut être vide (matches non joués)."
 
       # ── Résultats bruts ──────────────────────────────────────────────────────
       - name: gf
@@ -96,15 +153,15 @@ models:
           - is_positive
 
       - name: saves
-        description: "Arrêts du gardien"
+        description: "Arrêts du gardien. Cascade A-024 : 296 lignes avec saves > sota (bug scraping silver.fbref_keeper)."
         tests:
           - is_positive
 
       - name: save_pct
-        description: "Pourcentage d'arrêts (saves / shots_on_target_faced)"
+        description: "Pourcentage d'arrêts. Cascade A-026 : 36 lignes < 0 (dérivées d'A-024 via saves > sota)."
 
       - name: clean_sheet
-        description: "1 si aucun but encaissé, 0 sinon"
+        description: "1 si aucun but encaissé, 0 sinon. Cascade A-025 : 23 lignes clean_sheet=1 avec ga>0 (flag mensonger)."
         tests:
           - is_positive
 
@@ -153,57 +210,59 @@ models:
         tests:
           - is_positive
 
-      # ── xG et pressing (understat_stats) ────────────────────────────────────
+      # ── xG et pressing (understat_stats) — 100 % NULL hors Big5 ────────────
       - name: np_xg
-        description: "Expected goals sans pénalties du point de vue de l'équipe (Understat) — NULL si match hors Understat"
+        description: "Expected goals sans pénalties du point de vue de l'équipe (Understat). NULL hors Big5."
         tests:
           - is_positive
 
       - name: np_xg_conceded
-        description: "Expected goals sans pénalties concédés — NULL si match hors Understat"
+        description: "Expected goals sans pénalties concédés. NULL hors Big5."
         tests:
           - is_positive
 
       - name: ppda
-        description: "PPDA de l'équipe — passes adverses autorisées par action défensive (mesure le pressing)"
+        description: "PPDA de l'équipe — passes adverses autorisées par action défensive (mesure le pressing). Max empirique 193 (A-007). NULL hors Big5."
         tests:
           - is_positive
 
       - name: ppda_allowed
-        description: "PPDA autorisé à l'adversaire — pressing subi"
+        description: "PPDA autorisé à l'adversaire — pressing subi. NULL hors Big5."
         tests:
           - is_positive
 
       - name: np_xg_diff_match
-        description: "Différentiel npxG du match (np_xg - np_xg_conceded) — peut être négatif"
+        description: "Différentiel npxG du match (np_xg - np_xg_conceded) — peut être négatif. NULL hors Big5."
 
-      # ── WhoScored saison (whoscored_team_season) ─────────────────────────────
+      # ── WhoScored saison (whoscored_team_season) — 100 % NULL hors Big5 ─────
+      # Cascade A-027 : season_att_rating == season_def_rating sur 100 % des lignes non-NULL
+      # (bug scraping silver.whoscored_team_season). Les 2 colonnes sont redondantes.
       - name: season_att_rating
-        description: "Rating offensif WhoScored de la saison selon le venue (Home ou Away)"
+        description: "Rating offensif WhoScored de la saison selon le venue. A-027 : identique au def_rating."
         tests:
           - is_positive
 
       - name: season_def_rating
-        description: "Rating défensif WhoScored de la saison selon le venue"
+        description: "Rating défensif WhoScored de la saison selon le venue. A-027 : identique au att_rating."
         tests:
           - is_positive
 
       - name: ws_dribbles_pg
-        description: "Dribbles réussis par match selon le venue"
+        description: "Dribbles réussis par match selon le venue. NULL hors Big5."
         tests:
           - is_positive
 
       - name: ws_fouled_pg
-        description: "Fautes subies par match selon le venue"
+        description: "Fautes subies par match selon le venue. NULL hors Big5."
         tests:
           - is_positive
 
       - name: ws_shots_ot_pg
-        description: "Tirs cadrés par match selon le venue"
+        description: "Tirs cadrés par match selon le venue. NULL hors Big5."
         tests:
           - is_positive
 
-      # ── Cotes Pinnacle (odds) ────────────────────────────────────────────────
+      # ── Cotes Pinnacle (odds) — NULL hors Big5 + sparsité résiduelle Big5 ────
       - name: odds_pinnacle_team
         description: "Cote Pinnacle victoire de l'équipe (H si Home, A si Away)"
         tests:
@@ -246,44 +305,125 @@ models:
               config:
                 severity: warn
 
-      # ── Probabilités implicites ──────────────────────────────────────────────
+      # ── Probabilités implicites (ouverture) ─────────────────────────────────
       - name: pinnacle_prob_team
-        description: "Probabilité implicite Pinnacle victoire de l'équipe"
+        description: "Probabilité implicite Pinnacle victoire de l'équipe (ouverture)"
         tests:
           - is_valid_probability:
               config:
                 severity: warn
 
       - name: pinnacle_prob_draw
-        description: "Probabilité implicite Pinnacle match nul"
+        description: "Probabilité implicite Pinnacle match nul (ouverture)"
         tests:
           - is_valid_probability:
               config:
                 severity: warn
 
       - name: pinnacle_prob_opp
-        description: "Probabilité implicite Pinnacle victoire adversaire"
+        description: "Probabilité implicite Pinnacle victoire adversaire (ouverture)"
         tests:
           - is_valid_probability:
               config:
                 severity: warn
 
       - name: market_prob_team
-        description: "Probabilité implicite marché moyen victoire de l'équipe"
+        description: "Probabilité implicite marché moyen victoire de l'équipe (ouverture)"
         tests:
           - is_valid_probability:
               config:
                 severity: warn
 
       - name: market_prob_draw
-        description: "Probabilité implicite marché moyen match nul"
+        description: "Probabilité implicite marché moyen match nul (ouverture)"
         tests:
           - is_valid_probability:
               config:
                 severity: warn
 
       - name: market_prob_opp
-        description: "Probabilité implicite marché moyen victoire adversaire"
+        description: "Probabilité implicite marché moyen victoire adversaire (ouverture)"
+        tests:
+          - is_valid_probability:
+              config:
+                severity: warn
+
+      # ── Probabilités implicites (closing) — ajoutées 2026-09-09 ──────────────
+      - name: pinnacle_prob_close_team
+        description: "Probabilité implicite Pinnacle victoire de l'équipe (closing)"
+        tests:
+          - is_valid_probability:
+              config:
+                severity: warn
+
+      - name: pinnacle_prob_close_draw
+        description: "Probabilité implicite Pinnacle match nul (closing)"
+        tests:
+          - is_valid_probability:
+              config:
+                severity: warn
+
+      - name: pinnacle_prob_close_opp
+        description: "Probabilité implicite Pinnacle victoire adversaire (closing)"
+        tests:
+          - is_valid_probability:
+              config:
+                severity: warn
+
+      - name: market_prob_close_team
+        description: "Probabilité implicite marché moyen victoire équipe (closing)"
+        tests:
+          - is_valid_probability:
+              config:
+                severity: warn
+
+      - name: market_prob_close_draw
+        description: "Probabilité implicite marché moyen match nul (closing)"
+        tests:
+          - is_valid_probability:
+              config:
+                severity: warn
+
+      - name: market_prob_close_opp
+        description: "Probabilité implicite marché moyen victoire adversaire (closing)"
+        tests:
+          - is_valid_probability:
+              config:
+                severity: warn
+
+      # ── Drifts (mouvements de la cote entre ouverture et closing) ───────────
+      # Peuvent être négatifs — bornes empiriques [-0.2, +0.3].
+      - name: pinnacle_drift_team
+        description: "Drift Pinnacle victoire équipe (close - open). Peut être négatif."
+      - name: pinnacle_drift_draw
+        description: "Drift Pinnacle match nul (close - open). Peut être négatif."
+      - name: pinnacle_drift_opp
+        description: "Drift Pinnacle victoire adversaire (close - open). Peut être négatif."
+
+      # ── Probabilités Over/Under 2.5 buts ────────────────────────────────────
+      - name: pinnacle_prob_over25
+        description: "Probabilité implicite Pinnacle Over 2.5 buts (ouverture)"
+        tests:
+          - is_valid_probability:
+              config:
+                severity: warn
+
+      - name: pinnacle_prob_under25
+        description: "Probabilité implicite Pinnacle Under 2.5 buts (ouverture)"
+        tests:
+          - is_valid_probability:
+              config:
+                severity: warn
+
+      - name: pinnacle_prob_close_over25
+        description: "Probabilité implicite Pinnacle Over 2.5 buts (closing)"
+        tests:
+          - is_valid_probability:
+              config:
+                severity: warn
+
+      - name: pinnacle_prob_close_under25
+        description: "Probabilité implicite Pinnacle Under 2.5 buts (closing)"
         tests:
           - is_valid_probability:
               config:
@@ -1340,227 +1480,665 @@ models:
       match_id unifié et team_id normalisé. Alimente les colonnes gardien
       de backbone.
     tests:
-      # Garde-fou clean_sheet : cs doit refléter ga_keeper (champ autoritaire).
-      # ga_keeper NULL → cs NULL toléré.
+      # ── Grain de la table (1 ligne par équipe par match) ──
+      # Severity=warn en attendant le fix de la seed team_mapping (48 doublons connus).
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [match_id, team_id]
+          config:
+            severity: warn
+      # ── Contrainte physique : les buts encaissés ne peuvent excéder les tirs cadrés subis ──
+      # C'est cette contrainte qui attrape le bug save_pct < 0 (36 lignes empiriques
+      # où ga_keeper > sota). La contrainte plus stricte "sota >= saves + ga_keeper"
+      # génère 12 % de faux positifs (tirs bloqués par défenseur comptés en sota mais
+      # pas en saves — divergence légitime FBref).
+      - dbt_utils.expression_is_true:
+          expression: "ga_keeper <= sota"
+          config:
+            severity: error
+      # ── Contrainte comptable sur les penaltys tentés ──
+      - dbt_utils.expression_is_true:
+          expression: "pk_allowed + pk_saved + pk_missed <= pk_att"
+          config:
+            severity: warn
+      # ── Garde-fou clean_sheet ↔ ga_keeper (existant) ──
+      # cs doit refléter ga_keeper. ga_keeper NULL → cs NULL toléré.
       - dbt_utils.expression_is_true:
           expression: "(ga_keeper IS NULL) OR (cs = CASE WHEN ga_keeper = 0 THEN 1 ELSE 0 END)"
     columns:
       - name: match_id
         description: "Identifiant unifié du match (SHA1), rattaché via match_registry."
+        tests:
+          - not_null
+          - relationships:
+              to: source('intermediate', 'match_registry')
+              field: match_id
       - name: team_id
         description: "Id canonique de l'équipe (converti depuis le nom de club FBref via team_mapping)."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('team_mapping')
+              field: team_id
       - name: opponent_id
-        description: "Id canonique de l'équipe adverse (via team_mapping)."
+        description: "Id canonique de l'équipe adverse (via team_mapping). NULL toléré (~3.6 %) — matchs sur terrain neutre ou orthographe non mappée."
+        tests:
+          - not_null:
+              config:
+                severity: warn
+          - relationships:
+              to: ref('team_mapping')
+              field: team_id
+              config:
+                severity: warn
       - name: date
         description: "Date du match"
+        tests:
+          - not_null
       - name: time
         description: "Heure du match"
       - name: league_source
         description: "Nom de la compétition source"
+        tests:
+          - not_null
       - name: day
         description: "Jour de la semaine"
       - name: venue
-        description: "Lieu du match : Home ou Away"
+        description: "Lieu du match : Home, Away ou Neutral"
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Home', 'Away', 'Neutral']
       - name: result
         description: "Résultat brut FBref : W, D, L"
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['W', 'D', 'L']
       - name: gf
         description: "Buts marqués"
+        tests:
+          - not_null
+          - is_positive
       - name: ga
         description: "Buts encaissés"
+        tests:
+          - not_null
+          - is_positive
       - name: sota
         description: "Shots on target against — tirs cadrés subis par le gardien"
+        tests:
+          - not_null
+          - is_positive
       - name: ga_keeper
         description: "Buts encaissés par le gardien (hors CSC)"
+        tests:
+          - not_null
+          - is_positive
       - name: saves
         description: "Arrêts du gardien"
+        tests:
+          - not_null
+          - is_positive
       - name: save_pct
-        description: "Pourcentage d'arrêts (saves / sota)"
+        description: "Pourcentage d'arrêts (saves / sota). NULL si sota=0 (~5.5 %)."
       - name: cs
         description: "Clean sheet — 1 si aucun but encaissé, 0 sinon. Dérivé du champ autoritaire ga_keeper (garde-fou : la colonne silver.cs est salie, valeurs 2 + incohérences, cf. troubleshooting)."
         tests:
+          - not_null
           - accepted_values:
               values: [0, 1]
               quote: false
       - name: pk_att
         description: "Penaltys tentés contre le gardien"
+        tests:
+          - not_null
+          - is_positive
       - name: pk_allowed
         description: "Penaltys accordés (transformés contre)"
+        tests:
+          - not_null
+          - is_positive
       - name: pk_saved
         description: "Penaltys arrêtés"
+        tests:
+          - not_null
+          - is_positive
       - name: pk_missed
         description: "Penaltys manqués par l'attaquant adverse"
+        tests:
+          - not_null
+          - is_positive
       - name: season
         description: "Saison au format YYYY-YYYY"
+        tests:
+          - not_null
+          - matches_regex:
+              arguments:
+                pattern: '^\d{4}-\d{4}$'
       - name: source
         description: "Source de la donnée (fbref)"
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['fbref']
       - name: scraped_at
         description: "Timestamp du scraping"
       - name: comp_category
-        description: "Catégorie de compétition : Big5, Cup, Europe"
+        description: "Catégorie de compétition : Big5, Cup, D2, Europe, Other"
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Big5', 'Cup', 'D2', 'Europe', 'Other']
       - name: result_1n2
         description: "Résultat encodé : H, D, A"
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['H', 'D', 'A']
 
   - name: int_fbref_misc
     description: >
       Stats disciplinaires et défensives FBref (cartons, fautes commises,
       interceptions, tacles gagnés) rematchées sur match_id + team_id.
       Alimente le bloc disciplinaire de backbone.
+    tests:
+      # ── Grain de la table (1 ligne par équipe par match) ──
+      # Severity=warn en attendant le fix de la seed team_mapping (48 doublons connus, cf. A-001).
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [match_id, team_id]
+          config:
+            severity: warn
+      # ── Contrainte de cohérence disciplinaire : cumul jaunes + rouges plausible ──
+      # Empirique : max 9 crdy + 3 crdr + 2 crdy2 = 14 max. Marge à 15.
+      - dbt_utils.expression_is_true:
+          expression: "crdy + crdr + crdy2 <= 15"
+          config:
+            severity: warn
     columns:
       - name: match_id
-        description: "Identifiant unifié du match (SHA1), rattaché via match_registry."
+        description: "Identifiant unifié du match (SHA1), rattaché via match_registry. 49 NULL empiriques (0.09%) — cf. A-005."
+        tests:
+          - not_null:
+              config:
+                severity: warn
+          - relationships:
+              to: source('intermediate', 'match_registry')
+              field: match_id
+              config:
+                severity: warn
       - name: team_id
         description: "Id canonique de l'équipe (converti depuis le nom de club FBref via team_mapping)."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('team_mapping')
+              field: team_id
       - name: opponent_id
-        description: "Id canonique de l'équipe adverse (via team_mapping)."
+        description: "Id canonique de l'équipe adverse (via team_mapping). NULL toléré (~3.6 %)."
+        tests:
+          - not_null:
+              config:
+                severity: warn
+          - relationships:
+              to: ref('team_mapping')
+              field: team_id
+              config:
+                severity: warn
       - name: date
         description: "Date du match"
+        tests:
+          - not_null
       - name: time
         description: "Heure du match"
       - name: league_source
         description: "Nom de la compétition source"
+        tests:
+          - not_null
       - name: day
         description: "Jour de la semaine"
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
       - name: venue
-        description: "Lieu du match : Home ou Away"
+        description: "Lieu du match : Home, Away ou Neutral"
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Home', 'Away', 'Neutral']
       - name: result
         description: "Résultat brut FBref : W, D, L"
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['W', 'D', 'L']
       - name: gf
         description: "Buts marqués"
+        tests:
+          - not_null
+          - is_positive
       - name: ga
         description: "Buts encaissés"
+        tests:
+          - not_null
+          - is_positive
       - name: crdy
         description: "Cartons jaunes reçus"
+        tests:
+          - not_null
+          - is_positive
       - name: crdr
         description: "Cartons rouges directs reçus"
+        tests:
+          - not_null
+          - is_positive
       - name: crdy2
         description: "Deuxièmes cartons jaunes (expulsion indirecte)"
+        tests:
+          - not_null
+          - is_positive
       - name: fls
         description: "Fautes commises"
+        tests:
+          - not_null
+          - is_positive
       - name: fld
         description: "Fautes subies"
+        tests:
+          - not_null
+          - is_positive
       - name: "off"
-        description: "Hors-jeux"
+        description: "Hors-jeux (mot réservé DuckDB, systématiquement quoté)"
+        tests:
+          - not_null
+          - is_positive
       - name: crosses
         description: "Centres tentés"
+        tests:
+          - not_null
+          - is_positive
       - name: int
-        description: "Interceptions"
+        description: "Interceptions (mot réservé DuckDB, systématiquement quoté)"
+        tests:
+          - not_null
+          - is_positive
       - name: tklw
         description: "Tacles remportés"
+        tests:
+          - not_null
+          - is_positive
       - name: pkwon
         description: "Penaltys obtenus"
+        tests:
+          - not_null
+          - is_positive
       - name: pkcon
         description: "Penaltys concédés"
+        tests:
+          - not_null
+          - is_positive
       - name: og
         description: "Buts contre son camp"
+        tests:
+          - not_null
+          - is_positive
       - name: season
         description: "Saison au format YYYY-YYYY"
+        tests:
+          - not_null
+          - matches_regex:
+              arguments:
+                pattern: '^\d{4}-\d{4}$'
       - name: source
         description: "Source de la donnée (fbref)"
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['fbref']
       - name: scraped_at
         description: "Timestamp du scraping"
       - name: comp_category
-        description: "Catégorie de compétition : Big5, Cup, Europe"
+        description: "Catégorie de compétition : Big5, Cup, D2, Europe, Other"
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Big5', 'Cup', 'D2', 'Europe', 'Other']
       - name: result_1n2
         description: "Résultat encodé : H, D, A"
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['H', 'D', 'A']
 
   - name: int_fbref_schedule
     description: >
       Feuille de match FBref (résultat, buts marqués/encaissés, possession,
       formation) rematchée sur match_id + team_id. Source des résultats bruts
-      et de la possession dans backbone.
+      et de la possession dans backbone. Couvre toutes les compétitions
+      (Big5, Cup, D2, Europe, Other) — pas de segmentation Big5-only.
+    tests:
+      # ── Grain de la table (1 ligne par équipe par match) ──
+      # 1 doublon empirique seulement (vs 48 sur shooting/misc/keeper). Severity=warn.
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [match_id, team_id]
+          config:
+            severity: warn
+      # ── Contraintes physiques dures sur les buts ──
+      # Empirique : gf ∈ [0, 14], ga ∈ [0, 9]. Marge de sécurité.
+      - dbt_utils.expression_is_true:
+          expression: "gf <= 15 AND ga <= 10"
+          config:
+            severity: error
+      # ── Cohérence result / gf-ga / result_1n2 (0 violation empirique) ──
+      # W → gf > ga ; D → gf = ga ; L → gf < ga ; '' → result_1n2 IS NULL (match non joué).
+      - dbt_utils.expression_is_true:
+          expression: >
+            CASE
+              WHEN result = 'W' THEN gf > ga
+              WHEN result = 'D' THEN gf = ga
+              WHEN result = 'L' THEN gf < ga
+              WHEN result = '' THEN result_1n2 IS NULL
+              ELSE false
+            END
+          config:
+            severity: error
+      # ── Cohérence venue × result → result_1n2 (0 violation empirique, matches joués) ──
+      - dbt_utils.expression_is_true:
+          expression: >
+            (result = '')
+            OR (venue = 'Neutral')
+            OR (venue = 'Home' AND result = 'W' AND result_1n2 = 'H')
+            OR (venue = 'Home' AND result = 'D' AND result_1n2 = 'D')
+            OR (venue = 'Home' AND result = 'L' AND result_1n2 = 'A')
+            OR (venue = 'Away' AND result = 'W' AND result_1n2 = 'A')
+            OR (venue = 'Away' AND result = 'D' AND result_1n2 = 'D')
+            OR (venue = 'Away' AND result = 'L' AND result_1n2 = 'H')
+          config:
+            severity: error
     columns:
       - name: match_id
-        description: "Identifiant unifié du match (SHA1), rattaché via match_registry."
+        description: "Identifiant unifié du match (SHA1), rattaché via match_registry. 49 NULL empiriques (0.09%) — cf. A-005."
+        tests:
+          - not_null:
+              config:
+                severity: warn
+          - relationships:
+              to: source('intermediate', 'match_registry')
+              field: match_id
+              config:
+                severity: warn
       - name: team_id
         description: "Id canonique de l'équipe (converti depuis le nom de club FBref via team_mapping)."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('team_mapping')
+              field: team_id
       - name: opponent_id
-        description: "Id canonique de l'équipe adverse (via team_mapping)."
+        description: "Id canonique de l'équipe adverse (via team_mapping). NULL toléré (~3.6 %) — cascade A-002 (résolution team_mapping incomplète hors Big5)."
+        tests:
+          - not_null:
+              config:
+                severity: warn
+          - relationships:
+              to: ref('team_mapping')
+              field: team_id
+              config:
+                severity: warn
       - name: date
         description: "Date du match"
+        tests:
+          - not_null
       - name: time
-        description: "Heure du match"
+        description: "Heure du match (VARCHAR, HH:MM)"
       - name: league_source
         description: "Nom de la compétition source (ex: Premier League, Ligue 1)"
+        tests:
+          - not_null
       - name: day
-        description: "Jour de la semaine"
+        description: "Jour de la semaine (abréviation anglaise 3 lettres)"
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
       - name: venue
-        description: "Lieu du match du point de vue de l'équipe : Home ou Away"
+        description: "Lieu du match du point de vue de l'équipe : Home, Away ou Neutral (finales Cup/Europe)"
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Home', 'Away', 'Neutral']
       - name: result
-        description: "Résultat brut FBref : W (victoire), D (nul), L (défaite)"
+        description: "Résultat brut FBref : W (victoire), D (nul), L (défaite), '' (match non joué — 1 094 lignes)"
+        tests:
+          - not_null
       - name: gf
         description: "Buts marqués par l'équipe"
+        tests:
+          - not_null
+          - is_positive
       - name: ga
         description: "Buts encaissés par l'équipe"
+        tests:
+          - not_null
+          - is_positive
       - name: poss
-        description: "Possession en pourcentage (VARCHAR — castée en DOUBLE dans gold)"
+        description: "Possession en pourcentage (VARCHAR — castée en DOUBLE dans gold). Valeur numérique 15-100 ou chaîne vide (2 275 lignes, dont 942 Big5 — cf. A-022)."
+        tests:
+          - not_null
+          - matches_regex:
+              pattern: '^[0-9]+$|^$'
       - name: formation
-        description: "Formation tactique de l'équipe (ex: 4-3-3)"
+        description: "Formation tactique de l'équipe (ex: 4-3-3). Peut être vide (1 612 lignes — cf. A-022)."
+        tests:
+          - not_null
       - name: opp_formation
         description: "Formation tactique de l'adversaire"
       - name: season
         description: "Saison au format YYYY-YYYY"
+        tests:
+          - not_null
       - name: source
-        description: "Source de la donnée (fbref)"
+        description: "Source de la donnée (toujours 'fbref')"
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['fbref']
       - name: scraped_at
-        description: "Timestamp du scraping"
+        description: "Timestamp du scraping (format ISO 8601 stocké en VARCHAR)"
       - name: comp_category
-        description: "Catégorie de compétition : Big5, Cup, Europe"
+        description: "Catégorie de compétition : Big5, Cup, D2, Europe, Other"
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Big5', 'Cup', 'D2', 'Europe', 'Other']
       - name: result_1n2
-        description: "Résultat encodé du point de vue de l'équipe : H (victoire domicile), D (nul), A (victoire extérieur)"
+        description: "Résultat encodé du point de vue neutre : H (victoire domicile), D (nul), A (victoire extérieur). NULL sur les 1 094 matches non joués (result = '')."
+        tests:
+          - not_null:
+              config:
+                severity: warn
+          - accepted_values:
+              arguments:
+                values: ['H', 'D', 'A']
 
   - name: int_fbref_shooting
     description: >
       Volume de tirs FBref (tirs totaux, tirs cadrés, buts par tir) rematché
       sur match_id + team_id. Alimente le bloc tirs de backbone.
+    tests:
+      # ── Grain de la table (1 ligne par équipe par match) ──
+      # Severity=warn en attendant le fix de la seed team_mapping (48 doublons connus, cf. A-001).
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [match_id, team_id]
+          config:
+            severity: warn
+      # ── Contrainte physique dure : tirs cadrés ≤ tirs totaux ──
+      # 0 violation empirique — contrainte inattaquable.
+      - dbt_utils.expression_is_true:
+          expression: "standard_sot <= standard_sh"
+          config:
+            severity: error
+      # ── Contrainte physique dure : penaltys transformés ≤ penaltys tentés ──
+      # 0 violation empirique.
+      - dbt_utils.expression_is_true:
+          expression: "standard_pk <= standard_pkatt"
+          config:
+            severity: error
+      # ── Contrainte physique : buts marqués sur tir ≤ tirs cadrés ──
+      # 1 490 lignes empiriques en violation → warn en attendant investigation.
+      # Bug de scraping FBref suspecté (cf. anomalie A-011).
+      - dbt_utils.expression_is_true:
+          expression: "standard_gls <= standard_sot"
+          config:
+            severity: warn
+      # ── Contrainte de cohérence : buts sur tirs ≤ buts totaux ──
+      # 5 lignes empiriques en violation → warn (cf. anomalie A-011).
+      - dbt_utils.expression_is_true:
+          expression: "standard_gls <= gf"
+          config:
+            severity: warn
     columns:
       - name: match_id
-        description: "Identifiant unifié du match (SHA1), rattaché via match_registry."
+        description: "Identifiant unifié du match (SHA1), rattaché via match_registry. 49 NULL empiriques (0.09%) — cf. A-005."
+        tests:
+          - not_null:
+              config:
+                severity: warn
+          - relationships:
+              to: source('intermediate', 'match_registry')
+              field: match_id
+              config:
+                severity: warn
       - name: team_id
         description: "Id canonique de l'équipe (converti depuis le nom de club FBref via team_mapping)."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('team_mapping')
+              field: team_id
       - name: opponent_id
-        description: "Id canonique de l'équipe adverse (via team_mapping)."
+        description: "Id canonique de l'équipe adverse (via team_mapping). NULL toléré (~3.6 %) — matchs sur terrain neutre ou orthographe non mappée."
+        tests:
+          - not_null:
+              config:
+                severity: warn
+          - relationships:
+              to: ref('team_mapping')
+              field: team_id
+              config:
+                severity: warn
       - name: date
         description: "Date du match"
+        tests:
+          - not_null
       - name: time
         description: "Heure du match"
       - name: league_source
         description: "Nom de la compétition source"
+        tests:
+          - not_null
       - name: day
         description: "Jour de la semaine"
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
       - name: venue
-        description: "Lieu du match : Home ou Away"
+        description: "Lieu du match : Home, Away ou Neutral"
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Home', 'Away', 'Neutral']
       - name: result
         description: "Résultat brut FBref : W, D, L"
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['W', 'D', 'L']
       - name: gf
         description: "Buts marqués"
+        tests:
+          - not_null
+          - is_positive
       - name: ga
         description: "Buts encaissés"
+        tests:
+          - not_null
+          - is_positive
       - name: standard_gls
-        description: "Buts marqués (hors pénaltys)"
+        description: >
+          Buts marqués vus par le rapport de tirs FBref. Empiriquement gf = standard_gls
+          dans 95.8 % des lignes. 5 lignes empiriques avec standard_gls > gf, 1 490 lignes
+          avec standard_gls > standard_sot (bug scraping FBref suspecté — cf. A-011).
+        tests:
+          - not_null
+          - is_positive
       - name: standard_sh
         description: "Total de tirs tentés"
+        tests:
+          - not_null
+          - is_positive
       - name: standard_sot
         description: "Tirs cadrés"
+        tests:
+          - not_null
+          - is_positive
       - name: standard_sot_pct
-        description: "Pourcentage de tirs cadrés (standard_sot / standard_sh)"
+        description: "Pourcentage de tirs cadrés (standard_sot / standard_sh). NULL si standard_sh=0 (~3.5 %)."
       - name: standard_g_sh
-        description: "Buts par tir (efficacité offensive brute)"
+        description: "Buts par tir (efficacité offensive brute). NULL si standard_sh=0 (~3.5 %)."
       - name: standard_g_sot
-        description: "Buts par tir cadré (efficacité offensive sur les tirs dangereux)"
+        description: "Buts par tir cadré. NULL si standard_sot=0 (~5.7 %)."
       - name: standard_pk
         description: "Buts sur penalty"
+        tests:
+          - not_null
+          - is_positive
       - name: standard_pkatt
         description: "Penaltys tentés"
+        tests:
+          - not_null
+          - is_positive
       - name: season
         description: "Saison au format YYYY-YYYY"
+        tests:
+          - not_null
+          - matches_regex:
+              arguments:
+                pattern: '^\d{4}-\d{4}$'
       - name: source
         description: "Source de la donnée (fbref)"
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['fbref']
       - name: scraped_at
         description: "Timestamp du scraping"
       - name: comp_category
-        description: "Catégorie de compétition : Big5, Cup, Europe"
+        description: "Catégorie de compétition : Big5, Cup, D2, Europe, Other"
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Big5', 'Cup', 'D2', 'Europe', 'Other']
       - name: result_1n2
         description: "Résultat encodé : H, D, A"
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['H', 'D', 'A']
 
   - name: int_odds
     description: >
@@ -1665,108 +2243,313 @@ models:
       Calendrier Understat rematché sur le match_id unifié. Conserve
       us_match_id (id Understat d'origine) et produit la correspondance
       us_match_id ↔ match_id réutilisée par int_understat_stats.
+      Périmètre : Big5 domestique uniquement (100 %).
+    tests:
+      # Grain : 1 ligne par match physique (match_id unique).
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [match_id]
+      # us_match_id peut avoir des doublons (matchs rejoués) — 46 empiriques.
+      - dbt_utils.expression_is_true:
+          expression: "home_goals >= 0 AND away_goals >= 0"
+          config:
+            severity: error
     columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1), rattaché via match_registry."
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              to: source('intermediate', 'match_registry')
+              field: match_id
+      - name: us_match_id
+        description: "Identifiant du match côté Understat (source), conservé avant résolution en match_id canonique."
+        tests:
+          - not_null
+      - name: team_id
+        description: "Id canonique de l'équipe à domicile (via team_mapping sur home_team)."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('team_mapping')
+              field: team_id
+      - name: opponent_id
+        description: "Id canonique de l'équipe à l'extérieur (via team_mapping sur away_team)."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('team_mapping')
+              field: team_id
       - name: league_source
         description: "Nom de la compétition source"
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Bundesliga', 'La Liga', 'Ligue 1', 'Premier League', 'Serie A']
       - name: home_goals
         description: "Buts marqués par l'équipe domicile"
+        tests:
+          - not_null
+          - is_positive
       - name: away_goals
         description: "Buts marqués par l'équipe extérieur"
+        tests:
+          - not_null
+          - is_positive
       - name: home_xg
-        description: "Expected goals équipe domicile"
+        description: "Expected goals équipe domicile. NULL toléré (~2.9 %) sur matchs sans xG calculé."
+        tests:
+          - is_positive
       - name: away_xg
-        description: "Expected goals équipe extérieur"
+        description: "Expected goals équipe extérieur. NULL toléré (~2.9 %)."
+        tests:
+          - is_positive
       - name: is_result
         description: "Indique si le match a un résultat définitif (1) ou est à venir (0)"
+        tests:
+          - not_null
       - name: match_url
         description: "URL Understat du match"
       - name: season
         description: "Saison au format YYYY-YYYY"
+        tests:
+          - not_null
+          - matches_regex:
+              arguments:
+                pattern: '^\d{4}-\d{4}$'
       - name: source
         description: "Source des données (Understat)."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['understat']
       - name: scraped_at
         description: "Horodatage ISO du scrape."
       - name: comp_category
-        description: "Catégorie de compétition : Big5, Cup, Europe"
-      - name: us_match_id
-        description: "Identifiant du match côté Understat (source), conservé avant résolution en match_id canonique."
-      - name: match_id
-        description: "Identifiant unifié du match (SHA1), rattaché via match_registry."
-      - name: team_id
-        description: "Id canonique de l'équipe à domicile (via team_mapping sur home_team)."
-      - name: opponent_id
-        description: "Id canonique de l'équipe à l'extérieur (via team_mapping sur away_team)."
+        description: "Catégorie de compétition : Big5 (100 % — Understat couvre uniquement les 5 grands championnats domestiques)"
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Big5']
 
   - name: int_understat_stats
     description: >
       Stats Understat par match (npxG, npxG concédés, PPDA) rattachées au
       match_id unifié via int_understat_schedule. Alimente les colonnes xG
-      et pressing de backbone.
+      et pressing de backbone. Périmètre : Big5 domestique uniquement.
+    tests:
+      # Grain : 1 ligne par match (match_id unique).
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [match_id]
+      # Contrainte de miroir xG : le différentiel home est l'opposé du away.
+      - dbt_utils.expression_is_true:
+          expression: "ABS(home_np_xg_diff + away_np_xg_diff) < 0.001"
+          config:
+            severity: error
+      # Contrainte de cohérence : diff = home - away.
+      - dbt_utils.expression_is_true:
+          expression: "ABS((home_np_xg - away_np_xg) - home_np_xg_diff) < 0.001"
+          config:
+            severity: error
+      # Contrainte des points attendus : somme home + away ≤ 3 (troisième point = draw_xpts).
+      - dbt_utils.expression_is_true:
+          expression: "home_xpts + away_xpts <= 3.001"
+          config:
+            severity: error
     columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1), rattaché via int_understat_schedule (us_match_id -> match_id)."
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              to: source('intermediate', 'match_registry')
+              field: match_id
+      - name: us_match_id
+        description: "Identifiant du match côté Understat (source)."
+        tests:
+          - not_null
       - name: home_xpts
         description: "Expected points domicile — points attendus selon les xG du match"
+        tests:
+          - not_null
+          - is_positive
       - name: away_xpts
         description: "Expected points extérieur"
+        tests:
+          - not_null
+          - is_positive
       - name: home_np_xg
         description: "Expected goals sans pénalties — équipe domicile"
+        tests:
+          - not_null
+          - is_positive
       - name: away_np_xg
         description: "Expected goals sans pénalties — équipe extérieur"
+        tests:
+          - not_null
+          - is_positive
       - name: home_np_xg_diff
-        description: "Différentiel npxG domicile (home_np_xg - away_np_xg)"
+        description: "Différentiel npxG domicile (home_np_xg - away_np_xg). Peut être négatif."
+        tests:
+          - not_null
       - name: away_np_xg_diff
-        description: "Différentiel npxG extérieur (away_np_xg - home_np_xg)"
+        description: "Différentiel npxG extérieur (away_np_xg - home_np_xg). Peut être négatif."
+        tests:
+          - not_null
       - name: home_ppda
         description: "PPDA domicile — passes adverses autorisées par action défensive (mesure l'intensité du pressing)"
+        tests:
+          - is_positive
       - name: away_ppda
         description: "PPDA extérieur"
+        tests:
+          - is_positive
       - name: home_deep
         description: "Passes complétées dans les 18 derniers mètres adverses — domicile (mesure la pression offensive)"
+        tests:
+          - not_null
+          - is_positive
       - name: away_deep
         description: "Passes complétées dans les 18 derniers mètres adverses — extérieur"
+        tests:
+          - not_null
+          - is_positive
       - name: season
         description: "Saison au format YYYY-YYYY"
+        tests:
+          - not_null
+          - matches_regex:
+              arguments:
+                pattern: '^\d{4}-\d{4}$'
       - name: league_source
         description: "Nom de la compétition source"
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Bundesliga', 'La Liga', 'Ligue 1', 'Premier League', 'Serie A']
       - name: source
         description: "Source des données (Understat)."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['understat']
       - name: scraped_at
         description: "Horodatage ISO du scrape."
       - name: comp_category
-        description: "Catégorie de compétition : Big5, Cup, Europe"
-      - name: us_match_id
-        description: "Identifiant du match côté Understat (source)."
-      - name: match_id
-        description: "Identifiant unifié du match (SHA1), rattaché via int_understat_schedule (us_match_id -> match_id)."
+        description: "Catégorie de compétition : Big5 (100 % — Understat couvre uniquement les 5 grands championnats domestiques)"
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Big5']
 
   - name: int_whoscored_match_index
     description: >
       Pont d'identité entre l'univers WhoScored (ws_match_id, ws_home/away_team_id)
       et les clés unifiées (match_id, team_id normalisé). Table de résolution
       d'identité centrale pour toute la chaîne événementielle WhoScored.
-      Grain : une ligne par match.
+      Grain : une ligne par match. Couvre 2 comp_category : Big5 et D2.
+    tests:
+      # Grain : ws_match_id unique — severity=warn car 118 doublons empiriques
+      # à investiguer (rechargements de scraping ?).
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [ws_match_id]
+          config:
+            severity: warn
+      # Contrainte : domicile ≠ extérieur (ids WhoScored bruts).
+      - dbt_utils.expression_is_true:
+          expression: "ws_home_team_id != ws_away_team_id"
+          config:
+            severity: error
+      # Contrainte : domicile ≠ extérieur (ids canoniques) — sur non-NULL uniquement.
+      - dbt_utils.expression_is_true:
+          expression: "team_id IS NULL OR opponent_id IS NULL OR team_id != opponent_id"
+          config:
+            severity: error
     columns:
-      - name: match_id
-        description: "Identifiant unifié du match (SHA1), résolu via match_registry. NULL si le match n'est pas résolu au registre."
-      - name: team_id
-        description: "Id canonique de l'équipe À DOMICILE (résolu via team_mapping sur home_team_name)."
-      - name: opponent_id
-        description: "Id canonique de l'équipe À L'EXTÉRIEUR (résolu via team_mapping sur away_team_name)."
       - name: ws_match_id
-        description: "Identifiant WhoScored du match (brut, depuis silver.stg_whoscored_match_index)."
+        description: "Identifiant WhoScored du match (brut, VARCHAR entier, depuis silver.stg_whoscored_match_index)."
+        tests:
+          - not_null
+          - matches_regex:
+              arguments:
+                pattern: '^[1-9][0-9]*$'
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1), résolu via match_registry. NULL si le match n'est pas résolu au registre (~4.4 % empirique)."
+        tests:
+          - not_null:
+              config:
+                severity: warn
+          - relationships:
+              to: source('intermediate', 'match_registry')
+              field: match_id
+              config:
+                severity: warn
+      - name: team_id
+        description: "Id canonique de l'équipe À DOMICILE (résolu via team_mapping sur home_team_name). NULL toléré (~2.2 %)."
+        tests:
+          - not_null:
+              config:
+                severity: warn
+          - relationships:
+              to: ref('team_mapping')
+              field: team_id
+              config:
+                severity: warn
+      - name: opponent_id
+        description: "Id canonique de l'équipe À L'EXTÉRIEUR (résolu via team_mapping sur away_team_name). NULL toléré (~2.2 %)."
+        tests:
+          - not_null:
+              config:
+                severity: warn
+          - relationships:
+              to: ref('team_mapping')
+              field: team_id
+              config:
+                severity: warn
+      - name: ws_home_team_id
+        description: "Id WhoScored (brut) de l'équipe à domicile — sert de clé pour mapper vers team_id."
+        tests:
+          - not_null
+          - is_positive
+      - name: ws_away_team_id
+        description: "Id WhoScored (brut) de l'équipe à l'extérieur — sert de clé pour mapper vers opponent_id."
+        tests:
+          - not_null
+          - is_positive
       - name: match_date
         description: "Date du match."
+        tests:
+          - not_null
       - name: league_source
         description: "Championnat / source des données (ex. Bundesliga)."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Bundesliga', '2. Bundesliga', 'La Liga', 'Ligue 1', 'Premier League', 'Serie A', 'Championship']
       - name: season
-        description: "Saison du match (ex. 2023-2024)."
+        description: "Saison du match (ex. 2023-2024). Couvre 2009-2026 (historique long WhoScored)."
+        tests:
+          - not_null
+          - matches_regex:
+              arguments:
+                pattern: '^\d{4}-\d{4}$'
       - name: scraped_at
         description: "Horodatage ISO du scrape du match."
       - name: comp_category
-        description: "Catégorie de compétition. Valeur actuelle : Big5 (les 5 grands championnats européens)."
-      - name: ws_home_team_id
-        description: "Id WhoScored (brut) de l'équipe à domicile — sert de clé pour mapper vers team_id."
-      - name: ws_away_team_id
-        description: "Id WhoScored (brut) de l'équipe à l'extérieur — sert de clé pour mapper vers opponent_id."
+        description: "Catégorie de compétition : Big5 (5 grands championnats) + D2 (Championship, 2. Bundesliga)."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Big5', 'D2']
 
   - name: int_whoscored_events
     description: >

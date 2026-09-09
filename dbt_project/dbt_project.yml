@@ -46,13 +46,3 @@ seeds:
         alias: VARCHAR
         competition_name: VARCHAR
         category: VARCHAR
-models:
-  football_prediction:
-    gold:
-      features_final:    {+enabled: false}
-      features_draw:     {+enabled: false}
-      features_rolling:  {+enabled: false}
-      features_players:  {+enabled: false}
-      features_whoscored: {+enabled: false}
-      # rolling_corners:   {+enabled: false}
-      # rolling_freekicks: {+enabled: false}
