@@ -153,13 +153,29 @@ paths:
   processed: data/processed/
   features: data/features/
   models: models/
-  db: db/football.duckdb
-  duckdb: db/football.duckdb
+  # db: db/football.duckdb
+  # duckdb: db/football.duckdb
+  db: db/football_dev.duckdb
+  duckdb: db/football_dev.duckdb
   # Archive brute des JSON matchCentreData WhoScored (gzip).
   # Chemin relatif = sous la racine du projet. Pour un disque externe,
   # mets un chemin ABSOLU ici, ex: E:/3etoiles_bronze/whoscored/
   whoscored_raw: data/raw/whoscored/
 
+# ── Spark ──────────────────────────────────────────────────────────────────
+# Machine : 15,7 Go RAM / 12 cœurs logiques / disque C: unique.
+spark:
+  java_home: "C:\\Java\\jdk-21.0.12.1"
+  python: ".venv/Scripts/python.exe"    # interpréteur du subprocess Spark
+  hadoop_home: "C:/hadoop"        # utilisé seulement si winutils.exe s'y trouve
+  driver_memory: "8g"             # laisse ~7 Go à Windows + VS Code + Python
+  cores: 6                        # 6 tâches concurrentes ; 6 cœurs pour l'OS
+  shuffle_partitions: 64          # à ajuster quand on connaîtra les volumes
+  local_dir: "C:/spark-tmp"       # spill Spark — hors OneDrive, hors projet
+  log_level: "WARN"
+  paths:
+    input:  "data/spark_in"
+    output: "data/spark_out"
 # Compétitions
 # competitions:
 # - ligue_1
@@ -172,11 +188,22 @@ paths:
 
 
 # Pipeline configuration
-pipeline:
-  cron: "0 12 * * 1"          # lundi à 12h
-  deployment_name: "pipeline-lundi-midi"
-  retries: 2
-  retry_delay_seconds: 30
+pipeline_main:
+  # Timezone commune
+  timezone: "Europe/Paris"
+
+  # Crons par flux (surchargent les défauts codés)
+  cron_daily:  "0 6 * * *"
+  cron_weekly: "0 20 * * 5"
+  cron_yearly: "0 3 1 7 *"
+
+  # Noms de deployment (optionnels — défauts : pipeline-master-{flow})
+  # deployment_name_daily:  "pipeline-master-daily"
+  # deployment_name_weekly: "pipeline-master-weekly"
+  # deployment_name_yearly: "pipeline-master-yearly"
+
+  retries: 0
+  retry_delay_seconds: 60
 
 # Scraping nocturne WhoScored (run_scrapping.py)
 # Un flow = scrape_raw (raw-only, sans écriture DuckDB) puis load_archive.
@@ -188,6 +215,10 @@ scraping:
                                          # laisse une marge avant 8h pour le load
   retries: 1
   retry_delay_seconds: 60
+  headless: false
+  current_season_parameters:
+    season: "2026-2027"       # la saison en cours
+    min_month: 8              # août par défaut
 
 # ── Agent Gemini ──────────────────────────────────────────────────────────────
 agent:

@@ -22,7 +22,7 @@ def generate_tree(startpath):
 
 if __name__ == "__main__":
     cwd = os.getcwd()
-    ROOT_DIR = Path(__file__).resolve().parent.parent
+    ROOT_DIR = next(p for p in Path(__file__).resolve().parents if (p / "config.yaml").exists())
     print(f"Génération de la structure du projet à partir de : {cwd}")
     tree_text = generate_tree(cwd)
     with open(ROOT_DIR / "tools/structure_projet.txt", "w", encoding="utf-8") as f:
