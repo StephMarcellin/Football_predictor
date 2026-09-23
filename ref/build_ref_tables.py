@@ -41,7 +41,7 @@ import yaml
 from loguru import logger
 
 # ── Config ────────────────────────────────────────────────────────────────────
-ROOT_DIR = Path(__file__).resolve().parent.parent
+ROOT_DIR = next(p for p in Path(__file__).resolve().parents if (p / "config.yaml").exists())
 
 os.chdir(ROOT_DIR)
 

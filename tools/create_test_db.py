@@ -18,7 +18,7 @@ from loguru import logger
 # Chemins
 # ---------------------------------------------------------------------------
 # ROOT_DIR = racine du projet (parent de tools/)
-ROOT_DIR = Path(__file__).resolve().parent.parent
+ROOT_DIR = next(p for p in Path(__file__).resolve().parents if (p / "config.yaml").exists())
 DB_PROD   = ROOT_DIR / "db" / "football.duckdb"
 DB_TEST   = ROOT_DIR / "db" / "football_test.duckdb"
 
