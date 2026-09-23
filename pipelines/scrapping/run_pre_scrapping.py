@@ -1,35 +1,32 @@
 """
-run_scrapping.py — Orchestrateur PHASE 1 : Scraping nocturne WhoScored (Prefect)
-=================================================================================
-Flow séparé du pipeline principal car sa cadence diffère :
-le scraping tourne la nuit (23h), le pipeline le lundi midi.
+run_pre_scrapping.py — Orchestrateur PHASE 0.5 : Indexation quotidienne des URLs
+================================================================================
+Rafraîchit la liste des matchs WhoScored à scraper en indexant les URLs de
+la saison courante. À lancer AVANT run_scrapping.py (qui scrape les détails).
 
-Un seul flow, deux tâches enchaînées :
-    1. scrape_raw    → scrape en mode --raw-only (AUCUNE écriture DuckDB, DBeaver
-                       reste libre), borné par max_runtime pour s'arrêter avant
-                       le matin. Reprise sur disque d'une nuit à l'autre.
-    2. load_archive  → charge les JSON archivés dans DuckDB (events + index).
-                       S'exécute juste après le scrape, DBeaver encore fermé.
+Étape unique :
+    scrape_matches → scrape_whoscored_match.run() (indexation des URLs dans
+                     silver.stg_whoscored_urls avec is_scraped=False pour les
+                     nouveaux matchs)
+
+Comportement par saison (défini dans config.yaml section scraping) :
+    - Saisons historiques : indexe TOUS les mois (comportement inchangé)
+    - Saison courante     : indexe uniquement les mois entre
+                            current_season_parameters.min_month et aujourd'hui
+    - Vérification `is_month_indexed` toujours active → skip des mois déjà OK
 
 Usage :
-    python run_scrapping.py                 # scrape_raw puis load_archive
-    python run_scrapping.py --step scrape_raw     # une seule étape
-    python run_scrapping.py --step load_archive
-    python run_scrapping.py --dry-run       # liste les étapes sans exécuter
-    python run_scrapping.py --serve         # scheduler Prefect (bloquant)
+    python run_pre_scrapping.py                    # indexation complète
+    python run_pre_scrapping.py --dry-run          # simule sans exécuter
+    python run_pre_scrapping.py --list             # affiche l'étape
 
-Scheduling Prefect :
-    1. Serveur Prefect dans un terminal :   prefect server start
-    2. Scheduler dans un autre terminal :   python run_scrapping.py --serve
-    3. Déclenchement automatique selon scraping.cron dans config.yaml.
-    4. UI : http://localhost:4200
-
-    Paramètres dans config.yaml (section scraping) :
-        cron                — expression cron du scheduling
-        deployment_name     — nom affiché dans l'UI Prefect
-        max_runtime_min     — durée max du scrape (arrêt propre, reprise ensuite)
-        retries             — tentatives automatiques par étape
-        retry_delay_seconds — délai entre tentatives
+Config config.yaml (section scraping) :
+    retries               — tentatives automatiques
+    retry_delay_seconds   — délai entre tentatives
+    headless              — Chrome sans interface graphique (défaut : True)
+    current_season_parameters:
+        season            — saison courante (ex : "2025-2026")
+        min_month         — 1er mois à indexer pour cette saison (défaut : 8 = août)
 """
 
 from __future__ import annotations
@@ -74,17 +71,17 @@ _FILE_LOG_ADDED = False
 
 
 def _ensure_file_log() -> None:
-    """Ajoute le sink fichier logs/scrapping.log, une seule fois par processus."""
+    """Ajoute le sink fichier logs/pre_scrapping.log, une seule fois par processus."""
     global _FILE_LOG_ADDED
     if _FILE_LOG_ADDED:
         return
     logger.add(
-        "logs/scrapping.log",
+        "logs/pre_scrapping.log",
         level="INFO",
         encoding="utf-8",
         rotation="5 MB",
         retention=10,
-        format="{time:YYYY-MM-DD HH:mm:ss} | {level:<8} | [SCRAP] {message}",
+        format="{time:YYYY-MM-DD HH:mm:ss} | {level:<8} | [PRE-SCRAP] {message}",
     )
     _FILE_LOG_ADDED = True
 
@@ -95,32 +92,37 @@ def _ensure_file_log() -> None:
 
 def build_steps(cfg: dict) -> dict:
     """
-    Construit le dictionnaire ordonné des étapes du scraping.
+    Construit le dictionnaire ordonné des étapes de pre-scraping.
 
-    Import différé : on n'importe les fonctions de scraping qu'ici (et pas en
-    tête de module) pour ne charger seleniumbase & co qu'au moment de l'exécution.
+    Import différé : on n'importe scrape_whoscored_match qu'ici (et pas en
+    tête de module) pour ne charger seleniumbase & duckdb qu'au moment de
+    l'exécution — évite aussi de faire tourner le chargement `SCRAP_CFG`
+    à l'import de ce module (le config.yaml doit avoir été lu quand on y arrive).
     """
     scrap_dir = ROOT_DIR / "pipelines" / "scrapping" / "events"
     if scrap_dir.exists() and str(scrap_dir) not in sys.path:
         sys.path.insert(0, str(scrap_dir))
 
-    from scrape_whoscored_details import run_scraping
-    from load_whoscored_archive import run_load
+    from scrape_whoscored_match import run as run_scrape_match
 
-    scr = cfg.get("scraping", {})
-    max_runtime_min = scr.get("max_runtime_min", 480)
+    scr      = cfg.get("scraping", {})
+    headless = bool(scr.get("headless", True))
 
-    def scrape_raw():
-        """Scrape en raw-only (aucune écriture DuckDB), borné par max_runtime."""
-        run_scraping(raw_only=True, max_runtime_min=max_runtime_min)
+    def scrape_matches():
+        """
+        Indexe les URLs des matchs WhoScored.
 
-    def load_archive():
-        """Charge les JSON archivés dans DuckDB (events + index + mark_scraped)."""
-        run_load()
+        `current=True` : active le filtrage [min_month → today] sur la saison
+        courante (config.yaml scraping.current_season_parameters). Les saisons
+        historiques restent scrapées complètement.
+
+        `is_month_indexed=True` skippe les mois déjà en base — comportement
+        indépendant de `current`.
+        """
+        run_scrape_match(headless=headless, current=True)
 
     return {
-        "scrape_raw":   {"fn": scrape_raw,   "kwargs": {}, "critical": False},
-        "load_archive": {"fn": load_archive, "kwargs": {}, "critical": False},
+        "scrape_matches": {"fn": scrape_matches, "kwargs": {"current"}, "critical": True},
     }
 
 
@@ -128,40 +130,36 @@ def build_steps(cfg: dict) -> dict:
 # Flow Prefect
 # ══════════════════════════════════════════════════════════════════════════════
 
-@flow(name="Scraping WhoScored", log_prints=False)
-def run_scrapping_flow(steps: dict, dry_run: bool = False, run_step_task=None) -> list[dict]:
-    """
-    Flow Prefect du scraping. Pas de fail-fast : les deux étapes sont
-    non-critiques (si scrape_raw échoue, on tente quand même load_archive).
-    """
+@flow(name="Pre-scraping WhoScored (URLs)", log_prints=False)
+def run_pre_scrapping_flow(steps: dict, dry_run: bool = False, run_step_task=None) -> list:
+    """Flow Prefect du pre-scraping — indexation des URLs de matchs."""
     _ensure_file_log()
     return execute_steps(
         steps,
         run_step_task,
         dry_run=dry_run,
-        phase_name="SCRAPING WHOSCORED",
+        phase_name="PRE-SCRAPING WHOSCORED (URLs)",
     )
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Point d'entrée CLI
 # ══════════════════════════════════════════════════════════════════════════════
 
-STEP_NAMES = ["scrape_raw", "load_archive"]
+STEP_NAMES = ["scrape_matches"]
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Orchestrateur PHASE 1 — Scraping nocturne WhoScored",
+        description="Orchestrateur PHASE 0.5 — Indexation des URLs WhoScored",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
         Exemples :
-        python run_scrapping.py                    # scrape_raw puis load_archive
-        python run_scrapping.py --step scrape_raw  # scrape seul
-        python run_scrapping.py --step load_archive# chargement seul
-        python run_scrapping.py --dry-run          # simule sans exécuter
+        python run_pre_scrapping.py              # indexation complète
+        python run_pre_scrapping.py --dry-run    # simule
+        python run_pre_scrapping.py --list       # affiche l'étape
         """,
     )
-    parser.add_argument("--step", choices=STEP_NAMES, help="Exécute une seule étape")
     parser.add_argument("--dry-run", action="store_true",
                         help="Liste les étapes sans les exécuter")
     parser.add_argument("--list", action="store_true",
@@ -187,18 +185,9 @@ def main() -> None:
         retry_delay_seconds=scr_cfg.get("retry_delay_seconds", 60),
     )
 
-    
-
-    # ── Mode normal : exécution immédiate ────────────────────────────────────
     all_steps = build_steps(cfg)
-
-    if args.step:
-        steps_to_run = {args.step: all_steps[args.step]}
-    else:
-        steps_to_run = all_steps
-
-    results = run_scrapping_flow(steps_to_run, dry_run=args.dry_run, run_step_task=run_step_task)
-    print_summary(results, title="RÉSUMÉ SCRAPING")
+    results = run_pre_scrapping_flow(all_steps, dry_run=args.dry_run, run_step_task=run_step_task)
+    print_summary(results, title="RÉSUMÉ PRE-SCRAPING")
 
     failed = [r for r in results if r["status"] == "FAILED"]
     sys.exit(1 if failed else 0)
