@@ -51,7 +51,7 @@ from loguru import logger
 # ── Config ────────────────────────────────────────────────────────────────────
 os.chdir(Path(__file__).resolve().parent.parent.parent)
 
-ROOT_DIR = Path(__file__).resolve().parent.parent.parent
+ROOT_DIR = next(p for p in Path(__file__).resolve().parents if (p / "config.yaml").exists())
 
 with open(ROOT_DIR / "config.yaml", encoding="utf-8") as f:
     CFG = yaml.safe_load(f)

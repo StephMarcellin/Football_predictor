@@ -10,7 +10,7 @@ from pathlib import Path
 
 # ── Chemin vers la base DuckDB ────────────────────────────────────────────────
 # __file__ = app/data_loader.py  →  .parent = app/  →  .parent = racine projet
-ROOT_DIR = Path(__file__).parent.parent
+ROOT_DIR = next(p for p in Path(__file__).resolve().parents if (p / "config.yaml").exists())
 DB_PATH  = ROOT_DIR / "db" / "football.duckdb"
 
 

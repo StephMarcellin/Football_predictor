@@ -14,7 +14,7 @@ from pathlib import Path
 # ── Résolution des imports ────────────────────────────────────────────────────
 # app/ n'est pas dans sys.path par défaut quand on lance depuis la racine.
 # On ajoute la racine du projet pour pouvoir importer app.data_loader.
-ROOT_DIR = Path(__file__).parent.parent
+ROOT_DIR = next(p for p in Path(__file__).resolve().parents if (p / "config.yaml").exists())
 sys.path.insert(0, str(ROOT_DIR))
 
 from app.data_loader import get_feature_tables, get_filter_values, get_null_stats, get_coverage_by_season,get_feature_importance, get_correlations
