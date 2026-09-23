@@ -40,7 +40,7 @@ import subprocess
 from prefect.artifacts import create_markdown_artifact
 
 
-ROOT_DIR = Path(__file__).resolve().parent.parent
+ROOT_DIR = next(p for p in Path(__file__).resolve().parents if (p / "config.yaml").exists())
 PREFECT_API: str = "http://127.0.0.1:4200/api"
 
 # Force UTF-8 sur stdout/stderr Windows

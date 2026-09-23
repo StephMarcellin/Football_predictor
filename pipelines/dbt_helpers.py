@@ -13,12 +13,25 @@ from __future__ import annotations
 
 import re
 import subprocess
+
 from pathlib import Path
 
 from loguru import logger
 
 from orchestrator_common import ROOT_DIR
 
+import json
+import yaml
+
+# Chemin des sorties Spark, calculé depuis la racine du projet et injecté
+# dans dbt via --vars. Pourquoi pas une variable d'environnement : dbt ne lit
+# pas .env, et un chemin absolu figé dans dbt_project.yml casserait dans
+# Docker ou sur une autre machine. Le dériver de ROOT_DIR le rend portable.
+with open(ROOT_DIR / "config.yaml", encoding="utf-8") as _f:
+    _CFG = yaml.safe_load(_f)
+
+SPARK_OUT_DIR = (ROOT_DIR / _CFG["spark"]["paths"]["output"]).resolve().as_posix()
+DBT_VARS = json.dumps({"spark_out_dir": SPARK_OUT_DIR})
 
 # ══════════════════════════════════════════════════════════════════════════════
 # dbt seed
@@ -62,7 +75,8 @@ def run_dbt_run(
     if not dbt_dir.exists():
         raise FileNotFoundError(f"dbt_project/ introuvable : {dbt_dir}")
 
-    cmd = ["dbt", "run", "--profiles-dir", str(Path.home() / ".dbt")]
+    cmd = ["dbt", "run", "--profiles-dir", str(dbt_dir)]
+    cmd += ["--vars", DBT_VARS]
     if select:
         cmd += ["--select", select]
     if exclude:
@@ -101,7 +115,7 @@ def run_dbt_test() -> None:
         raise FileNotFoundError(f"dbt_project/ introuvable : {dbt_dir}")
 
     result = subprocess.run(
-        ["dbt", "test", "--profiles-dir", str(Path.home() / ".dbt")],
+        ["dbt", "test", "--profiles-dir", str(dbt_dir),"--vars", DBT_VARS],
         cwd=dbt_dir,
         capture_output=True,
         text=True,

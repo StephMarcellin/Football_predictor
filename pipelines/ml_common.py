@@ -17,7 +17,7 @@ import lightgbm as lgb
 from sklearn.metrics import log_loss, accuracy_score, roc_auc_score
 from sklearn.calibration import CalibratedClassifierCV
 
-ROOT_DIR = Path(__file__).resolve().parent.parent
+ROOT_DIR = next(p for p in Path(__file__).resolve().parents if (p / "config.yaml").exists())
 MODELS_DIR = ROOT_DIR / "models"
 MODELS_DIR.mkdir(exist_ok=True)
 

@@ -14,17 +14,17 @@ Sortie : intermediate.* (25+) + gold.* (10) + machine_learning.* (artefacts)
 Durée  : ~7h
 
 Usage :
-    python run_features_engineering.py                 # pipeline complet
-    python run_features_engineering.py --step dbt_run  # étape unique
-    python run_features_engineering.py --from xt_grid  # reprend depuis xt_grid
-    python run_features_engineering.py --tables        # bloc tables_update
-    python run_features_engineering.py --refit          # bloc tables_refit (xT, xGOT)
-    python run_features_engineering.py --dry-run        # simule sans exécuter
-    python run_features_engineering.py --serve          # scheduler Prefect (bloquant)
+    python run_features_engineering.py                    # pipeline complet
+    python run_features_engineering.py --step dbt_run     # étape unique
+    python run_features_engineering.py --from xt_grid     # reprend depuis xt_grid
+    python run_features_engineering.py --flow daily       # cadence quotidienne (TABLES_UPDATE)
+    python run_features_engineering.py --flow yearly      # cadence annuelle (refit xT + xGOT)
+    python run_features_engineering.py --dry-run          # simule sans exécuter
+    python run_features_engineering.py --serve            # scheduler Prefect (bloquant)
 
-    tables_update suppose que models/xgot.joblib et la table xt_grid existent déjà
-    (xgot_score et int_xt_contributions les consomment).
-    Sur une base neuve, lance --refit d'abord.
+    Le flux `daily` suppose que models/xgot.joblib et machine_learning.xt_grid
+    existent déjà (xgot_score et int_xt_contributions les consomment).
+    Sur une base neuve, lance `--flow yearly` d'abord pour produire ces artefacts.
 """
 
 from __future__ import annotations
@@ -48,8 +48,13 @@ from orchestrator_common import (
     print_summary,
 )
 from dbt_helpers import run_dbt_run, run_dbt_test, check_dbt_test_results
+from spark.spark_helpers import run_spark_job
 
-from validation.run_validation import run_validate_gold
+from validation.run_validation import (
+    run_validate_silver,
+    run_validate_intermediate,
+    run_validate_gold,
+)
 
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -76,23 +81,53 @@ MOD_KNN        = ROOT_DIR / "pipelines" / "features" / "03_knn_impute.py"
 MOD_XT_GRID    = ROOT_DIR / "pipelines" / "features" / "xt_grid.py"
 MOD_XGOT_TRAIN = ROOT_DIR / "pipelines" / "xgot_train.py"
 
+# Scripts Spark — lancés en subprocess via spark_helpers, pas importés.
+# export_to_parquet et check_spark_outputs sont du DuckDB pur et pourraient
+# tourner en direct ; on les passe quand même par le même chemin pour que les
+# trois étapes se comportent et se loguent de façon identique.
+SPARK_EXPORT = "export_to_parquet.py"
+SPARK_EVENTS = "spark_events.py"
+SPARK_CHECK  = "check_spark_outputs.py"
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Blocs réutilisables
 # ══════════════════════════════════════════════════════════════════════════════
-# L'ordre est défini UNE fois ici ; les flux (daily/rare) y piochent par nom.
+# L'ordre est défini UNE fois ici ; les flux (daily/yearly) y piochent par nom.
+#
+# Cadences (voir LINEAGE_TABLES_ET_FREQUENCES.md du vault Obsidian) :
+#   - daily  : ce qui bouge chaque jour (nouveaux matchs WhoScored)
+#   - yearly : refit des artefacts stables (grille xT, modèle xGOT)
+# ══════════════════════════════════════════════════════════════════════════════
 
 TABLES_UPDATE = [
-    "dbt_transform", "xgot_score", "knn_impute",
-    "dbt_transform_downstream", "dbt_test",
+    "validate_silver",                                # gate d'entrée
+    "export_to_parquet",                               # export Silver → Parquet
+    "spark_events",                                    # calcule les événements (Spark)
+    "check_spark_outputs",                             # validation des exports Spark
+    "dbt_intermediate_base",
+    "dbt_ml_features",
+    # "validate_intermediate",                          # après matérialisation intermediate
+    "xgot_score",
+    "dbt_intermediate_downstream",
+    "validate_intermediate",                          # après matérialisation intermediate
+    "knn_impute",
+    "dbt_joueur_match",
+    "dbt_test",
+    "dbt_test_check",
+    "validate_gold",                                  # après matérialisation gold
 ]
-TABLES_REFIT = ["xt_grid", "xgot_train"]
+
+# refit des artefacts coûteux (grille xT ~3h, modèle xGOT ~30min)
+# dbt_test à la fin pour valider les tables aval qui consomment ces artefacts.
+TABLES_YEARLY = ["xt_grid", "xgot_train"]
 
 FLOWS = {
-    "daily": TABLES_UPDATE,          # transform + score, PAS d'entraînement
-    "rare":  TABLES_REFIT,           # refit artefacts coûteux (xT, xGOT)
+    "daily":  TABLES_UPDATE,          # transform + score, PAS d'entraînement
+    "yearly": TABLES_YEARLY,          # refit artefacts coûteux (xT, xGOT)
 }
 
+STEP_NAMES = TABLES_UPDATE + TABLES_YEARLY  # ordre d'exécution complet
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Étapes
@@ -100,131 +135,296 @@ FLOWS = {
 
 def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
     """
-    Construit le dictionnaire ordonné des étapes de feature engineering.
+    Construit le dictionnaire ordonné des étapes de feature engineering (Mode Initial).
 
-    Les imports sont différés ici (pas en tête de module) pour ne charger
-    les dépendances lourdes qu'au moment de l'exécution.
+    Les imports sont différés ici pour ne charger les dépendances lourdes
+    qu'au moment de l'exécution.
     """
-    mod_xgot = import_from_path("xgot_score_mod", MOD_XGOT_SCORE)
-    mod_xt   = import_from_path("xt_grid_mod",    MOD_XT_GRID)
+    mod_xt         = import_from_path("xt_grid_mod", MOD_XT_GRID)
+    mod_xgot_train = import_from_path("xgot_train_mod", MOD_XGOT_TRAIN)
+    mod_xgot_score = import_from_path("xgot_score_mod", MOD_XGOT_SCORE)
+    mod_knn        = import_from_path("knn_impute_mod", MOD_KNN)
 
     return {
-        # ── dbt run principal (tout sauf chaînes xT et xGOT) ────────────────
-        "dbt_run": {
-            "fn":       run_dbt_run,
-            "kwargs":   {
-                "select": "backbone features_rolling features_whoscored "
-                          "features_draw features_final",
+        # ── 0. Gate d'entrée (validation Silver) ───────────────────────────────
+        "validate_silver": {
+            "fn": run_validate_silver,
+            "kwargs": {},
+            "critical": True,
+        },
+
+        # ── 0b. Frontière DuckDB → Spark (ADR-010) ───────────────────────────
+        "export_to_parquet": {
+            "fn": run_spark_job,
+            "kwargs": {"script_name": SPARK_EXPORT, "extra_args": ["--clean", "--strict"]},
+            "critical": True,
+        },
+        # Produit int_whoscored_events / events_qual / int_event_enriched en
+        # Parquet. Les vues dbt du schéma intermediate lisent ces fichiers.
+        "spark_events": {
+            "fn": run_spark_job,
+            "kwargs": {"script_name": SPARK_EVENTS},
+            "critical": True,
+        },
+        # Une vue ne valide rien : sur un Parquet absent ou vide, CREATE VIEW
+        # réussit et l'erreur ne surgit qu'au premier modèle aval. Cette porte
+        # transforme une panne silencieuse en échec explicite, au bon endroit.
+        "check_spark_outputs": {
+            "fn": run_spark_job,
+            "kwargs": {"script_name": SPARK_CHECK, "extra_args": ["--min-rows", "1000"]},
+            "critical": True,
+        },
+        # ── 1. Intermédiaires de base (hors dépendances Python/Downstream) ──
+        "dbt_intermediate_base": {
+            "fn": run_dbt_run,
+            "kwargs": {
+                "select": "intermediate.*",
+                "exclude": "int_xt_contributions int_keeper_shots int_keeper_psxg",
                 "full_refresh": full_refresh,
             },
             "critical": True,
         },
 
-        # ── Chaîne xT : dbt(int_xt_actions) → xt_grid.py → dbt(int_xt_contributions)
-        "dbt_xt_actions": {
-            "fn":       run_dbt_run,
-            "kwargs":   {"select": "+int_xt_actions", "full_refresh": full_refresh},
-            "critical": False,
-        },
-        "xt_grid": {
-            "fn":       mod_xt.main,
-            "kwargs":   {},
-            "critical": False,
-        },
-        "dbt_xt_contributions": {
-            "fn":       run_dbt_run,
-            "kwargs":   {"select": "int_xt_contributions"},
-            "critical": False,
+        # ── 2. Features ML (tables SQL du schéma ML) ────────────────────────
+        "dbt_ml_features": {
+            "fn": run_dbt_run,
+            "kwargs": {
+                "select": "machine_learning.*",
+                "exclude": "xt_grid xgot_predictions player_style_clusters zonal_profiles_imputed",
+                "full_refresh": full_refresh,
+            },
+            "critical": True,
         },
 
-        # ── Chaîne PSxG gardien : dbt(xgot_features) → xgot_score → dbt(keeper)
-        "dbt_xgot_features": {
-            "fn":       run_dbt_run,
-            "kwargs":   {"select": "xgot_features", "full_refresh": full_refresh},
-            "critical": False,
+        # ── 3. Grille xT (Py) ────────────────────────────────────────────────
+        "xt_grid": {
+            "fn": mod_xt.main,
+            "kwargs": {},
+            "critical": True,
+        },
+
+        # ── 4 & 5. Chaîne xGOT : Entraînement et Scoring (Py) ────────────────
+        "xgot_train": {
+            "fn": mod_xgot_train.run,
+            "kwargs": {},
+            "critical": True,
         },
         "xgot_score": {
-            "fn":       mod_xgot.main,
-            "kwargs":   {},
-            "critical": False,
-        },
-        "dbt_keeper_psxg": {
-            "fn":       run_dbt_run,
-            "kwargs":   {"select": "int_keeper_shots int_keeper_psxg"},
-            "critical": False,
+            "fn": mod_xgot_score.main,
+            "kwargs": {},
+            "critical": True,
         },
 
-        # ── Validation ──────────────────────────────────────────────────────
+        # ── 6. Intermédiaires aval (dépendent de xt_grid et xgot_predictions) ──
+        "dbt_intermediate_downstream": {
+            "fn": run_dbt_run,
+            "kwargs": {
+                "select": "int_xt_contributions int_keeper_shots int_keeper_psxg",
+                "full_refresh": full_refresh,
+            },
+            "critical": True,
+        },
+
+        # ── 7. Gate de validation Intermediate ──────────────────────────────
+        "validate_intermediate": {
+            "fn": run_validate_intermediate,
+            "kwargs": {},
+            "critical": True,
+        },
+
+        # ── 8. Gold base (hors joueur_match) ─────────────────────────────────
+        "dbt_gold_base": {
+            "fn": run_dbt_run,
+            "kwargs": {
+                "select": "gold.*",
+                "exclude": "joueur_match",
+                "full_refresh": full_refresh,
+            },
+            "critical": True,
+        },
+
+        # ── 9. Imputation KNN (Py) ───────────────────────────────────────────
+        "knn_impute": {
+            "fn": mod_knn.main,
+            "kwargs": {},
+            "critical": True,
+        },
+
+        # ── 10. Gold final (dépend des clusters/profils KNN) ─────────────────
+        "dbt_joueur_match": {
+            "fn": run_dbt_run,
+            "kwargs": {
+                "select": "gold.joueur_match",
+                "full_refresh": full_refresh,
+            },
+            "critical": True,
+        },
+
+        # ── 11, 12 & 13. Tests & Validations finales ────────────────────────
         "dbt_test": {
-            "fn":       run_dbt_test,
-            "kwargs":   {},
+            "fn": run_dbt_test,
+            "kwargs": {},
             "critical": False,
         },
         "dbt_test_check": {
-            "fn":       check_dbt_test_results,
-            "kwargs":   {},
+            "fn": check_dbt_test_results,
+            "kwargs": {},
             "critical": True,
         },
         "validate_gold": {
-            "fn":       run_validate_gold,
-            "kwargs":   {},
+            "fn": run_validate_gold,
+            "kwargs": {},
             "critical": True,
         },
     }
 
-
 def build_table_steps(cfg: dict, full_refresh: bool = False) -> dict:
-    """Catalogue des steps de construction des tables (blocs --tables / --refit).
+    """Catalogue des steps de construction des tables (blocs --flow daily / yearly).
 
     Les frontières de phase autour du KNN/xgot viennent du DAG dbt
     (opérateur '+' : int_keeper_shots+ = la chaîne gardien jusqu'aux marts ;
     joueur_match+ = jusqu'à mart_scorers).
     """
-    mod_xgot = import_from_path("xgot_score_mod", MOD_XGOT_SCORE)
-    mod_knn  = import_from_path("knn_mod",        MOD_KNN)
-    mod_xt   = import_from_path("xt_grid_mod",    MOD_XT_GRID)
-    mod_xgt  = import_from_path("xgot_train_mod", MOD_XGOT_TRAIN)
+    mod_xt         = import_from_path("xt_grid_mod", MOD_XT_GRID)
+    mod_xgot_train = import_from_path("xgot_train_mod", MOD_XGOT_TRAIN)
+    mod_xgot_score = import_from_path("xgot_score_mod", MOD_XGOT_SCORE)
+    mod_knn        = import_from_path("knn_impute_mod", MOD_KNN)
 
     return {
-        # ── tables_update ────────────────────────────────────────────────────
-        "dbt_transform": {
-            "fn":       run_dbt_run,
-            "kwargs":   {"exclude": "int_keeper_shots+ joueur_match+",
-                         "full_refresh": full_refresh},
+        # ── flow daily (TABLES_UPDATE) ───────────────────────────────────────
+        # ── 0. Gate d'entrée (validation Silver) ───────────────────────────────
+            "validate_silver": {
+                "fn": run_validate_silver,
+                "kwargs": {},
+                "critical": True,
+            },
+        # ── 0b. Frontière DuckDB → Spark (ADR-010) ───────────────────────────
+        "export_to_parquet": {
+            "fn": run_spark_job,
+            "kwargs": {"script_name": SPARK_EXPORT, "extra_args": ["--clean", "--strict"]},
             "critical": True,
         },
-        "xgot_score": {
-            "fn":       mod_xgot.main,
-            "kwargs":   {},
-            "critical": False,
-        },
-        "knn_impute": {
-            "fn":       mod_knn.main,
-            "kwargs":   {"write": True},
+        # Produit int_whoscored_events / events_qual / int_event_enriched en
+        # Parquet. Les vues dbt du schéma intermediate lisent ces fichiers.
+        "spark_events": {
+            "fn": run_spark_job,
+            "kwargs": {"script_name": SPARK_EVENTS},
             "critical": True,
         },
-        "dbt_transform_downstream": {
-            "fn":       run_dbt_run,
-            "kwargs":   {"select": "int_keeper_shots+ joueur_match+"},
+        # Une vue ne valide rien : sur un Parquet absent ou vide, CREATE VIEW
+        # réussit et l'erreur ne surgit qu'au premier modèle aval. Cette porte
+        # transforme une panne silencieuse en échec explicite, au bon endroit.
+        "check_spark_outputs": {
+            "fn": run_spark_job,
+            "kwargs": {"script_name": SPARK_CHECK, "extra_args": ["--min-rows", "1000"]},
             "critical": True,
         },
-        "dbt_test": {
-            "fn":       run_dbt_test,
-            "kwargs":   {},
-            "critical": False,
-        },
+            # ── 1. Intermédiaires de base (hors dépendances Python/Downstream) ──
+            "dbt_intermediate_base": {
+                "fn": run_dbt_run,
+                "kwargs": {
+                    "select": "intermediate.*",
+                    "exclude": "int_xt_contributions int_keeper_shots int_keeper_psxg",
+                    "full_refresh": full_refresh,
+                },
+                "critical": True,
+            },
+    
+            # ── 2. Features ML (tables SQL du schéma ML) ────────────────────────
+            "dbt_ml_features": {
+                "fn": run_dbt_run,
+                "kwargs": {
+                    "select": "machine_learning.*",
+                    "exclude": "xt_grid xgot_predictions player_style_clusters zonal_profiles_imputed",
+                    "full_refresh": full_refresh,
+                },
+                "critical": True,
+            },
+    
+            # ── 3. Grille xT (Py) ────────────────────────────────────────────────
+            "xt_grid": {
+                "fn": mod_xt.main,
+                "kwargs": {},
+                "critical": True,
+            },
+    
 
-        # ── tables_refit (rare) ──────────────────────────────────────────────
-        "xt_grid": {
-            "fn":       mod_xt.main,
-            "kwargs":   {},
-            "critical": False,
-        },
-        "xgot_train": {
-            "fn":       mod_xgt.run,
-            "kwargs":   {},
-            "critical": False,
-        },
+    
+            # ── 6. Intermédiaires aval (dépendent de xt_grid et xgot_predictions) ──
+            "dbt_intermediate_downstream": {
+                "fn": run_dbt_run,
+                "kwargs": {
+                    "select": "int_xt_contributions int_keeper_shots int_keeper_psxg",
+                    "full_refresh": full_refresh,
+                },
+                "critical": True,
+            },
+    
+            # ── 7. Gate de validation Intermediate ──────────────────────────────
+            "validate_intermediate": {
+                "fn": run_validate_intermediate,
+                "kwargs": {},
+                "critical": True,
+            },
+    
+            # ── 8. Gold base (hors joueur_match) ─────────────────────────────────
+            "dbt_gold_base": {
+                "fn": run_dbt_run,
+                "kwargs": {
+                    "select": "gold.*",
+                    "exclude": "joueur_match",
+                    "full_refresh": full_refresh,
+                },
+                "critical": True,
+            },
+    
+            # ── 9. Imputation KNN (Py) ───────────────────────────────────────────
+            "knn_impute": {
+                "fn": mod_knn.main,
+                "kwargs": {},
+                "critical": True,
+            },
+    
+            # ── 10. Gold final (dépend des clusters/profils KNN) ─────────────────
+            "dbt_joueur_match": {
+                "fn": run_dbt_run,
+                "kwargs": {
+                    "select": "gold.joueur_match",
+                    "full_refresh": full_refresh,
+                },
+                "critical": True,
+            },
+    
+            # ── 11, 12 & 13. Tests & Validations finales ────────────────────────
+            "dbt_test": {
+                "fn": run_dbt_test,
+                "kwargs": {},
+                "critical": False,
+            },
+            "dbt_test_check": {
+                "fn": check_dbt_test_results,
+                "kwargs": {},
+                "critical": True,
+            },
+            "validate_gold": {
+                "fn": run_validate_gold,
+                "kwargs": {},
+                "critical": True,
+            },
+
+
+        # ── flow yearly (TABLES_YEARLY) ──────────────────────────────────────
+        # ── 4 & 5. Chaîne xGOT : Entraînement et Scoring (Py) ────────────────
+            "xgot_train": {
+                "fn": mod_xgot_train.run,
+                "kwargs": {},
+                "critical": True,
+            },
+            "xgot_score": {
+                "fn": mod_xgot_score.main,
+                "kwargs": {},
+                "critical": True,
+            },
     }
 
 
@@ -247,12 +447,7 @@ def run_features_flow(steps: dict, dry_run: bool = False, run_step_task=None) ->
 # Point d'entrée CLI
 # ══════════════════════════════════════════════════════════════════════════════
 
-STEP_NAMES = [
-    "dbt_run",
-    "dbt_xt_actions", "xt_grid", "dbt_xt_contributions",
-    "dbt_xgot_features", "xgot_score", "dbt_keeper_psxg",
-    "dbt_test", "dbt_test_check", "validate_gold",
-]
+
 
 
 def parse_args() -> argparse.Namespace:
@@ -264,8 +459,8 @@ def parse_args() -> argparse.Namespace:
         python run_features_engineering.py                    # complet
         python run_features_engineering.py --step dbt_run     # une étape
         python run_features_engineering.py --from xgot_score  # reprend depuis
-        python run_features_engineering.py --tables           # bloc tables_update
-        python run_features_engineering.py --refit            # bloc tables_refit
+        python run_features_engineering.py --flow daily       # cadence quotidienne
+        python run_features_engineering.py --flow yearly      # refit xT + xGOT
         python run_features_engineering.py --dry-run          # simule
         """,
     )
@@ -279,12 +474,9 @@ def parse_args() -> argparse.Namespace:
                         help="Liste les étapes sans les exécuter")
     parser.add_argument("--list", action="store_true",
                         help="Affiche les étapes disponibles et quitte")
-    parser.add_argument("--tables", action="store_true",
-                        help="Bloc tables_update : dbt transform → xgot → KNN → downstream → test")
-    parser.add_argument("--refit", action="store_true",
-                        help="Bloc tables_refit : refit grille xT + modèle xGOT")
-    parser.add_argument("--flow", choices=["daily", "rare"],
-                        help="Flux composé : daily=tables_update, rare=tables_refit")
+    parser.add_argument("--flow", choices=["daily", "yearly"],
+                        help="Cadence : daily=TABLES_UPDATE (features quotidiennes), "
+                             "yearly=TABLES_YEARLY (refit xT + xGOT)")
     parser.add_argument("--full-refresh", action="store_true",
                         help="Force dbt --full-refresh (recrée les tables depuis zéro)")
     parser.add_argument("--serve", action="store_true",
@@ -300,29 +492,23 @@ def main() -> None:
         print("\nÉtapes disponibles (dans l'ordre) :")
         for i, name in enumerate(STEP_NAMES, 1):
             print(f"  {i}. {name}")
+        print("\nFlux disponibles :")
+        for flow_name, step_list in FLOWS.items():
+            print(f"  --flow {flow_name} : {' → '.join(step_list)}")
         print()
         return
 
     cfg = load_config()
-    pipeline_cfg = cfg.get("pipeline", {})
+    pipeline_cfg = cfg.get("pipeline_main", {})
 
     run_step_task = make_run_step_task(
         retries=pipeline_cfg.get("retries", 2),
         retry_delay_seconds=pipeline_cfg.get("retry_delay_seconds", 30),
     )
 
-    # ── Blocs tables ─────────────────────────────────────────────────────────
-    if args.tables or args.refit:
-        table_steps = build_table_steps(cfg, full_refresh=args.full_refresh)
-        block = TABLES_UPDATE if args.tables else TABLES_REFIT
-        steps_to_run = {n: table_steps[n] for n in block}
-        results = run_features_flow(steps_to_run, dry_run=args.dry_run, run_step_task=run_step_task)
-        print_summary(results, title="RÉSUMÉ FEATURES ENGINEERING")
-        sys.exit(1 if [r for r in results if r["status"] == "FAILED"] else 0)
-
-    # ── Flux composés ────────────────────────────────────────────────────────
+    # ── Flux composés (--flow daily / --flow yearly) ─────────────────────────
     if args.flow:
-        table_steps = build_table_steps(cfg, full_refresh=args.full_refresh)
+        table_steps  = build_table_steps(cfg, full_refresh=args.full_refresh)
         steps_to_run = {n: table_steps[n] for n in FLOWS[args.flow]}
         results = run_features_flow(steps_to_run, dry_run=args.dry_run, run_step_task=run_step_task)
         print_summary(results, title="RÉSUMÉ FEATURES ENGINEERING")
