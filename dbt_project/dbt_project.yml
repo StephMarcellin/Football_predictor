@@ -26,6 +26,13 @@ clean-targets:         # directories to be removed by `dbt clean`
 
 on-run-start:
   - "SET temp_directory='C:/Users/marce/AppData/Local/Temp/duckdb_dbt'"
+  # - "SET temp_directory='D:/Temp_dbt'"
+  - "CREATE SCHEMA IF NOT EXISTS silver;"
+  - "CREATE SCHEMA IF NOT EXISTS intermediate;"
+  - "CREATE SCHEMA IF NOT EXISTS gold;"
+  - "CREATE SCHEMA IF NOT EXISTS marts;"
+  - "CREATE SCHEMA IF NOT EXISTS machine_learning;"
+  - "CREATE SCHEMA IF NOT EXISTS audits;"
 
 # Configuration seeds
 seeds:
@@ -36,11 +43,11 @@ seeds:
         club_tm_id: INTEGER
         market_value_m: DOUBLE
         season: VARCHAR
-    team_mapping:
-      +column_types:
-        alias: VARCHAR
-        club_name: VARCHAR
-        team_id: BIGINT
+    # team_mapping:
+    #   +column_types:
+    #     alias: VARCHAR
+    #     club_name: VARCHAR
+    #     team_id: BIGINT
     competition_mapping:
       +column_types:
         alias: VARCHAR

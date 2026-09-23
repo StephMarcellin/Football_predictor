@@ -1,6 +1,18 @@
 football_prediction:
-  target: ci
+  target: dev
   outputs:
+    dev:
+      type: duckdb
+      path: "../db/football_dev.duckdb"
+      schema: gold
+      threads: 4
+      settings:
+        preserve_insertion_order: false
+        memory_limit: '10GB'
+        max_temp_directory_size: '40GB'
+        enable_progress_bar: true
+        progress_bar_time: 10000
+
     ci:
       type: duckdb
       path: "../db/football.duckdb"
@@ -9,4 +21,6 @@ football_prediction:
       settings:
         preserve_insertion_order: false
         memory_limit: '10GB'
-        max_temp_directory_size: '100GB'
+        max_temp_directory_size: '40GB'
+        enable_progress_bar: true
+        progress_bar_time: 10000

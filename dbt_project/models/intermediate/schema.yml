@@ -1517,7 +1517,7 @@ models:
         tests:
           - not_null
           - relationships:
-              to: ref('team_mapping')
+              to: source('referentiel', 'team_mapping')
               field: team_id
       - name: opponent_id
         description: "Id canonique de l'équipe adverse (via team_mapping). NULL toléré (~3.6 %) — matchs sur terrain neutre ou orthographe non mappée."
@@ -1526,7 +1526,7 @@ models:
               config:
                 severity: warn
           - relationships:
-              to: ref('team_mapping')
+              to: source('referentiel', 'team_mapping')
               field: team_id
               config:
                 severity: warn
@@ -1674,7 +1674,7 @@ models:
         tests:
           - not_null
           - relationships:
-              to: ref('team_mapping')
+              to: source('referentiel', 'team_mapping')
               field: team_id
       - name: opponent_id
         description: "Id canonique de l'équipe adverse (via team_mapping). NULL toléré (~3.6 %)."
@@ -1683,7 +1683,7 @@ models:
               config:
                 severity: warn
           - relationships:
-              to: ref('team_mapping')
+              to: source('referentiel', 'team_mapping')
               field: team_id
               config:
                 severity: warn
@@ -1878,7 +1878,7 @@ models:
         tests:
           - not_null
           - relationships:
-              to: ref('team_mapping')
+              to: source('referentiel', 'team_mapping')
               field: team_id
       - name: opponent_id
         description: "Id canonique de l'équipe adverse (via team_mapping). NULL toléré (~3.6 %) — cascade A-002 (résolution team_mapping incomplète hors Big5)."
@@ -1887,7 +1887,7 @@ models:
               config:
                 severity: warn
           - relationships:
-              to: ref('team_mapping')
+              to: source('referentiel', 'team_mapping')
               field: team_id
               config:
                 severity: warn
@@ -2024,7 +2024,7 @@ models:
         tests:
           - not_null
           - relationships:
-              to: ref('team_mapping')
+              to: source('referentiel', 'team_mapping')
               field: team_id
       - name: opponent_id
         description: "Id canonique de l'équipe adverse (via team_mapping). NULL toléré (~3.6 %) — matchs sur terrain neutre ou orthographe non mappée."
@@ -2033,7 +2033,7 @@ models:
               config:
                 severity: warn
           - relationships:
-              to: ref('team_mapping')
+              to: source('referentiel', 'team_mapping')
               field: team_id
               config:
                 severity: warn
@@ -2271,14 +2271,14 @@ models:
         tests:
           - not_null
           - relationships:
-              to: ref('team_mapping')
+              to: source('referentiel', 'team_mapping')
               field: team_id
       - name: opponent_id
         description: "Id canonique de l'équipe à l'extérieur (via team_mapping sur away_team)."
         tests:
           - not_null
           - relationships:
-              to: ref('team_mapping')
+              to: source('referentiel', 'team_mapping')
               field: team_id
       - name: league_source
         description: "Nom de la compétition source"
@@ -2485,7 +2485,7 @@ models:
         tests:
           - not_null:
               config:
-                severity: warn
+                severity: error
           - relationships:
               to: source('intermediate', 'match_registry')
               field: match_id
@@ -2498,7 +2498,7 @@ models:
               config:
                 severity: warn
           - relationships:
-              to: ref('team_mapping')
+              to: source('referentiel', 'team_mapping')
               field: team_id
               config:
                 severity: warn
@@ -2509,7 +2509,7 @@ models:
               config:
                 severity: warn
           - relationships:
-              to: ref('team_mapping')
+              to: source('referentiel', 'team_mapping')
               field: team_id
               config:
                 severity: warn
@@ -3481,7 +3481,198 @@ models:
           combination_of_columns:
             - match_id
             - team_id
+  - name: int_whoscored_team_match_minute
+    description: >
+      Stats d'équipe WhoScored éclatées minute par minute — grain (match × équipe
+      × minute jouée). Minute au format expanded (45+2 = 47, cf. int_whoscored_formations).
+      Une minute absente d'une métrique dans le JSON source = l'action n'a pas eu
+      lieu → 0.0 (COALESCE), jamais NULL. Colonnes *_success_value / *_accuracy_value
+      / *_pct_value sont des ratios cumulatifs glissants du JSON source (biaisés,
+      cf. rating) — ne jamais les sommer ni les moyenner ; recalculer depuis les
+      compteurs bruts (accurate/total) en aval, cf. int_whoscored_team_match_agg.
+      Source : int_whoscored_team_match.
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1)"
+        tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: team_id
+        description: "Id canonique de l'équipe"
+      - name: minute
+        description: "Minute expanded du match (0-based, ex. 45+2 = 47)"
+      - name: rating
+        description: "Moyenne des ratings joueurs à cette minute — cumulatif glissant, non exploitable tel quel (cf. note table). Non utilisé en agrégation."
+      - name: shots_total_value
+        description: "Tirs tentés à cette minute"
+      - name: shots_on_target_value
+        description: "Tirs cadrés à cette minute"
+      - name: shots_off_target_value
+        description: "Tirs non cadrés à cette minute"
+      - name: shots_blocked_value
+        description: "Tirs contrés à cette minute"
+      - name: clearances_value
+        description: "Dégagements à cette minute"
+      - name: interceptions_value
+        description: "Interceptions à cette minute"
+      - name: possession_value
+        description: "Compte de possessions (nombre de fois où l'équipe a eu le ballon) à cette minute — pas un pourcentage"
+      - name: touches_value
+        description: "Touches de balle à cette minute"
+      - name: passes_total_value
+        description: "Passes tentées à cette minute"
+      - name: passes_accurate_value
+        description: "Passes réussies à cette minute"
+      - name: passes_key_value
+        description: "Passes clés à cette minute"
+      - name: pass_success_value
+        description: "Pourcentage de passes réussies (source WhoScored, cumulatif glissant) — ne pas sommer/moyenner, recalculer depuis passes_accurate/passes_total en aval"
+      - name: aerials_total_value
+        description: "Duels aériens disputés à cette minute"
+      - name: aerials_won_value
+        description: "Duels aériens gagnés à cette minute"
+      - name: aerial_success_value
+        description: "Pourcentage de duels aériens gagnés (source WhoScored, cumulatif glissant) — ne pas sommer/moyenner, recalculer depuis aerials_won/aerials_total en aval"
+      - name: corners_total_value
+        description: "Corners tentés à cette minute"
+      - name: corners_accurate_value
+        description: "Corners réussis à cette minute"
+      - name: throw_ins_total_value
+        description: "Touches (remises en jeu) tentées à cette minute"
+      - name: throw_ins_accurate_value
+        description: "Touches (remises en jeu) réussies à cette minute"
+      - name: throw_in_accuracy_value
+        description: "Pourcentage de réussite aux touches (source WhoScored, cumulatif glissant) — ne pas sommer/moyenner, recalculer depuis throw_ins_accurate/throw_ins_total en aval"
+      - name: offsides_caught_value
+        description: "Hors-jeux sifflés à cette minute"
+      - name: fouls_committed_value
+        description: "Fautes commises à cette minute"
+      - name: tackles_total_value
+        description: "Tacles tentés à cette minute"
+      - name: tackles_successful_value
+        description: "Tacles réussis à cette minute"
+      - name: tackles_unsuccessful_value
+        description: "Tacles manqués à cette minute"
+      - name: tackle_success_value
+        description: "Pourcentage de tacles réussis (source WhoScored, cumulatif glissant) — ne pas sommer/moyenner, recalculer depuis tackles_successful/tackles_total en aval"
+      - name: dribbled_past_value
+        description: "Fois où le joueur/l'équipe a été dribblé à cette minute"
+      - name: dribbles_won_value
+        description: "Dribbles réussis à cette minute"
+      - name: dribbles_attempted_value
+        description: "Dribbles tentés à cette minute"
+      - name: dribbles_lost_value
+        description: "Dribbles perdus à cette minute"
+      - name: dribble_success_value
+        description: "Pourcentage de dribbles réussis (source WhoScored, cumulatif glissant) — ne pas sommer/moyenner, recalculer depuis dribbles_won/dribbles_attempted en aval"
+      - name: dispossessed_value
+        description: "Pertes de balle sous pression à cette minute"
+      - name: errors_value
+        description: "Erreurs menant à une occasion adverse à cette minute"
+      - name: defensive_aerials_value
+        description: "Duels aériens défensifs à cette minute — sous-catégorie non confirmée d'aerials_total (à vérifier, cf. passation)"
+      - name: offensive_aerials_value
+        description: "Duels aériens offensifs à cette minute — sous-catégorie non confirmée d'aerials_total (à vérifier, cf. passation)"
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - match_id
+            - team_id
+            - minute
 
+  - name: int_whoscored_team_match_agg
+    description: >
+      Agrégation au niveau match des stats WhoScored — grain (match × équipe).
+      Compteurs bruts : SUM() des minutes. Colonnes *_pct : recalculées depuis
+      les sommes (accurate/total, NULLIF(0) sur le dénominateur), jamais moyennées
+      depuis le JSON source (cumulatif glissant biaisé, cf. int_whoscored_team_match_minute).
+      rating exclu (moyenne cumulative glissante, non agrégeable). Source :
+      int_whoscored_team_match_minute.
+    columns:
+      - name: match_id
+        description: "Identifiant unifié du match (SHA1)"
+        tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: team_id
+        description: "Id canonique de l'équipe"
+      - name: shots_total
+        description: "Tirs tentés sur le match"
+      - name: shots_on_target
+        description: "Tirs cadrés sur le match"
+      - name: shots_off_target
+        description: "Tirs non cadrés sur le match"
+      - name: shots_blocked
+        description: "Tirs contrés sur le match"
+      - name: clearances
+        description: "Dégagements sur le match"
+      - name: interceptions
+        description: "Interceptions sur le match"
+      - name: possession
+        description: "Compte de possessions sur le match — à convertir en ratio home/away en aval, pas un pourcentage direct"
+      - name: touches
+        description: "Touches de balle sur le match"
+      - name: passes_total
+        description: "Passes tentées sur le match"
+      - name: passes_accurate
+        description: "Passes réussies sur le match"
+      - name: passes_key
+        description: "Passes clés sur le match"
+      - name: aerials_total
+        description: "Duels aériens disputés sur le match"
+      - name: aerials_won
+        description: "Duels aériens gagnés sur le match"
+      - name: corners_total
+        description: "Corners tentés sur le match"
+      - name: corners_accurate
+        description: "Corners réussis sur le match"
+      - name: throw_ins_total
+        description: "Touches (remises en jeu) tentées sur le match"
+      - name: throw_ins_accurate
+        description: "Touches (remises en jeu) réussies sur le match"
+      - name: offsides_caught
+        description: "Hors-jeux sifflés sur le match"
+      - name: fouls_committed
+        description: "Fautes commises sur le match"
+      - name: tackles_total
+        description: "Tacles tentés sur le match"
+      - name: tackles_successful
+        description: "Tacles réussis sur le match"
+      - name: tackles_unsuccessful
+        description: "Tacles manqués sur le match"
+      - name: dribbled_past
+        description: "Fois où l'équipe a été dribblée sur le match"
+      - name: dribbles_won
+        description: "Dribbles réussis sur le match"
+      - name: dribbles_attempted
+        description: "Dribbles tentés sur le match"
+      - name: dribbles_lost
+        description: "Dribbles perdus sur le match"
+      - name: dispossessed
+        description: "Pertes de balle sous pression sur le match"
+      - name: errors
+        description: "Erreurs menant à une occasion adverse sur le match"
+      - name: defensive_aerials
+        description: "Duels aériens défensifs sur le match — sous-catégorie non confirmée d'aerials_total (à vérifier, cf. passation)"
+      - name: offensive_aerials
+        description: "Duels aériens offensifs sur le match — sous-catégorie non confirmée d'aerials_total (à vérifier, cf. passation)"
+      - name: pass_success_pct
+        description: "Recalculé : passes_accurate / passes_total * 100. NULL si passes_total = 0."
+      - name: aerial_success_pct
+        description: "Recalculé : aerials_won / aerials_total * 100. NULL si aerials_total = 0."
+      - name: tackle_success_pct
+        description: "Recalculé : tackles_successful / tackles_total * 100. NULL si tackles_total = 0."
+      - name: dribble_success_pct
+        description: "Recalculé : dribbles_won / dribbles_attempted * 100. NULL si dribbles_attempted = 0."
+      - name: throw_in_accuracy_pct
+        description: "Recalculé : throw_ins_accurate / throw_ins_total * 100. NULL si throw_ins_total = 0."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - match_id
+            - team_id
   - name: int_whoscored_players
     description: >
       Dimension joueur par saison et par équipe — grain (player_id, season,
