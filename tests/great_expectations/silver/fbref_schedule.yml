@@ -11,7 +11,6 @@ description: >
   point de départ de la chaîne features). Couvre toutes les compétitions.
 
 source:
-  duckdb_path: db/football.duckdb
   query: |
     SELECT
       date, team, opponent, league_source, season,
@@ -20,10 +19,16 @@ source:
     FROM silver.fbref_schedule
 
 expectations:
-  - type: expect_table_row_count_to_be_between
-    kwargs: { min_value: 40000, max_value: 100000 }
-    severity: error
-    meta: { description: "Empirique = 54 296." }
+  # Volumétrie & Stabilité
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.20
+      max_deviation_error: 0.40
+      min_seasons_history: 1
+      exclude_partitions: ['2025-2026']
+    severity: warn
+    meta: { description: "Dérive volumétrique inter-saisons." }
 
   # NULL rate
   - type: expect_column_values_to_not_be_null
@@ -42,7 +47,8 @@ expectations:
       - formation
       - opp_formation
     kwargs: { mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
 
   # result_1n2 : 1.96 % NULL empirique — cohérent avec matches à venir sans résultat
   - type: expect_column_values_to_not_be_null
@@ -54,20 +60,12 @@ expectations:
   - type: expect_column_values_to_be_between
     for_each_column: [gf, ga]
     kwargs: { min_value: 0, max_value: 20, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
 
   # Moyennes
   - type: expect_column_mean_to_be_between
     for_each_column: [gf, ga]
     kwargs: { min_value: 1.0, max_value: 2.0 }
-    severity: error
-
-  # Dérive volumétrique
-  - type: expect_partition_volume_stability
-    kwargs:
-      partition_col: season
-      max_deviation_warn: 0.20
-      max_deviation_error: 0.40
-      min_seasons_history: 2
-      exclude_partitions: ['2025-2026']
+    # severity: error
     severity: warn

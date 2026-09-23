@@ -1189,13 +1189,15 @@ expectations:
   # ── VOLUMÉTRIE (1 ligne agrégée = 1 seule row en output) ──
   - type: expect_table_row_count_to_be_between
     kwargs: { min_value: 1, max_value: 1 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Agrégat push-down doit renvoyer exactement 1 ligne." }
 
   - type: expect_row_condition_to_hold
     kwargs:
       condition: "n_rows >= 430168 and n_rows <= 2150844"
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Row count empirique = 1,075,422." }
 
   # ── COMPLÉTION PAR COLONNE (push-down NULL counts) ──

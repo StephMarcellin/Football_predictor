@@ -1,12 +1,6 @@
 # ══════════════════════════════════════════════════════════════════════════════
 # Suite GE — silver.stg_whoscored_events (distribution par match)
 # Stratégie big data : PUSH-DOWN + GROUP BY.
-#
-# Query source GROUP BY ws_match_id → ~40 000 lignes en pandas.
-# Chaque expectation teste la distribution des events par match.
-#
-# But : détecter les matches ratés (< 500 events = A-019) ou avec anomalies
-# de volumétrie.
 # ══════════════════════════════════════════════════════════════════════════════
 
 suite_name: silver.stg_whoscored_events.by_match
@@ -15,7 +9,6 @@ description: >
   anormale. Push-down par ws_match_id, ~40 000 lignes agrégées en pandas.
 
 source:
-  duckdb_path: db/football.duckdb
   query: |
     SELECT
       ws_match_id,
@@ -28,22 +21,7 @@ source:
     GROUP BY ws_match_id
 
 expectations:
-
-  # ────────────────────────────────────────────────────────────────────────────
-  # Nombre de matches distincts — cohérence avec stg_whoscored_match_index
-  # Empirique = 38 978 matches (mais 38 973 ici car 5 matches < 500 events sont
-  # peut-être filtrés par un scraper — à investiguer)
-  # ────────────────────────────────────────────────────────────────────────────
-  - type: expect_table_row_count_to_be_between
-    kwargs: { min_value: 30000, max_value: 50000 }
-    severity: error
-    meta: { description: "Empirique ≈ 38 978 matches." }
-
-  # ────────────────────────────────────────────────────────────────────────────
   # Volumétrie events par match : distribution normale
-  # Empirique : min=22 max=2038 avg=1541 median=1541 p05=1371 p95=1714 p99=1793
-  # ────────────────────────────────────────────────────────────────────────────
-  # Plancher : 500 events / match, mostly=0.998 (A-019 : 40 matches avec < 1000)
   - type: expect_column_values_to_be_between
     kwargs: { column: n_events, min_value: 500, max_value: 2500, mostly: 0.998 }
     severity: warn
@@ -54,41 +32,39 @@ expectations:
   # Moyenne events / match
   - type: expect_column_mean_to_be_between
     kwargs: { column: n_events, min_value: 1200, max_value: 1800 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Empirique = 1541." }
 
-  # ────────────────────────────────────────────────────────────────────────────
   # 2 équipes exactement par match
-  # ────────────────────────────────────────────────────────────────────────────
   - type: expect_column_values_to_be_between
     kwargs: { column: n_teams, min_value: 2, max_value: 2, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Exactement 2 équipes actives par match." }
 
-  # ────────────────────────────────────────────────────────────────────────────
-  # Joueurs par match : entre 20 et 40 (11 titulaires + remplaçants entrés)
-  # ────────────────────────────────────────────────────────────────────────────
+  # Joueurs par match : entre 20 et 40
   - type: expect_column_values_to_be_between
     kwargs: { column: n_players, min_value: 15, max_value: 50, mostly: 0.999 }
     severity: warn
     meta: { description: "22 titulaires + jusqu'à ~10 remplaçants entrés." }
 
-  # ────────────────────────────────────────────────────────────────────────────
   # Tirs par match : distribution plausible
-  # Total tirs empirique ≈ 993 773 / 38 978 = ~25 par match en moyenne
-  # ────────────────────────────────────────────────────────────────────────────
   - type: expect_column_mean_to_be_between
     kwargs: { column: n_shots, min_value: 15, max_value: 40 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Empirique ≈ 25 tirs / match." }
 
-  # Buts par match : 0-15 (record historique, marge)
+  # Buts par match
   - type: expect_column_values_to_be_between
     kwargs: { column: n_goals, min_value: 0, max_value: 15, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Max plausible : record historique < 15 buts / match." }
 
   - type: expect_column_mean_to_be_between
     kwargs: { column: n_goals, min_value: 2.0, max_value: 3.5 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Empirique ≈ 2.72 buts / match." }

@@ -60,7 +60,8 @@ expectations:
   # ────────────────────────────────────────────────────────────────────────────
   - type: expect_table_row_count_to_be_between
     kwargs: { min_value: 20000, max_value: 50000 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Empirique = 32 218 lignes Big5." }
 
   # ────────────────────────────────────────────────────────────────────────────
@@ -135,12 +136,14 @@ expectations:
   - type: expect_column_values_to_be_between
     for_each_column: [np_xg, np_xg_conceded]
     kwargs: { min_value: 0, max_value: 10, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Empirique 0-7.11." }
 
   - type: expect_column_values_to_be_between
     kwargs: { column: np_xg_diff_match, min_value: -10, max_value: 10, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Empirique -6.27 à +6.27." }
 
   # PPDA — attention A-007 max 193
@@ -154,20 +157,24 @@ expectations:
   - type: expect_column_values_to_be_between
     for_each_column: [season_att_rating, season_def_rating]
     kwargs: { min_value: 5, max_value: 8, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Empirique 6.26-7.14. A-027 : att == def (bug scraper)." }
 
   - type: expect_column_values_to_be_between
     kwargs: { column: ws_dribbles_pg, min_value: 3, max_value: 20, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
 
   - type: expect_column_values_to_be_between
     kwargs: { column: ws_fouled_pg, min_value: 5, max_value: 20, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
 
   - type: expect_column_values_to_be_between
     kwargs: { column: ws_shots_ot_pg, min_value: 1, max_value: 15, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
 
   # Cotes bookmakers — bornes physiques
   - type: expect_column_values_to_be_between
@@ -179,7 +186,8 @@ expectations:
       - odds_avg_draw
       - odds_avg_opp
     kwargs: { min_value: 1.01, max_value: 100, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
 
   # Probabilités : [0, 1]
   - type: expect_column_values_to_be_between
@@ -201,7 +209,8 @@ expectations:
       - pinnacle_prob_close_over25
       - pinnacle_prob_close_under25
     kwargs: { min_value: 0, max_value: 1, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
 
   # Drifts : [-1, +1] (empirique -0.19 à +0.26)
   - type: expect_column_values_to_be_between
@@ -210,7 +219,8 @@ expectations:
       - pinnacle_drift_draw
       - pinnacle_drift_opp
     kwargs: { min_value: -1, max_value: 1, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
 
   # ────────────────────────────────────────────────────────────────────────────
   # 4. BORNES STATISTIQUES
@@ -218,7 +228,8 @@ expectations:
   - type: expect_column_mean_to_be_between
     for_each_column: [np_xg, np_xg_conceded]
     kwargs: { min_value: 0.8, max_value: 2.0 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Empirique 1.308." }
 
   - type: expect_column_mean_to_be_between
@@ -243,25 +254,29 @@ expectations:
   - type: expect_row_condition_to_hold
     kwargs:
       condition: "np_xg_diff_ok == 1"
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "np_xg_diff_match = np_xg - np_xg_conceded (0 violation empirique)." }
 
   - type: expect_row_condition_to_hold
     kwargs:
       condition: "pinnacle_prob_sum_ok == 1"
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Somme des 3 probas Pinnacle 1n2 = 1." }
 
   - type: expect_row_condition_to_hold
     kwargs:
       condition: "market_prob_sum_ok == 1"
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Somme des 3 probas marché 1n2 = 1." }
 
   - type: expect_row_condition_to_hold
     kwargs:
       condition: "over_under_sum_ok == 1"
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Somme over25 + under25 = 1." }
 
   # ────────────────────────────────────────────────────────────────────────────

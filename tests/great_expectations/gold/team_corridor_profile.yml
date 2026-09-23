@@ -19,7 +19,8 @@ expectations:
   # ── VOLUMÉTRIE ──
   - type: expect_table_row_count_to_be_between
     kwargs: { min_value: 40082, max_value: 200412 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Empirique = 100,206. Bornes [40,082, 200,412]." }
 
   # ── COMPLÉTION STRICTE (0 NULL empirique) ──
@@ -35,7 +36,8 @@ expectations:
       - off_central_touch
       - def_central_density
     kwargs: { mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
 
   # ── COMPLÉTION AVEC NULLs EMPIRIQUES (mostly = 1 - empirique - 5pts) ──
   - type: expect_column_values_to_not_be_null

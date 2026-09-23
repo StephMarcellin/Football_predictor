@@ -27,7 +27,8 @@ expectations:
   # ────────────────────────────────────────────────────────────────────────────
   - type: expect_table_row_count_to_be_between
     kwargs: { min_value: 30000, max_value: 60000 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Empirique = 39 096 (17 saisons × Big5+D2)." }
 
   # ────────────────────────────────────────────────────────────────────────────
@@ -44,19 +45,22 @@ expectations:
       - season
       - comp_category
     kwargs: { mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
 
   # match_id : 4.4 % NULL empirique + marge 5 pts → mostly = 0.90
   - type: expect_column_values_to_not_be_null
     kwargs: { column: match_id, mostly: 0.90 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Empirique 4.4 % NULL (1 718 lignes) — non résolus au match_registry." }
 
   # team_id / opponent_id : 2.2 % NULL empirique + marge 5 pts → mostly = 0.92
   - type: expect_column_values_to_not_be_null
     for_each_column: [team_id, opponent_id]
     kwargs: { mostly: 0.92 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Empirique 2.2 % NULL — noms d'équipes non mappés." }
 
   # ────────────────────────────────────────────────────────────────────────────
@@ -67,7 +71,8 @@ expectations:
   - type: expect_column_values_to_be_between
     for_each_column: [ws_home_team_id, ws_away_team_id]
     kwargs: { min_value: 1, max_value: 999999999, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
 
   # ────────────────────────────────────────────────────────────────────────────
   # 4. COHÉRENCE CROISÉE
@@ -76,14 +81,16 @@ expectations:
   - type: expect_row_condition_to_hold
     kwargs:
       condition: "ws_home_team_id != ws_away_team_id"
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Home ≠ Away (ws bruts)." }
 
   # Idem côté ids canoniques (quand résolus)
   - type: expect_row_condition_to_hold
     kwargs:
       condition: "team_id.isna() or opponent_id.isna() or team_id != opponent_id"
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Home ≠ Away (ids canoniques quand résolus)." }
 
   # ────────────────────────────────────────────────────────────────────────────

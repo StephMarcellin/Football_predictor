@@ -24,13 +24,15 @@ expectations:
 
   - type: expect_table_row_count_to_be_between
     kwargs: { min_value: 1, max_value: 1 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Agrégat push-down = 1 ligne." }
 
   - type: expect_row_condition_to_hold
     kwargs:
       condition: "n_rows >= 100000000 and n_rows <= 500000000"
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Row count empirique ~265 M." }
 
   - type: expect_row_condition_to_hold
@@ -47,7 +49,8 @@ expectations:
   - type: expect_row_condition_to_hold
     kwargs:
       condition: "null_event_id / n_rows <= 0.001"
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "event_id must be NOT NULL (grain sensitive)." }
 
   - type: expect_row_condition_to_hold

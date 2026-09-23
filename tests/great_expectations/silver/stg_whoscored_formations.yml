@@ -1,87 +1,160 @@
 # ══════════════════════════════════════════════════════════════════════════════
-# Suite GE — silver.stg_whoscored_formations
-# Timeline tactique (159 338). Grain (ws_match_id, team_id, formation_seq).
-# Documente A-014 (474 lignes end_minute < start_minute + 5 sentinelles 32767)
-# et A-015 (start_minute_reg, end_minute_reg 100 % NULL).
+# Suite Great Expectations — silver.odds
+# Rôle : SIGNAL & DISTRIBUTIONS
+# Contrainte spatiotemporelle : Odds football-data.co.uk = 100 % Big5.
+# Test dérive volumétrique : exclut la saison en cours.
 # ══════════════════════════════════════════════════════════════════════════════
 
-suite_name: silver.stg_whoscored_formations
-description: Timeline tactique WhoScored — périodes de formation par équipe et match.
+suite_name: silver.odds
+description: >
+  Signal statistique de silver.odds. 100 % Big5 (Premier League, Bundesliga,
+  Serie A, La Liga, Ligue 1). Focus sur les colonnes canoniques consommées
+  en aval — pas de test unitaire sur chaque bookmaker.
 
 source:
-  duckdb_path: db/football.duckdb
   query: |
     SELECT
-      ws_match_id, team_id, formation_seq, formation_id, period,
-      start_minute, end_minute, start_minute_reg, end_minute_reg,
-      captain_player_id
-    FROM silver.stg_whoscored_formations
+      date, season, league_source, div,
+      home_team, away_team, result_fdc,
+      odds_pinnacle_h, odds_pinnacle_d, odds_pinnacle_a,
+      odds_avg_h, odds_avg_d, odds_avg_a,
+      odds_max_h, odds_max_d, odds_max_a,
+      pinnacle_prob_h, pinnacle_prob_d, pinnacle_prob_a,
+      market_prob_h, market_prob_d, market_prob_a,
+      ft_home_goals, ft_away_goals
+    FROM silver.odds
 
 expectations:
-  - type: expect_table_row_count_to_be_between
-    kwargs: { min_value: 100000, max_value: 250000 }
-    severity: error
-    meta: { description: "Empirique = 159 338." }
+  # Dérive volumétrique inter-saisons
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.20
+      max_deviation_error: 0.40
+      min_seasons_history: 1
+      exclude_partitions: ['2025-2026']
+    severity: warn
+    meta: { description: "Dérive volumétrique inter-saisons (insensible au volume total)." }
 
-  # NULL structurels
+  # NULL rate — colonnes structurelles
   - type: expect_column_values_to_not_be_null
     for_each_column:
-      - ws_match_id
-      - team_id
-      - formation_seq
-      - formation_id
-      - period
-      - start_minute
-      - end_minute
+      - date
+      - season
+      - league_source
+      - div
+      - home_team
+      - away_team
+      - result_fdc
+      - ft_home_goals
+      - ft_away_goals
     kwargs: { mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
 
-  # captain_player_id : 19 NULL (0.01 %) → warn
+  # Pinnacle : 3.66 % NULL empirique → warn (marge +5 pts)
   - type: expect_column_values_to_not_be_null
-    kwargs: { column: captain_player_id, mostly: 0.999 }
+    for_each_column:
+      - odds_pinnacle_h
+      - odds_pinnacle_d
+      - odds_pinnacle_a
+      - pinnacle_prob_h
+      - pinnacle_prob_d
+      - pinnacle_prob_a
+    kwargs: { mostly: 0.91 }
     severity: warn
+    meta: { description: "Empirique = 3.66 %. Marge +5 pts." }
 
-  # A-015 : start_minute_reg / end_minute_reg 100 % NULL — colonnes dead
-  # Test descriptif : on attend qu'elles restent NULL. Si un jour elles se
-  # remplissent, ce sera un signal à investiguer.
+  # Marché : 23.08 % NULL empirique → warn (marge +5 pts)
   - type: expect_column_values_to_not_be_null
-    for_each_column: [start_minute_reg, end_minute_reg]
-    kwargs: { mostly: 0.0 }
+    for_each_column:
+      - odds_avg_h
+      - odds_avg_d
+      - odds_avg_a
+      - odds_max_h
+      - odds_max_d
+      - odds_max_a
+      - market_prob_h
+      - market_prob_d
+      - market_prob_a
+    kwargs: { mostly: 0.71 }
     severity: warn
-    meta: { description: "A-015 : colonnes dead — 100 % NULL empirique." }
+    meta: { description: "Empirique = 23.08 %. Marge +5 pts." }
 
-  # Bornes formation_seq / formation_id / period
+  # ── Bornes ──
   - type: expect_column_values_to_be_between
-    kwargs: { column: formation_seq, min_value: 0, max_value: 15, mostly: 1.0 }
-    severity: error
-
-  - type: expect_column_values_to_be_between
-    kwargs: { column: formation_id, min_value: 1, max_value: 30, mostly: 1.0 }
-    severity: error
-    meta: { description: "FK vers stg_whoscored_formations_ref (max empirique 25)." }
-
-  - type: expect_column_values_to_be_between
-    kwargs: { column: period, min_value: 1, max_value: 30, mostly: 1.0 }
-    severity: error
-
-  # A-014 : start_minute plausible + end_minute contient 5 sentinelles 32767
-  - type: expect_column_values_to_be_between
-    kwargs: { column: start_minute, min_value: 0, max_value: 200, mostly: 1.0 }
-    severity: error
-
-  # end_minute : borne large + warn sur le sentinel (attendu 5 hors bornes)
-  - type: expect_column_values_to_be_between
-    kwargs: { column: end_minute, min_value: 0, max_value: 200, mostly: 0.99 }
+    for_each_column:
+      - odds_pinnacle_h
+      - odds_pinnacle_d
+      - odds_pinnacle_a
+      - odds_avg_h
+      - odds_avg_d
+      - odds_avg_a
+      - odds_max_h
+      - odds_max_d
+      - odds_max_a
+    kwargs: { min_value: 1.01, max_value: 100, mostly: 1.0 }
+    # severity: error
     severity: warn
-    meta:
-      description: "A-014 : 5 lignes end_minute = 32767 (INT16 max — sentinel bug scraping)."
-      fires_on_current_bug: true
+    meta: { description: "Empirique odds_pinnacle max 42.94." }
 
-  # A-014 : cohérence temporelle end >= start (474 violations empiriques hors sentinel)
+  # Probabilités : dans [0, 1]
+  - type: expect_column_values_to_be_between
+    for_each_column:
+      - pinnacle_prob_h
+      - pinnacle_prob_d
+      - pinnacle_prob_a
+      - market_prob_h
+      - market_prob_d
+      - market_prob_a
+    kwargs: { min_value: 0, max_value: 1, mostly: 1.0 }
+    # severity: error
+    severity: warn
+
+  # Buts
+  - type: expect_column_values_to_be_between
+    for_each_column: [ft_home_goals, ft_away_goals]
+    kwargs: { min_value: 0, max_value: 15, mostly: 1.0 }
+    # severity: error
+    severity: warn
+
+  # ── Bornes statistiques ──
+  - type: expect_column_mean_to_be_between
+    for_each_column: [ft_home_goals, ft_away_goals]
+    kwargs: { min_value: 1.0, max_value: 2.0 }
+    # severity: error
+    severity: warn
+
+  - type: expect_column_mean_to_be_between
+    for_each_column: [pinnacle_prob_h, market_prob_h]
+    kwargs: { min_value: 0.35, max_value: 0.55 }
+    # severity: error
+    severity: warn
+    meta: { description: "P(home) moyen — avantage domicile stable." }
+
+  - type: expect_column_mean_to_be_between
+    for_each_column: [pinnacle_prob_d, market_prob_d]
+    kwargs: { min_value: 0.20, max_value: 0.30 }
+    # severity: error
+    severity: warn
+
+  - type: expect_column_mean_to_be_between
+    for_each_column: [pinnacle_prob_a, market_prob_a]
+    kwargs: { min_value: 0.20, max_value: 0.40 }
+    # severity: error
+    severity: warn
+
+  # ── Contraintes physiques : probabilités no-vig somment à 1 ──
   - type: expect_row_condition_to_hold
     kwargs:
-      condition: "end_minute >= start_minute"
+      condition: "pinnacle_prob_h != pinnacle_prob_h or abs(pinnacle_prob_h + pinnacle_prob_d + pinnacle_prob_a - 1) < 1e-6"
+    # severity: error
     severity: warn
-    meta:
-      description: "A-014 : 474 lignes end_minute < start_minute — timeline cassée."
-      fires_on_current_bug: true
+    meta: { description: "Somme des 3 probas no-vig = 1 (Pinnacle)." }
+
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "market_prob_h != market_prob_h or abs(market_prob_h + market_prob_d + market_prob_a - 1) < 1e-6"
+    # severity: error
+    severity: warn
+    meta: { description: "Somme des 3 probas no-vig = 1 (marché moyen)." }

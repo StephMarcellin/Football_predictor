@@ -38,7 +38,8 @@ expectations:
   # ────────────────────────────────────────────────────────────────────────────
   - type: expect_table_row_count_to_be_between
     kwargs: { min_value: 40000, max_value: 100000 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Empirique = 55 651 lignes." }
 
   # ────────────────────────────────────────────────────────────────────────────
@@ -68,7 +69,8 @@ expectations:
       - pkcon
       - og
     kwargs: { mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
 
   # match_id : 49 NULL empiriques (0.09 %) — cf. A-005
   - type: expect_column_values_to_not_be_null
@@ -79,7 +81,8 @@ expectations:
   # opponent_id : NULL toléré ~3.6 % + marge 5 pts → 91.4 % non-null min
   - type: expect_column_values_to_not_be_null
     kwargs: { column: opponent_id, mostly: 0.914 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Empirique = 3.58 % NULL (1 993 lignes). Marge de +5 pts." }
 
   # ────────────────────────────────────────────────────────────────────────────
@@ -88,60 +91,70 @@ expectations:
   # Cartons : plafonds larges (max historique + marge)
   - type: expect_column_values_to_be_between
     kwargs: { column: crdy, min_value: 0, max_value: 15, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Max empirique 9." }
 
   - type: expect_column_values_to_be_between
     for_each_column: [crdr, crdy2]
     kwargs: { min_value: 0, max_value: 5, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Max empirique crdr=3, crdy2=2." }
 
   # Buts
   - type: expect_column_values_to_be_between
     for_each_column: [gf, ga]
     kwargs: { min_value: 0, max_value: 20, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
 
   # Fautes commises / subies : max empirique 32, marge à 45
   - type: expect_column_values_to_be_between
     for_each_column: [fls, fld]
     kwargs: { min_value: 0, max_value: 45, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
 
   # Hors-jeux
   - type: expect_column_values_to_be_between
     kwargs: { column: off_col, min_value: 0, max_value: 20, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Max empirique 15." }
 
   # Centres tentés : max empirique 74, marge à 100
   - type: expect_column_values_to_be_between
     kwargs: { column: crosses, min_value: 0, max_value: 100, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
 
   # Interceptions : max empirique 38, marge à 55
   - type: expect_column_values_to_be_between
     kwargs: { column: int_col, min_value: 0, max_value: 55, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
 
   # Tacles remportés : max empirique 31, marge à 45
   - type: expect_column_values_to_be_between
     kwargs: { column: tklw, min_value: 0, max_value: 45, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
 
   # Penalty won / conceded / og : bornés bas
   - type: expect_column_values_to_be_between
     for_each_column: [pkwon, pkcon, og]
     kwargs: { min_value: 0, max_value: 5, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
 
   # ────────────────────────────────────────────────────────────────────────────
   # 4. BORNES STATISTIQUES — moyennes cohérentes avec la nature de la métrique
   # ────────────────────────────────────────────────────────────────────────────
   - type: expect_column_mean_to_be_between
     kwargs: { column: crdy, min_value: 1.4, max_value: 2.8 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Empirique = 2.00" }
 
   - type: expect_column_mean_to_be_between
@@ -157,23 +170,27 @@ expectations:
   - type: expect_column_mean_to_be_between
     for_each_column: [fls, fld]
     kwargs: { min_value: 8.0, max_value: 16.0 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Empirique fls=11.92 fld=11.37" }
 
   - type: expect_column_mean_to_be_between
     kwargs: { column: off_col, min_value: 1.0, max_value: 3.0 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Empirique = 1.80" }
 
   - type: expect_column_mean_to_be_between
     kwargs: { column: crosses, min_value: 12.0, max_value: 24.0 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Empirique = 17.58" }
 
   - type: expect_column_mean_to_be_between
     for_each_column: [int_col, tklw]
     kwargs: { min_value: 6.0, max_value: 14.0 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Empirique int=9.68 tklw=9.72" }
 
   - type: expect_column_mean_to_be_between

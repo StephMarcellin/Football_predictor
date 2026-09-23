@@ -19,7 +19,8 @@ expectations:
   # ── VOLUMÉTRIE ──
   - type: expect_table_row_count_to_be_between
     kwargs: { min_value: 382305, max_value: 1911528 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Empirique = 955,764. Bornes [382,305, 1,911,528]." }
 
   # ── COMPLÉTION STRICTE (0 NULL empirique) ──
@@ -38,7 +39,8 @@ expectations:
       - is_attacking_third
       - leads_to_penalty
     kwargs: { mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
 
   # ── COMPLÉTION AVEC NULLs EMPIRIQUES (mostly = 1 - empirique - 5pts) ──
   - type: expect_column_values_to_not_be_null

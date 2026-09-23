@@ -25,6 +25,8 @@ import yaml
 import duckdb
 import pandas as pd
 
+from pipelines.tests.test_serve_skew import con
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Résultats
@@ -227,12 +229,58 @@ def _expect_row_condition_to_hold(df: pd.DataFrame, kw: dict):
                 "condition": condition,
                 "violation_rate": round(n_violations / n_total, 6) if n_total else None}, None
 
+# ══════════════════════════════════════════════════════════════════════════════
+# Logging des métriques
+# ══════════════════════════════════════════════════════════════════════════════
+def log_suite_results_to_duckdb(con: duckdb.DuckDBPyConnection, result: SuiteResult) -> None:
+    """Persiste le résultat d'une suite dans la table monitoring.ge_execution_logs."""
+    records = []
+    now = pd.Timestamp.now()
+    
+    for r in result.results:
+        records.append({
+            "executed_at": now,
+            "suite_name": result.suite_name,
+            "expectation_type": r.name,
+            "target_column": r.column,
+            "severity": r.severity,
+            "success": r.success,
+            "observed_json": json.dumps(r.observed, default=str),
+            "error_message": r.error,
+            "n_rows_evaluated": result.n_rows,
+        })
+    
+    if not records:
+        return
+
+    df_logs = pd.DataFrame(records)
+    
+    # Utilise la connexion 'con' déjà ouverte pour éviter tout verrou DuckDB
+    con.execute("CREATE SCHEMA IF NOT EXISTS monitoring;")
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS monitoring.ge_execution_logs (
+            executed_at TIMESTAMP,
+            suite_name VARCHAR,
+            expectation_type VARCHAR,
+            target_column VARCHAR,
+            severity VARCHAR,
+            success BOOLEAN,
+            observed_json VARCHAR,
+            error_message VARCHAR,
+            n_rows_evaluated BIGINT
+        );
+    """)
+    
+    con.register("df_logs_temp", df_logs)
+    con.execute("INSERT INTO monitoring.ge_execution_logs SELECT * FROM df_logs_temp;")
+    con.unregister("df_logs_temp")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Runner principal
 # ══════════════════════════════════════════════════════════════════════════════
 def run_suite(yaml_path: str | Path) -> SuiteResult:
     yaml_path = Path(yaml_path)
+    print(f"╔══ Exécution suite GE : {yaml_path}")
     if not yaml_path.exists():
         raise FileNotFoundError(f"Suite YAML introuvable : {yaml_path}")
 
@@ -240,16 +288,25 @@ def run_suite(yaml_path: str | Path) -> SuiteResult:
     suite_name = spec["suite_name"]
     source = spec["source"]
 
+    print(f"╠══ Suite : {suite_name}")
+
+
     # Résolution du chemin DuckDB — relatif à la racine du projet (2 niveaux au-dessus du runner)
     project_root = Path(__file__).resolve().parents[2]
-    duckdb_path = (project_root / source["duckdb_path"]).resolve()
+    with open(project_root / "config.yaml", "r", encoding="utf-8") as f:
+        config_file = yaml.safe_load(f)
+
+    duckdb_path = (project_root / config_file["paths"]["db"]).resolve()
+
     if not duckdb_path.exists():
         raise FileNotFoundError(f"DuckDB introuvable : {duckdb_path}")
 
+    print(f"╠══ Source DuckDB : {duckdb_path}")
     con = duckdb.connect(str(duckdb_path), read_only=True)
     df = con.execute(source["query"]).fetch_df()
     con.close()
 
+    print(f"╠══ Lignes chargées : {len(df)}")
     result = SuiteResult(suite_name=suite_name, duckdb_path=str(duckdb_path), n_rows=len(df))
 
     for exp in spec["expectations"]:
@@ -284,6 +341,10 @@ def run_suite(yaml_path: str | Path) -> SuiteResult:
             result.results.append(ExpectationResult(
                 name=exp_type, column=col, kwargs=kw, severity=severity,
                 success=ok, observed=observed, error=err))
+
+    con = duckdb.connect(str(duckdb_path), read_only=False)
+    log_suite_results_to_duckdb(con, result)
+    con.close()
     return result
 
 

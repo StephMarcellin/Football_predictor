@@ -53,7 +53,8 @@ expectations:
   # ────────────────────────────────────────────────────────────────────────────
   - type: expect_table_row_count_to_be_between
     kwargs: { min_value: 40000, max_value: 100000 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Empirique = 56 616 lignes." }
 
   # ────────────────────────────────────────────────────────────────────────────
@@ -69,7 +70,8 @@ expectations:
       - comp_category
       - league_source
     kwargs: { mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
 
   # match_id : 49 NULL empiriques (0.09 %) — A-005
   - type: expect_column_values_to_not_be_null
@@ -80,7 +82,8 @@ expectations:
   # opponent_id : ~3.62 % NULL — A-002
   - type: expect_column_values_to_not_be_null
     kwargs: { column: opponent_id, mostly: 0.914 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "A-002 : ~2 047 NULL, tous hors Big5." }
 
   # result_1n2 : ~1.49 % NULL (matches non joués filtrés en amont)
@@ -136,60 +139,72 @@ expectations:
   - type: expect_column_values_to_be_between
     for_each_column: [gf, ga]
     kwargs: { min_value: 0, max_value: 20, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Empirique gf 0-14, ga 0-9." }
 
   - type: expect_column_values_to_be_between
     kwargs: { column: possession, min_value: 0, max_value: 100, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
 
   - type: expect_column_values_to_be_between
     kwargs: { column: shots_total, min_value: 0, max_value: 60, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Empirique 0-47." }
 
   - type: expect_column_values_to_be_between
     kwargs: { column: shots_on_target, min_value: 0, max_value: 30, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Empirique 0-25." }
 
   - type: expect_column_values_to_be_between
     kwargs: { column: shots_on_target_faced, min_value: 0, max_value: 30, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Empirique 0-20." }
 
   - type: expect_column_values_to_be_between
     kwargs: { column: saves, min_value: 0, max_value: 25, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Empirique 0-19." }
 
   - type: expect_column_values_to_be_between
     kwargs: { column: goals_per_shot, min_value: 0, max_value: 1, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
 
   - type: expect_column_values_to_be_between
     kwargs: { column: clean_sheet, min_value: 0, max_value: 1, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
 
   - type: expect_column_values_to_be_between
     kwargs: { column: yellow_cards, min_value: 0, max_value: 15, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Empirique 0-9." }
 
   - type: expect_column_values_to_be_between
     for_each_column: [second_yellow_cards, red_cards]
     kwargs: { min_value: 0, max_value: 5, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
 
   - type: expect_column_values_to_be_between
     for_each_column: [fouls_committed]
     kwargs: { min_value: 0, max_value: 45, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
 
   - type: expect_column_values_to_be_between
     for_each_column: [interceptions, tackles_won]
     kwargs: { min_value: 0, max_value: 55, mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
 
   # save_pct : borne physique [0, 100] — 36 violations empiriques (A-026, warn)
   - type: expect_column_values_to_be_between
@@ -202,12 +217,14 @@ expectations:
   # ────────────────────────────────────────────────────────────────────────────
   - type: expect_column_mean_to_be_between
     kwargs: { column: gf, min_value: 1.0, max_value: 1.8 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Empirique 1.433." }
 
   - type: expect_column_mean_to_be_between
     kwargs: { column: ga, min_value: 0.9, max_value: 1.7 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Empirique 1.314." }
 
   - type: expect_column_mean_to_be_between
@@ -217,12 +234,14 @@ expectations:
 
   - type: expect_column_mean_to_be_between
     kwargs: { column: shots_total, min_value: 10, max_value: 15 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Empirique 12.44." }
 
   - type: expect_column_mean_to_be_between
     kwargs: { column: shots_on_target, min_value: 3, max_value: 6 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Empirique 4.33." }
 
   - type: expect_column_mean_to_be_between

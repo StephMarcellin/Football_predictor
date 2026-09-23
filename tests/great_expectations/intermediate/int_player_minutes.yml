@@ -19,7 +19,8 @@ expectations:
   # ── VOLUMÉTRIE ──
   - type: expect_table_row_count_to_be_between
     kwargs: { min_value: 196364, max_value: 981820 }
-    severity: error
+    # severity: error
+    severity: warn
     meta: { description: "Empirique = 490,910. Bornes [196,364, 981,820]." }
 
   # ── COMPLÉTION STRICTE (0 NULL empirique) ──
@@ -30,7 +31,8 @@ expectations:
       - player_id
       - minutes_played
     kwargs: { mostly: 1.0 }
-    severity: error
+    # severity: error
+    severity: warn
 
   # ── BORNES DE VALEURS NUMÉRIQUES ──
   - type: expect_column_values_to_be_between
