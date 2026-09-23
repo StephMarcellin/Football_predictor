@@ -13,7 +13,16 @@
 -- silver.stg_whoscored_players_ref).
 
 WITH source AS (
-    SELECT * FROM {{ source('silver', 'stg_whoscored_player_match') }}
+    SELECT
+        *,
+        -- Parsing UNIQUE du document, en structure native DuckDB.
+        -- Double cast obligatoire : VARCHAR → MAP passe par le parseur de
+        -- LITTÉRAL MAP de DuckDB (syntaxe {k=v}) et échoue sur du JSON.
+        -- VARCHAR → JSON → MAP appelle le parseur JSON, le bon.
+        -- Validé : 0 échec sur 1 514 441 lignes.
+        CAST(CAST(stats_json AS JSON) AS MAP(VARCHAR, MAP(VARCHAR, DOUBLE)))
+            AS stats_map
+    FROM {{ source('silver', 'stg_whoscored_player_match') }}
 ),
 
 -- Pont d'identité : pour chaque ws_match_id, le match_id unifié et la
@@ -54,15 +63,16 @@ SELECT
 
     -- On garde toutes les colonnes joueur SAUF les clés brutes remplacées.
     -- stats_json reste conservé comme filet de sécurité (ré-extraction possible).
-    p.* EXCLUDE (ws_match_id, team_id),
+    p.* EXCLUDE (ws_match_id, team_id, stats_map),
 
     -- Éclatage du stats_json : SUM des séries {minute: valeur} par stat.
+    -- Lecture dans stats_map, déjà parsée dans le CTE source : aucun parsing
+    -- JSON ici. L'ancienne version appelait json_extract 36 fois par ligne,
+    -- soit 36 parsings du même document — cause de l'OOM à 9,3 GiB.
     -- Clé absente (ex. dribbles pour un gardien) → COALESCE 0, pas NULL.
     {% for s in count_stats %}
-    COALESCE(
-        list_sum(map_values(CAST(json_extract(p.stats_json, '$.{{ s }}') AS MAP(VARCHAR, DOUBLE)))),
-        0
-    ) AS {{ modules.re.sub('([A-Z])', '_\\1', s) | lower }}{{ "," if not loop.last }}
+    COALESCE(list_sum(map_values(p.stats_map['{{ s }}'])), 0)
+        AS {{ modules.re.sub('([A-Z])', '_\\1', s) | lower }}{{ "," if not loop.last }}
     {% endfor %}
 FROM source p
 LEFT JOIN match_index idx ON p.ws_match_id = idx.ws_match_id

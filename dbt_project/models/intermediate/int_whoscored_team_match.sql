@@ -25,17 +25,21 @@ match_index AS (
         team_id     AS home_team_id,
         opponent_id AS away_team_id
     FROM {{ ref('int_whoscored_match_index') }}
+),
+
+source_normalized AS (
+    SELECT
+        idx.match_id,
+
+        CASE
+            WHEN t.team_id = idx.ws_home_team_id THEN idx.home_team_id
+            WHEN t.team_id = idx.ws_away_team_id THEN idx.away_team_id
+            ELSE NULL
+        END AS team_id,
+
+        t.* EXCLUDE (ws_match_id, team_id)
+    FROM source t
+    LEFT JOIN match_index idx ON t.ws_match_id = idx.ws_match_id
 )
 
-SELECT
-    idx.match_id,
-
-    CASE
-        WHEN t.team_id = idx.ws_home_team_id THEN idx.home_team_id
-        WHEN t.team_id = idx.ws_away_team_id THEN idx.away_team_id
-        ELSE NULL
-    END AS team_id,
-
-    t.* EXCLUDE (ws_match_id, team_id)
-FROM source t
-LEFT JOIN match_index idx ON t.ws_match_id = idx.ws_match_id
+SELECT * FROM source_normalized

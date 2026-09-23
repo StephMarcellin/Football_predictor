@@ -7,7 +7,7 @@ def model(dbt, session):
     dbt.config(
         materialized="incremental",
         unique_key=["match_id", "team_id", "player_id"],
-        on_schema_change="sync_all_columns",
+        on_schema_change="append_new_columns",
         schema="intermediate",
         alias="player_network_betweenness",
     )
@@ -89,9 +89,20 @@ def model(dbt, session):
     # une erreur de matérialisation.
     # ══════════════════════════════════════════════════════════════════════════
     if not results:
-        return pd.DataFrame(columns=[
-            "match_id", "team_id", "player_id",
-            "season", "league_source", "betweenness_exact"
-        ])
+        # DataFrame vide TYPÉ explicitement.
+        # pd.DataFrame(columns=[...]) ne déclare que des noms : sans données,
+        # pandas ne peut pas inférer les dtypes et en invente. Combiné à
+        # on_schema_change='sync_all_columns', dbt émet alors un ALTER TABLE
+        # sur la cible, qui casse sur les match_id SHA1 déjà stockés.
+        # pd.Series(dtype=...) crée une série vide mais typée : le schéma est
+        # déclaré même sans une seule ligne.
+        return pd.DataFrame({
+            "match_id":          pd.Series(dtype="object"),   # SHA1 → VARCHAR
+            "team_id":           pd.Series(dtype="int64"),    # → BIGINT
+            "player_id":         pd.Series(dtype="int64"),    # → BIGINT
+            "season":            pd.Series(dtype="object"),   # → VARCHAR
+            "league_source":     pd.Series(dtype="object"),   # → VARCHAR
+            "betweenness_exact": pd.Series(dtype="float64"),  # → DOUBLE
+        })
 
     return pd.DataFrame(results)

@@ -12,7 +12,7 @@ WITH source AS (
 
 team_mapping AS (
     SELECT DISTINCT club_name, team_id
-    FROM {{ ref('team_mapping') }}
+    FROM {{ source('referentiel', 'team_mapping') }}
 ),
 
 registry AS (

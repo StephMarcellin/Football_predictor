@@ -6,28 +6,19 @@
     )
 }}
 
-WITH source AS (
-    SELECT * FROM {{ source('silver', 'stg_whoscored_events') }}
-),
+{#
+  Chaîne de résolution : --vars (injecté par dbt_helpers depuis ROOT_DIR)
+  → variable d'environnement SPARK_OUT_DIR → sentinelle.
 
-match_index AS (
-    SELECT
-        ws_match_id,
-        match_id,
-        ws_home_team_id,
-        ws_away_team_id,
-        team_id     AS home_team_id,
-        opponent_id AS away_team_id
-    FROM {{ ref('int_whoscored_match_index') }}
+  Pas de raise_compiler_error : il casserait la compilation de l'extension
+  VS Code, qui ne passe ni par l'orchestrateur ni par .env. La sentinelle
+  compile sans broncher — ce n'est qu'une chaîne — mais DuckDB refusera de
+  créer la vue et l'erreur nommera la variable manquante.
+#}
+{% set spark_out = var('spark_out_dir',
+                       env_var('SPARK_OUT_DIR', 'SPARK_OUT_DIR_NON_DEFINI')) %}
+
+SELECT * FROM read_parquet(
+    '{{ spark_out }}/int_whoscored_events/**/*.parquet',
+    hive_partitioning = 1
 )
-
-SELECT
-    idx.match_id,
-    CASE
-        WHEN e.team_id = idx.ws_home_team_id THEN idx.home_team_id
-        WHEN e.team_id = idx.ws_away_team_id THEN idx.away_team_id
-        ELSE NULL
-    END AS team_id,
-    e.* EXCLUDE (ws_match_id, team_id)
-FROM source e
-LEFT JOIN match_index idx ON e.ws_match_id = idx.ws_match_id

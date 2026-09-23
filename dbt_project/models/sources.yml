@@ -1199,6 +1199,33 @@ sources:
           - name: skip_reason
             description: "Raison du skip si is_scraped=false. NULL sinon (99.16 % NULL)."
 
+  - name: referentiel
+    description: >
+      Tables de référence (mapping, normalisation, enrichissement) pour les
+      entités footballistiques. 
+    schema: referentiel
+
+    tables:
+
+      - name: team_mapping
+        description: >
+          Mapping des équipes brutes vers un identifiant canonique.
+          Alimenté run_ingest.py
+        columns:
+          - name: alias
+            description: "Alias unique de l'équipe"
+            tests:
+              - not_null
+              - unique
+          - name: club_name
+            description: "Nom standard de l'équipe"
+            tests:
+              - not_null
+          - name: team_id
+            description: "Identifiant unique de l'équipe"
+            tests:
+              - not_null
+
 
   - name: intermediate
     description: >

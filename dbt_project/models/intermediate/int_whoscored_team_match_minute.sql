@@ -1,0 +1,148 @@
+{{
+    config(
+        materialized='incremental',
+        unique_key=['match_id', 'team_id', 'minute'],
+        on_schema_change='sync_all_columns',
+        schema='intermediate',
+        alias='int_whoscored_team_match_minute'
+    )
+}}
+
+-- Stats d'équipe WhoScored éclatées minute par minute.
+-- Une ligne = équipe + match + minute avec toutes les 35 métriques.
+-- Minute absente d'une métrique -> 0.0 (l'action n'a pas eu lieu cette minute-là).
+
+WITH extracted AS (
+    SELECT
+        match_id,
+        team_id,
+        json_extract(stats_json, '$.minutesWithStats')::INTEGER[] AS minutes_with_stats,
+        json_extract_string(stats_json, '$.ratings') AS ratings,
+        json_extract_string(stats_json, '$.shotsTotal') AS shots_total,
+        json_extract_string(stats_json, '$.shotsOnTarget') AS shots_on_target,
+        json_extract_string(stats_json, '$.shotsOffTarget') AS shots_off_target,
+        json_extract_string(stats_json, '$.shotsBlocked') AS shots_blocked,
+        json_extract_string(stats_json, '$.clearances') AS clearances,
+        json_extract_string(stats_json, '$.interceptions') AS interceptions,
+        json_extract_string(stats_json, '$.possession') AS possession,
+        json_extract_string(stats_json, '$.touches') AS touches,
+        json_extract_string(stats_json, '$.passesTotal') AS passes_total,
+        json_extract_string(stats_json, '$.passesAccurate') AS passes_accurate,
+        json_extract_string(stats_json, '$.passesKey') AS passes_key,
+        json_extract_string(stats_json, '$.passSuccess') AS pass_success,
+        json_extract_string(stats_json, '$.aerialsTotal') AS aerials_total,
+        json_extract_string(stats_json, '$.aerialsWon') AS aerials_won,
+        json_extract_string(stats_json, '$.aerialSuccess') AS aerial_success,
+        json_extract_string(stats_json, '$.cornersTotal') AS corners_total,
+        json_extract_string(stats_json, '$.cornersAccurate') AS corners_accurate,
+        json_extract_string(stats_json, '$.throwInsTotal') AS throw_ins_total,
+        json_extract_string(stats_json, '$.throwInsAccurate') AS throw_ins_accurate,
+        json_extract_string(stats_json, '$.throwInAccuracy') AS throw_in_accuracy,
+        json_extract_string(stats_json, '$.offsidesCaught') AS offsides_caught,
+        json_extract_string(stats_json, '$.foulsCommited') AS fouls_committed,
+        json_extract_string(stats_json, '$.tacklesTotal') AS tackles_total,
+        json_extract_string(stats_json, '$.tackleSuccessful') AS tackles_successful,
+        json_extract_string(stats_json, '$.tackleUnsuccesful') AS tackles_unsuccessful,
+        json_extract_string(stats_json, '$.tackleSuccess') AS tackle_success,
+        json_extract_string(stats_json, '$.dribbledPast') AS dribbled_past,
+        json_extract_string(stats_json, '$.dribblesWon') AS dribbles_won,
+        json_extract_string(stats_json, '$.dribblesAttempted') AS dribbles_attempted,
+        json_extract_string(stats_json, '$.dribblesLost') AS dribbles_lost,
+        json_extract_string(stats_json, '$.dribbleSuccess') AS dribble_success,
+        json_extract_string(stats_json, '$.dispossessed') AS dispossessed,
+        json_extract_string(stats_json, '$.errors') AS errors,
+        json_extract_string(stats_json, '$.defensiveAerials') AS defensive_aerials,
+        json_extract_string(stats_json, '$.offensiveAerials') AS offensive_aerials
+    FROM {{ ref('int_whoscored_team_match') }}
+),
+
+minutes_expanded AS (
+    SELECT
+        match_id,
+        team_id,
+        unnest(minutes_with_stats) AS minute,
+        ratings,
+        shots_total,
+        shots_on_target,
+        shots_off_target,
+        shots_blocked,
+        clearances,
+        interceptions,
+        possession,
+        touches,
+        passes_total,
+        passes_accurate,
+        passes_key,
+        pass_success,
+        aerials_total,
+        aerials_won,
+        aerial_success,
+        corners_total,
+        corners_accurate,
+        throw_ins_total,
+        throw_ins_accurate,
+        throw_in_accuracy,
+        offsides_caught,
+        fouls_committed,
+        tackles_total,
+        tackles_successful,
+        tackles_unsuccessful,
+        tackle_success,
+        dribbled_past,
+        dribbles_won,
+        dribbles_attempted,
+        dribbles_lost,
+        dribble_success,
+        dispossessed,
+        errors,
+        defensive_aerials,
+        offensive_aerials
+    FROM extracted
+),
+
+metrics AS (
+    SELECT
+        match_id,
+        team_id,
+        minute,
+
+        COALESCE(CAST(json_extract_string(ratings, '$.' || minute) AS DOUBLE), 0.0) AS rating,
+        COALESCE(CAST(json_extract_string(shots_total, '$.' || minute) AS DOUBLE), 0.0) AS shots_total,
+        COALESCE(CAST(json_extract_string(shots_on_target, '$.' || minute) AS DOUBLE), 0.0) AS shots_on_target,
+        COALESCE(CAST(json_extract_string(shots_off_target, '$.' || minute) AS DOUBLE), 0.0) AS shots_off_target,
+        COALESCE(CAST(json_extract_string(shots_blocked, '$.' || minute) AS DOUBLE), 0.0) AS shots_blocked,
+        COALESCE(CAST(json_extract_string(clearances, '$.' || minute) AS DOUBLE), 0.0) AS clearances,
+        COALESCE(CAST(json_extract_string(interceptions, '$.' || minute) AS DOUBLE), 0.0) AS interceptions,
+        COALESCE(CAST(json_extract_string(possession, '$.' || minute) AS DOUBLE), 0.0) AS possession,
+        COALESCE(CAST(json_extract_string(touches, '$.' || minute) AS DOUBLE), 0.0) AS touches,
+        COALESCE(CAST(json_extract_string(passes_total, '$.' || minute) AS DOUBLE), 0.0) AS passes_total,
+        COALESCE(CAST(json_extract_string(passes_accurate, '$.' || minute) AS DOUBLE), 0.0) AS passes_accurate,
+        COALESCE(CAST(json_extract_string(passes_key, '$.' || minute) AS DOUBLE), 0.0) AS passes_key,
+        COALESCE(CAST(json_extract_string(pass_success, '$.' || minute) AS DOUBLE), 0.0) AS pass_success,
+        COALESCE(CAST(json_extract_string(aerials_total, '$.' || minute) AS DOUBLE), 0.0) AS aerials_total,
+        COALESCE(CAST(json_extract_string(aerials_won, '$.' || minute) AS DOUBLE), 0.0) AS aerials_won,
+        COALESCE(CAST(json_extract_string(aerial_success, '$.' || minute) AS DOUBLE), 0.0) AS aerial_success,
+        COALESCE(CAST(json_extract_string(corners_total, '$.' || minute) AS DOUBLE), 0.0) AS corners_total,
+        COALESCE(CAST(json_extract_string(corners_accurate, '$.' || minute) AS DOUBLE), 0.0) AS corners_accurate,
+        COALESCE(CAST(json_extract_string(throw_ins_total, '$.' || minute) AS DOUBLE), 0.0) AS throw_ins_total,
+        COALESCE(CAST(json_extract_string(throw_ins_accurate, '$.' || minute) AS DOUBLE), 0.0) AS throw_ins_accurate,
+        COALESCE(CAST(json_extract_string(throw_in_accuracy, '$.' || minute) AS DOUBLE), 0.0) AS throw_in_accuracy,
+        COALESCE(CAST(json_extract_string(offsides_caught, '$.' || minute) AS DOUBLE), 0.0) AS offsides_caught,
+        COALESCE(CAST(json_extract_string(fouls_committed, '$.' || minute) AS DOUBLE), 0.0) AS fouls_committed,
+        COALESCE(CAST(json_extract_string(tackles_total, '$.' || minute) AS DOUBLE), 0.0) AS tackles_total,
+        COALESCE(CAST(json_extract_string(tackles_successful, '$.' || minute) AS DOUBLE), 0.0) AS tackles_successful,
+        COALESCE(CAST(json_extract_string(tackles_unsuccessful, '$.' || minute) AS DOUBLE), 0.0) AS tackles_unsuccessful,
+        COALESCE(CAST(json_extract_string(tackle_success, '$.' || minute) AS DOUBLE), 0.0) AS tackle_success,
+        COALESCE(CAST(json_extract_string(dribbled_past, '$.' || minute) AS DOUBLE), 0.0) AS dribbled_past,
+        COALESCE(CAST(json_extract_string(dribbles_won, '$.' || minute) AS DOUBLE), 0.0) AS dribbles_won,
+        COALESCE(CAST(json_extract_string(dribbles_attempted, '$.' || minute) AS DOUBLE), 0.0) AS dribbles_attempted,
+        COALESCE(CAST(json_extract_string(dribbles_lost, '$.' || minute) AS DOUBLE), 0.0) AS dribbles_lost,
+        COALESCE(CAST(json_extract_string(dribble_success, '$.' || minute) AS DOUBLE), 0.0) AS dribble_success,
+        COALESCE(CAST(json_extract_string(dispossessed, '$.' || minute) AS DOUBLE), 0.0) AS dispossessed,
+        COALESCE(CAST(json_extract_string(errors, '$.' || minute) AS DOUBLE), 0.0) AS errors,
+        COALESCE(CAST(json_extract_string(defensive_aerials, '$.' || minute) AS DOUBLE), 0.0) AS defensive_aerials,
+        COALESCE(CAST(json_extract_string(offensive_aerials, '$.' || minute) AS DOUBLE), 0.0) AS offensive_aerials
+    FROM minutes_expanded
+)
+
+SELECT * FROM metrics
