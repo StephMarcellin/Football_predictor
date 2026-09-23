@@ -16,10 +16,17 @@ models:
       - name: team_id
         tests: [not_null]
       - name: result_1n2
-        description: "Cible : résultat vu de l'équipe. NULL = match à venir."
+        description: >
+          Cible : résultat du match encodé H/D/A (H=victoire home, D=nul, A=victoire away).
+          Repris tel quel depuis backbone/source, IDENTIQUE sur les 2 lignes du même match
+          (vue match, pas vue équipe). La désambiguïsation côté équipe se fait via is_home
+          (equipe_match). Implication training : split train/test PAR match_id obligatoire
+          (jamais par ligne), sinon leakage direct entre les 2 lignes miroirs du même match.
+          NULL = match à venir (servi par predict_1n2).
         tests:
           - accepted_values:
-              values: ['H', 'D', 'A']
+              arguments:
+                values: ['H', 'D', 'A']
 
   - name: mart_goals
     description: "Mart buts marqués — grain (match_id, team_id). Cible team_goals."
@@ -53,7 +60,8 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: [0, 1]
+              arguments:
+                values: [0, 1]
 
   - name: mart_assists
     description: "Mart passeurs — grain (match_id, team_id, player_id). Cible assisted (0/1)."
@@ -72,7 +80,8 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: [0, 1]
+              arguments:
+                values: [0, 1]
 
   # ── grain (match_id) ────────────────────────────────────────────────────────
   - name: mart_events

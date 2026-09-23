@@ -4,7 +4,8 @@
         unique_key=['match_id', 'team_id', 'player_id', 'row_num'],
         on_schema_change='sync_all_columns',
         schema='intermediate',
-        alias='int_event_enriched'
+        alias='int_event_enriched',
+        incremental_strategy='delete+insert'
     )
 }}
 
@@ -175,6 +176,13 @@ LEFT JOIN goals g_opp
 
 WHERE e.player_id IS NOT NULL
   AND e.match_id IN (SELECT match_id FROM match_dates)
+  AND d.season = '{{ var("target_season", "2024-2025") }}'
+
+{% if is_incremental() %}
+  AND d.season NOT IN (
+      SELECT DISTINCT season FROM {{ this }}
+  )
+{% endif %}
 
 GROUP BY
     e.match_id, e.team_id, e.player_id, e.event_id, e.row_num,

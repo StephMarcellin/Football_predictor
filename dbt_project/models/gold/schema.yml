@@ -1,5 +1,8 @@
-version: 2
+# Documentation + tests dbt des tables Gold (spec CDC).
+# Généré pour la couche gold-features. Chaque feature est décrite ; tests : unicité de clé,
+# not_null sur les clés, accepted_range [0,1] sur les taux.
 
+version: 2
 models:
   - name: rolling_corners
     description: >
