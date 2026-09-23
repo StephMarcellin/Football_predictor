@@ -1,0 +1,76 @@
+"""ingest_whoscored_events.py — Bronze -> Silver, EVENTS WhoScored : normalise
+stg_whoscored_match_index et enregistre les matchs dans match_registry.
+Socle : process_common. Anciennement process_events.py (scindé, source unique)."""
+
+# --- bootstrap : rend les modules partages (racine pipelines/) importables ---
+import sys as _sys
+from pathlib import Path as _Path
+for _p in (str(_Path(__file__).resolve().parent), str(_Path(__file__).resolve().parents[1])):
+    if _p not in _sys.path:
+        _sys.path.insert(0, _p)
+# ----------------------------------------------------------------------------
+from process_common import *  # noqa: F401,F403
+
+
+def process_whoscored_match_index(con: duckdb.DuckDBPyConnection) -> None:
+    """Normalise silver.stg_whoscored_match_index (ecrit par le scraper events)
+    et enregistre les matchs WhoScored dans match_registry (grain events)."""
+    try:
+        n = con.execute("SELECT COUNT(*) FROM silver.stg_whoscored_match_index").fetchone()[0]
+        if n == 0:
+            logger.info("  WhoScored match index : table vide, ignorée")
+        else:
+            logger.info(f"  WhoScored match index : normalisation de {n:,} lignes")
+            df_idx = con.execute("SELECT * FROM silver.stg_whoscored_match_index").pl()
+
+            # Normalisation compétition
+            df_idx = normalize_competition_col(df_idx, "league_source", "whoscored_match_index")
+
+            # Normalisation équipes
+            df_idx = normalize_team_col(df_idx, "home_team_name", "whoscored_match_index", conn=con)
+            df_idx = normalize_team_col(df_idx, "away_team_name", "whoscored_match_index", conn=con)
+
+            # Normalisation id
+            df_idx = normalize_team_id_col(df_idx, "home_team_id", "home_team_name", "ws_home_team_id")
+            df_idx = normalize_team_id_col(df_idx, "away_team_id", "away_team_name", "ws_away_team_id")
+
+            # Standardisation saison
+            df_idx = standardize_season(df_idx)
+
+            upsert_match_registry(con, df_idx, date_col="match_date", home_col="home_team_name", away_col="away_team_name")
+
+            # Réécriture
+            _write_to_duckdb(con, df_idx, "stg_whoscored_match_index", "whoscored_match_index")
+
+    except Exception as e:
+        logger.warning(f"  stg_whoscored_match_index absent ou erreur : {e}")
+
+
+def main() -> None:
+    logger.info("=== Ingest WHOSCORED EVENTS (Bronze -> Silver) ===")
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    con = duckdb.connect(str(DB_PATH))
+    con.execute("CREATE SCHEMA IF NOT EXISTS silver")
+    con.execute("CREATE SCHEMA IF NOT EXISTS intermediate")
+
+    _bootstrap_team_mapping(con)
+    _init_team_mapping(con)
+    _init_team_mapping_ids(con)
+    _init_competition_mapping(con)
+    _init_transfermarkt(con)
+    _init_match_registry(con)
+
+    try:
+        process_whoscored_match_index(con)
+    except Exception as e:
+        logger.error(f"  Erreur sur whoscored_events : {e}", exc_info=True)
+
+    _flush_team_mapping(con)
+    con.close()
+    logger.success("=== Ingest WHOSCORED EVENTS termine ===")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Ingest WHOSCORED EVENTS Bronze -> Silver")
+    parser.parse_args()
+    main()

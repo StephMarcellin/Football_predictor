@@ -8,7 +8,7 @@ for _p in (str(_Path(__file__).resolve().parent), str(_Path(__file__).resolve().
     if _p not in _sys.path:
         _sys.path.insert(0, _p)
 # ----------------------------------------------------------------------------
-from pipelines.ingest.process_common import *  # noqa: F401,F403
+from process_common import *  # noqa: F401,F403
 
 def process_fbref(con: duckdb.DuckDBPyConnection) -> None:
     """

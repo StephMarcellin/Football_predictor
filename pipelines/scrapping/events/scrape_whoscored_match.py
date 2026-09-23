@@ -27,7 +27,7 @@ import time
 import random
 import argparse
 import threading
-from datetime import datetime
+from datetime import datetime, date
 from pathlib import Path
 
 import duckdb
@@ -611,6 +611,69 @@ def extract_match_urls_from_page(driver) -> dict[str, str]:
     return urls
 
 
+# ── Filtrage des mois pour la saison en cours ─────────────────────────────────
+
+def _months_for_season(season: str, current: bool = False) -> list:
+    """
+    Retourne la liste des tuples (year_offset, month_num, month_abbr) des mois
+    à scraper pour cette saison.
+
+    Comportement :
+    - Si `current=False` (défaut) OU si `season` ne correspond pas à
+      `current_season_parameters.season` (config.yaml) : retourne SEASON_MONTHS
+      complet (comportement historique inchangé — toute la saison).
+    - Si `current=True` ET `season == current_season_parameters.season` :
+      filtre les mois selon min_month (config.yaml scraping.current_season_parameters) :
+        * min_month = 0    → uniquement le mois EN COURS (1er du mois → today).
+                             Exemple : today = 10/09/2026 → seul Sept 2026 retenu.
+        * min_month ∈ 1-12 → du 1er du min_month (à l'année de démarrage de la
+                             saison) jusqu'au mois d'aujourd'hui inclus.
+        * défaut : 8 (août)
+
+    Exemple : saison "2025-2026", min_month=8, aujourd'hui = 10 septembre 2026,
+    avec current=True
+        → mois retenus : Aug 2025, Sept 2025, …, Sept 2026 (14 mois)
+
+    La vérification `is_month_indexed` reste appliquée ensuite dans la boucle
+    principale — un mois déjà scrapé est toujours skippé.
+    """
+    if not current:
+        return SEASON_MONTHS
+
+    current_cfg    = SCRAP_CFG.get("current_season_parameters", {}) or {}
+    current_season = current_cfg.get("season")
+
+    if season != current_season:
+        return SEASON_MONTHS
+
+    min_month = int(current_cfg.get("min_month", 8))
+    year1, _  = season_to_years(season)
+    today     = date.today()
+
+    if min_month == 0:
+        # Cas spécial : uniquement le mois en cours (1er du mois courant → today).
+        min_date = date(today.year, today.month, 1)
+    else:
+        min_date = date(year1, min_month, 1)
+
+    kept = []
+    for year_offset, month_num, month_abbr in SEASON_MONTHS:
+        month_date = date(year1 + year_offset, month_num, 1)
+        if month_date < min_date:
+            continue
+        if month_date > today:
+            continue
+        kept.append((year_offset, month_num, month_abbr))
+
+    mode_str = "mois en cours seul" if min_month == 0 else f"min_month={min_month}"
+    logger.info(
+        f"  Saison courante {season} ({mode_str}) : "
+        f"{len(kept)}/{len(SEASON_MONTHS)} mois retenus "
+        f"(fenêtre {min_date.isoformat()} → {today.isoformat()})"
+    )
+    return kept
+
+
 # ── Collecte complète d'une ligue × saison ────────────────────────────────────
 
 def collect_and_index_league_season(
@@ -620,6 +683,7 @@ def collect_and_index_league_season(
     reset: bool = False,
     dry_run: bool = False,
     already_on_page: bool = False,
+    current: bool = False,
 ) -> dict:
     """
     Navigue mois par mois, collecte les URLs et les insère dans DuckDB.
@@ -654,8 +718,10 @@ def collect_and_index_league_season(
             return summary
 
     # Grouper les mois par année — UNE sélection d'année pour N mois
+    # Utilise _months_for_season pour filtrer la saison courante à [min_month → today]
+    # uniquement si current=True — sinon SEASON_MONTHS complet.
     months_by_year: dict[int, list[str]] = {}
-    for year_offset, _, month_abbr in SEASON_MONTHS:
+    for year_offset, _, month_abbr in _months_for_season(season, current=current):
         year = year1 + year_offset
         months_by_year.setdefault(year, []).append(month_abbr)
 
@@ -789,25 +855,33 @@ def collect_and_index_league_season(
 
 # ── Point d'entrée ────────────────────────────────────────────────────────────
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="WhoScored — Indexation des URLs de Match Reports"
-    )
-    parser.add_argument("--league",   default=None,
-                        help="Ligue (ex: 'Serie A')")
-    parser.add_argument("--season",   default=None,
-                        help="Saison (ex: 2023-2024)")
-    parser.add_argument("--reset",    action="store_true",
-                        help="Réindexer même les mois déjà en base")
-    parser.add_argument("--dry-run",  action="store_true",
-                        help="Collecter sans écrire en base")
-    parser.add_argument("--headless", action="store_true",
-                        help="Chrome sans interface graphique")
-    parser.add_argument("--audit",    action="store_true",
-                        help="Afficher le rapport de couverture et quitter")
-    args = parser.parse_args()
+def run(
+    league: str = None,
+    season: str = None,
+    reset: bool = False,
+    dry_run: bool = False,
+    headless: bool = False,
+    audit: bool = False,
+    current: bool = False,
+) -> None:
+    """
+    Fonction importable — exécute l'indexation des URLs WhoScored.
 
-    if args.audit:
+    Extraite de main() pour être appelable depuis run_pre_scrapping.py sans
+    passer par argparse ni sys.argv. main() reste un wrapper argparse.
+
+    Args:
+        league   : nom de ligue à traiter uniquement (ex: 'Serie A'), None = toutes
+        season   : saison unique à traiter (ex: '2023-2024'), None = toutes du config
+        reset    : True → réindexer même les mois déjà en base
+        dry_run  : True → collecter sans écrire en base
+        headless : True → Chrome sans interface graphique
+        audit    : True → afficher le rapport de couverture et quitter
+        current  : True → active le filtrage [min_month → today] sur la saison
+                   identifiée par current_season_parameters.season du config.
+                   False = comportement historique (toute la saison scrapée).
+    """
+    if audit:
         print_audit()
         return
 
@@ -819,10 +893,31 @@ def main():
     seasons_cfg = set(SCRAP_CFG.get("seasons", []))
     leagues_cfg = set(SCRAP_CFG.get("leagues", []))
 
-    if args.league:
-        leagues_cfg = {args.league}
-    if args.season:
-        seasons_cfg = {args.season}
+    # --current : on force seasons_cfg à la seule saison courante définie dans
+    # config.yaml (scraping.current_season_parameters.season). Les saisons
+    # historiques ne sont pas touchées. Le filtrage par mois [min_month → today]
+    # est appliqué plus bas via le paramètre `current` propagé jusqu'à
+    # _months_for_season.
+    if current:
+        current_cfg    = SCRAP_CFG.get("current_season_parameters", {}) or {}
+        current_season = current_cfg.get("season")
+        if not current_season:
+            raise RuntimeError(
+                "Mode --current activé mais scraping.current_season_parameters.season "
+                "n'est pas défini dans config.yaml."
+            )
+        if season and season != current_season:
+            logger.warning(
+                f"  ⚠️  --current force la saison à {current_season} "
+                f"(argument --season={season} ignoré)"
+            )
+        seasons_cfg = {current_season}
+        logger.info(f"  Mode --current : saison forcée à {current_season}")
+    elif season:
+        seasons_cfg = {season}
+
+    if league:
+        leagues_cfg = {league}
 
     # Une ligue de `leagues:` sans bloc dans `whoscored_leagues` est ignorée —
     # mais on le SIGNALE (avant, c'était silencieux → D2 jamais scrapées sans trace).
@@ -846,7 +941,7 @@ def main():
     logger.info(f"  {len(tasks)} tâche(s) à traiter")
     logger.info(f"  Tâches : {tasks}")
 
-    driver = Driver(uc=True, headless=args.headless)
+    driver = Driver(uc=True, headless=headless)
     total  = {"total_urls": 0, "months_ok": 0, "months_failed": 0}
 
     # Grouper les tâches par ligue pour éviter les rechargements inutiles
@@ -874,9 +969,10 @@ def main():
 
                     result = collect_and_index_league_season(
                         driver, league, season,
-                        reset=args.reset,
-                        dry_run=args.dry_run,
+                        reset=reset,
+                        dry_run=dry_run,
                         already_on_page=already_on_page,
+                        current=current,
                     )
                     for k in total:
                         total[k] += result[k]
@@ -904,6 +1000,40 @@ def main():
     )
     logger.info(f"  Suivi CSV : {TRACKING_CSV}")
     print_audit()
+
+
+def main():
+    """Wrapper CLI : parse argparse et appelle run()."""
+    parser = argparse.ArgumentParser(
+        description="WhoScored — Indexation des URLs de Match Reports"
+    )
+    parser.add_argument("--league",   default=None,
+                        help="Ligue (ex: 'Serie A')")
+    parser.add_argument("--season",   default=None,
+                        help="Saison (ex: 2023-2024)")
+    parser.add_argument("--reset",    action="store_true",
+                        help="Réindexer même les mois déjà en base")
+    parser.add_argument("--dry-run",  action="store_true",
+                        help="Collecter sans écrire en base")
+    parser.add_argument("--headless", action="store_true",
+                        help="Chrome sans interface graphique")
+    parser.add_argument("--audit",    action="store_true",
+                        help="Afficher le rapport de couverture et quitter")
+    parser.add_argument("--current",  action="store_true",
+                        help="Active le filtrage [min_month → today] sur la saison "
+                             "courante (config.yaml scraping.current_season_parameters). "
+                             "Sans ce drapeau, toutes les saisons sont scrapées complètes.")
+    args = parser.parse_args()
+
+    run(
+        league=args.league,
+        season=args.season,
+        reset=args.reset,
+        dry_run=args.dry_run,
+        headless=args.headless,
+        audit=args.audit,
+        current=args.current,
+    )
 
 
 if __name__ == "__main__":
