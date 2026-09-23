@@ -1,0 +1,25 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Suite GE — silver.stg_whoscored_players_ref
+# Dimension joueurs. Grain player_id.
+# ══════════════════════════════════════════════════════════════════════════════
+
+suite_name: silver.stg_whoscored_players_ref
+description: Dimension joueurs WhoScored.
+
+source:
+  query: |
+    SELECT player_id, player_name
+    FROM silver.stg_whoscored_players_ref
+
+expectations:
+  - type: expect_column_values_to_not_be_null
+    for_each_column: [player_id, player_name]
+    kwargs: { mostly: 1.0 }
+    # severity: error
+    severity: warn
+
+  - type: expect_column_values_to_be_between
+    kwargs: { column: player_id, min_value: 1, max_value: 1000000, mostly: 1.0 }
+    # severity: error
+    severity: warn
+    meta: { description: "Empirique min=70 max=561841." }

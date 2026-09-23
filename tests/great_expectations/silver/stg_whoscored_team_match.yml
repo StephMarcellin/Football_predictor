@@ -1,0 +1,38 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Suite GE — silver.stg_whoscored_team_match
+# Faits équipe par match. Exactement 2 lignes par match (home + away).
+# ══════════════════════════════════════════════════════════════════════════════
+
+suite_name: silver.stg_whoscored_team_match
+description: Faits WhoScored équipe × match.
+
+source:
+  query: |
+    SELECT
+      ws_match_id, team_id, field, manager_name,
+      country_name, average_age
+    FROM silver.stg_whoscored_team_match
+
+expectations:
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - ws_match_id
+      - team_id
+    kwargs: { mostly: 1.0 }
+    # severity: error
+    severity: warn
+
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - field
+      - manager_name
+      - country_name
+      - average_age
+    kwargs: { mostly: 1.0 }
+    severity: warn
+
+  # average_age plausible (empirique 21.9-38.7 — moyenne du groupe convoqué)
+  - type: expect_column_values_to_be_between
+    kwargs: { column: average_age, min_value: 18, max_value: 45, mostly: 1.0 }
+    severity: warn
+

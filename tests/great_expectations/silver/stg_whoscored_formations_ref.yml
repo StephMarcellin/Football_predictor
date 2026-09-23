@@ -1,0 +1,25 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Suite GE — silver.stg_whoscored_formations_ref
+# Dimension catalogue formations. Structure minimale.
+# ══════════════════════════════════════════════════════════════════════════════
+
+suite_name: silver.stg_whoscored_formations_ref
+description: Dimension formations WhoScored — 23 formations tactiques.
+
+source:
+  query: |
+    SELECT formation_id, formation_name
+    FROM silver.stg_whoscored_formations_ref
+
+expectations:
+  - type: expect_column_values_to_not_be_null
+    for_each_column: [formation_id, formation_name]
+    kwargs: { mostly: 1.0 }
+    # severity: error
+    severity: warn
+
+  - type: expect_column_values_to_be_between
+    kwargs: { column: formation_id, min_value: 1, max_value: 50, mostly: 1.0 }
+    # severity: error
+    severity: warn
+    meta: { description: "Empirique min=2 max=25." }

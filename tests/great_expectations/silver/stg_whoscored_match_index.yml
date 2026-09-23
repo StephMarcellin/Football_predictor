@@ -1,0 +1,47 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Suite GE — silver.stg_whoscored_match_index
+# Index des matchs WhoScored. 7 championnats.
+# ══════════════════════════════════════════════════════════════════════════════
+
+suite_name: silver.stg_whoscored_match_index
+description: Index matchs WhoScored, 1 ligne par match.
+
+source:
+  query: |
+    SELECT
+      ws_match_id, match_date, home_team_id, away_team_id,
+      home_team_name, away_team_name, league_source, season, comp_category
+    FROM silver.stg_whoscored_match_index
+
+expectations:
+  - type: expect_column_values_to_not_be_null
+    for_each_column:
+      - ws_match_id
+      - match_date
+      - home_team_id
+      - away_team_id
+      - home_team_name
+      - away_team_name
+      - league_source
+      - season
+      - comp_category
+    kwargs: { mostly: 1.0 }
+    # severity: error
+    severity: warn
+
+  # ── Contrainte physique : équipes différentes ──
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "home_team_id != away_team_id"
+    # severity: error
+    severity: warn
+
+  # Dérive volumétrique — exclut la saison en cours
+  - type: expect_partition_volume_stability
+    kwargs:
+      partition_col: season
+      max_deviation_warn: 0.20
+      max_deviation_error: 0.40
+      min_seasons_history: 1
+      exclude_partitions: ['2025-2026']
+    severity: warn

@@ -1,0 +1,29 @@
+version: 2
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Modèles d'audit — vues qui listent la dette de qualité par table.
+# Servent au rescrap ciblé et au suivi de la dette. Schema DuckDB : audits.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+models:
+
+  - name: scraping_targets_int_fbref_keeper
+    description: >
+      Liste des (team, season) à rescraper : lignes de silver.fbref_keeper où
+      ga_keeper > sota (violation physique). Vue mise à jour à chaque `dbt run`.
+    columns:
+      - name: team
+        description: "Équipe (nom normalisé silver.fbref_keeper)."
+      - name: season
+        description: "Saison au format YYYY-YYYY."
+
+  - name: scraping_targets_int_fbref_shooting
+    description: >
+      Liste des (team, season) à rescraper : lignes de silver.fbref_shooting où
+      standard_gls > standard_sot OU standard_gls > gf (violations physiques
+      A-011). Vue mise à jour à chaque `dbt run`.
+    columns:
+      - name: team
+        description: "Équipe (nom normalisé silver.fbref_shooting)."
+      - name: season
+        description: "Saison au format YYYY-YYYY."

@@ -1,4 +1,4 @@
-{% test matches_regex(model, column_name, pattern) %}
+{% macro test_matches_regex(model, column_name, pattern) %}
 -- Retourne les lignes où column_name ne matche pas le pattern regex fourni.
 -- Test passe si le SELECT est vide.
 --
@@ -12,4 +12,4 @@ FROM {{ model }}
 WHERE {{ column_name }} IS NOT NULL
   AND NOT REGEXP_MATCHES({{ column_name }}, '{{ pattern }}')
 
-{% endtest %}
+{% endmacro %}

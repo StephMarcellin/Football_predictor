@@ -5,13 +5,13 @@ Runner Great Expectations headless, Windows-friendly, pandas-natif.
 
 Ne dépend PAS d'un DataContext GX (trop lourd pour Windows/CI/paths accentués).
 Lit un YAML de suite, exécute la query DuckDB, applique les expectations et
-retourne un objet ExpectationSuiteResult avec .success / .report() / .junit_xml().
+retourne un objet SuiteResult avec .success / .report() / .junit_xml().
 
 Chaque expectation a une implémentation pandas native — GE n'est pas requis.
-Compatible with pytest via un simple `assert result.success, result.report()`.
+Compatible pytest via un simple `assert result.success, result.report()`.
 
 Usage direct (CLI) :
-    python tests/great_expectations/runner.py tests/great_expectations/gold/equipe_confrontation_zone.yml
+    python tests/great_expectations/runner.py tests/great_expectations/intermediate/int_fbref_keeper.yml
 """
 from __future__ import annotations
 import sys
@@ -19,11 +19,13 @@ import json
 import argparse
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any, Callable
 
 import yaml
 import duckdb
 import pandas as pd
+
+from pipelines.tests.test_serve_skew import con
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -166,39 +168,119 @@ def _expect_column_values_to_be_between(df: pd.DataFrame, kw: dict):
         return False, {}, f"Column '{col}' absente du dataset."
     s = df[col].dropna()
     if len(s) == 0:
-        return True, {"n_checked": 0}, None  # vide = trivialement vrai
+        return True, {"n_checked": 0}, None
     out_of_range = ((s < kw["min_value"]) | (s > kw["max_value"])).sum()
-    ok = out_of_range == 0
-    return ok, {"out_of_range": int(out_of_range), "n_checked": int(len(s))}, None
+    mostly = kw.get("mostly", 1.0)
+    inbound_ratio = 1.0 - out_of_range / len(s)
+    ok = inbound_ratio >= mostly
+    return ok, {"out_of_range": int(out_of_range), "n_checked": int(len(s)),
+                "inbound_ratio": round(inbound_ratio, 4), "mostly_required": mostly}, None
 
 
 @register("expect_partition_volume_stability")
 def _expect_partition_volume_stability(df: pd.DataFrame, kw: dict):
-    """Compare la dernière partition à la moyenne des N précédentes."""
+    """Compare la dernière partition à la moyenne des N précédentes.
+
+    exclude_partitions : liste de valeurs à retirer avant de calculer (utile
+    pour exclure la saison en cours de scraping).
+    """
     col = kw["partition_col"]
     warn_dev = kw.get("max_deviation_warn", 0.20)
     err_dev = kw.get("max_deviation_error", 0.40)
     min_hist = kw.get("min_seasons_history", 2)
+    exclude = set(kw.get("exclude_partitions", []) or [])
     if col not in df.columns:
         return False, {}, f"Colonne partition '{col}' absente."
-    counts = df.groupby(col).size().sort_index()
+    df_used = df[~df[col].isin(exclude)] if exclude else df
+    counts = df_used.groupby(col).size().sort_index()
     if len(counts) < min_hist + 1:
-        return True, {"skipped": True, "n_partitions": int(len(counts))}, None
+        return True, {"skipped": True, "n_partitions": int(len(counts)),
+                       "excluded": sorted(exclude)}, None
     last = counts.iloc[-1]
     ref = counts.iloc[-(min_hist + 1):-1].mean()
     dev = abs(last - ref) / ref if ref > 0 else float("inf")
     ok = dev <= err_dev
     obs = {"last_partition": counts.index[-1], "last_count": int(last),
            "ref_mean": round(float(ref), 1), "deviation": round(float(dev), 3),
-           "warn_threshold": warn_dev, "error_threshold": err_dev}
+           "warn_threshold": warn_dev, "error_threshold": err_dev,
+           "excluded": sorted(exclude)}
     return ok, obs, None
 
+
+@register("expect_row_condition_to_hold")
+def _expect_row_condition_to_hold(df: pd.DataFrame, kw: dict):
+    """Retourne True si toutes les lignes vérifient l'expression pandas fournie.
+
+    Ex : condition = "sota >= saves + ga_keeper"
+    NB : NaN dans une des colonnes utilisées → la ligne est considérée en violation
+    (règle non vérifiable). Si NaN toléré, filtrer en amont via `source.query`.
+    """
+    condition = kw["condition"]
+    try:
+        mask = df.eval(condition, engine="python")
+    except Exception as e:  # noqa: BLE001
+        return False, {"condition": condition}, f"Erreur d'évaluation : {e!r}"
+    if not isinstance(mask, pd.Series):
+        return False, {"condition": condition}, "L'expression n'a pas retourné une série booléenne."
+    n_violations = int((~mask.fillna(False)).sum())
+    n_total = len(df)
+    ok = n_violations == 0
+    return ok, {"n_violations": n_violations, "n_total": n_total,
+                "condition": condition,
+                "violation_rate": round(n_violations / n_total, 6) if n_total else None}, None
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Logging des métriques
+# ══════════════════════════════════════════════════════════════════════════════
+def log_suite_results_to_duckdb(con: duckdb.DuckDBPyConnection, result: SuiteResult) -> None:
+    """Persiste le résultat d'une suite dans la table monitoring.ge_execution_logs."""
+    records = []
+    now = pd.Timestamp.now()
+    
+    for r in result.results:
+        records.append({
+            "executed_at": now,
+            "suite_name": result.suite_name,
+            "expectation_type": r.name,
+            "target_column": r.column,
+            "severity": r.severity,
+            "success": r.success,
+            "observed_json": json.dumps(r.observed, default=str),
+            "error_message": r.error,
+            "n_rows_evaluated": result.n_rows,
+        })
+    
+    if not records:
+        return
+
+    df_logs = pd.DataFrame(records)
+    
+    # Utilise la connexion 'con' déjà ouverte pour éviter tout verrou DuckDB
+    con.execute("CREATE SCHEMA IF NOT EXISTS monitoring;")
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS monitoring.ge_execution_logs (
+            executed_at TIMESTAMP,
+            suite_name VARCHAR,
+            expectation_type VARCHAR,
+            target_column VARCHAR,
+            severity VARCHAR,
+            success BOOLEAN,
+            observed_json VARCHAR,
+            error_message VARCHAR,
+            n_rows_evaluated BIGINT
+        );
+    """)
+    
+    con.register("df_logs_temp", df_logs)
+    con.execute("INSERT INTO monitoring.ge_execution_logs SELECT * FROM df_logs_temp;")
+    con.unregister("df_logs_temp")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Runner principal
 # ══════════════════════════════════════════════════════════════════════════════
 def run_suite(yaml_path: str | Path) -> SuiteResult:
     yaml_path = Path(yaml_path)
+    print(f"╔══ Exécution suite GE : {yaml_path}")
     if not yaml_path.exists():
         raise FileNotFoundError(f"Suite YAML introuvable : {yaml_path}")
 
@@ -206,16 +288,25 @@ def run_suite(yaml_path: str | Path) -> SuiteResult:
     suite_name = spec["suite_name"]
     source = spec["source"]
 
+    print(f"╠══ Suite : {suite_name}")
+
+
     # Résolution du chemin DuckDB — relatif à la racine du projet (2 niveaux au-dessus du runner)
     project_root = Path(__file__).resolve().parents[2]
-    duckdb_path = (project_root / source["duckdb_path"]).resolve()
+    with open(project_root / "config.yaml", "r", encoding="utf-8") as f:
+        config_file = yaml.safe_load(f)
+
+    duckdb_path = (project_root / config_file["paths"]["db"]).resolve()
+
     if not duckdb_path.exists():
         raise FileNotFoundError(f"DuckDB introuvable : {duckdb_path}")
 
+    print(f"╠══ Source DuckDB : {duckdb_path}")
     con = duckdb.connect(str(duckdb_path), read_only=True)
     df = con.execute(source["query"]).fetch_df()
     con.close()
 
+    print(f"╠══ Lignes chargées : {len(df)}")
     result = SuiteResult(suite_name=suite_name, duckdb_path=str(duckdb_path), n_rows=len(df))
 
     for exp in spec["expectations"]:
@@ -228,7 +319,7 @@ def run_suite(yaml_path: str | Path) -> SuiteResult:
         elif "column" in kwargs_base:
             cols = [kwargs_base["column"]]
         else:
-            cols = [None]  # expectation table-level
+            cols = [None]
 
         for col in cols:
             kw = dict(kwargs_base)
@@ -250,6 +341,10 @@ def run_suite(yaml_path: str | Path) -> SuiteResult:
             result.results.append(ExpectationResult(
                 name=exp_type, column=col, kwargs=kw, severity=severity,
                 success=ok, observed=observed, error=err))
+
+    con = duckdb.connect(str(duckdb_path), read_only=False)
+    log_suite_results_to_duckdb(con, result)
+    con.close()
     return result
 
 
