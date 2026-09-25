@@ -11,13 +11,42 @@
 -- dans un match est l'autre équipe présente dans int_lineup_formation pour ce
 -- match_id (self-join). Marche donc aussi pour les matchs de coupe et d'Europe.
 
+-- ══ Refonte nommage (préfixe de type en tête de nom : str_, int_, dec_, dt_, bool_) ══
+-- Entrées : les modèles amont refondus sont relus via des CTE in_<modèle> qui les
+-- remappent vers les noms/types de travail utilisés par la logique ci-dessous
+-- (inchangée). Sortie : CTE mdl_out, renommage + cast selon le type logique.
+
+WITH
+
+-- int_lineup_formation lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_int_lineup_formation AS (
+    SELECT
+        str_match_id                                                 AS "match_id",
+        CAST(str_team_id AS BIGINT)                                  AS "team_id",
+        CAST(str_formation_id AS INTEGER)                            AS "formation_id",
+        str_formation_family                                         AS "formation_family",
+        int_n_gk                                                     AS "n_gk",
+        int_n_def                                                    AS "n_def",
+        int_n_mid                                                    AS "n_mid",
+        int_n_att                                                    AS "n_att",
+        int_n_wingers                                                AS "n_wingers",
+        int_n_central_att                                            AS "n_central_att",
+        dec_bloc_width                                               AS "bloc_width",
+        dec_bloc_depth                                               AS "bloc_depth",
+        dec_line_defensive_avg                                       AS "line_defensive_avg",
+        dec_line_offensive_avg                                       AS "line_offensive_avg",
+        dec_axiality_score                                           AS "axiality_score"
+    FROM {{ ref('int_lineup_formation') }}
+),
+
+mdl_body AS (
 with
 
 -- Une ligne = un match complet où les DEUX compos sont exploitables.
 -- Le having count=2 protège des matchs à couverture partielle (une seule compo scrapée).
 valid_matches as (
     select match_id
-    from {{ ref('int_lineup_formation') }}
+    from in_int_lineup_formation
     where match_id is not null and team_id is not null
     group by 1
     having count(distinct team_id) = 2
@@ -25,7 +54,7 @@ valid_matches as (
 
 filtered as (
     select f.*
-    from {{ ref('int_lineup_formation') }} f
+    from in_int_lineup_formation f
     join valid_matches vm using (match_id)
 ),
 
@@ -72,3 +101,23 @@ select
     opp_formation_family                                   as formation_family_opp,
     concat(formation_family, '_vs_', opp_formation_family) as matchup_family
 from paired
+),
+
+mdl_out AS (
+    SELECT
+        "match_id"                                                   AS str_match_id,
+        CAST(team_id AS VARCHAR)                                     AS str_team_id,
+        CAST(opponent_id AS VARCHAR)                                 AS str_opponent_id,
+        "attack_overload"                                            AS int_attack_overload,
+        "mid_control_delta"                                          AS int_mid_control_delta,
+        "back_depth_delta"                                           AS dec_back_depth_delta,
+        "width_delta"                                                AS dec_width_delta,
+        "depth_delta"                                                AS dec_depth_delta,
+        "axiality_delta"                                             AS dec_axiality_delta,
+        "formation_family_self"                                      AS str_formation_family_self,
+        "formation_family_opp"                                       AS str_formation_family_opp,
+        "matchup_family"                                             AS str_matchup_family
+    FROM mdl_body
+)
+
+SELECT * FROM mdl_out

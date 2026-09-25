@@ -12,7 +12,7 @@ description: >
 source:
   duckdb_path: db/football.duckdb
   query: |
-    SELECT "match_id", "attacking_team_id", "defending_team_id", "attack_corridor", "off_strength", "opp_def_solidity", "matchup_danger_by_corridor", "matchup_cross_threat", "matchup_dribble_threat", "matchup_central_control", "self_central_progression", "self_central_touch", "opp_central_def_density" FROM gold."zone_confrontation_match"
+    SELECT "str_match_id", "str_attacking_team_id", "str_defending_team_id", "str_attack_corridor", "dec_off_strength", "dec_opp_def_solidity", "dec_matchup_danger_by_corridor", "dec_matchup_cross_threat", "dec_matchup_dribble_threat", "dec_matchup_central_control", "dec_self_central_progression", "dec_self_central_touch", "dec_opp_central_def_density" FROM gold."zone_confrontation_match"
 
 expectations:
 
@@ -26,26 +26,26 @@ expectations:
   # ── COMPLÉTION STRICTE (0 NULL empirique) ──
   - type: expect_column_values_to_not_be_null
     for_each_column:
-      - match_id
-      - attacking_team_id
-      - defending_team_id
-      - attack_corridor
-      - off_strength
+      - str_match_id
+      - str_attacking_team_id
+      - str_defending_team_id
+      - str_attack_corridor
+      - dec_off_strength
     kwargs: { mostly: 1.0 }
     # severity: error
     severity: warn
 
   # ── COMPLÉTION AVEC NULLs EMPIRIQUES (mostly = 1 - empirique - 5pts) ──
   - type: expect_column_values_to_not_be_null
-    kwargs: { column: self_central_progression, mostly: 0.2833 }
+    kwargs: { column: dec_self_central_progression, mostly: 0.2833 }
     severity: warn
     meta: { description: "Empirique 66.67% NULL." }
   - type: expect_column_values_to_not_be_null
-    kwargs: { column: self_central_touch, mostly: 0.2833 }
+    kwargs: { column: dec_self_central_touch, mostly: 0.2833 }
     severity: warn
     meta: { description: "Empirique 66.67% NULL." }
   - type: expect_column_values_to_not_be_null
-    kwargs: { column: opp_central_def_density, mostly: 0.2833 }
+    kwargs: { column: dec_opp_central_def_density, mostly: 0.2833 }
     severity: warn
     meta: { description: "Empirique 66.67% NULL." }
 
@@ -58,26 +58,26 @@ expectations:
 
   # ── BORNES DE VALEURS NUMÉRIQUES ──
   - type: expect_column_values_to_be_between
-    kwargs: { column: attacking_team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
+    kwargs: { column: str_attacking_team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [202606100001, 202606100426], mean=2.03e+11." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: defending_team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
+    kwargs: { column: str_defending_team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [202606100001, 202606100426], mean=2.03e+11." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: off_strength, min_value: 0.0, max_value: 0.1, mostly: 1.0 }
+    kwargs: { column: dec_off_strength, min_value: 0.0, max_value: 0.1, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [0.0, 0.0], mean=0." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: self_central_progression, min_value: 0.0, max_value: 0.1, mostly: 1.0 }
+    kwargs: { column: dec_self_central_progression, min_value: 0.0, max_value: 0.1, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [0.0, 0.0], mean=0." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: self_central_touch, min_value: 0.0, max_value: 0.6465121056084981, mostly: 1.0 }
+    kwargs: { column: dec_self_central_touch, min_value: 0.0, max_value: 0.6465121056084981, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [0.0, 0.5877382778259074], mean=0.136." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: opp_central_def_density, min_value: 0.0, max_value: 0.1, mostly: 1.0 }
+    kwargs: { column: dec_opp_central_def_density, min_value: 0.0, max_value: 0.1, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [0.0, 0.0], mean=0." }

@@ -15,10 +15,10 @@ source:
   duckdb_path: db/football.duckdb
   query: |
     SELECT
-      match_id, team_id, opponent_id, date, season,
-      venue, result, result_1n2, comp_category, source,
-      gf, ga, sota, ga_keeper, saves, save_pct, cs,
-      pk_att, pk_allowed, pk_saved, pk_missed
+      str_match_id, str_team_id, str_opponent_id, dt_date, str_season,
+      str_venue, str_result, str_result_1n2, str_comp_category, str_source,
+      int_gf, int_ga, int_sota, int_ga_keeper, int_saves, dec_save_pct, int_cs,
+      int_pk_att, int_pk_allowed, int_pk_saved, int_pk_missed
     FROM intermediate.int_fbref_keeper
 
 expectations:
@@ -38,37 +38,37 @@ expectations:
   # Colonnes structurelles : 0% NULL toléré
   - type: expect_column_values_to_not_be_null
     for_each_column:
-      - match_id
-      - team_id
-      - date
-      - season
-      - venue
-      - comp_category
-      - source
-      - gf
-      - ga
-      - sota
-      - ga_keeper
-      - saves
-      - cs
-      - pk_att
-      - pk_allowed
-      - pk_saved
-      - pk_missed
+      - str_match_id
+      - str_team_id
+      - dt_date
+      - str_season
+      - str_venue
+      - str_comp_category
+      - str_source
+      - int_gf
+      - int_ga
+      - int_sota
+      - int_ga_keeper
+      - int_saves
+      - int_cs
+      - int_pk_att
+      - int_pk_allowed
+      - int_pk_saved
+      - int_pk_missed
     kwargs: { mostly: 1.0 }
     # severity: error
     severity: warn
 
   # opponent_id : NULL toléré ~3.6% empirique + marge 5 pts → 91.4% non-null min
   - type: expect_column_values_to_not_be_null
-    kwargs: { column: opponent_id, mostly: 0.914 }
+    kwargs: { column: str_opponent_id, mostly: 0.914 }
     # severity: error
     severity: warn
     meta: { description: "Empirique = 3.6% NULL (~2001 lignes). Marge de +5 pts appliquée." }
 
   # save_pct : NULL légitime quand sota=0 → severity=warn seulement
   - type: expect_column_values_to_not_be_null
-    kwargs: { column: save_pct, mostly: 0.85 }
+    kwargs: { column: dec_save_pct, mostly: 0.85 }
     severity: warn
     meta: { description: "Empirique = 5.5% NULL (sota=0). Marge de +5 pts appliquée." }
 
@@ -77,26 +77,26 @@ expectations:
   # ────────────────────────────────────────────────────────────────────────────
   # save_pct doit être un pourcentage. Attrape les 36 lignes à -100.
   - type: expect_column_values_to_be_between
-    kwargs: { column: save_pct, min_value: 0, max_value: 100, mostly: 1.0 }
+    kwargs: { column: dec_save_pct, min_value: 0, max_value: 100, mostly: 1.0 }
     # severity: error
     severity: warn
     meta: { description: "Attrape le bug save_pct négatif (36 lignes empiriques)." }
 
   # cs est binaire
   - type: expect_column_values_to_be_between
-    kwargs: { column: cs, min_value: 0, max_value: 1, mostly: 1.0 }
+    kwargs: { column: int_cs, min_value: 0, max_value: 1, mostly: 1.0 }
     # severity: error
     severity: warn
 
   # Métriques comptables : bornes larges (max = record historique + marge)
   - type: expect_column_values_to_be_between
-    for_each_column: [sota, saves, ga_keeper, gf, ga]
+    for_each_column: [int_sota, int_saves, int_ga_keeper, int_gf, int_ga]
     kwargs: { min_value: 0, max_value: 30, mostly: 1.0 }
     # severity: error
     severity: warn
 
   - type: expect_column_values_to_be_between
-    for_each_column: [pk_att, pk_allowed, pk_saved, pk_missed]
+    for_each_column: [int_pk_att, int_pk_allowed, int_pk_saved, int_pk_missed]
     kwargs: { min_value: 0, max_value: 5, mostly: 1.0 }
     # severity: error
     severity: warn
@@ -105,32 +105,32 @@ expectations:
   # 4. BORNES STATISTIQUES — moyennes cohérentes avec la nature de la métrique
   # ────────────────────────────────────────────────────────────────────────────
   - type: expect_column_mean_to_be_between
-    kwargs: { column: sota, min_value: 2.0, max_value: 6.0 }
+    kwargs: { column: int_sota, min_value: 2.0, max_value: 6.0 }
     # severity: error
     severity: warn
     meta: { description: "Empirique = 3.98" }
 
   - type: expect_column_mean_to_be_between
-    kwargs: { column: saves, min_value: 1.5, max_value: 4.0 }
+    kwargs: { column: int_saves, min_value: 1.5, max_value: 4.0 }
     # severity: error
     severity: warn
     meta: { description: "Empirique = 2.77" }
 
   - type: expect_column_mean_to_be_between
-    for_each_column: [ga_keeper, ga, gf]
+    for_each_column: [int_ga_keeper, int_ga, int_gf]
     kwargs: { min_value: 1.0, max_value: 2.0 }
     # severity: error
     severity: warn
     meta: { description: "Empirique gf=1.45 ga=1.34 ga_keeper=1.34" }
 
   - type: expect_column_mean_to_be_between
-    kwargs: { column: cs, min_value: 0.15, max_value: 0.40 }
+    kwargs: { column: int_cs, min_value: 0.15, max_value: 0.40 }
     # severity: error
     severity: warn
     meta: { description: "Empirique = 0.28 (28% de clean sheets)" }
 
   - type: expect_column_mean_to_be_between
-    kwargs: { column: pk_att, min_value: 0.05, max_value: 0.30 }
+    kwargs: { column: int_pk_att, min_value: 0.05, max_value: 0.30 }
     severity: warn
     meta: { description: "Empirique = 0.15" }
 
@@ -141,7 +141,7 @@ expectations:
   # (dbt vérifie à la matérialisation).
   - type: expect_row_condition_to_hold
     kwargs:
-      condition: "ga_keeper <= sota"
+      condition: "int_ga_keeper <= int_sota"
     # severity: error
     severity: warn
     meta:
@@ -150,14 +150,14 @@ expectations:
 
   - type: expect_row_condition_to_hold
     kwargs:
-      condition: "pk_allowed + pk_saved + pk_missed <= pk_att"
+      condition: "int_pk_allowed + int_pk_saved + int_pk_missed <= int_pk_att"
     severity: warn
     meta: { description: "La somme des issues de penalty ne dépasse pas les tentés." }
 
   # cs cohérent avec ga_keeper (garde-fou clean sheet)
   - type: expect_row_condition_to_hold
     kwargs:
-      condition: "(ga_keeper == 0 and cs == 1) or (ga_keeper > 0 and cs == 0)"
+      condition: "(int_ga_keeper == 0 and int_cs == 1) or (int_ga_keeper > 0 and int_cs == 0)"
     # severity: error
     severity: warn
     meta: { description: "cs = 1 IFF ga_keeper = 0." }
@@ -168,7 +168,7 @@ expectations:
   # ────────────────────────────────────────────────────────────────────────────
   - type: expect_partition_volume_stability
     kwargs:
-      partition_col: season
+      partition_col: str_season
       max_deviation_warn: 0.20
       max_deviation_error: 0.40
       min_seasons_history: 2

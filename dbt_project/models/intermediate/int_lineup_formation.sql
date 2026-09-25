@@ -7,6 +7,48 @@
 -- hauteur moyenne des lignes défensive et offensive, axialité du XI.
 -- Consommé par int_formation_matchup_match (Phase 4B) et par equipe_lineup_match.
 
+-- ══ Refonte nommage (préfixe de type en tête de nom : str_, int_, dec_, dt_, bool_) ══
+-- Entrées : les modèles amont refondus sont relus via des CTE in_<modèle> qui les
+-- remappent vers les noms/types de travail utilisés par la logique ci-dessous
+-- (inchangée). Sortie : CTE mdl_out, renommage + cast selon le type logique.
+
+WITH
+
+-- int_player_role_match lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_int_player_role_match AS (
+    SELECT
+        str_match_id                                                 AS "match_id",
+        CAST(str_team_id AS BIGINT)                                  AS "team_id",
+        CAST(str_player_id AS BIGINT)                                AS "player_id",
+        str_season                                                   AS "season",
+        dec_gv_start                                                 AS "gv_start",
+        dec_gh_start                                                 AS "gh_start",
+        str_role_fin_lag                                             AS "role_fin_lag",
+        str_role_fin_current                                         AS "role_fin_current",
+        str_role_fin_resolved                                        AS "role_fin_resolved",
+        str_role_source                                              AS "role_source"
+    FROM {{ ref('int_player_role_match') }}
+),
+
+-- int_whoscored_lineup lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_int_whoscored_lineup AS (
+    SELECT
+        str_match_id                                                 AS "match_id",
+        CAST(str_team_id AS BIGINT)                                  AS "team_id",
+        int_formation_seq                                            AS "formation_seq",
+        CAST(str_formation_id AS INTEGER)                            AS "formation_id",
+        int_period                                                   AS "period",
+        int_start_minute                                             AS "start_minute",
+        int_end_minute                                               AS "end_minute",
+        CAST(str_player_id AS BIGINT)                                AS "player_id",
+        int_slot                                                     AS "slot",
+        dec_grid_vertical                                            AS "grid_vertical",
+        dec_grid_horizontal                                          AS "grid_horizontal",
+        bool_is_captain                                              AS "is_captain"
+    FROM {{ ref('int_whoscored_lineup') }}
+),
+
+mdl_body AS (
 with
 
 -- XI de départ enrichi de son rôle résolu (Table 2 de Phase 1).
@@ -19,8 +61,8 @@ xi_with_role as (
         l.grid_horizontal,
         l.formation_id,
         r.role_fin_resolved
-    from {{ ref('int_whoscored_lineup') }} l
-    left join {{ ref('int_player_role_match') }} r
+    from in_int_whoscored_lineup l
+    left join in_int_player_role_match r
         on r.match_id  = l.match_id
        and r.player_id = l.player_id
     where l.start_minute = 0
@@ -91,3 +133,26 @@ select
 from formation_by_team fbt
 left join role_counts  rc using (match_id, team_id)
 left join field_stats  fs using (match_id, team_id)
+),
+
+mdl_out AS (
+    SELECT
+        "match_id"                                                   AS str_match_id,
+        CAST(team_id AS VARCHAR)                                     AS str_team_id,
+        CAST(formation_id AS VARCHAR)                                AS str_formation_id,
+        "formation_family"                                           AS str_formation_family,
+        "n_gk"                                                       AS int_n_gk,
+        "n_def"                                                      AS int_n_def,
+        "n_mid"                                                      AS int_n_mid,
+        "n_att"                                                      AS int_n_att,
+        "n_wingers"                                                  AS int_n_wingers,
+        "n_central_att"                                              AS int_n_central_att,
+        "bloc_width"                                                 AS dec_bloc_width,
+        "bloc_depth"                                                 AS dec_bloc_depth,
+        "line_defensive_avg"                                         AS dec_line_defensive_avg,
+        "line_offensive_avg"                                         AS dec_line_offensive_avg,
+        "axiality_score"                                             AS dec_axiality_score
+    FROM mdl_body
+)
+
+SELECT * FROM mdl_out

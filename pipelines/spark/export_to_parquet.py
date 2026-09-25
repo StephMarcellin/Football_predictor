@@ -130,7 +130,7 @@ def report_index_grain(con, strict: bool = False) -> None:
     --strict permet d'exiger la garantie avant une campagne de validation.
     """
     total, distinct = con.execute("""
-        SELECT COUNT(*), COUNT(DISTINCT ws_match_id)
+        SELECT COUNT(*), COUNT(DISTINCT str_ws_match_id)
         FROM intermediate.int_whoscored_match_index
     """).fetchone()
 
@@ -146,10 +146,10 @@ def report_index_grain(con, strict: bool = False) -> None:
         FROM (
             SELECT COUNT(*) AS n_events
             FROM silver.stg_whoscored_events e
-            JOIN (SELECT ws_match_id
+            JOIN (SELECT str_ws_match_id
                   FROM intermediate.int_whoscored_match_index
-                  GROUP BY ws_match_id HAVING COUNT(*) > 1) d
-              ON e.ws_match_id = d.ws_match_id
+                  GROUP BY str_ws_match_id HAVING COUNT(*) > 1) d
+              ON e.ws_match_id = d.str_ws_match_id
             GROUP BY e.ws_match_id
         )
     """).fetchone()[0]
@@ -176,9 +176,9 @@ def report_match_id_coverage(con) -> None:
     """
     total, resolus, teams_ok = con.execute("""
         SELECT COUNT(*),
-               COUNT(match_id),
-               COUNT(*) FILTER (WHERE team_id IS NOT NULL
-                                  AND opponent_id IS NOT NULL)
+               COUNT(str_match_id),
+               COUNT(*) FILTER (WHERE str_team_id IS NOT NULL
+                                  AND str_opponent_id IS NOT NULL)
         FROM intermediate.int_whoscored_match_index
     """).fetchone()
     logger.info(
@@ -191,10 +191,10 @@ def report_match_id_coverage(con) -> None:
 def known_seasons(con) -> list[str]:
     """Saisons réellement présentes dans l'index, triées."""
     return [r[0] for r in con.execute("""
-        SELECT DISTINCT season
+        SELECT DISTINCT str_season
         FROM intermediate.int_whoscored_match_index
-        WHERE season IS NOT NULL
-        ORDER BY season
+        WHERE str_season IS NOT NULL
+        ORDER BY str_season
     """).fetchall()]
 
 
@@ -269,7 +269,9 @@ def export_match_index(con) -> None:
 
     SELECT * délibéré : la table tire une partie de ses colonnes d'un `s.*`
     dans le modèle dbt. Les nommer ici obligerait à maintenir deux listes
-    synchronisées ; Spark lira le schéma dans le Parquet.
+    synchronisées ; Spark lira le schéma dans le Parquet. Les colonnes sortent
+    sous leurs noms refondus (str_match_id, str_ws_match_id, dt_scraped_at…) :
+    spark_events.resolve_identity les lit sous ces noms.
     """
     out = IN_DIR / "match_index"
     out.mkdir(parents=True, exist_ok=True)

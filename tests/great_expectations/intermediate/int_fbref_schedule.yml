@@ -4,10 +4,9 @@
 # Contrainte spatiotemporelle : aucune (FBref universel).
 # Test dérive volumétrique : exclut la saison 2025-2026 (scraping en cours).
 #
-# Note technique : `poss` est VARCHAR côté DuckDB — un TRY_CAST(NULLIF(poss,'') AS INTEGER)
-# est appliqué en amont dans la query pour permettre les tests numériques
-# (bornes, moyenne). Les chaînes vides deviennent NULL, ignorées par
-# `expect_column_values_to_be_between` / `expect_column_mean_to_be_between`.
+# Note technique : la possession est castée en INTEGER dans le modèle dbt
+# (int_poss ; chaînes vides → NULL), la query la lit directement. Les NULL sont
+# ignorés par `expect_column_values_to_be_between` / `expect_column_mean_to_be_between`.
 #
 # `result_consistency_ok` est une colonne booléenne (0/1) pré-calculée en SQL
 # pour la contrainte physique croisée result/gf/ga/result_1n2 — évite les
@@ -24,28 +23,28 @@ source:
   duckdb_path: db/football.duckdb
   query: |
     SELECT
-      match_id, team_id, opponent_id, date, season,
-      venue, result, result_1n2, comp_category, source,
-      day, league_source,
-      gf, ga,
-      formation, opp_formation,
-      TRY_CAST(NULLIF(poss, '') AS INTEGER) AS poss_int,
+      str_match_id, str_team_id, str_opponent_id, dt_date, str_season,
+      str_venue, str_result, str_result_1n2, str_comp_category, str_source,
+      str_day, str_league_source,
+      int_gf, int_ga,
+      str_formation, str_opp_formation,
+      int_poss,
       CASE
-        WHEN result = 'W' AND gf > ga THEN 1
-        WHEN result = 'D' AND gf = ga THEN 1
-        WHEN result = 'L' AND gf < ga THEN 1
-        WHEN result = '' AND result_1n2 IS NULL THEN 1
+        WHEN str_result = 'W' AND int_gf > int_ga THEN 1
+        WHEN str_result = 'D' AND int_gf = int_ga THEN 1
+        WHEN str_result = 'L' AND int_gf < int_ga THEN 1
+        WHEN str_result = '' AND str_result_1n2 IS NULL THEN 1
         ELSE 0
       END AS result_consistency_ok,
       CASE
-        WHEN result = '' THEN 1
-        WHEN venue = 'Neutral' THEN 1
-        WHEN venue = 'Home' AND result = 'W' AND result_1n2 = 'H' THEN 1
-        WHEN venue = 'Home' AND result = 'D' AND result_1n2 = 'D' THEN 1
-        WHEN venue = 'Home' AND result = 'L' AND result_1n2 = 'A' THEN 1
-        WHEN venue = 'Away' AND result = 'W' AND result_1n2 = 'A' THEN 1
-        WHEN venue = 'Away' AND result = 'D' AND result_1n2 = 'D' THEN 1
-        WHEN venue = 'Away' AND result = 'L' AND result_1n2 = 'H' THEN 1
+        WHEN str_result = '' THEN 1
+        WHEN str_venue = 'Neutral' THEN 1
+        WHEN str_venue = 'Home' AND str_result = 'W' AND str_result_1n2 = 'H' THEN 1
+        WHEN str_venue = 'Home' AND str_result = 'D' AND str_result_1n2 = 'D' THEN 1
+        WHEN str_venue = 'Home' AND str_result = 'L' AND str_result_1n2 = 'A' THEN 1
+        WHEN str_venue = 'Away' AND str_result = 'W' AND str_result_1n2 = 'A' THEN 1
+        WHEN str_venue = 'Away' AND str_result = 'D' AND str_result_1n2 = 'D' THEN 1
+        WHEN str_venue = 'Away' AND str_result = 'L' AND str_result_1n2 = 'H' THEN 1
         ELSE 0
       END AS venue_result_ok
     FROM intermediate.int_fbref_schedule
@@ -67,38 +66,38 @@ expectations:
   # Colonnes structurelles : 0 % NULL toléré
   - type: expect_column_values_to_not_be_null
     for_each_column:
-      - team_id
-      - date
-      - season
-      - venue
-      - comp_category
-      - source
-      - day
-      - league_source
-      - gf
-      - ga
-      - result
-      - formation
+      - str_team_id
+      - dt_date
+      - str_season
+      - str_venue
+      - str_comp_category
+      - str_source
+      - str_day
+      - str_league_source
+      - int_gf
+      - int_ga
+      - str_result
+      - str_formation
     kwargs: { mostly: 1.0 }
     # severity: error
     severity: warn
 
   # match_id : 49 NULL empiriques (0.09 %) — cf. A-005
   - type: expect_column_values_to_not_be_null
-    kwargs: { column: match_id, mostly: 0.995 }
+    kwargs: { column: str_match_id, mostly: 0.995 }
     severity: warn
     meta: { description: "Empirique = 0.09 % NULL. Marge de +5 pts." }
 
   # opponent_id : NULL empirique 3.61 % — cascade A-002 (résolution team_mapping)
   - type: expect_column_values_to_not_be_null
-    kwargs: { column: opponent_id, mostly: 0.914 }
+    kwargs: { column: str_opponent_id, mostly: 0.914 }
     # severity: error
     severity: warn
     meta: { description: "Empirique = 3.61 % NULL (2 052 lignes). Marge de +5 pts." }
 
   # result_1n2 : NULL empirique 1.92 % — 1 094 matches non joués (result = '')
   - type: expect_column_values_to_not_be_null
-    kwargs: { column: result_1n2, mostly: 0.94 }
+    kwargs: { column: str_result_1n2, mostly: 0.94 }
     severity: warn
     meta: { description: "Empirique = 1.92 % NULL (matches non joués, result = '')." }
 
@@ -106,7 +105,7 @@ expectations:
   # 3. BORNES DE VALEURS
   # ────────────────────────────────────────────────────────────────────────────
   - type: expect_column_values_to_be_between
-    for_each_column: [gf, ga]
+    for_each_column: [int_gf, int_ga]
     kwargs: { min_value: 0, max_value: 20, mostly: 1.0 }
     # severity: error
     severity: warn
@@ -114,7 +113,7 @@ expectations:
 
   # poss cast en int — chaînes vides devenues NULL, ignorées
   - type: expect_column_values_to_be_between
-    kwargs: { column: poss_int, min_value: 0, max_value: 100, mostly: 1.0 }
+    kwargs: { column: int_poss, min_value: 0, max_value: 100, mostly: 1.0 }
     # severity: error
     severity: warn
     meta: { description: "Pourcentage de possession — bornes physiques. Empirique [15, 100]." }
@@ -123,20 +122,20 @@ expectations:
   # 4. BORNES STATISTIQUES
   # ────────────────────────────────────────────────────────────────────────────
   - type: expect_column_mean_to_be_between
-    kwargs: { column: gf, min_value: 1.0, max_value: 1.8 }
+    kwargs: { column: int_gf, min_value: 1.0, max_value: 1.8 }
     # severity: error
     severity: warn
     meta: { description: "Empirique = 1.43" }
 
   - type: expect_column_mean_to_be_between
-    kwargs: { column: ga, min_value: 0.9, max_value: 1.7 }
+    kwargs: { column: int_ga, min_value: 0.9, max_value: 1.7 }
     # severity: error
     severity: warn
     meta: { description: "Empirique = 1.31" }
 
   # Possession moyenne autour de 50 par construction (2 équipes qui somment à 100)
   - type: expect_column_mean_to_be_between
-    kwargs: { column: poss_int, min_value: 45.0, max_value: 55.0 }
+    kwargs: { column: int_poss, min_value: 45.0, max_value: 55.0 }
     severity: warn
     meta: { description: "Contrainte structurelle : somme poss par match = 100." }
 
@@ -162,7 +161,7 @@ expectations:
   # ────────────────────────────────────────────────────────────────────────────
   - type: expect_partition_volume_stability
     kwargs:
-      partition_col: season
+      partition_col: str_season
       max_deviation_warn: 0.20
       max_deviation_error: 0.40
       min_seasons_history: 2

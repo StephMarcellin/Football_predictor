@@ -35,19 +35,19 @@ def _pairs_lambda(cfg, seasons):
     df = df[df[spec["target"]].notna()].copy()
     X = mc.prepare_x(df, spec["target"], spec.get("exclude")).reindex(
         columns=pay["features"], fill_value=0)
-    df = df[["match_id", "team_id", "season"]].copy()
+    df = df[["str_match_id", "str_team_id", "str_season"]].copy()
     df["mu"] = pay["model"].predict(X)
 
     con = duckdb.connect(str(mc.ROOT_DIR / cfg["paths"]["duckdb"]), read_only=True)
-    bb = con.execute("select match_id, team_id, venue, result_1n2 "
+    bb = con.execute("select str_match_id, str_team_id, str_venue, str_result_1n2 "
                      "from intermediate.backbone").df()
     con.close()
-    df = df[df["season"].isin(seasons)].merge(bb, on=["match_id", "team_id"])
-    H = df[df.venue == "Home"].set_index("match_id")
-    A = df[df.venue == "Away"].set_index("match_id")
+    df = df[df["str_season"].isin(seasons)].merge(bb, on=["str_match_id", "str_team_id"])
+    H = df[df.str_venue == "Home"].set_index("str_match_id")
+    A = df[df.str_venue == "Away"].set_index("str_match_id")
     out = {}
     for m in H.index.intersection(A.index):
-        r = H.loc[m, "result_1n2"]
+        r = H.loc[m, "str_result_1n2"]
         if r in LAB:
             out[m] = (float(H.loc[m, "mu"]), float(A.loc[m, "mu"]), r)
     return out
@@ -58,7 +58,7 @@ def _direct_probs(cfg, seasons):
     spec = mc.load_configs()[1]["resultat_1n2"]
     pay = joblib.load(mc.MODELS_DIR / "resultat_1n2.joblib")
     df = mc.load_mart(cfg, spec["mart"])
-    df = df[df["season"].isin(seasons)].copy()
+    df = df[df["str_season"].isin(seasons)].copy()
     X = mc.prepare_x(df, spec["target"], spec.get("exclude")).reindex(
         columns=pay["features"], fill_value=0)
     proba = pay["model"].predict_proba(X)
@@ -66,10 +66,10 @@ def _direct_probs(cfg, seasons):
         raise RuntimeError("Probas uniformes : calibration dégénérée — vérifie la "
                            "version de scikit-learn vs celle d'entraînement.")
     inv = {v: k for k, v in pay["label_map"].items()}          # 0→H, 1→D, 2→A
-    df = df[["match_id"]].copy()
+    df = df[["str_match_id"]].copy()
     for k, cls in enumerate(pay["model"].classes_):
         df[inv[cls]] = proba[:, k]
-    g = df.groupby("match_id")[["H", "D", "A"]].mean()
+    g = df.groupby("str_match_id")[["H", "D", "A"]].mean()
     return {m: g.loc[m, ["H", "D", "A"]].values for m in g.index}
 
 

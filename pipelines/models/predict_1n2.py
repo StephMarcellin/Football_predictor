@@ -5,8 +5,8 @@ Charge models/resultat_1n2.joblib et prédit EXACTEMENT les matchs demandés
 (--match-ids). Reconstruit X via ml_common.prepare_x (mêmes features, cotes
 exclues) et écrit les probabilités P(H/D/A).
 
-Note grain : mart_1n2 est au grain (match_id, team_id) → chaque match donne
-2 lignes (une par équipe, sa perspective). team_id / opponent_id désambiguïsent.
+Note grain : mart_1n2 est au grain (str_match_id, str_team_id) → chaque match donne
+2 lignes (une par équipe, sa perspective). str_team_id / str_opponent_id désambiguïsent.
 
 Sortie :
   - toujours       : reports/predictions_1n2.csv
@@ -32,7 +32,7 @@ import joblib
 import ml_common as mc
 
 MODEL_KEY = "resultat_1n2"
-ID_OUT = ["match_id", "team_id", "opponent_id", "league_source", "date", "season"]
+ID_OUT = ["str_match_id", "str_team_id", "str_opponent_id", "str_league_source", "dt_date", "str_season"]
 
 
 def load_model():
@@ -42,7 +42,7 @@ def load_model():
     return payload["model"], payload["features"], payload["label_map"]
 
 def read_ids_file(path):
-    """Lit les match_id d'un fichier : CSV (colonne match_id) ou TXT (1 id/ligne)."""
+    """Lit les ids de match d'un fichier : CSV (colonne str_match_id) ou TXT (1 id/ligne)."""
     from pathlib import Path
     p = Path(path)
     if not p.is_absolute():
@@ -51,25 +51,26 @@ def read_ids_file(path):
     if not lines:
         return []
     header = [h.strip().lower() for h in lines[0].split(",")]
-    if "match_id" in header:                       # CSV avec en-tête → on prend la bonne colonne
-        idx = header.index("match_id")
+    if "str_match_id" in header:                   # CSV avec en-tête → on prend la bonne colonne
+        idx = header.index("str_match_id")
         return [ln.split(",")[idx].strip() for ln in lines[1:] if ln.strip()]
     return [ln.strip() for ln in lines if ln.strip()]   # sinon 1 id par ligne
 
 def build_predict_frame(cfg, spec, match_ids=None):
-    """Lignes à prédire. Lit le mart en read-only et rattache league_source
+    """Lignes à prédire. Lit le mart en read-only et rattache str_league_source
     (absent du mart) depuis backbone. Si match_ids est fourni → uniquement ces
     matchs (tels quels) ; sinon → tous les matchs sans résultat."""
     con = duckdb.connect(str(mc.ROOT_DIR / cfg["paths"]["duckdb"]), read_only=True)
     df = con.execute(f"""
-        select m.*, b.league_source
+        select m.*, b.str_league_source
         from marts.{spec['mart']} m
-        left join intermediate.backbone b using (match_id, team_id)
+        left join intermediate.backbone b
+            on b.str_match_id = m.str_match_id and b.str_team_id = m.str_team_id
     """).df()
     con.close()
 
     if match_ids:
-        df = df[df["match_id"].isin(match_ids)].copy()
+        df = df[df["str_match_id"].isin(match_ids)].copy()
     else:
         df = df[df[spec["target"]].isna()].copy()
     return df
@@ -85,11 +86,11 @@ def predict(model, feats, label_map, pred, spec):
     inv = {v: k for k, v in label_map.items()}       # {0:'H', 1:'D', 2:'A'}
     out = pred[ID_OUT].reset_index(drop=True).copy()
     for i, cls in enumerate(model.classes_):         # classes_ = [0 1 2] → colonne i
-        out[f"prob_{inv[cls]}"] = proba[:, i]
+        out[f"dec_prob_{inv[cls]}"] = proba[:, i]
 
-    prob_cols = [f"prob_{inv[c]}" for c in model.classes_]
-    out["pred_1n2"] = out[prob_cols].idxmax(axis=1).str.replace("prob_", "", regex=False)
-    out["predicted_at"] = datetime.now(timezone.utc)
+    prob_cols = [f"dec_prob_{inv[c]}" for c in model.classes_]
+    out["str_pred_1n2"] = out[prob_cols].idxmax(axis=1).str.replace("dec_prob_", "", regex=False)
+    out["dt_predicted_at"] = datetime.now(timezone.utc)
     return out
 
 
@@ -112,7 +113,7 @@ def main(match_ids=None, write=False):
     if pred.empty:
         print("Aucun match à prédire (ids introuvables ou aucun match sans résultat).")
         return None
-    print(f"[predict 1N2] {pred['match_id'].nunique()} match(s), {len(pred)} lignes à prédire.")
+    print(f"[predict 1N2] {pred['str_match_id'].nunique()} match(s), {len(pred)} lignes à prédire.")
 
     model, feats, label_map = load_model()
     out = predict(model, feats, label_map, pred, spec)

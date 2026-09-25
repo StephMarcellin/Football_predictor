@@ -13,48 +13,45 @@ source:
   query: |
     SELECT
           COUNT(*) AS n_rows,
-          COUNT(*) FILTER (WHERE "player_id" IS NULL) AS null_player_id,
-          COUNT(*) FILTER (WHERE "zone_5x5" IS NULL) AS null_zone_5x5,
-          COUNT(*) FILTER (WHERE "season" IS NULL) AS null_season,
-          COUNT(*) FILTER (WHERE "avg_touch_share" IS NULL) AS null_avg_touch_share,
-          COUNT(*) FILTER (WHERE "n_matches" IS NULL) AS null_n_matches,
-          COUNT(*) FILTER (WHERE "total_shots" IS NULL) AS null_total_shots,
-          COUNT(*) FILTER (WHERE "n_duels" IS NULL) AS null_n_duels,
-          COUNT(*) FILTER (WHERE "duels_won" IS NULL) AS null_duels_won,
-          COUNT(*) FILTER (WHERE "total_danger" IS NULL) AS null_total_danger,
-          COUNT(*) FILTER (WHERE "total_progressive" IS NULL) AS null_total_progressive,
-          COUNT(*) FILTER (WHERE "total_crosses" IS NULL) AS null_total_crosses,
-          COUNT(*) FILTER (WHERE "total_def_actions" IS NULL) AS null_total_def_actions,
-          MIN("player_id") AS min_player_id,
-          MAX("player_id") AS max_player_id,
-          AVG("player_id") AS avg_player_id,
-          MIN("avg_touch_share") AS min_avg_touch_share,
-          MAX("avg_touch_share") AS max_avg_touch_share,
-          AVG("avg_touch_share") AS avg_avg_touch_share,
-          MIN("n_matches") AS min_n_matches,
-          MAX("n_matches") AS max_n_matches,
-          AVG("n_matches") AS avg_n_matches,
-          MIN("total_shots") AS min_total_shots,
-          MAX("total_shots") AS max_total_shots,
-          AVG("total_shots") AS avg_total_shots,
-          MIN("n_duels") AS min_n_duels,
-          MAX("n_duels") AS max_n_duels,
-          AVG("n_duels") AS avg_n_duels,
-          MIN("duels_won") AS min_duels_won,
-          MAX("duels_won") AS max_duels_won,
-          AVG("duels_won") AS avg_duels_won,
-          MIN("total_danger") AS min_total_danger,
-          MAX("total_danger") AS max_total_danger,
-          AVG("total_danger") AS avg_total_danger,
-          MIN("total_progressive") AS min_total_progressive,
-          MAX("total_progressive") AS max_total_progressive,
-          AVG("total_progressive") AS avg_total_progressive,
-          MIN("total_crosses") AS min_total_crosses,
-          MAX("total_crosses") AS max_total_crosses,
-          AVG("total_crosses") AS avg_total_crosses,
-          MIN("total_def_actions") AS min_total_def_actions,
-          MAX("total_def_actions") AS max_total_def_actions,
-          AVG("total_def_actions") AS avg_total_def_actions
+          COUNT(*) FILTER (WHERE "str_player_id" IS NULL) AS null_player_id,
+          COUNT(*) FILTER (WHERE "str_zone_5x5" IS NULL) AS null_zone_5x5,
+          COUNT(*) FILTER (WHERE "str_season" IS NULL) AS null_season,
+          COUNT(*) FILTER (WHERE "dec_avg_touch_share" IS NULL) AS null_avg_touch_share,
+          COUNT(*) FILTER (WHERE "int_n_matches" IS NULL) AS null_n_matches,
+          COUNT(*) FILTER (WHERE "int_total_shots" IS NULL) AS null_total_shots,
+          COUNT(*) FILTER (WHERE "int_n_duels" IS NULL) AS null_n_duels,
+          COUNT(*) FILTER (WHERE "int_duels_won" IS NULL) AS null_duels_won,
+          COUNT(*) FILTER (WHERE "dec_total_danger" IS NULL) AS null_total_danger,
+          COUNT(*) FILTER (WHERE "int_total_progressive" IS NULL) AS null_total_progressive,
+          COUNT(*) FILTER (WHERE "int_total_crosses" IS NULL) AS null_total_crosses,
+          COUNT(*) FILTER (WHERE "int_total_def_actions" IS NULL) AS null_total_def_actions,
+          MIN("dec_avg_touch_share") AS min_avg_touch_share,
+          MAX("dec_avg_touch_share") AS max_avg_touch_share,
+          AVG("dec_avg_touch_share") AS avg_avg_touch_share,
+          MIN("int_n_matches") AS min_n_matches,
+          MAX("int_n_matches") AS max_n_matches,
+          AVG("int_n_matches") AS avg_n_matches,
+          MIN("int_total_shots") AS min_total_shots,
+          MAX("int_total_shots") AS max_total_shots,
+          AVG("int_total_shots") AS avg_total_shots,
+          MIN("int_n_duels") AS min_n_duels,
+          MAX("int_n_duels") AS max_n_duels,
+          AVG("int_n_duels") AS avg_n_duels,
+          MIN("int_duels_won") AS min_duels_won,
+          MAX("int_duels_won") AS max_duels_won,
+          AVG("int_duels_won") AS avg_duels_won,
+          MIN("dec_total_danger") AS min_total_danger,
+          MAX("dec_total_danger") AS max_total_danger,
+          AVG("dec_total_danger") AS avg_total_danger,
+          MIN("int_total_progressive") AS min_total_progressive,
+          MAX("int_total_progressive") AS max_total_progressive,
+          AVG("int_total_progressive") AS avg_total_progressive,
+          MIN("int_total_crosses") AS min_total_crosses,
+          MAX("int_total_crosses") AS max_total_crosses,
+          AVG("int_total_crosses") AS avg_total_crosses,
+          MIN("int_total_def_actions") AS min_total_def_actions,
+          MAX("int_total_def_actions") AS max_total_def_actions,
+          AVG("int_total_def_actions") AS avg_total_def_actions
         FROM intermediate."int_player_zone_season"
 
 expectations:
@@ -136,11 +133,6 @@ expectations:
     meta: { description: "total_def_actions empirique 0.00% NULL." }
 
   # ── BORNES NUMÉRIQUES (push-down MIN/MAX) ──
-  - type: expect_row_condition_to_hold
-    kwargs:
-      condition: "min_player_id >= 0.0000 and max_player_id <= 684360.6000"
-    severity: warn
-    meta: { description: "player_id empirique [0.0, 622146.0]." }
   - type: expect_row_condition_to_hold
     kwargs:
       condition: "min_avg_touch_share >= 0.0000 and max_avg_touch_share <= 0.9429"

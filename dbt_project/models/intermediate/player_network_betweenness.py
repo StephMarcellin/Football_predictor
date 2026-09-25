@@ -6,7 +6,7 @@ def model(dbt, session):
 
     dbt.config(
         materialized="incremental",
-        unique_key=["match_id", "team_id", "player_id"],
+        unique_key=["str_match_id", "str_team_id", "str_player_id"],
         on_schema_change="append_new_columns",
         schema="intermediate",
         alias="player_network_betweenness",
@@ -17,10 +17,18 @@ def model(dbt, session):
     # dbt.ref() retourne une Relation DuckDB → .df() la convertit en DataFrame
     # On ne garde que les colonnes nécessaires au calcul du graphe.
     # ══════════════════════════════════════════════════════════════════════════
-    df = dbt.ref("player_network_passes").df()[
-        ["match_id", "team_id", "passer_id", "receiver_id", "n_passes",
-         "season", "league_source"]
-    ]
+    # Refonte nommage : player_network_passes expose des noms préfixés par type
+    # (str_, int_…) ; on les remappe vers les noms de travail du calcul ci-dessous.
+    passes = dbt.ref("player_network_passes").df()
+    df = passes[
+        ["str_match_id", "str_team_id", "str_passer_id", "str_receiver_id",
+         "int_n_passes", "str_season", "str_league_source"]
+    ].rename(columns={
+        "str_match_id": "match_id", "str_team_id": "team_id",
+        "str_passer_id": "passer_id", "str_receiver_id": "receiver_id",
+        "int_n_passes": "n_passes", "str_season": "season",
+        "str_league_source": "league_source",
+    })
 
     # ══════════════════════════════════════════════════════════════════════════
     # FILTRE INCRÉMENTAL
@@ -29,7 +37,7 @@ def model(dbt, session):
     # ══════════════════════════════════════════════════════════════════════════
     if dbt.is_incremental:
         already_done = session.sql(
-            f"SELECT DISTINCT match_id FROM {dbt.this}"
+            f"SELECT DISTINCT str_match_id AS match_id FROM {dbt.this}"
         ).df()
         df = df[~df["match_id"].isin(already_done["match_id"])]
 
@@ -72,13 +80,14 @@ def model(dbt, session):
 
         # Aplatissement : dictionnaire → lignes DataFrame
         for player_id, score in betweenness.items():
+            # Sortie aux noms refondus (préfixe de type en tête, ids en texte)
             results.append({
-                "match_id":          match_id,
-                "team_id":           team_id,
-                "player_id":         player_id,
-                "season":            season,
-                "league_source":     league_source,
-                "betweenness_exact": round(score, 6),
+                "str_match_id":          match_id,
+                "str_team_id":           str(team_id),
+                "str_player_id":         str(player_id),
+                "str_season":            season,
+                "str_league_source":     league_source,
+                "dec_betweenness_exact": round(score, 6),
             })
 
     # ══════════════════════════════════════════════════════════════════════════
@@ -97,12 +106,12 @@ def model(dbt, session):
         # pd.Series(dtype=...) crée une série vide mais typée : le schéma est
         # déclaré même sans une seule ligne.
         return pd.DataFrame({
-            "match_id":          pd.Series(dtype="object"),   # SHA1 → VARCHAR
-            "team_id":           pd.Series(dtype="int64"),    # → BIGINT
-            "player_id":         pd.Series(dtype="int64"),    # → BIGINT
-            "season":            pd.Series(dtype="object"),   # → VARCHAR
-            "league_source":     pd.Series(dtype="object"),   # → VARCHAR
-            "betweenness_exact": pd.Series(dtype="float64"),  # → DOUBLE
+            "str_match_id":          pd.Series(dtype="object"),   # SHA1 → VARCHAR
+            "str_team_id":           pd.Series(dtype="object"),   # → VARCHAR
+            "str_player_id":         pd.Series(dtype="object"),   # → VARCHAR
+            "str_season":            pd.Series(dtype="object"),   # → VARCHAR
+            "str_league_source":     pd.Series(dtype="object"),   # → VARCHAR
+            "dec_betweenness_exact": pd.Series(dtype="float64"),  # → DOUBLE
         })
 
     return pd.DataFrame(results)

@@ -1,14 +1,100 @@
 {{
     config(
         materialized='incremental',
-        unique_key=['match_id', 'team_id'],
+        unique_key=['str_match_id', 'str_team_id'],
         on_schema_change='sync_all_columns',
         schema='gold',
         alias='rolling_freekicks'
     )
 }}
 
+-- Refonte nommage : backbone lu sous ses nouveaux noms (CTE backbone_in), sorties
+-- renommées selon docs/proposition_nommage_definitif.csv (CTE renamed). Le filtre
+-- incrémental s'applique désormais APRÈS le calcul des fenêtres : avant, il filtrait
+-- base avant les fenêtres, qui perdaient alors l'historique en run incrémental.
+
+-- ══ Refonte nommage (préfixe de type en tête de nom : str_, int_, dec_, dt_, bool_) ══
+-- Entrées : les modèles amont refondus sont relus via des CTE in_<modèle> qui les
+-- remappent vers les noms/types de travail utilisés par la logique ci-dessous
+-- (inchangée). Sortie : CTE mdl_out, renommage + cast selon le type logique.
+
 WITH
+
+-- freekick_profiles lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_freekick_profiles AS (
+    SELECT
+        str_match_id                                                 AS "match_id",
+        str_chain_id                                                 AS "chain_id",
+        CAST(int_chain_number AS HUGEINT)                            AS "chain_number",
+        CAST(str_chain_team_id AS BIGINT)                            AS "chain_team_id",
+        CAST(str_freekick_taker_id AS INTEGER)                       AS "freekick_taker_id",
+        int_row_num                                                  AS "row_num",
+        CAST(str_event_id AS INTEGER)                                AS "event_id",
+        int_expanded_minute                                          AS "expanded_minute",
+        int_second                                                   AS "second",
+        CAST(str_type_id AS INTEGER)                                 AS "type_id",
+        CAST(str_outcome_id AS INTEGER)                              AS "outcome_id",
+        dec_x                                                        AS "x",
+        dec_y                                                        AS "y",
+        str_fk_type                                                  AS "fk_type",
+        bool_is_offside                                              AS "is_offside",
+        str_fk_zone_type                                             AS "fk_zone_type",
+        str_outcome                                                  AS "outcome",
+        dec_chain_danger_total                                       AS "chain_danger_total",
+        dec_chain_danger_momentum                                    AS "chain_danger_momentum",
+        str_shot_body_part                                           AS "shot_body_part",
+        CAST(str_clearance_player_id AS INTEGER)                     AS "clearance_player_id",
+        str_clearance_quality                                        AS "clearance_quality",
+        bool_is_headed_clearance                                     AS "is_headed_clearance",
+        dec_x_m                                                      AS "x_m",
+        dec_y_m                                                      AS "y_m",
+        dec_distance_to_goal                                         AS "distance_to_goal",
+        dec_angle                                                    AS "angle"
+    FROM {{ ref('freekick_profiles') }}
+),
+
+-- player_possession_chains lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_player_possession_chains AS (
+    SELECT
+        str_match_id                                                 AS "match_id",
+        str_season                                                   AS "season",
+        str_league_source                                            AS "league_source",
+        str_chain_id                                                 AS "chain_id",
+        CAST(int_chain_number AS HUGEINT)                            AS "chain_number",
+        CAST(str_chain_team_id AS BIGINT)                            AS "chain_team_id",
+        CAST(str_team_id AS BIGINT)                                  AS "team_id",
+        CAST(str_player_id AS INTEGER)                               AS "player_id",
+        CAST(str_event_id AS INTEGER)                                AS "event_id",
+        int_row_num                                                  AS "row_num",
+        int_expanded_minute                                          AS "expanded_minute",
+        int_second                                                   AS "second",
+        int_period                                                   AS "period",
+        CAST(str_type_id AS INTEGER)                                 AS "type_id",
+        str_type_name                                                AS "type_name",
+        CAST(str_outcome_id AS INTEGER)                              AS "outcome_id",
+        bool_is_shot                                                 AS "is_shot",
+        dec_x                                                        AS "x",
+        dec_y                                                        AS "y",
+        int_is_rupture                                               AS "is_rupture",
+        str_chain_trigger                                            AS "chain_trigger",
+        int_certain_possessor                                        AS "certain_possessor",
+        CAST(dt_scraped_at AS VARCHAR)                               AS "scraped_at"
+    FROM {{ ref('player_possession_chains') }}
+),
+
+mdl_body AS (
+WITH
+
+backbone_in AS (
+    SELECT
+        str_match_id                       AS match_id,
+        CAST(str_team_id AS BIGINT)       AS team_id,
+        CAST(str_opponent_id AS BIGINT)   AS opponent_id,
+        dt_date                            AS date,
+        str_season                         AS season,
+        str_league_source                  AS league_source
+    FROM {{ ref('backbone') }}
+),
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- FREEKICK_ZONE_AGG
@@ -26,7 +112,7 @@ freekick_zone_agg AS (
         COUNT(*) FILTER (WHERE fk_zone_type = 'crossed')               AS n_crossed,
         COUNT(*) FILTER (WHERE fk_zone_type = 'own_box')               AS n_own_box,
         COUNT(*) FILTER (WHERE fk_zone_type = 'too_far')               AS n_too_far
-    FROM {{ ref('freekick_profiles') }}
+    FROM in_freekick_profiles
     GROUP BY match_id, chain_team_id
 ),
 
@@ -61,7 +147,7 @@ freekick_match_agg AS (
         COUNT(*) FILTER (WHERE fk_zone_type = 'direct_shot')                     AS n_direct,
         SUM(distance_to_goal) FILTER (WHERE fk_zone_type = 'direct_shot')        AS sum_direct_distance,
         SUM(angle)            FILTER (WHERE fk_zone_type = 'direct_shot')        AS sum_direct_angle
-    FROM {{ ref('freekick_profiles') }}
+    FROM in_freekick_profiles
     WHERE fk_zone_type IN ('crossed', 'direct_shot')
     GROUP BY match_id, chain_team_id
 ),
@@ -74,7 +160,7 @@ freekick_match_agg AS (
 -- ══════════════════════════════════════════════════════════════════════════════
 match_coverage AS (
     SELECT DISTINCT match_id
-    FROM {{ ref('player_possession_chains') }}
+    FROM in_player_possession_chains
 ),
 
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -131,7 +217,7 @@ base AS (
         CASE WHEN mc.match_id IS NOT NULL THEN COALESCE(za.n_direct, 0)             ELSE NULL END AS n_zone_direct_against,
         CASE WHEN mc.match_id IS NOT NULL THEN COALESCE(za.n_crossed, 0)            ELSE NULL END AS n_zone_crossed_against
 
-    FROM {{ ref('backbone') }} bb
+    FROM backbone_in bb
     LEFT JOIN match_coverage mc
         ON mc.match_id = bb.match_id
     LEFT JOIN freekick_match_agg cf
@@ -142,8 +228,9 @@ base AS (
         ON zf.match_id = bb.match_id AND zf.team_id = bb.team_id
     LEFT JOIN freekick_zone_agg za
         ON za.match_id = bb.match_id AND za.team_id = bb.opponent_id
-)
+),
 
+rolled AS (
 SELECT
     match_id, team_id, date, season, league_source,
 
@@ -189,9 +276,251 @@ SELECT
     {% endfor %}
 
 FROM base
+),
+
+-- Renommage final (docs/proposition_nommage_definitif.csv)
+renamed AS (
+    SELECT
+        match_id                                             AS str_match_id,
+        CAST(team_id AS VARCHAR)                             AS str_team_id,
+        date                                                 AS dt_date,
+        season                                               AS str_season,
+        league_source                                        AS str_league_source,
+        freekicks_for_3                                      AS int_freekicks_for_3,
+        freekick_danger_rate_for_3                           AS dec_freekick_danger_rate_for_3,
+        freekick_conversion_rate_for_3                       AS dec_freekick_conversion_rate_for_3,
+        freekicks_against_3                                  AS int_freekicks_against_3,
+        freekick_danger_rate_against_3                       AS dec_freekick_danger_rate_against_3,
+        freekick_conversion_rate_against_3                   AS dec_freekick_conversion_rate_against_3,
+        freekick_danger_intensity_for_3                      AS dec_freekick_danger_intensity_for_3,
+        freekick_danger_intensity_against_3                  AS dec_freekick_danger_intensity_against_3,
+        freekick_header_share_for_3                          AS dec_freekick_header_share_for_3,
+        freekick_header_share_against_3                      AS dec_freekick_header_share_against_3,
+        freekick_header_goal_share_for_3                     AS dec_freekick_header_goal_share_for_3,
+        freekick_header_goal_share_against_3                 AS dec_freekick_header_goal_share_against_3,
+        freekick_forced_bad_clearance_rate_for_3             AS dec_freekick_forced_bad_clearance_rate_for_3,
+        freekick_clearance_fail_rate_against_3               AS dec_freekick_clearance_fail_rate_against_3,
+        freekick_headed_clearance_rate_against_3             AS dec_freekick_headed_clearance_rate_against_3,
+        freekick_direct_distance_avg_for_3                   AS dec_freekick_direct_distance_avg_for_3,
+        freekick_direct_distance_avg_against_3               AS dec_freekick_direct_distance_avg_against_3,
+        freekick_direct_angle_avg_for_3                      AS dec_freekick_direct_angle_avg_for_3,
+        freekick_direct_angle_avg_against_3                  AS dec_freekick_direct_angle_avg_against_3,
+        freekick_zone_direct_rate_for_3                      AS dec_freekick_zone_direct_rate_for_3,
+        freekick_zone_direct_rate_against_3                  AS dec_freekick_zone_direct_rate_against_3,
+        freekick_zone_crossed_rate_for_3                     AS dec_freekick_zone_crossed_rate_for_3,
+        freekick_zone_crossed_rate_against_3                 AS dec_freekick_zone_crossed_rate_against_3,
+        freekicks_for_5                                      AS int_freekicks_for_5,
+        freekick_danger_rate_for_5                           AS dec_freekick_danger_rate_for_5,
+        freekick_conversion_rate_for_5                       AS dec_freekick_conversion_rate_for_5,
+        freekicks_against_5                                  AS int_freekicks_against_5,
+        freekick_danger_rate_against_5                       AS dec_freekick_danger_rate_against_5,
+        freekick_conversion_rate_against_5                   AS dec_freekick_conversion_rate_against_5,
+        freekick_danger_intensity_for_5                      AS dec_freekick_danger_intensity_for_5,
+        freekick_danger_intensity_against_5                  AS dec_freekick_danger_intensity_against_5,
+        freekick_header_share_for_5                          AS dec_freekick_header_share_for_5,
+        freekick_header_share_against_5                      AS dec_freekick_header_share_against_5,
+        freekick_header_goal_share_for_5                     AS dec_freekick_header_goal_share_for_5,
+        freekick_header_goal_share_against_5                 AS dec_freekick_header_goal_share_against_5,
+        freekick_forced_bad_clearance_rate_for_5             AS dec_freekick_forced_bad_clearance_rate_for_5,
+        freekick_clearance_fail_rate_against_5               AS dec_freekick_clearance_fail_rate_against_5,
+        freekick_headed_clearance_rate_against_5             AS dec_freekick_headed_clearance_rate_against_5,
+        freekick_direct_distance_avg_for_5                   AS dec_freekick_direct_distance_avg_for_5,
+        freekick_direct_distance_avg_against_5               AS dec_freekick_direct_distance_avg_against_5,
+        freekick_direct_angle_avg_for_5                      AS dec_freekick_direct_angle_avg_for_5,
+        freekick_direct_angle_avg_against_5                  AS dec_freekick_direct_angle_avg_against_5,
+        freekick_zone_direct_rate_for_5                      AS dec_freekick_zone_direct_rate_for_5,
+        freekick_zone_direct_rate_against_5                  AS dec_freekick_zone_direct_rate_against_5,
+        freekick_zone_crossed_rate_for_5                     AS dec_freekick_zone_crossed_rate_for_5,
+        freekick_zone_crossed_rate_against_5                 AS dec_freekick_zone_crossed_rate_against_5,
+        freekicks_for_10                                     AS int_freekicks_for_10,
+        freekick_danger_rate_for_10                          AS dec_freekick_danger_rate_for_10,
+        freekick_conversion_rate_for_10                      AS dec_freekick_conversion_rate_for_10,
+        freekicks_against_10                                 AS int_freekicks_against_10,
+        freekick_danger_rate_against_10                      AS dec_freekick_danger_rate_against_10,
+        freekick_conversion_rate_against_10                  AS dec_freekick_conversion_rate_against_10,
+        freekick_danger_intensity_for_10                     AS dec_freekick_danger_intensity_for_10,
+        freekick_danger_intensity_against_10                 AS dec_freekick_danger_intensity_against_10,
+        freekick_header_share_for_10                         AS dec_freekick_header_share_for_10,
+        freekick_header_share_against_10                     AS dec_freekick_header_share_against_10,
+        freekick_header_goal_share_for_10                    AS dec_freekick_header_goal_share_for_10,
+        freekick_header_goal_share_against_10                AS dec_freekick_header_goal_share_against_10,
+        freekick_forced_bad_clearance_rate_for_10            AS dec_freekick_forced_bad_clearance_rate_for_10,
+        freekick_clearance_fail_rate_against_10              AS dec_freekick_clearance_fail_rate_against_10,
+        freekick_headed_clearance_rate_against_10            AS dec_freekick_headed_clearance_rate_against_10,
+        freekick_direct_distance_avg_for_10                  AS dec_freekick_direct_distance_avg_for_10,
+        freekick_direct_distance_avg_against_10              AS dec_freekick_direct_distance_avg_against_10,
+        freekick_direct_angle_avg_for_10                     AS dec_freekick_direct_angle_avg_for_10,
+        freekick_direct_angle_avg_against_10                 AS dec_freekick_direct_angle_avg_against_10,
+        freekick_zone_direct_rate_for_10                     AS dec_freekick_zone_direct_rate_for_10,
+        freekick_zone_direct_rate_against_10                 AS dec_freekick_zone_direct_rate_against_10,
+        freekick_zone_crossed_rate_for_10                    AS dec_freekick_zone_crossed_rate_for_10,
+        freekick_zone_crossed_rate_against_10                AS dec_freekick_zone_crossed_rate_against_10
+    FROM rolled
+)
+
+SELECT * FROM renamed
 
 {% if is_incremental() %}
-WHERE (match_id::VARCHAR || '_' || team_id) NOT IN (
-    SELECT (match_id::VARCHAR || '_' || team_id) FROM {{ this }}
+WHERE (str_match_id || '_' || str_team_id) NOT IN (
+    SELECT (str_match_id || '_' || str_team_id) FROM (
+    SELECT
+            str_match_id                                                 AS "str_match_id",
+            str_team_id                                                  AS "str_team_id",
+            dt_date                                                      AS "dt_date",
+            str_season                                                   AS "str_season",
+            str_league_source                                            AS "str_league_source",
+            CAST(int_freekicks_for_3 AS HUGEINT)                         AS "int_freekicks_for_3",
+            dec_freekick_danger_rate_for_3                               AS "dec_freekick_danger_rate_for_3",
+            dec_freekick_conversion_rate_for_3                           AS "dec_freekick_conversion_rate_for_3",
+            CAST(int_freekicks_against_3 AS HUGEINT)                     AS "int_freekicks_against_3",
+            dec_freekick_danger_rate_against_3                           AS "dec_freekick_danger_rate_against_3",
+            dec_freekick_conversion_rate_against_3                       AS "dec_freekick_conversion_rate_against_3",
+            dec_freekick_danger_intensity_for_3                          AS "dec_freekick_danger_intensity_for_3",
+            dec_freekick_danger_intensity_against_3                      AS "dec_freekick_danger_intensity_against_3",
+            dec_freekick_header_share_for_3                              AS "dec_freekick_header_share_for_3",
+            dec_freekick_header_share_against_3                          AS "dec_freekick_header_share_against_3",
+            dec_freekick_header_goal_share_for_3                         AS "dec_freekick_header_goal_share_for_3",
+            dec_freekick_header_goal_share_against_3                     AS "dec_freekick_header_goal_share_against_3",
+            dec_freekick_forced_bad_clearance_rate_for_3                 AS "dec_freekick_forced_bad_clearance_rate_for_3",
+            dec_freekick_clearance_fail_rate_against_3                   AS "dec_freekick_clearance_fail_rate_against_3",
+            dec_freekick_headed_clearance_rate_against_3                 AS "dec_freekick_headed_clearance_rate_against_3",
+            dec_freekick_direct_distance_avg_for_3                       AS "dec_freekick_direct_distance_avg_for_3",
+            dec_freekick_direct_distance_avg_against_3                   AS "dec_freekick_direct_distance_avg_against_3",
+            dec_freekick_direct_angle_avg_for_3                          AS "dec_freekick_direct_angle_avg_for_3",
+            dec_freekick_direct_angle_avg_against_3                      AS "dec_freekick_direct_angle_avg_against_3",
+            dec_freekick_zone_direct_rate_for_3                          AS "dec_freekick_zone_direct_rate_for_3",
+            dec_freekick_zone_direct_rate_against_3                      AS "dec_freekick_zone_direct_rate_against_3",
+            dec_freekick_zone_crossed_rate_for_3                         AS "dec_freekick_zone_crossed_rate_for_3",
+            dec_freekick_zone_crossed_rate_against_3                     AS "dec_freekick_zone_crossed_rate_against_3",
+            CAST(int_freekicks_for_5 AS HUGEINT)                         AS "int_freekicks_for_5",
+            dec_freekick_danger_rate_for_5                               AS "dec_freekick_danger_rate_for_5",
+            dec_freekick_conversion_rate_for_5                           AS "dec_freekick_conversion_rate_for_5",
+            CAST(int_freekicks_against_5 AS HUGEINT)                     AS "int_freekicks_against_5",
+            dec_freekick_danger_rate_against_5                           AS "dec_freekick_danger_rate_against_5",
+            dec_freekick_conversion_rate_against_5                       AS "dec_freekick_conversion_rate_against_5",
+            dec_freekick_danger_intensity_for_5                          AS "dec_freekick_danger_intensity_for_5",
+            dec_freekick_danger_intensity_against_5                      AS "dec_freekick_danger_intensity_against_5",
+            dec_freekick_header_share_for_5                              AS "dec_freekick_header_share_for_5",
+            dec_freekick_header_share_against_5                          AS "dec_freekick_header_share_against_5",
+            dec_freekick_header_goal_share_for_5                         AS "dec_freekick_header_goal_share_for_5",
+            dec_freekick_header_goal_share_against_5                     AS "dec_freekick_header_goal_share_against_5",
+            dec_freekick_forced_bad_clearance_rate_for_5                 AS "dec_freekick_forced_bad_clearance_rate_for_5",
+            dec_freekick_clearance_fail_rate_against_5                   AS "dec_freekick_clearance_fail_rate_against_5",
+            dec_freekick_headed_clearance_rate_against_5                 AS "dec_freekick_headed_clearance_rate_against_5",
+            dec_freekick_direct_distance_avg_for_5                       AS "dec_freekick_direct_distance_avg_for_5",
+            dec_freekick_direct_distance_avg_against_5                   AS "dec_freekick_direct_distance_avg_against_5",
+            dec_freekick_direct_angle_avg_for_5                          AS "dec_freekick_direct_angle_avg_for_5",
+            dec_freekick_direct_angle_avg_against_5                      AS "dec_freekick_direct_angle_avg_against_5",
+            dec_freekick_zone_direct_rate_for_5                          AS "dec_freekick_zone_direct_rate_for_5",
+            dec_freekick_zone_direct_rate_against_5                      AS "dec_freekick_zone_direct_rate_against_5",
+            dec_freekick_zone_crossed_rate_for_5                         AS "dec_freekick_zone_crossed_rate_for_5",
+            dec_freekick_zone_crossed_rate_against_5                     AS "dec_freekick_zone_crossed_rate_against_5",
+            CAST(int_freekicks_for_10 AS HUGEINT)                        AS "int_freekicks_for_10",
+            dec_freekick_danger_rate_for_10                              AS "dec_freekick_danger_rate_for_10",
+            dec_freekick_conversion_rate_for_10                          AS "dec_freekick_conversion_rate_for_10",
+            CAST(int_freekicks_against_10 AS HUGEINT)                    AS "int_freekicks_against_10",
+            dec_freekick_danger_rate_against_10                          AS "dec_freekick_danger_rate_against_10",
+            dec_freekick_conversion_rate_against_10                      AS "dec_freekick_conversion_rate_against_10",
+            dec_freekick_danger_intensity_for_10                         AS "dec_freekick_danger_intensity_for_10",
+            dec_freekick_danger_intensity_against_10                     AS "dec_freekick_danger_intensity_against_10",
+            dec_freekick_header_share_for_10                             AS "dec_freekick_header_share_for_10",
+            dec_freekick_header_share_against_10                         AS "dec_freekick_header_share_against_10",
+            dec_freekick_header_goal_share_for_10                        AS "dec_freekick_header_goal_share_for_10",
+            dec_freekick_header_goal_share_against_10                    AS "dec_freekick_header_goal_share_against_10",
+            dec_freekick_forced_bad_clearance_rate_for_10                AS "dec_freekick_forced_bad_clearance_rate_for_10",
+            dec_freekick_clearance_fail_rate_against_10                  AS "dec_freekick_clearance_fail_rate_against_10",
+            dec_freekick_headed_clearance_rate_against_10                AS "dec_freekick_headed_clearance_rate_against_10",
+            dec_freekick_direct_distance_avg_for_10                      AS "dec_freekick_direct_distance_avg_for_10",
+            dec_freekick_direct_distance_avg_against_10                  AS "dec_freekick_direct_distance_avg_against_10",
+            dec_freekick_direct_angle_avg_for_10                         AS "dec_freekick_direct_angle_avg_for_10",
+            dec_freekick_direct_angle_avg_against_10                     AS "dec_freekick_direct_angle_avg_against_10",
+            dec_freekick_zone_direct_rate_for_10                         AS "dec_freekick_zone_direct_rate_for_10",
+            dec_freekick_zone_direct_rate_against_10                     AS "dec_freekick_zone_direct_rate_against_10",
+            dec_freekick_zone_crossed_rate_for_10                        AS "dec_freekick_zone_crossed_rate_for_10",
+            dec_freekick_zone_crossed_rate_against_10                    AS "dec_freekick_zone_crossed_rate_against_10"
+        FROM {{ this }}
+    )
 )
 {% endif %}
+),
+
+mdl_out AS (
+    SELECT
+        "str_match_id"                                               AS str_match_id,
+        "str_team_id"                                                AS str_team_id,
+        "dt_date"                                                    AS dt_date,
+        "str_season"                                                 AS str_season,
+        "str_league_source"                                          AS str_league_source,
+        CAST(int_freekicks_for_3 AS BIGINT)                          AS int_freekicks_for_3,
+        "dec_freekick_danger_rate_for_3"                             AS dec_freekick_danger_rate_for_3,
+        "dec_freekick_conversion_rate_for_3"                         AS dec_freekick_conversion_rate_for_3,
+        CAST(int_freekicks_against_3 AS BIGINT)                      AS int_freekicks_against_3,
+        "dec_freekick_danger_rate_against_3"                         AS dec_freekick_danger_rate_against_3,
+        "dec_freekick_conversion_rate_against_3"                     AS dec_freekick_conversion_rate_against_3,
+        "dec_freekick_danger_intensity_for_3"                        AS dec_freekick_danger_intensity_for_3,
+        "dec_freekick_danger_intensity_against_3"                    AS dec_freekick_danger_intensity_against_3,
+        "dec_freekick_header_share_for_3"                            AS dec_freekick_header_share_for_3,
+        "dec_freekick_header_share_against_3"                        AS dec_freekick_header_share_against_3,
+        "dec_freekick_header_goal_share_for_3"                       AS dec_freekick_header_goal_share_for_3,
+        "dec_freekick_header_goal_share_against_3"                   AS dec_freekick_header_goal_share_against_3,
+        "dec_freekick_forced_bad_clearance_rate_for_3"               AS dec_freekick_forced_bad_clearance_rate_for_3,
+        "dec_freekick_clearance_fail_rate_against_3"                 AS dec_freekick_clearance_fail_rate_against_3,
+        "dec_freekick_headed_clearance_rate_against_3"               AS dec_freekick_headed_clearance_rate_against_3,
+        "dec_freekick_direct_distance_avg_for_3"                     AS dec_freekick_direct_distance_avg_for_3,
+        "dec_freekick_direct_distance_avg_against_3"                 AS dec_freekick_direct_distance_avg_against_3,
+        "dec_freekick_direct_angle_avg_for_3"                        AS dec_freekick_direct_angle_avg_for_3,
+        "dec_freekick_direct_angle_avg_against_3"                    AS dec_freekick_direct_angle_avg_against_3,
+        "dec_freekick_zone_direct_rate_for_3"                        AS dec_freekick_zone_direct_rate_for_3,
+        "dec_freekick_zone_direct_rate_against_3"                    AS dec_freekick_zone_direct_rate_against_3,
+        "dec_freekick_zone_crossed_rate_for_3"                       AS dec_freekick_zone_crossed_rate_for_3,
+        "dec_freekick_zone_crossed_rate_against_3"                   AS dec_freekick_zone_crossed_rate_against_3,
+        CAST(int_freekicks_for_5 AS BIGINT)                          AS int_freekicks_for_5,
+        "dec_freekick_danger_rate_for_5"                             AS dec_freekick_danger_rate_for_5,
+        "dec_freekick_conversion_rate_for_5"                         AS dec_freekick_conversion_rate_for_5,
+        CAST(int_freekicks_against_5 AS BIGINT)                      AS int_freekicks_against_5,
+        "dec_freekick_danger_rate_against_5"                         AS dec_freekick_danger_rate_against_5,
+        "dec_freekick_conversion_rate_against_5"                     AS dec_freekick_conversion_rate_against_5,
+        "dec_freekick_danger_intensity_for_5"                        AS dec_freekick_danger_intensity_for_5,
+        "dec_freekick_danger_intensity_against_5"                    AS dec_freekick_danger_intensity_against_5,
+        "dec_freekick_header_share_for_5"                            AS dec_freekick_header_share_for_5,
+        "dec_freekick_header_share_against_5"                        AS dec_freekick_header_share_against_5,
+        "dec_freekick_header_goal_share_for_5"                       AS dec_freekick_header_goal_share_for_5,
+        "dec_freekick_header_goal_share_against_5"                   AS dec_freekick_header_goal_share_against_5,
+        "dec_freekick_forced_bad_clearance_rate_for_5"               AS dec_freekick_forced_bad_clearance_rate_for_5,
+        "dec_freekick_clearance_fail_rate_against_5"                 AS dec_freekick_clearance_fail_rate_against_5,
+        "dec_freekick_headed_clearance_rate_against_5"               AS dec_freekick_headed_clearance_rate_against_5,
+        "dec_freekick_direct_distance_avg_for_5"                     AS dec_freekick_direct_distance_avg_for_5,
+        "dec_freekick_direct_distance_avg_against_5"                 AS dec_freekick_direct_distance_avg_against_5,
+        "dec_freekick_direct_angle_avg_for_5"                        AS dec_freekick_direct_angle_avg_for_5,
+        "dec_freekick_direct_angle_avg_against_5"                    AS dec_freekick_direct_angle_avg_against_5,
+        "dec_freekick_zone_direct_rate_for_5"                        AS dec_freekick_zone_direct_rate_for_5,
+        "dec_freekick_zone_direct_rate_against_5"                    AS dec_freekick_zone_direct_rate_against_5,
+        "dec_freekick_zone_crossed_rate_for_5"                       AS dec_freekick_zone_crossed_rate_for_5,
+        "dec_freekick_zone_crossed_rate_against_5"                   AS dec_freekick_zone_crossed_rate_against_5,
+        CAST(int_freekicks_for_10 AS BIGINT)                         AS int_freekicks_for_10,
+        "dec_freekick_danger_rate_for_10"                            AS dec_freekick_danger_rate_for_10,
+        "dec_freekick_conversion_rate_for_10"                        AS dec_freekick_conversion_rate_for_10,
+        CAST(int_freekicks_against_10 AS BIGINT)                     AS int_freekicks_against_10,
+        "dec_freekick_danger_rate_against_10"                        AS dec_freekick_danger_rate_against_10,
+        "dec_freekick_conversion_rate_against_10"                    AS dec_freekick_conversion_rate_against_10,
+        "dec_freekick_danger_intensity_for_10"                       AS dec_freekick_danger_intensity_for_10,
+        "dec_freekick_danger_intensity_against_10"                   AS dec_freekick_danger_intensity_against_10,
+        "dec_freekick_header_share_for_10"                           AS dec_freekick_header_share_for_10,
+        "dec_freekick_header_share_against_10"                       AS dec_freekick_header_share_against_10,
+        "dec_freekick_header_goal_share_for_10"                      AS dec_freekick_header_goal_share_for_10,
+        "dec_freekick_header_goal_share_against_10"                  AS dec_freekick_header_goal_share_against_10,
+        "dec_freekick_forced_bad_clearance_rate_for_10"              AS dec_freekick_forced_bad_clearance_rate_for_10,
+        "dec_freekick_clearance_fail_rate_against_10"                AS dec_freekick_clearance_fail_rate_against_10,
+        "dec_freekick_headed_clearance_rate_against_10"              AS dec_freekick_headed_clearance_rate_against_10,
+        "dec_freekick_direct_distance_avg_for_10"                    AS dec_freekick_direct_distance_avg_for_10,
+        "dec_freekick_direct_distance_avg_against_10"                AS dec_freekick_direct_distance_avg_against_10,
+        "dec_freekick_direct_angle_avg_for_10"                       AS dec_freekick_direct_angle_avg_for_10,
+        "dec_freekick_direct_angle_avg_against_10"                   AS dec_freekick_direct_angle_avg_against_10,
+        "dec_freekick_zone_direct_rate_for_10"                       AS dec_freekick_zone_direct_rate_for_10,
+        "dec_freekick_zone_direct_rate_against_10"                   AS dec_freekick_zone_direct_rate_against_10,
+        "dec_freekick_zone_crossed_rate_for_10"                      AS dec_freekick_zone_crossed_rate_for_10,
+        "dec_freekick_zone_crossed_rate_against_10"                  AS dec_freekick_zone_crossed_rate_against_10
+    FROM mdl_body
+)
+
+SELECT * FROM mdl_out

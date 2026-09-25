@@ -1,27 +1,135 @@
 {{
     config(
         materialized='incremental',
-        unique_key=['match_id', 'team_id'],
+        unique_key=['str_match_id', 'str_team_id'],
         on_schema_change='sync_all_columns',
         schema='intermediate',
         alias='team_features_ws'
     )
 }}
 
+-- ══ Refonte nommage (préfixe de type en tête de nom : str_, int_, dec_, dt_, bool_) ══
+-- Entrées : les modèles amont refondus sont relus via des CTE in_<modèle> qui les
+-- remappent vers les noms/types de travail utilisés par la logique ci-dessous
+-- (inchangée). Sortie : CTE mdl_out, renommage + cast selon le type logique.
+
+WITH
+
+-- events_qual lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_events_qual AS (
+    SELECT
+        str_match_id                                                 AS "match_id",
+        CAST(str_team_id AS BIGINT)                                  AS "team_id",
+        CAST(str_player_id AS INTEGER)                               AS "player_id",
+        CAST(str_event_id AS INTEGER)                                AS "event_id",
+        int_minute                                                   AS "minute",
+        int_second                                                   AS "second",
+        int_expanded_minute                                          AS "expanded_minute",
+        int_period                                                   AS "period",
+        dec_x                                                        AS "x",
+        dec_y                                                        AS "y",
+        dec_end_x                                                    AS "end_x",
+        dec_end_y                                                    AS "end_y",
+        CAST(str_type_id AS INTEGER)                                 AS "type_id",
+        str_type_name                                                AS "type_name",
+        CAST(str_outcome_id AS INTEGER)                              AS "outcome_id",
+        bool_is_touch                                                AS "is_touch",
+        bool_is_shot                                                 AS "is_shot",
+        int_row_num                                                  AS "row_num",
+        CAST(str_qual_type_id AS INTEGER)                            AS "qual_type_id",
+        str_qual_type_name                                           AS "qual_type_name",
+        str_qual_value                                               AS "qual_value"
+    FROM {{ ref('events_qual') }}
+),
+
+-- int_whoscored_events lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_int_whoscored_events AS (
+    SELECT
+        str_match_id                                                 AS "match_id",
+        CAST(str_team_id AS BIGINT)                                  AS "team_id",
+        CAST(str_event_id AS INTEGER)                                AS "event_id",
+        str_league_source                                            AS "league_source",
+        str_season                                                   AS "season",
+        int_minute                                                   AS "minute",
+        int_second                                                   AS "second",
+        int_expanded_minute                                          AS "expanded_minute",
+        int_period                                                   AS "period",
+        CAST(str_player_id AS INTEGER)                               AS "player_id",
+        dec_x                                                        AS "x",
+        dec_y                                                        AS "y",
+        dec_end_x                                                    AS "end_x",
+        dec_end_y                                                    AS "end_y",
+        CAST(str_type_id AS INTEGER)                                 AS "type_id",
+        str_type_name                                                AS "type_name",
+        CAST(str_outcome_id AS INTEGER)                              AS "outcome_id",
+        str_outcome_name                                             AS "outcome_name",
+        bool_is_touch                                                AS "is_touch",
+        bool_is_shot                                                 AS "is_shot",
+        -- qualifiers_json non lu : absent de la sortie Spark (retiré par spark_events.py)
+        CAST(dt_scraped_at AS VARCHAR)                               AS "scraped_at",
+        int_row_num                                                  AS "row_num",
+        bool_is_goal                                                 AS "is_goal",
+        bool_is_own_goal                                             AS "is_own_goal",
+        CAST(str_related_event_id AS INTEGER)                        AS "related_event_id",
+        CAST(str_related_player_id AS INTEGER)                       AS "related_player_id",
+        str_card_type                                                AS "card_type",
+        dec_goal_mouth_y                                             AS "goal_mouth_y",
+        dec_goal_mouth_z                                             AS "goal_mouth_z",
+        dec_blocked_x                                                AS "blocked_x",
+        dec_blocked_y                                                AS "blocked_y"
+    FROM {{ ref('int_whoscored_events') }}
+),
+
+mdl_body AS (
 WITH
 
 -- 1. FILTRE INCRÉMENTAL STRICT (LEFT JOIN au lieu de NOT IN)
 {% if is_incremental() %}
 new_match_ids AS (
     SELECT DISTINCT e.match_id
-    FROM {{ ref('int_whoscored_events') }} e
-    LEFT JOIN {{ this }} t ON e.match_id = t.match_id
+    FROM in_int_whoscored_events e
+    LEFT JOIN (
+    SELECT
+            str_match_id                                                 AS "match_id",
+            CAST(str_team_id AS BIGINT)                                  AS "team_id",
+            dec_ws_field_tilt_actions                                    AS "ws_field_tilt_actions",
+            dec_ws_high_turnover_rate                                    AS "ws_high_turnover_rate",
+            dec_ws_deep_completion_rt                                    AS "ws_deep_completion_rt",
+            dec_ws_momentum_delta                                        AS "ws_momentum_delta",
+            dec_ws_counter_shot_rate                                     AS "ws_counter_shot_rate",
+            dec_ws_set_piece_pressure                                    AS "ws_set_piece_pressure",
+            dec_ws_attack_left_pct                                       AS "ws_attack_left_pct",
+            dec_ws_attack_center_pct                                     AS "ws_attack_center_pct",
+            dec_ws_attack_right_pct                                      AS "ws_attack_right_pct",
+            dec_ws_zone_def_pct                                          AS "ws_zone_def_pct",
+            dec_ws_zone_mid_pct                                          AS "ws_zone_mid_pct",
+            dec_ws_zone_att_pct                                          AS "ws_zone_att_pct",
+            dec_ws_shot_six_yard_pct                                     AS "ws_shot_six_yard_pct",
+            dec_ws_shot_penalty_pct                                      AS "ws_shot_penalty_pct",
+            dec_ws_shot_oob_pct                                          AS "ws_shot_oob_pct",
+            dec_ws_shot_open_play_pct                                    AS "ws_shot_open_play_pct",
+            dec_ws_shot_set_piece_pct                                    AS "ws_shot_set_piece_pct",
+            dec_ws_shot_penalty_att_pct                                  AS "ws_shot_penalty_att_pct",
+            dec_ws_conversion_rate                                       AS "ws_conversion_rate",
+            dec_ws_cross_rate                                            AS "ws_cross_rate",
+            dec_ws_through_ball_rate                                     AS "ws_through_ball_rate",
+            dec_ws_long_ball_rate                                        AS "ws_long_ball_rate",
+            dec_ws_short_pass_rate                                       AS "ws_short_pass_rate",
+            dec_ws_def_exposed_left_pct                                  AS "ws_def_exposed_left_pct",
+            dec_ws_def_exposed_center_pct                                AS "ws_def_exposed_center_pct",
+            dec_ws_def_exposed_right_pct                                 AS "ws_def_exposed_right_pct",
+            dec_ws_counter_attack_dna                                    AS "ws_counter_attack_dna",
+            dec_ws_midfield_control_idx                                  AS "ws_midfield_control_idx",
+            dec_ws_defensive_line_height                                 AS "ws_defensive_line_height",
+            dec_ws_flank_exposure_asymm                                  AS "ws_flank_exposure_asymm"
+        FROM {{ this }}
+    ) t ON e.match_id = t.match_id
     WHERE t.match_id IS NULL
 ),
 {% else %}
 new_match_ids AS (
     SELECT DISTINCT match_id
-    FROM {{ ref('int_whoscored_events') }}
+    FROM in_int_whoscored_events
 ),
 {% endif %}
 
@@ -31,7 +139,7 @@ match_teams AS (
         match_id, 
         MIN(team_id) AS team_1, 
         MAX(team_id) AS team_2
-    FROM {{ ref('int_whoscored_events') }}
+    FROM in_int_whoscored_events
     WHERE match_id IN (SELECT match_id FROM new_match_ids)
     GROUP BY match_id
 ),
@@ -51,7 +159,7 @@ events_base AS (
         COUNT(*) FILTER (WHERE e.x BETWEEN 33 AND 66 AND e.type_id IN (1,7,8) AND e.outcome_id = 1) 
             OVER (PARTITION BY e.match_id) AS match_total_midfield_actions
             
-    FROM {{ ref('int_whoscored_events') }} e
+    FROM in_int_whoscored_events e
     INNER JOIN new_match_ids n ON e.match_id = n.match_id
     INNER JOIN match_teams mt ON e.match_id = mt.match_id
 ),
@@ -131,7 +239,7 @@ qualifier_features AS (
         COUNT(DISTINCT row_num) FILTER (WHERE type_id = 1 AND qual_type_id = 2)         AS passes_cross,
         COUNT(DISTINCT row_num) FILTER (WHERE type_id = 1 AND qual_type_id = 155)       AS passes_through_ball,
         COUNT(DISTINCT row_num) FILTER (WHERE type_id = 1 AND qual_type_id = 1)         AS passes_long_ball
-    FROM {{ ref('events_qual') }}
+    FROM in_events_qual
     WHERE match_id IN (SELECT match_id FROM new_match_ids)
     GROUP BY match_id, team_id
 ),
@@ -201,3 +309,43 @@ FROM master_agg b
 LEFT JOIN qualifier_features q ON b.match_id = q.match_id AND b.team_id = q.team_id
 LEFT JOIN momentum_agg       m ON b.match_id = m.match_id AND b.team_id = m.team_id
 LEFT JOIN defensive_exposure de ON b.match_id = de.match_id AND b.team_id = de.team_id
+),
+
+mdl_out AS (
+    SELECT
+        "match_id"                                                   AS str_match_id,
+        CAST(team_id AS VARCHAR)                                     AS str_team_id,
+        "ws_field_tilt_actions"                                      AS dec_ws_field_tilt_actions,
+        "ws_high_turnover_rate"                                      AS dec_ws_high_turnover_rate,
+        "ws_deep_completion_rt"                                      AS dec_ws_deep_completion_rt,
+        "ws_momentum_delta"                                          AS dec_ws_momentum_delta,
+        "ws_counter_shot_rate"                                       AS dec_ws_counter_shot_rate,
+        "ws_set_piece_pressure"                                      AS dec_ws_set_piece_pressure,
+        "ws_attack_left_pct"                                         AS dec_ws_attack_left_pct,
+        "ws_attack_center_pct"                                       AS dec_ws_attack_center_pct,
+        "ws_attack_right_pct"                                        AS dec_ws_attack_right_pct,
+        "ws_zone_def_pct"                                            AS dec_ws_zone_def_pct,
+        "ws_zone_mid_pct"                                            AS dec_ws_zone_mid_pct,
+        "ws_zone_att_pct"                                            AS dec_ws_zone_att_pct,
+        "ws_shot_six_yard_pct"                                       AS dec_ws_shot_six_yard_pct,
+        "ws_shot_penalty_pct"                                        AS dec_ws_shot_penalty_pct,
+        "ws_shot_oob_pct"                                            AS dec_ws_shot_oob_pct,
+        "ws_shot_open_play_pct"                                      AS dec_ws_shot_open_play_pct,
+        "ws_shot_set_piece_pct"                                      AS dec_ws_shot_set_piece_pct,
+        "ws_shot_penalty_att_pct"                                    AS dec_ws_shot_penalty_att_pct,
+        "ws_conversion_rate"                                         AS dec_ws_conversion_rate,
+        "ws_cross_rate"                                              AS dec_ws_cross_rate,
+        "ws_through_ball_rate"                                       AS dec_ws_through_ball_rate,
+        "ws_long_ball_rate"                                          AS dec_ws_long_ball_rate,
+        "ws_short_pass_rate"                                         AS dec_ws_short_pass_rate,
+        "ws_def_exposed_left_pct"                                    AS dec_ws_def_exposed_left_pct,
+        "ws_def_exposed_center_pct"                                  AS dec_ws_def_exposed_center_pct,
+        "ws_def_exposed_right_pct"                                   AS dec_ws_def_exposed_right_pct,
+        "ws_counter_attack_dna"                                      AS dec_ws_counter_attack_dna,
+        "ws_midfield_control_idx"                                    AS dec_ws_midfield_control_idx,
+        "ws_defensive_line_height"                                   AS dec_ws_defensive_line_height,
+        "ws_flank_exposure_asymm"                                    AS dec_ws_flank_exposure_asymm
+    FROM mdl_body
+)
+
+SELECT * FROM mdl_out

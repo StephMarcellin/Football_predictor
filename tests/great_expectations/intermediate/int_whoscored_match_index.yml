@@ -15,9 +15,9 @@ source:
   duckdb_path: db/football.duckdb
   query: |
     SELECT
-      ws_match_id, match_id, team_id, opponent_id,
-      ws_home_team_id, ws_away_team_id,
-      match_date, league_source, season, comp_category
+      str_ws_match_id, str_match_id, str_team_id, str_opponent_id,
+      str_ws_home_team_id, str_ws_away_team_id,
+      dt_match_date, str_league_source, str_season, str_comp_category
     FROM intermediate.int_whoscored_match_index
 
 expectations:
@@ -37,27 +37,27 @@ expectations:
   # Colonnes structurelles jamais NULL
   - type: expect_column_values_to_not_be_null
     for_each_column:
-      - ws_match_id
-      - ws_home_team_id
-      - ws_away_team_id
-      - match_date
-      - league_source
-      - season
-      - comp_category
+      - str_ws_match_id
+      - str_ws_home_team_id
+      - str_ws_away_team_id
+      - dt_match_date
+      - str_league_source
+      - str_season
+      - str_comp_category
     kwargs: { mostly: 1.0 }
     # severity: error
     severity: warn
 
   # match_id : 4.4 % NULL empirique + marge 5 pts → mostly = 0.90
   - type: expect_column_values_to_not_be_null
-    kwargs: { column: match_id, mostly: 0.90 }
+    kwargs: { column: str_match_id, mostly: 0.90 }
     # severity: error
     severity: warn
     meta: { description: "Empirique 4.4 % NULL (1 718 lignes) — non résolus au match_registry." }
 
   # team_id / opponent_id : 2.2 % NULL empirique + marge 5 pts → mostly = 0.92
   - type: expect_column_values_to_not_be_null
-    for_each_column: [team_id, opponent_id]
+    for_each_column: [str_team_id, str_opponent_id]
     kwargs: { mostly: 0.92 }
     # severity: error
     severity: warn
@@ -69,7 +69,7 @@ expectations:
   # IDs numériques bornés — ws_match_id est VARCHAR (id textuel), on ne le teste
   # pas en borne numérique ici (test structure `matches_regex` côté dbt).
   - type: expect_column_values_to_be_between
-    for_each_column: [ws_home_team_id, ws_away_team_id]
+    for_each_column: [str_ws_home_team_id, str_ws_away_team_id]
     kwargs: { min_value: 1, max_value: 999999999, mostly: 1.0 }
     # severity: error
     severity: warn
@@ -80,7 +80,7 @@ expectations:
   # Un match n'oppose pas une équipe à elle-même (côté WhoScored brut)
   - type: expect_row_condition_to_hold
     kwargs:
-      condition: "ws_home_team_id != ws_away_team_id"
+      condition: "str_ws_home_team_id != str_ws_away_team_id"
     # severity: error
     severity: warn
     meta: { description: "Home ≠ Away (ws bruts)." }
@@ -88,7 +88,7 @@ expectations:
   # Idem côté ids canoniques (quand résolus)
   - type: expect_row_condition_to_hold
     kwargs:
-      condition: "team_id.isna() or opponent_id.isna() or team_id != opponent_id"
+      condition: "str_team_id.isna() or str_opponent_id.isna() or str_team_id != str_opponent_id"
     # severity: error
     severity: warn
     meta: { description: "Home ≠ Away (ids canoniques quand résolus)." }
@@ -100,7 +100,7 @@ expectations:
   # ────────────────────────────────────────────────────────────────────────────
   - type: expect_partition_volume_stability
     kwargs:
-      partition_col: season
+      partition_col: str_season
       max_deviation_warn: 0.30
       max_deviation_error: 0.60
       min_seasons_history: 2

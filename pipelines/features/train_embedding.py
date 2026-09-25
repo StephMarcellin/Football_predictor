@@ -35,21 +35,23 @@ MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
 MIN_APPS = CFG["knn"]["min_apps"]
 
+# Noms refondus (préfixe de type en tête), tels qu'exposés par gold.joueur_saison.
 NON_ZONAL_FEATURES = [
-    "scorer_xg_per90_lag", "scorer_shots_per90_lag",
-    "off_xg_per_shot_lag", "off_chances_created_per90_lag", "off_key_passes_per90_lag",
-    "def_aerial_win_rate_lag", "def_actions_per90_lag", "def_errors_per90_lag",
-    "player_card_propensity_lag",
-    "off_xgchain_per90_lag", "off_xgbuildup_per90_lag",
-    "scorer_team_shot_share_lag", "scorer_penalty_taker_lag", "scorer_freekick_taker_lag",
-    "def_threat_conceded_per90_lag", "scorer_xgot_overperformance_lag",
+    "dec_scorer_xg_per90_lag", "dec_scorer_shots_per90_lag",
+    "dec_off_xg_per_shot_lag", "dec_off_chances_created_per90_lag", "dec_off_key_passes_per90_lag",
+    "dec_def_aerial_win_rate_lag", "dec_def_actions_per90_lag", "dec_def_errors_per90_lag",
+    "dec_player_card_propensity_lag",
+    "dec_off_xgchain_per90_lag", "dec_off_xgbuildup_per90_lag",
+    "dec_scorer_team_shot_share_lag", "int_scorer_penalty_taker_lag", "int_scorer_freekick_taker_lag",
+    "dec_def_threat_conceded_per90_lag", "dec_scorer_xgot_overperformance_lag",
 ]
 
+# Noms refondus, tels qu'exposés par gold.joueur_zone_saison.
 ZONAL_FEATURES = [
-    "off_touch_share_by_zone_lag", "off_shot_volume_by_zone_lag",
-    "off_danger_by_zone_lag", "off_progressive_actions_by_zone_lag",
-    "off_cross_volume_by_zone_lag",
-    "def_duel_win_rate_by_zone_lag", "def_actions_by_zone_lag",
+    "dec_off_touch_share_by_zone_lag", "dec_off_shot_volume_by_zone_lag",
+    "dec_off_danger_by_zone_lag", "dec_off_progressive_actions_by_zone_lag",
+    "dec_off_cross_volume_by_zone_lag",
+    "dec_def_duel_win_rate_by_zone_lag", "dec_def_actions_by_zone_lag",
 ]
 
 AE_CFG = {
@@ -82,33 +84,33 @@ def build_features_matrix(con, seasons, min_apps=0):
     nz = con.sql(f"""
         WITH latest AS (
             SELECT *, row_number() OVER (
-                PARTITION BY player_id, season ORDER BY date DESC, match_id DESC) rn
+                PARTITION BY str_player_id, str_season ORDER BY dt_date DESC, str_match_id DESC) rn
             FROM gold.joueur_saison
-            WHERE season IN ({','.join(['?']*len(seasons))})
+            WHERE str_season IN ({','.join(['?']*len(seasons))})
         )
-        SELECT player_id, season, n_apps_lag, minutes_lag, {non_zonal_cols}
+        SELECT str_player_id, str_season, int_n_apps_lag, int_minutes_lag, {non_zonal_cols}
         FROM latest WHERE rn = 1
     """, params=seasons).df()
 
     zonal_cols = ",".join(ZONAL_FEATURES)
     zt = con.sql(f"""
-        SELECT player_id, season, zone_5x5, {zonal_cols}
+        SELECT str_player_id, str_season, str_zone_5x5, {zonal_cols}
         FROM gold.joueur_zone_saison
-        WHERE season IN ({','.join(['?']*len(seasons))})
+        WHERE str_season IN ({','.join(['?']*len(seasons))})
     """, params=seasons).df()
 
     if zt.empty:
-        zw = pd.DataFrame(columns=["player_id", "season"])
+        zw = pd.DataFrame(columns=["str_player_id", "str_season"])
     else:
-        zw = zt.pivot(index=["player_id", "season"], columns="zone_5x5", values=ZONAL_FEATURES)
+        zw = zt.pivot(index=["str_player_id", "str_season"], columns="str_zone_5x5", values=ZONAL_FEATURES)
         zw.columns = [f"{feat.replace('_by_zone_lag', '')}_{cell}" for feat, cell in zw.columns]
         zw = zw.reset_index()
 
-    df = nz.merge(zw, on=["player_id", "season"], how="left")
+    df = nz.merge(zw, on=["str_player_id", "str_season"], how="left")
     if min_apps > 0:
-        df = df[df["n_apps_lag"] >= min_apps].reset_index(drop=True)
+        df = df[df["int_n_apps_lag"] >= min_apps].reset_index(drop=True)
 
-    context_cols = ["player_id", "season", "n_apps_lag", "minutes_lag"]
+    context_cols = ["str_player_id", "str_season", "int_n_apps_lag", "int_minutes_lag"]
     feature_cols = [c for c in df.columns if c not in context_cols]
 
     X = df[feature_cols].fillna(0.0).values.astype("float32")
@@ -213,16 +215,16 @@ def write_embeddings(con, df, table="machine_learning.player_embedding_lag"):
 
 def validate_embedding(con, table="machine_learning.player_embedding_lag"):
     df = con.sql(f"""
-        SELECT e.*, r.role_fin_lag AS role
+        SELECT e.*, r.str_role_fin_lag AS str_role
         FROM {table} e
         LEFT JOIN intermediate.int_player_role_lag r
-          ON r.player_id = e.player_id AND r.season = e.season
-        WHERE r.role_fin_lag IS NOT NULL
+          ON r.str_player_id = e.str_player_id AND r.str_season = e.str_season
+        WHERE r.str_role_fin_lag IS NOT NULL
     """).df()
-    emb_cols = [c for c in df.columns if c.startswith("emb_")]
+    emb_cols = [c for c in df.columns if c.startswith("dec_emb_")]
     global_var = float(df[emb_cols].var().mean())
-    intra_var = float(df.groupby("role")[emb_cols].var().mean().mean())
-    inter_var = float(df.groupby("role")[emb_cols].mean().var().mean())
+    intra_var = float(df.groupby("str_role")[emb_cols].var().mean().mean())
+    inter_var = float(df.groupby("str_role")[emb_cols].mean().var().mean())
     ratio = inter_var / intra_var if intra_var > 0 else float("nan")
     print(f"\n=== Contrôle qualité embedding (par role_fin_lag) ===")
     print(f"Variance globale        : {global_var:.4f}")
@@ -245,7 +247,7 @@ def main():
     args = parser.parse_args()
 
     con = duckdb.connect(str(DB_PATH))
-    all_seasons = sorted([r[0] for r in con.sql("SELECT DISTINCT season FROM gold.joueur_saison").fetchall()])
+    all_seasons = sorted([r[0] for r in con.sql("SELECT DISTINCT str_season FROM gold.joueur_saison").fetchall()])
     
     # Filtrage éventuel via --seasons
     if args.seasons:
@@ -292,10 +294,10 @@ def main():
         df_ids_infer, X_infer_raw, _ = build_features_matrix(con, source_season_infer, min_apps=0)
         embeddings = encode_profiles(model, scaler, X_infer_raw)
 
-        emb_df = pd.DataFrame(embeddings, columns=[f"emb_{k}" for k in range(AE_CFG["bottleneck"])])
+        emb_df = pd.DataFrame(embeddings, columns=[f"dec_emb_{k}" for k in range(AE_CFG["bottleneck"])])
         df_res = pd.concat([df_ids_infer, emb_df], axis=1)
-        df_res["season"] = target_season
-        df_res["source_season"] = source_season_infer
+        df_res["str_season"] = target_season
+        df_res["str_source_season"] = source_season_infer
         
         all_dfs.append(df_res)
 

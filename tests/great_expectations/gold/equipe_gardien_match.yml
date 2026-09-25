@@ -12,7 +12,7 @@ description: >
 source:
   duckdb_path: db/football.duckdb
   query: |
-    SELECT "match_id", "team_id", "keeper_psxg_plus_minus_lag", "keeper_psxg_per_shot_lag", "keeper_save_pct_lag", "keeper_shots_faced_lag" FROM gold."equipe_gardien_match"
+    SELECT "str_match_id", "str_team_id", "dec_keeper_psxg_plus_minus_lag", "dec_keeper_psxg_per_shot_lag", "dec_keeper_save_pct_lag", "int_keeper_shots_faced_lag" FROM gold."equipe_gardien_match"
 
 expectations:
 
@@ -25,11 +25,11 @@ expectations:
 
   # ── COMPLÉTION AVEC NULLs EMPIRIQUES (mostly = 1 - empirique - 5pts) ──
   - type: expect_column_values_to_not_be_null
-    kwargs: { column: match_id, mostly: 0.9484 }
+    kwargs: { column: str_match_id, mostly: 0.9484 }
     severity: warn
     meta: { description: "Empirique 0.16% NULL." }
   - type: expect_column_values_to_not_be_null
-    kwargs: { column: team_id, mostly: 0.95 }
+    kwargs: { column: str_team_id, mostly: 0.95 }
     severity: warn
     meta: { description: "Empirique 0.00% NULL." }
 
@@ -41,6 +41,6 @@ expectations:
 
   # ── BORNES DE VALEURS NUMÉRIQUES ──
   - type: expect_column_values_to_be_between
-    kwargs: { column: team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
+    kwargs: { column: str_team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [202606100001, 202606100426], mean=2.03e+11." }

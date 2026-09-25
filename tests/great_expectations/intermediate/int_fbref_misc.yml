@@ -4,9 +4,8 @@
 # Contrainte spatiotemporelle : aucune (FBref couvre toutes les comp_category).
 # Test dérive volumétrique : exclut la saison 2025-2026 (scraping en cours).
 #
-# Note technique : `off` et `int` sont des mots réservés DuckDB — quotés dans la
-# query source. En Python (pandas.eval), ils seraient aussi des mots réservés,
-# donc renommés à la lecture en `off_col` / `int_col`.
+# Note technique : les anciennes colonnes `off` / `int` (mots réservés DuckDB)
+# s'appellent désormais `int_off` / `int_int` : plus besoin de guillemets ni d'alias.
 # ══════════════════════════════════════════════════════════════════════════════
 
 suite_name: intermediate.int_fbref_misc
@@ -19,16 +18,16 @@ source:
   duckdb_path: db/football.duckdb
   query: |
     SELECT
-      match_id, team_id, opponent_id, date, season,
-      venue, result, result_1n2, comp_category, source,
-      gf, ga,
-      crdy, crdr, crdy2,
-      fls, fld,
-      "off" AS off_col,
-      crosses,
-      "int" AS int_col,
-      tklw,
-      pkwon, pkcon, og
+      str_match_id, str_team_id, str_opponent_id, dt_date, str_season,
+      str_venue, str_result, str_result_1n2, str_comp_category, str_source,
+      int_gf, int_ga,
+      int_crdy, int_crdr, int_crdy2,
+      int_fls, int_fld,
+      int_off,
+      int_crosses,
+      int_int,
+      int_tklw,
+      int_pkwon, int_pkcon, int_og
     FROM intermediate.int_fbref_misc
 
 expectations:
@@ -48,39 +47,39 @@ expectations:
   # Colonnes structurelles : 0 % NULL toléré
   - type: expect_column_values_to_not_be_null
     for_each_column:
-      - team_id
-      - date
-      - season
-      - venue
-      - comp_category
-      - source
-      - gf
-      - ga
-      - crdy
-      - crdr
-      - crdy2
-      - fls
-      - fld
-      - off_col
-      - crosses
-      - int_col
-      - tklw
-      - pkwon
-      - pkcon
-      - og
+      - str_team_id
+      - dt_date
+      - str_season
+      - str_venue
+      - str_comp_category
+      - str_source
+      - int_gf
+      - int_ga
+      - int_crdy
+      - int_crdr
+      - int_crdy2
+      - int_fls
+      - int_fld
+      - int_off
+      - int_crosses
+      - int_int
+      - int_tklw
+      - int_pkwon
+      - int_pkcon
+      - int_og
     kwargs: { mostly: 1.0 }
     # severity: error
     severity: warn
 
   # match_id : 49 NULL empiriques (0.09 %) — cf. A-005
   - type: expect_column_values_to_not_be_null
-    kwargs: { column: match_id, mostly: 0.995 }
+    kwargs: { column: str_match_id, mostly: 0.995 }
     severity: warn
     meta: { description: "Empirique = 0.09 % NULL. Marge de +5 pts." }
 
   # opponent_id : NULL toléré ~3.6 % + marge 5 pts → 91.4 % non-null min
   - type: expect_column_values_to_not_be_null
-    kwargs: { column: opponent_id, mostly: 0.914 }
+    kwargs: { column: str_opponent_id, mostly: 0.914 }
     # severity: error
     severity: warn
     meta: { description: "Empirique = 3.58 % NULL (1 993 lignes). Marge de +5 pts." }
@@ -90,13 +89,13 @@ expectations:
   # ────────────────────────────────────────────────────────────────────────────
   # Cartons : plafonds larges (max historique + marge)
   - type: expect_column_values_to_be_between
-    kwargs: { column: crdy, min_value: 0, max_value: 15, mostly: 1.0 }
+    kwargs: { column: int_crdy, min_value: 0, max_value: 15, mostly: 1.0 }
     # severity: error
     severity: warn
     meta: { description: "Max empirique 9." }
 
   - type: expect_column_values_to_be_between
-    for_each_column: [crdr, crdy2]
+    for_each_column: [int_crdr, int_crdy2]
     kwargs: { min_value: 0, max_value: 5, mostly: 1.0 }
     # severity: error
     severity: warn
@@ -104,46 +103,46 @@ expectations:
 
   # Buts
   - type: expect_column_values_to_be_between
-    for_each_column: [gf, ga]
+    for_each_column: [int_gf, int_ga]
     kwargs: { min_value: 0, max_value: 20, mostly: 1.0 }
     # severity: error
     severity: warn
 
   # Fautes commises / subies : max empirique 32, marge à 45
   - type: expect_column_values_to_be_between
-    for_each_column: [fls, fld]
+    for_each_column: [int_fls, int_fld]
     kwargs: { min_value: 0, max_value: 45, mostly: 1.0 }
     # severity: error
     severity: warn
 
   # Hors-jeux
   - type: expect_column_values_to_be_between
-    kwargs: { column: off_col, min_value: 0, max_value: 20, mostly: 1.0 }
+    kwargs: { column: int_off, min_value: 0, max_value: 20, mostly: 1.0 }
     # severity: error
     severity: warn
     meta: { description: "Max empirique 15." }
 
   # Centres tentés : max empirique 74, marge à 100
   - type: expect_column_values_to_be_between
-    kwargs: { column: crosses, min_value: 0, max_value: 100, mostly: 1.0 }
+    kwargs: { column: int_crosses, min_value: 0, max_value: 100, mostly: 1.0 }
     # severity: error
     severity: warn
 
   # Interceptions : max empirique 38, marge à 55
   - type: expect_column_values_to_be_between
-    kwargs: { column: int_col, min_value: 0, max_value: 55, mostly: 1.0 }
+    kwargs: { column: int_int, min_value: 0, max_value: 55, mostly: 1.0 }
     # severity: error
     severity: warn
 
   # Tacles remportés : max empirique 31, marge à 45
   - type: expect_column_values_to_be_between
-    kwargs: { column: tklw, min_value: 0, max_value: 45, mostly: 1.0 }
+    kwargs: { column: int_tklw, min_value: 0, max_value: 45, mostly: 1.0 }
     # severity: error
     severity: warn
 
   # Penalty won / conceded / og : bornés bas
   - type: expect_column_values_to_be_between
-    for_each_column: [pkwon, pkcon, og]
+    for_each_column: [int_pkwon, int_pkcon, int_og]
     kwargs: { min_value: 0, max_value: 5, mostly: 1.0 }
     # severity: error
     severity: warn
@@ -152,49 +151,49 @@ expectations:
   # 4. BORNES STATISTIQUES — moyennes cohérentes avec la nature de la métrique
   # ────────────────────────────────────────────────────────────────────────────
   - type: expect_column_mean_to_be_between
-    kwargs: { column: crdy, min_value: 1.4, max_value: 2.8 }
+    kwargs: { column: int_crdy, min_value: 1.4, max_value: 2.8 }
     # severity: error
     severity: warn
     meta: { description: "Empirique = 2.00" }
 
   - type: expect_column_mean_to_be_between
-    kwargs: { column: crdr, min_value: 0.04, max_value: 0.20 }
+    kwargs: { column: int_crdr, min_value: 0.04, max_value: 0.20 }
     severity: warn
     meta: { description: "Empirique = 0.092" }
 
   - type: expect_column_mean_to_be_between
-    kwargs: { column: crdy2, min_value: 0.02, max_value: 0.10 }
+    kwargs: { column: int_crdy2, min_value: 0.02, max_value: 0.10 }
     severity: warn
     meta: { description: "Empirique = 0.041" }
 
   - type: expect_column_mean_to_be_between
-    for_each_column: [fls, fld]
+    for_each_column: [int_fls, int_fld]
     kwargs: { min_value: 8.0, max_value: 16.0 }
     # severity: error
     severity: warn
     meta: { description: "Empirique fls=11.92 fld=11.37" }
 
   - type: expect_column_mean_to_be_between
-    kwargs: { column: off_col, min_value: 1.0, max_value: 3.0 }
+    kwargs: { column: int_off, min_value: 1.0, max_value: 3.0 }
     # severity: error
     severity: warn
     meta: { description: "Empirique = 1.80" }
 
   - type: expect_column_mean_to_be_between
-    kwargs: { column: crosses, min_value: 12.0, max_value: 24.0 }
+    kwargs: { column: int_crosses, min_value: 12.0, max_value: 24.0 }
     # severity: error
     severity: warn
     meta: { description: "Empirique = 17.58" }
 
   - type: expect_column_mean_to_be_between
-    for_each_column: [int_col, tklw]
+    for_each_column: [int_int, int_tklw]
     kwargs: { min_value: 6.0, max_value: 14.0 }
     # severity: error
     severity: warn
     meta: { description: "Empirique int=9.68 tklw=9.72" }
 
   - type: expect_column_mean_to_be_between
-    for_each_column: [pkwon, pkcon, og]
+    for_each_column: [int_pkwon, int_pkcon, int_og]
     kwargs: { min_value: 0.01, max_value: 0.10 }
     severity: warn
     meta: { description: "Empirique pkwon=0.026 pkcon=0.032 og=0.039" }
@@ -205,7 +204,7 @@ expectations:
   # ────────────────────────────────────────────────────────────────────────────
   - type: expect_row_condition_to_hold
     kwargs:
-      condition: "crdy + crdr + crdy2 <= 15"
+      condition: "int_crdy + int_crdr + int_crdy2 <= 15"
     severity: warn
     meta: { description: "Cumul des sanctions plausible. Max empirique 9 + 3 + 2 = 14." }
 
@@ -214,7 +213,7 @@ expectations:
   # ────────────────────────────────────────────────────────────────────────────
   - type: expect_partition_volume_stability
     kwargs:
-      partition_col: season
+      partition_col: str_season
       max_deviation_warn: 0.20
       max_deviation_error: 0.40
       min_seasons_history: 2

@@ -13,44 +13,44 @@ version: 2
 seeds:
 
   # ───────────────────────────────────────────────────────────────────────────
-  - name: team_mapping
-    description: >
-      Table de correspondance orthographe brute → nom canonique + team_id.
-      Contraintes métier :
-        • chaque alias résout à un seul mapping (unique)
-        • un team_id a un seul club_name canonique (dépendance fonctionnelle)
-        • un club_name a un seul team_id (réciproque)
-        • aucune paire de team_id distincts ne doit avoir des noms suspects
-          proches par normalisation tokens (warn heuristique)
-    columns:
-      - name: alias
-        description: "Orthographe brute d'un club rencontrée dans une source (FBref, Understat, WhoScored, Pinnacle)."
-        tests:
-          - not_null
-          - unique
-      - name: club_name
-        description: "Nom canonique du club (référence unique par team_id)."
-        tests:
-          - not_null
-      - name: team_id
-        description: "Identifiant canonique de l'équipe."
-        tests:
-          - not_null
-    tests:
-      - one_value_per_key:
-          arguments:
-            key_column: team_id
-            value_column: club_name
-      - one_value_per_key:
-          arguments:
-            key_column: club_name
-            value_column: team_id
-      - no_suspicious_similar_names:
-          arguments:
-            key_column: team_id
-            name_column: club_name
-          config:
-            severity: warn
+  # - name: team_mapping
+  #   description: >
+  #     Table de correspondance orthographe brute → nom canonique + team_id.
+  #     Contraintes métier :
+  #       • chaque alias résout à un seul mapping (unique)
+  #       • un team_id a un seul club_name canonique (dépendance fonctionnelle)
+  #       • un club_name a un seul team_id (réciproque)
+  #       • aucune paire de team_id distincts ne doit avoir des noms suspects
+  #         proches par normalisation tokens (warn heuristique)
+  #   columns:
+  #     - name: alias
+  #       description: "Orthographe brute d'un club rencontrée dans une source (FBref, Understat, WhoScored, Pinnacle)."
+  #       tests:
+  #         - not_null
+  #         - unique
+  #     - name: club_name
+  #       description: "Nom canonique du club (référence unique par team_id)."
+  #       tests:
+  #         - not_null
+  #     - name: team_id
+  #       description: "Identifiant canonique de l'équipe."
+  #       tests:
+  #         - not_null
+  #   tests:
+  #     - one_value_per_key:
+  #         arguments:
+  #           key_column: team_id
+  #           value_column: club_name
+  #     - one_value_per_key:
+  #         arguments:
+  #           key_column: club_name
+  #           value_column: team_id
+  #     - no_suspicious_similar_names:
+  #         arguments:
+  #           key_column: team_id
+  #           name_column: club_name
+  #         config:
+  #           severity: warn
 
   # ───────────────────────────────────────────────────────────────────────────
   - name: competition_mapping

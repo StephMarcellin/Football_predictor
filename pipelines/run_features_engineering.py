@@ -102,6 +102,7 @@ SPARK_CHECK  = "check_spark_outputs.py"
 
 TABLES_UPDATE = [
     "validate_silver",                                # gate d'entrée
+    "dbt_intermediate_match_index",                     
     "export_to_parquet",                               # export Silver → Parquet
     "spark_events",                                    # calcule les événements (Spark)
     "check_spark_outputs",                             # validation des exports Spark
@@ -111,6 +112,7 @@ TABLES_UPDATE = [
     "xgot_score",
     "dbt_intermediate_downstream",
     "validate_intermediate",                          # après matérialisation intermediate
+    "dbt_gold_base",
     "knn_impute",
     "dbt_joueur_match",
     "dbt_test",
@@ -150,6 +152,15 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
         "validate_silver": {
             "fn": run_validate_silver,
             "kwargs": {},
+            "critical": True,
+        },
+
+        "dbt_intermediate_match_index": {
+            "fn": run_dbt_run,
+            "kwargs": {
+                "select": "intermediate.int_whoscored_match_index",
+                "full_refresh": full_refresh,
+            },
             "critical": True,
         },
 
@@ -246,7 +257,7 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
         # ── 9. Imputation KNN (Py) ───────────────────────────────────────────
         "knn_impute": {
             "fn": mod_knn.main,
-            "kwargs": {},
+            "kwargs": {"write": True},
             "critical": True,
         },
 
@@ -293,9 +304,18 @@ def build_table_steps(cfg: dict, full_refresh: bool = False) -> dict:
     return {
         # ── flow daily (TABLES_UPDATE) ───────────────────────────────────────
         # ── 0. Gate d'entrée (validation Silver) ───────────────────────────────
-            "validate_silver": {
+        "validate_silver": {
                 "fn": run_validate_silver,
                 "kwargs": {},
+                "critical": True,
+            },
+
+        "dbt_intermediate_match_index": {
+                "fn": run_dbt_run,
+                "kwargs": {
+                    "select": "intermediate.int_whoscored_match_index",
+                    "full_refresh": full_refresh,
+                },
                 "critical": True,
             },
         # ── 0b. Frontière DuckDB → Spark (ADR-010) ───────────────────────────
@@ -381,7 +401,7 @@ def build_table_steps(cfg: dict, full_refresh: bool = False) -> dict:
             # ── 9. Imputation KNN (Py) ───────────────────────────────────────────
             "knn_impute": {
                 "fn": mod_knn.main,
-                "kwargs": {},
+                "kwargs": {"write": True},
                 "critical": True,
             },
     

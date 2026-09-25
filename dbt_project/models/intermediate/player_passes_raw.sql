@@ -1,14 +1,97 @@
 {{
     config(
         materialized='incremental',
-        unique_key=['match_id', 'row_num'],
+        unique_key=['str_match_id', 'int_row_num'],
         on_schema_change='sync_all_columns',
         schema='intermediate',
         alias='player_passes_raw'
     )
 }}
 
+-- ══ Refonte nommage (préfixe de type en tête de nom : str_, int_, dec_, dt_, bool_) ══
+-- Entrées : les modèles amont refondus sont relus via des CTE in_<modèle> qui les
+-- remappent vers les noms/types de travail utilisés par la logique ci-dessous
+-- (inchangée). Sortie : CTE mdl_out, renommage + cast selon le type logique.
 
+WITH
+
+-- int_event_enriched lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_int_event_enriched AS (
+    SELECT
+        str_match_id                                                 AS "match_id",
+        CAST(str_team_id AS BIGINT)                                  AS "team_id",
+        CAST(str_player_id AS INTEGER)                               AS "player_id",
+        CAST(str_event_id AS INTEGER)                                AS "event_id",
+        int_row_num                                                  AS "row_num",
+        int_expanded_minute                                          AS "expanded_minute",
+        int_second                                                   AS "second",
+        int_period                                                   AS "period",
+        CAST(str_type_id AS INTEGER)                                 AS "type_id",
+        str_type_name                                                AS "type_name",
+        CAST(str_outcome_id AS INTEGER)                              AS "outcome_id",
+        bool_is_shot                                                 AS "is_shot",
+        bool_is_touch                                                AS "is_touch",
+        dec_x                                                        AS "x",
+        dec_y                                                        AS "y",
+        dec_end_x                                                    AS "end_x",
+        dec_end_y                                                    AS "end_y",
+        bool_is_own_goal                                             AS "is_own_goal",
+        CAST(str_related_event_id AS INTEGER)                        AS "related_event_id",
+        CAST(str_related_player_id AS INTEGER)                       AS "related_player_id",
+        str_card_type                                                AS "card_type",
+        dec_goal_mouth_y                                             AS "goal_mouth_y",
+        dec_goal_mouth_z                                             AS "goal_mouth_z",
+        dec_blocked_x                                                AS "blocked_x",
+        dec_blocked_y                                                AS "blocked_y",
+        dt_match_date                                                AS "match_date",
+        str_season                                                   AS "season",
+        str_league_source                                            AS "league_source",
+        CAST(dt_scraped_at AS VARCHAR)                               AS "scraped_at",
+        int_is_leading_to_goal                                       AS "is_leading_to_goal",
+        int_is_intentional_goal_assist                               AS "is_intentional_goal_assist",
+        int_is_intentional_assist                                    AS "is_intentional_assist",
+        int_is_big_chance_created                                    AS "is_big_chance_created",
+        int_is_key_pass                                              AS "is_key_pass",
+        int_is_shot_assist                                           AS "is_shot_assist",
+        int_is_leading_to_attempt                                    AS "is_leading_to_attempt",
+        int_has_defensive_qual                                       AS "has_defensive_qual",
+        int_has_offensive_qual                                       AS "has_offensive_qual",
+        int_has_opposite_event                                       AS "has_opposite_event",
+        int_team_score                                               AS "team_score",
+        int_opp_score                                                AS "opp_score"
+    FROM {{ ref('int_event_enriched') }}
+),
+
+-- player_possession_chains lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_player_possession_chains AS (
+    SELECT
+        str_match_id                                                 AS "match_id",
+        str_season                                                   AS "season",
+        str_league_source                                            AS "league_source",
+        str_chain_id                                                 AS "chain_id",
+        CAST(int_chain_number AS HUGEINT)                            AS "chain_number",
+        CAST(str_chain_team_id AS BIGINT)                            AS "chain_team_id",
+        CAST(str_team_id AS BIGINT)                                  AS "team_id",
+        CAST(str_player_id AS INTEGER)                               AS "player_id",
+        CAST(str_event_id AS INTEGER)                                AS "event_id",
+        int_row_num                                                  AS "row_num",
+        int_expanded_minute                                          AS "expanded_minute",
+        int_second                                                   AS "second",
+        int_period                                                   AS "period",
+        CAST(str_type_id AS INTEGER)                                 AS "type_id",
+        str_type_name                                                AS "type_name",
+        CAST(str_outcome_id AS INTEGER)                              AS "outcome_id",
+        bool_is_shot                                                 AS "is_shot",
+        dec_x                                                        AS "x",
+        dec_y                                                        AS "y",
+        int_is_rupture                                               AS "is_rupture",
+        str_chain_trigger                                            AS "chain_trigger",
+        int_certain_possessor                                        AS "certain_possessor",
+        CAST(dt_scraped_at AS VARCHAR)                               AS "scraped_at"
+    FROM {{ ref('player_possession_chains') }}
+),
+
+mdl_body AS (
 WITH
 
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -17,13 +100,36 @@ WITH
 {% if is_incremental() %}
 new_matches AS (
     SELECT DISTINCT match_id
-    FROM {{ ref('player_possession_chains') }}
-    WHERE match_id NOT IN (SELECT DISTINCT match_id FROM {{ this }})
+    FROM in_player_possession_chains
+    WHERE match_id NOT IN (SELECT DISTINCT match_id FROM (
+    SELECT
+            str_match_id                                                 AS "match_id",
+            str_chain_id                                                 AS "chain_id",
+            str_chain_trigger                                            AS "chain_trigger",
+            CAST(str_team_id AS BIGINT)                                  AS "team_id",
+            CAST(str_passer_id AS INTEGER)                               AS "passer_id",
+            CAST(str_receiver_id AS INTEGER)                             AS "receiver_id",
+            int_row_num                                                  AS "row_num",
+            int_expanded_minute                                          AS "expanded_minute",
+            int_second                                                   AS "second",
+            dec_x                                                        AS "x",
+            dec_y                                                        AS "y",
+            dec_end_x                                                    AS "end_x",
+            dec_end_y                                                    AS "end_y",
+            int_is_key_pass                                              AS "is_key_pass",
+            int_is_shot_assist                                           AS "is_shot_assist",
+            str_season                                                   AS "season",
+            str_league_source                                            AS "league_source",
+            bool_is_progressive                                          AS "is_progressive",
+            bool_is_creative                                             AS "is_creative",
+            bool_is_buildup                                              AS "is_buildup"
+        FROM {{ this }}
+    ))
 ),
 {% else %}
 new_matches AS (
     SELECT DISTINCT match_id
-    FROM {{ ref('player_possession_chains') }}
+    FROM in_player_possession_chains
 ),
 {% endif %}
 
@@ -55,7 +161,7 @@ team_events AS (
         y,
         season,
         league_source
-    FROM {{ ref('player_possession_chains') }}
+    FROM in_player_possession_chains
     WHERE match_id IN (SELECT match_id FROM new_matches)
       AND team_id = chain_team_id
 ),
@@ -87,7 +193,7 @@ passes_raw AS (
         te.season,
         te.league_source
     FROM team_events te
-    JOIN {{ ref('int_event_enriched') }} ie
+    JOIN in_int_event_enriched ie
         ON  ie.match_id = te.match_id
         AND ie.row_num  = te.row_num
     WHERE te.type_id   = 1
@@ -142,3 +248,31 @@ passes_network AS (
 -- SELECT FINAL
 -- ══════════════════════════════════════════════════════════════════════════════
 SELECT * FROM passes_network
+),
+
+mdl_out AS (
+    SELECT
+        "match_id"                                                   AS str_match_id,
+        "chain_id"                                                   AS str_chain_id,
+        "chain_trigger"                                              AS str_chain_trigger,
+        CAST(team_id AS VARCHAR)                                     AS str_team_id,
+        CAST(passer_id AS VARCHAR)                                   AS str_passer_id,
+        CAST(receiver_id AS VARCHAR)                                 AS str_receiver_id,
+        "row_num"                                                    AS int_row_num,
+        "expanded_minute"                                            AS int_expanded_minute,
+        "second"                                                     AS int_second,
+        "x"                                                          AS dec_x,
+        "y"                                                          AS dec_y,
+        "end_x"                                                      AS dec_end_x,
+        "end_y"                                                      AS dec_end_y,
+        "is_key_pass"                                                AS int_is_key_pass,
+        "is_shot_assist"                                             AS int_is_shot_assist,
+        "season"                                                     AS str_season,
+        "league_source"                                              AS str_league_source,
+        "is_progressive"                                             AS bool_is_progressive,
+        "is_creative"                                                AS bool_is_creative,
+        "is_buildup"                                                 AS bool_is_buildup
+    FROM mdl_body
+)
+
+SELECT * FROM mdl_out

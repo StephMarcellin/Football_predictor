@@ -1,13 +1,12 @@
 {{
     config(
         materialized='incremental',
-        unique_key=['match_id', 'shot_row_num', 'sca_order'],
+        unique_key=['str_match_id', 'int_shot_row_num', 'int_sca_order'],
         on_schema_change='sync_all_columns',
         schema='intermediate',
         alias='int_shot_creating_actions'
     )
 }}
-
 
 -- Actions créatrices de tir (SCA) et de but (GCA) — standard FBref/StatsBomb.
 -- Pour chaque tir, on crédite les 2 actions offensives qui l'ont précédé DANS LA
@@ -29,18 +28,72 @@
 --   0 doublon, creator jamais NULL, ~84 % de passes, SCA1 > SCA2 (tirs sans 2e
 --   action avant), GCA = crédits dont le tir est un but.
 
+-- ══ Refonte nommage (préfixe de type en tête de nom : str_, int_, dec_, dt_, bool_) ══
+-- Entrées : les modèles amont refondus sont relus via des CTE in_<modèle> qui les
+-- remappent vers les noms/types de travail utilisés par la logique ci-dessous
+-- (inchangée). Sortie : CTE mdl_out, renommage + cast selon le type logique.
+
+WITH
+
+-- player_possession_chains lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_player_possession_chains AS (
+    SELECT
+        str_match_id                                                 AS "match_id",
+        str_season                                                   AS "season",
+        str_league_source                                            AS "league_source",
+        str_chain_id                                                 AS "chain_id",
+        CAST(int_chain_number AS HUGEINT)                            AS "chain_number",
+        CAST(str_chain_team_id AS BIGINT)                            AS "chain_team_id",
+        CAST(str_team_id AS BIGINT)                                  AS "team_id",
+        CAST(str_player_id AS INTEGER)                               AS "player_id",
+        CAST(str_event_id AS INTEGER)                                AS "event_id",
+        int_row_num                                                  AS "row_num",
+        int_expanded_minute                                          AS "expanded_minute",
+        int_second                                                   AS "second",
+        int_period                                                   AS "period",
+        CAST(str_type_id AS INTEGER)                                 AS "type_id",
+        str_type_name                                                AS "type_name",
+        CAST(str_outcome_id AS INTEGER)                              AS "outcome_id",
+        bool_is_shot                                                 AS "is_shot",
+        dec_x                                                        AS "x",
+        dec_y                                                        AS "y",
+        int_is_rupture                                               AS "is_rupture",
+        str_chain_trigger                                            AS "chain_trigger",
+        int_certain_possessor                                        AS "certain_possessor",
+        CAST(dt_scraped_at AS VARCHAR)                               AS "scraped_at"
+    FROM {{ ref('player_possession_chains') }}
+),
+
+mdl_body AS (
 WITH
 
 -- ── FILTRE INCRÉMENTAL (même patron que player_possession_chains) ──────────────
 {% if is_incremental() %}
 new_matches AS (
     SELECT DISTINCT match_id
-    FROM {{ ref('player_possession_chains') }}
-    WHERE match_id NOT IN (SELECT DISTINCT match_id FROM {{ this }})
+    FROM in_player_possession_chains
+    WHERE match_id NOT IN (SELECT DISTINCT match_id FROM (
+    SELECT
+            str_match_id                                                 AS "match_id",
+            int_shot_row_num                                             AS "shot_row_num",
+            int_sca_order                                                AS "sca_order",
+            CAST(str_shot_event_id AS INTEGER)                           AS "shot_event_id",
+            str_chain_id                                                 AS "chain_id",
+            str_season                                                   AS "season",
+            str_league_source                                            AS "league_source",
+            CAST(dt_scraped_at AS VARCHAR)                               AS "scraped_at",
+            CAST(str_attacking_team_id AS BIGINT)                        AS "attacking_team_id",
+            CAST(str_shot_taker_player_id AS INTEGER)                    AS "shot_taker_player_id",
+            CAST(str_creator_player_id AS INTEGER)                       AS "creator_player_id",
+            str_action_type                                              AS "action_type",
+            int_action_row_num                                           AS "action_row_num",
+            bool_is_gca                                                  AS "is_gca"
+        FROM {{ this }}
+    ))
 ),
 {% else %}
 new_matches AS (
-    SELECT DISTINCT match_id FROM {{ ref('player_possession_chains') }}
+    SELECT DISTINCT match_id FROM in_player_possession_chains
 ),
 {% endif %}
 
@@ -63,7 +116,7 @@ chain_seq AS (
             PARTITION BY c.match_id, c.chain_id
             ORDER BY c.expanded_minute, c.second, c.row_num
         ) AS seq_in_chain
-    FROM {{ ref('player_possession_chains') }} c
+    FROM in_player_possession_chains c
     WHERE c.match_id IN (SELECT match_id FROM new_matches)
 ),
 
@@ -137,3 +190,25 @@ SELECT
     is_goal      AS is_gca                       -- crédit aussi GCA si le tir est un but
 FROM sca
 WHERE sca_order <= 2
+),
+
+mdl_out AS (
+    SELECT
+        "match_id"                                                   AS str_match_id,
+        "shot_row_num"                                               AS int_shot_row_num,
+        "sca_order"                                                  AS int_sca_order,
+        CAST(shot_event_id AS VARCHAR)                               AS str_shot_event_id,
+        "chain_id"                                                   AS str_chain_id,
+        "season"                                                     AS str_season,
+        "league_source"                                              AS str_league_source,
+        TRY_CAST(scraped_at AS TIMESTAMP)                            AS dt_scraped_at,
+        CAST(attacking_team_id AS VARCHAR)                           AS str_attacking_team_id,
+        CAST(shot_taker_player_id AS VARCHAR)                        AS str_shot_taker_player_id,
+        CAST(creator_player_id AS VARCHAR)                           AS str_creator_player_id,
+        "action_type"                                                AS str_action_type,
+        "action_row_num"                                             AS int_action_row_num,
+        "is_gca"                                                     AS bool_is_gca
+    FROM mdl_body
+)
+
+SELECT * FROM mdl_out

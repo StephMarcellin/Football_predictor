@@ -12,7 +12,7 @@ description: >
 source:
   duckdb_path: db/football.duckdb
   query: |
-    SELECT "match_id", "team_id", "opponent_id", "corridor", "off_strength", "off_cross_strength", "off_dribble_strength", "off_central_progression", "off_central_touch", "def_central_density", "def_solidity" FROM gold."team_corridor_profile"
+    SELECT "str_match_id", "str_team_id", "str_opponent_id", "str_corridor", "dec_off_strength", "dec_off_cross_strength", "dec_off_dribble_strength", "dec_off_central_progression", "dec_off_central_touch", "dec_def_central_density", "dec_def_solidity" FROM gold."team_corridor_profile"
 
 expectations:
 
@@ -26,22 +26,22 @@ expectations:
   # ── COMPLÉTION STRICTE (0 NULL empirique) ──
   - type: expect_column_values_to_not_be_null
     for_each_column:
-      - match_id
-      - team_id
-      - corridor
-      - off_strength
-      - off_cross_strength
-      - off_dribble_strength
-      - off_central_progression
-      - off_central_touch
-      - def_central_density
+      - str_match_id
+      - str_team_id
+      - str_corridor
+      - dec_off_strength
+      - dec_off_cross_strength
+      - dec_off_dribble_strength
+      - dec_off_central_progression
+      - dec_off_central_touch
+      - dec_def_central_density
     kwargs: { mostly: 1.0 }
     # severity: error
     severity: warn
 
   # ── COMPLÉTION AVEC NULLs EMPIRIQUES (mostly = 1 - empirique - 5pts) ──
   - type: expect_column_values_to_not_be_null
-    kwargs: { column: opponent_id, mostly: 0.9441 }
+    kwargs: { column: str_opponent_id, mostly: 0.9441 }
     severity: warn
     meta: { description: "Empirique 0.59% NULL." }
 
@@ -50,34 +50,34 @@ expectations:
 
   # ── BORNES DE VALEURS NUMÉRIQUES ──
   - type: expect_column_values_to_be_between
-    kwargs: { column: team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
+    kwargs: { column: str_team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [202606100001, 202606100426], mean=2.03e+11." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: opponent_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
+    kwargs: { column: str_opponent_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [202606100001, 202606100426], mean=2.03e+11." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: off_strength, min_value: 0.0, max_value: 0.1, mostly: 1.0 }
+    kwargs: { column: dec_off_strength, min_value: 0.0, max_value: 0.1, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [0.0, 0.0], mean=0." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: off_cross_strength, min_value: 0.0, max_value: 0.1, mostly: 1.0 }
+    kwargs: { column: dec_off_cross_strength, min_value: 0.0, max_value: 0.1, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [0.0, 0.0], mean=0." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: off_dribble_strength, min_value: 0.0, max_value: 0.1, mostly: 1.0 }
+    kwargs: { column: dec_off_dribble_strength, min_value: 0.0, max_value: 0.1, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [0.0, 0.0], mean=0." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: off_central_progression, min_value: 0.0, max_value: 0.1, mostly: 1.0 }
+    kwargs: { column: dec_off_central_progression, min_value: 0.0, max_value: 0.1, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [0.0, 0.0], mean=0." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: off_central_touch, min_value: 0.0, max_value: 0.8192522257479637, mostly: 1.0 }
+    kwargs: { column: dec_off_central_touch, min_value: 0.0, max_value: 0.8192522257479637, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [0.0, 0.744774750679967], mean=0.178." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: def_central_density, min_value: 0.0, max_value: 0.1, mostly: 1.0 }
+    kwargs: { column: dec_def_central_density, min_value: 0.0, max_value: 0.1, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [0.0, 0.0], mean=0." }

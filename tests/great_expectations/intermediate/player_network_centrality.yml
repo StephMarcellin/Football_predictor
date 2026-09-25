@@ -12,7 +12,7 @@ description: >
 source:
   duckdb_path: db/football.duckdb
   query: |
-    SELECT "match_id", "team_id", "player_id", "season", "league_source", "degree_out", "degree_in", "weighted_degree_out", "weighted_degree_in", "n_creative_out", "n_progressive_out", "pass_share", "creative_rate", "betweenness_proxy" FROM intermediate."player_network_centrality"
+    SELECT "str_match_id", "str_team_id", "str_player_id", "str_season", "str_league_source", "int_degree_out", "int_degree_in", "int_weighted_degree_out", "int_weighted_degree_in", "int_n_creative_out", "int_n_progressive_out", "dec_pass_share", "dec_creative_rate", "dec_betweenness_proxy" FROM intermediate."player_network_centrality"
 
 expectations:
 
@@ -26,79 +26,79 @@ expectations:
   # ── COMPLÉTION STRICTE (0 NULL empirique) ──
   - type: expect_column_values_to_not_be_null
     for_each_column:
-      - match_id
-      - team_id
-      - player_id
-      - season
-      - league_source
-      - degree_out
-      - degree_in
-      - weighted_degree_out
-      - weighted_degree_in
-      - n_creative_out
-      - n_progressive_out
-      - pass_share
-      - creative_rate
+      - str_match_id
+      - str_team_id
+      - str_player_id
+      - str_season
+      - str_league_source
+      - int_degree_out
+      - int_degree_in
+      - int_weighted_degree_out
+      - int_weighted_degree_in
+      - int_n_creative_out
+      - int_n_progressive_out
+      - dec_pass_share
+      - dec_creative_rate
     kwargs: { mostly: 1.0 }
     # severity: error
     severity: warn
 
   # ── COMPLÉTION AVEC NULLs EMPIRIQUES (mostly = 1 - empirique - 5pts) ──
   - type: expect_column_values_to_not_be_null
-    kwargs: { column: betweenness_proxy, mostly: 0.95 }
+    kwargs: { column: dec_betweenness_proxy, mostly: 0.95 }
     severity: warn
     meta: { description: "Empirique 0.00% NULL." }
 
   # ── BORNES DE VALEURS NUMÉRIQUES ──
   - type: expect_column_values_to_be_between
-    kwargs: { column: team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
+    kwargs: { column: str_team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [202606100001, 202606100426], mean=2.03e+11." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: player_id, min_value: -52893, max_value: 617676, mostly: 1.0 }
+    kwargs: { column: str_player_id, min_value: -52893, max_value: 617676, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [2987, 561795], mean=3.25e+05." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: degree_out, min_value: 0, max_value: 18, mostly: 1.0 }
+    kwargs: { column: int_degree_out, min_value: 0, max_value: 18, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [1, 16], mean=7.51." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: degree_in, min_value: 0, max_value: 17, mostly: 1.0 }
+    kwargs: { column: int_degree_in, min_value: 0, max_value: 17, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [0, 15], mean=7.49." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: weighted_degree_out, min_value: -16, max_value: 189, mostly: 1.0 }
+    kwargs: { column: int_weighted_degree_out, min_value: -16, max_value: 189, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [1, 171], mean=25.4." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: weighted_degree_in, min_value: 0, max_value: 190, mostly: 1.0 }
+    kwargs: { column: int_weighted_degree_in, min_value: 0, max_value: 190, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [0, 172], mean=25.4." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: n_creative_out, min_value: 0, max_value: 15, mostly: 1.0 }
+    kwargs: { column: int_n_creative_out, min_value: 0, max_value: 15, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [0, 13], mean=0.577." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: n_progressive_out, min_value: 0, max_value: 56, mostly: 1.0 }
+    kwargs: { column: int_n_progressive_out, min_value: 0, max_value: 56, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [0, 50], mean=5.69." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: pass_share, min_value: -0.09879, max_value: 1.09989, mostly: 1.0 }
+    kwargs: { column: dec_pass_share, min_value: -0.09879, max_value: 1.09989, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [0.0011, 1.0], mean=0.0664." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: creative_rate, min_value: 0, max_value: 1.1, mostly: 1.0 }
+    kwargs: { column: dec_creative_rate, min_value: 0, max_value: 1.1, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [0.0, 1.0], mean=0.0331." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: betweenness_proxy, min_value: 0, max_value: 1.1, mostly: 1.0 }
+    kwargs: { column: dec_betweenness_proxy, min_value: 0, max_value: 1.1, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [0.0, 1.0], mean=0.299." }
 
   # ── DÉRIVE VOLUMÉTRIQUE INTER-SAISONS ──
   - type: expect_partition_volume_stability
     kwargs:
-      partition_col: season
+      partition_col: str_season
       max_deviation_warn: 0.20
       max_deviation_error: 0.40
       min_seasons_history: 2

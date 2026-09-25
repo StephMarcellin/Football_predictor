@@ -22,9 +22,34 @@
 -- « invaincus »). Exclut ~2,3 % des tirs (surtout 2024-2025 Serie A à 0 % de
 -- lineup et 2.Bundesliga) ; ces poches reviendront après re-load des formations.
 
+-- ══ Refonte nommage (préfixe de type en tête de nom : str_, int_, dec_, dt_, bool_) ══
+-- Entrées : les modèles amont refondus sont relus via des CTE in_<modèle> qui les
+-- remappent vers les noms/types de travail utilisés par la logique ci-dessous
+-- (inchangée). Sortie : CTE mdl_out, renommage + cast selon le type logique.
+
+WITH
+
+-- int_keeper_shots lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_int_keeper_shots AS (
+    SELECT
+        str_match_id                                                 AS "match_id",
+        int_row_num                                                  AS "row_num",
+        str_season                                                   AS "season",
+        str_league_source                                            AS "league_source",
+        CAST(str_type_id AS INTEGER)                                 AS "type_id",
+        bool_is_goal                                                 AS "is_goal",
+        dec_xgot                                                     AS "xgot",
+        int_def_team                                                 AS "def_team",
+        CAST(str_keeper_id AS BIGINT)                                AS "keeper_id",
+        str_attribution_method                                       AS "attribution_method",
+        bool_def_gk_available                                        AS "def_gk_available"
+    FROM {{ ref('int_keeper_shots') }}
+),
+
+mdl_body AS (
 WITH attributed AS (
     SELECT *
-    FROM {{ ref('int_keeper_shots') }}
+    FROM in_int_keeper_shots
     WHERE keeper_id IS NOT NULL
       AND def_gk_available
 )
@@ -47,3 +72,20 @@ SELECT
 
 FROM attributed
 GROUP BY keeper_id, season, league_source
+),
+
+mdl_out AS (
+    SELECT
+        CAST(keeper_id AS VARCHAR)                                   AS str_keeper_id,
+        "season"                                                     AS str_season,
+        "league_source"                                              AS str_league_source,
+        "shots_faced"                                                AS int_shots_faced,
+        CAST(goals_conceded AS BIGINT)                               AS int_goals_conceded,
+        CAST(saves AS BIGINT)                                        AS int_saves,
+        "psxg_faced"                                                 AS dec_psxg_faced,
+        "psxg_plus_minus"                                            AS dec_psxg_plus_minus,
+        "save_pct"                                                   AS dec_save_pct
+    FROM mdl_body
+)
+
+SELECT * FROM mdl_out

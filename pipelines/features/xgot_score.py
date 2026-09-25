@@ -1,16 +1,19 @@
 """
 xgot_score.py — Scoring du modèle xGOT
 ======================================
-Applique models/xgot.joblib à TOUS les tirs cadrés éligibles (vue
+Applique models/xgot.joblib à TOUS les tirs cadrés éligibles (modèle dbt
 machine_learning.xgot_features) et écrit le xGOT par tir dans la table
-machine_learning.xgot_predictions.
+machine_learning.xgot_predictions (str_match_id, int_row_num, str_season,
+bool_is_goal, dec_xgot).
 
 C'est le « predict » du modèle auxiliaire xGOT — pendant de 05_predict.py pour le
 modèle 1N2 — consommé ensuite par int_keeper_psxg (shot-stopping du gardien).
 
 Anti train/serve skew : les features sont construites via build_X importé de
 xgot_train (donc identiques à l'entraînement), puis alignées sur les colonnes
-mémorisées dans le .joblib.
+mémorisées dans le .joblib. Si le .joblib a été entraîné avec d'autres noms de
+colonnes (ex. avant la refonte du nommage), le scoring s'arrête : il faut
+relancer xgot_train.py (sinon le reindex remplirait les features de 0 en silence).
 
 Usage :
     python pipelines/xgot_score.py
@@ -33,7 +36,7 @@ import yaml
 from loguru import logger
 
 # Même construction de features qu'à l'entraînement (fonction partagée).
-from xgot_train import build_X
+from xgot_train import build_X, FEATURES_NUM
 
 
 # ── Config (même patron que xgot_train.py) ────────────────────────────────────
@@ -58,6 +61,12 @@ def main():
     art = joblib.load(MODEL_PATH)
     model, calibrator, columns = art["model"], art["calibrator"], art["columns"]
     logger.info(f"Modèle chargé ({len(columns)} colonnes de features).")
+    # Garde-fou : le modèle doit connaître les noms de features actuels.
+    missing = [c for c in FEATURES_NUM if c not in columns]
+    if missing:
+        raise RuntimeError(
+            f"models/xgot.joblib a été entraîné avec d'autres noms de features "
+            f"(absents : {missing}). Relance xgot_train.py avant xgot_score.")
 
     # 2. Charger les tirs à scorer (lecture seule)
     con = duckdb.connect(str(DB_PATH), read_only=True)
@@ -73,9 +82,9 @@ def main():
     p_raw = model.predict_proba(X)[:, 1]
     xgot  = calibrator.predict(p_raw)
 
-    # 5. Résultat au grain (match_id, row_num) — clé de jointure pour int_keeper_psxg
-    out = df[["match_id", "row_num", "season", "is_goal"]].copy()
-    out["xgot"] = xgot
+    # 5. Résultat au grain (str_match_id, int_row_num) — clé de jointure pour int_keeper_shots
+    out = df[["str_match_id", "int_row_num", "str_season", "bool_is_goal"]].copy()
+    out["dec_xgot"] = xgot
 
     # 6. Écrire la table (idempotent : CREATE OR REPLACE, connexion en écriture)
     con = duckdb.connect(str(DB_PATH))
@@ -87,7 +96,7 @@ def main():
 
     logger.success(
         f"{PRED_SCHEMA}.{PRED_TABLE} écrite : {n:,} tirs — "
-        f"Σ xGOT = {xgot.sum():.1f} pour {int(out['is_goal'].sum())} buts réels."
+        f"Σ xGOT = {xgot.sum():.1f} pour {int(out['bool_is_goal'].sum())} buts réels."
     )
 
 

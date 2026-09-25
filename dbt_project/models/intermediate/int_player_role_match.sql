@@ -11,6 +11,63 @@
 -- n'est pas de l'info future.
 -- Consommée par le KNN (Phase 3) et serve_features.py.
 
+-- ══ Refonte nommage (préfixe de type en tête de nom : str_, int_, dec_, dt_, bool_) ══
+-- Entrées : les modèles amont refondus sont relus via des CTE in_<modèle> qui les
+-- remappent vers les noms/types de travail utilisés par la logique ci-dessous
+-- (inchangée). Sortie : CTE mdl_out, renommage + cast selon le type logique.
+
+WITH
+
+-- int_player_role_lag lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_int_player_role_lag AS (
+    SELECT
+        CAST(str_player_id AS BIGINT)                                AS "player_id",
+        str_season                                                   AS "season",
+        dec_gv_avg                                                   AS "gv_avg",
+        dec_gh_avg                                                   AS "gh_avg",
+        dec_gh_offaxis                                               AS "gh_offaxis",
+        CAST(int_minutes_titu_lag AS HUGEINT)                        AS "minutes_titu_lag",
+        int_apps_starter_lag                                         AS "apps_starter_lag",
+        str_role_fin_lag                                             AS "role_fin_lag"
+    FROM {{ ref('int_player_role_lag') }}
+),
+
+-- int_whoscored_lineup lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_int_whoscored_lineup AS (
+    SELECT
+        str_match_id                                                 AS "match_id",
+        CAST(str_team_id AS BIGINT)                                  AS "team_id",
+        int_formation_seq                                            AS "formation_seq",
+        CAST(str_formation_id AS INTEGER)                            AS "formation_id",
+        int_period                                                   AS "period",
+        int_start_minute                                             AS "start_minute",
+        int_end_minute                                               AS "end_minute",
+        CAST(str_player_id AS BIGINT)                                AS "player_id",
+        int_slot                                                     AS "slot",
+        dec_grid_vertical                                            AS "grid_vertical",
+        dec_grid_horizontal                                          AS "grid_horizontal",
+        bool_is_captain                                              AS "is_captain"
+    FROM {{ ref('int_whoscored_lineup') }}
+),
+
+-- int_whoscored_match_index lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_int_whoscored_match_index AS (
+    SELECT
+        str_match_id                                                 AS "match_id",
+        str_ws_match_id                                              AS "ws_match_id",
+        dt_match_date                                                AS "match_date",
+        CAST(str_team_id AS BIGINT)                                  AS "team_id",
+        CAST(str_opponent_id AS BIGINT)                              AS "opponent_id",
+        CAST(str_ws_home_team_id AS INTEGER)                         AS "ws_home_team_id",
+        CAST(str_ws_away_team_id AS INTEGER)                         AS "ws_away_team_id",
+        str_league_source                                            AS "league_source",
+        str_season                                                   AS "season",
+        CAST(dt_scraped_at AS VARCHAR)                               AS "scraped_at",
+        str_comp_category                                            AS "comp_category"
+    FROM {{ ref('int_whoscored_match_index') }}
+),
+
+mdl_body AS (
 with
 
 -- XI de départ : première période de formation (start_minute = 0).
@@ -23,7 +80,7 @@ starting_xi as (
         l.player_id,
         l.grid_vertical   as gv_start,
         l.grid_horizontal as gh_start
-    from {{ ref('int_whoscored_lineup') }} l
+    from in_int_whoscored_lineup l
     where l.start_minute = 0
     qualify row_number() over (
         partition by l.match_id, l.player_id
@@ -37,7 +94,7 @@ with_season as (
         xi.*,
         idx.season
     from starting_xi xi
-    join {{ ref('int_whoscored_match_index') }} idx using (match_id)
+    join in_int_whoscored_match_index idx using (match_id)
 ),
 
 -- role_fin_current : mêmes règles qu'int_player_role_lag, sur la coord DE CE MATCH.
@@ -84,6 +141,24 @@ select
         else                                   'match_slot'
     end as role_source
 from with_current wc
-left join {{ ref('int_player_role_lag') }} lag
+left join in_int_player_role_lag lag
     on lag.player_id = wc.player_id
    and lag.season    = wc.season
+),
+
+mdl_out AS (
+    SELECT
+        "match_id"                                                   AS str_match_id,
+        CAST(team_id AS VARCHAR)                                     AS str_team_id,
+        CAST(player_id AS VARCHAR)                                   AS str_player_id,
+        "season"                                                     AS str_season,
+        "gv_start"                                                   AS dec_gv_start,
+        "gh_start"                                                   AS dec_gh_start,
+        "role_fin_lag"                                               AS str_role_fin_lag,
+        "role_fin_current"                                           AS str_role_fin_current,
+        "role_fin_resolved"                                          AS str_role_fin_resolved,
+        "role_source"                                                AS str_role_source
+    FROM mdl_body
+)
+
+SELECT * FROM mdl_out

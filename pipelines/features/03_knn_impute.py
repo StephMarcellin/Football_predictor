@@ -41,7 +41,7 @@ MIN_APPS = KNN_CFG["min_apps"]
 GK_VERTICAL_MAX = KNN_CFG["gk_vertical_max"]
 
 def load_player_profiles(con):
-    """Un profil courant par (player_id, season) : la dernière ligne as-of de la
+    """Un profil courant par (str_player_id, str_season) : la dernière ligne as-of de la
     saison (date max), enrichie de la position moyenne du joueur (lineup).
     Retourne un DataFrame ; les NaN de features sont gérés plus tard."""
     cols = ",\n               ".join(OFFENSIVE_FEATURES + DEFENSIVE_FEATURES)
@@ -49,21 +49,21 @@ def load_player_profiles(con):
         WITH latest AS (
           SELECT * FROM (
             SELECT *, row_number() OVER (
-                PARTITION BY player_id, season ORDER BY date DESC, match_id DESC) AS rn
+                PARTITION BY str_player_id, str_season ORDER BY dt_date DESC, str_match_id DESC) AS rn
             FROM gold.joueur_saison
           ) WHERE rn = 1
         ),
         pos AS (
-          SELECT player_id, AVG(grid_vertical) AS gv, AVG(grid_horizontal) AS gh
+          SELECT str_player_id, AVG(dec_grid_vertical) AS dec_gv, AVG(dec_grid_horizontal) AS dec_gh
           FROM intermediate.int_whoscored_lineup GROUP BY 1
         )
-        SELECT l.player_id, l.season, l.n_apps_lag,
+        SELECT l.str_player_id, l.str_season, l.int_n_apps_lag,
                {cols},
-               pos.gv, pos.gh
+               pos.dec_gv, pos.dec_gh
         FROM latest l
-        LEFT JOIN pos ON pos.player_id = CAST(l.player_id AS BIGINT)
+        LEFT JOIN pos ON pos.str_player_id = l.str_player_id
     """).df()
-    return df.sort_values(["player_id", "season"]).reset_index(drop=True)
+    return df.sort_values(["str_player_id", "str_season"]).reset_index(drop=True)
 
 def fit_style_clusters(df, features, side):
     """Ajuste KMeans sur les profils FIABLES d'un côté (offensif/défensif) puis
@@ -75,11 +75,11 @@ def fit_style_clusters(df, features, side):
     Retourne : (labels: pd.Series alignée sur df.index, modèle, scaler, medians)
     """
     df = df.copy()
-    df["width"] = (df["gh"] - 5).abs()          # écart à l'axe = largeur de position
-    cols = features + ["gv", "width"]           # profil + position (source cluster 76)
+    df["dec_width"] = (df["dec_gh"] - 5).abs()  # écart à l'axe = largeur de position
+    cols = features + ["dec_gv", "dec_width"]   # profil + position (source cluster 76)
 
-    is_gk = df["gv"].notna() & (df["gv"] <= GK_VERTICAL_MAX)
-    fit_mask = (~is_gk) & (df["n_apps_lag"] >= MIN_APPS)   # profils fiables uniquement
+    is_gk = df["dec_gv"].notna() & (df["dec_gv"] <= GK_VERTICAL_MAX)
+    fit_mask = (~is_gk) & (df["int_n_apps_lag"] >= MIN_APPS)   # profils fiables uniquement
 
     medians = df.loc[fit_mask, cols].median()   # médianes de référence (fiables)
     X_fit = df.loc[fit_mask, cols].fillna(medians)
@@ -100,13 +100,13 @@ def to_canonical(df, labels, side):
     cent = df.assign(_c=labels.values)
     cent = cent[cent["_c"] >= 0].groupby("_c").mean(numeric_only=True)
     if side == "offensive":
-        fin = cent["scorer_shots_per90_lag"].idxmax()             # + de tirs → finisseur
-        cre = cent["off_key_passes_per90_lag"].drop(fin).idxmax()  # + de passes clés → créateur
+        fin = cent["dec_scorer_shots_per90_lag"].idxmax()             # + de tirs → finisseur
+        cre = cent["dec_off_key_passes_per90_lag"].drop(fin).idxmax()  # + de passes clés → créateur
         low = [c for c in cent.index if c not in (fin, cre)][0]
         mapping = {fin: "off_finisher", cre: "off_creator", low: "off_low"}
     else:
-        low = cent["gv"].idxmax()                                 # + avancé → peu défensif
-        aer = cent["def_threat_conceded_per90_lag"].drop(low).idxmax()  # + de menace concédée
+        low = cent["dec_gv"].idxmax()                                 # + avancé → peu défensif
+        aer = cent["dec_def_threat_conceded_per90_lag"].drop(low).idxmax()  # + de menace concédée
         rec = [c for c in cent.index if c not in (low, aer)][0]
         mapping = {low: "def_low", aer: "def_aerial", rec: "def_recuperator"}
     out = pd.Series("GK", index=df.index, dtype="object")
@@ -117,19 +117,20 @@ def to_canonical(df, labels, side):
 def characterize(df, labels, features, side):
     """Affiche la moyenne de chaque feature par cluster → lecture football."""
     tmp = df.copy()
-    tmp["cluster"] = labels
+    tmp["str_cluster"] = labels
     print(f"\n=== Clusters {side} (n par cluster) ===")
-    print(tmp["cluster"].value_counts().sort_index().to_string())
-    prof = tmp[tmp["cluster"] != "GK"].groupby("cluster")[features + ["gv", "gh"]].mean()
+    print(tmp["str_cluster"].value_counts().sort_index().to_string())
+    prof = tmp[tmp["str_cluster"] != "GK"].groupby("str_cluster")[features + ["dec_gv", "dec_gh"]].mean()
     print(prof.round(3).to_string())
 
 def write_clusters(con, df, off_labels, def_labels,
                    table="machine_learning.player_style_clusters"):
-    """Une ligne par (player_id, season) avec ses 2 clusters de style (-1 = GK).
+    """Une ligne par (str_player_id, str_season) avec ses 2 clusters de style
+    (labels canoniques texte ; 'GK' pour les gardiens).
     Table écrite par le pipeline Python, consommée ensuite par dbt en `source`."""
-    out = df[["player_id", "season"]].copy()
-    out["cluster_offensive"] = off_labels.values
-    out["cluster_defensive"] = def_labels.values
+    out = df[["str_player_id", "str_season"]].copy()
+    out["str_cluster_offensive"] = off_labels.values
+    out["str_cluster_defensive"] = def_labels.values
     con.register("tmp_style_clusters", out)
     con.execute("CREATE SCHEMA IF NOT EXISTS machine_learning")
     con.execute(f"CREATE OR REPLACE TABLE {table} AS SELECT * FROM tmp_style_clusters")
@@ -164,17 +165,17 @@ def load_impute_context(con):
     coords_sql = ",".join("l." + c for c in all_coords)
     coords_df = con.sql(f"""
         WITH latest AS (SELECT * FROM (
-          SELECT *, row_number() OVER (PARTITION BY player_id, season
-                    ORDER BY date DESC, match_id DESC) rn
+          SELECT *, row_number() OVER (PARTITION BY str_player_id, str_season
+                    ORDER BY dt_date DESC, str_match_id DESC) rn
           FROM gold.joueur_saison) WHERE rn = 1)
-        SELECT l.player_id, l.season, l.n_apps_lag, {coords_sql},
-               c.cluster_offensive, c.cluster_defensive
+        SELECT l.str_player_id, l.str_season, l.int_n_apps_lag, {coords_sql},
+               c.str_cluster_offensive, c.str_cluster_defensive
         FROM latest l
         JOIN machine_learning.player_style_clusters c
-             ON c.player_id = l.player_id AND c.season = l.season
+             ON c.str_player_id = l.str_player_id AND c.str_season = l.str_season
     """).df()
     targets = [t["feature"] for t in KNN_CFG["zonal_targets"]]
-    zon = con.sql(f"""SELECT player_id, season, zone_5x5, profile_confidence_flag,
+    zon = con.sql(f"""SELECT str_player_id, str_season, str_zone_5x5, str_profile_confidence_flag,
                              {','.join(targets)}
                       FROM gold.joueur_zone_saison""").df()
     return coords_df, zon
@@ -184,12 +185,12 @@ def validate_target(con, coords_df, zon, feature, coords, side, k=None, folds=3)
     """RMSE de reconstruction par masquage, poolée sur les 25 cellules d'une
     cible zonale. Compare KNN / repli cluster / moyenne globale."""
     k = k or KNN_CFG["k_neighbors"]
-    clcol = "cluster_offensive" if side == "offensive" else "cluster_defensive"
-    base = coords_df[["player_id", "season", "n_apps_lag", clcol] + coords].dropna(subset=coords)
+    clcol = "str_cluster_offensive" if side == "offensive" else "str_cluster_defensive"
+    base = coords_df[["str_player_id", "str_season", "int_n_apps_lag", clcol] + coords].dropna(subset=coords)
     sk = scl = sg = cnt = 0
-    for _, zc in zon[["player_id", "season", "zone_5x5", feature]].groupby("zone_5x5"):
-        d = base.merge(zc.rename(columns={feature: "tgt"}), on=["player_id", "season"])
-        d = d[(d.n_apps_lag >= MIN_APPS) & (d[clcol] != "GK") & d.tgt.notna()]
+    for _, zc in zon[["str_player_id", "str_season", "str_zone_5x5", feature]].groupby("str_zone_5x5"):
+        d = base.merge(zc.rename(columns={feature: "tgt"}), on=["str_player_id", "str_season"])
+        d = d[(d.int_n_apps_lag >= MIN_APPS) & (d[clcol] != "GK") & d.tgt.notna()]
         if len(d) < 200:
             continue
         X = d[coords].values.astype(float); y = d.tgt.values; cl = d[clcol].values
@@ -206,16 +207,16 @@ def _impute_column(m, feature, coords, side, method, k):
     """Impute une colonne zonale : garde la valeur si le profil zonal est fiable
     (flag high/medium), sinon impute par KNN (coords joueur, dans le cluster) ou
     repli cluster. Retourne (valeurs remplies, masque imputé booléen)."""
-    clcol = "cluster_offensive" if side == "offensive" else "cluster_defensive"
+    clcol = "str_cluster_offensive" if side == "offensive" else "str_cluster_defensive"
     val = m[feature].values.astype(float).copy()
-    keep = m["profile_confidence_flag"].isin(["high", "medium"]).values & ~np.isnan(val)
+    keep = m["str_profile_confidence_flag"].isin(["high", "medium"]).values & ~np.isnan(val)
     out = val.copy()
     imputed = ~keep
     coords_ok = m[coords].notna().all(1).values
-    reliable = m["n_apps_lag"].values >= MIN_APPS
+    reliable = m["int_n_apps_lag"].values >= MIN_APPS
     cl = m[clcol].values
-    for cell in m["zone_5x5"].unique():
-        cellm = m["zone_5x5"].values == cell
+    for cell in m["str_zone_5x5"].unique():
+        cellm = m["str_zone_5x5"].values == cell
         don = cellm & keep & coords_ok & reliable & (cl != "GK")   # donneurs fiables
         tgt = cellm & imputed                                      # cellules à combler
         if tgt.sum() == 0 or don.sum() == 0:
@@ -243,16 +244,17 @@ def _impute_column(m, feature, coords, side, method, k):
 
 def impute_zonal_table(con, coords_df, zon):
     """Table zonale imputée, même grain que joueur_zone_saison. Une colonne
-    valeur + une colonne <feature>_imputed (traçabilité observé vs imputé)."""
+    valeur (dec_<feature>) + une colonne bool_<feature>_imputed (traçabilité
+    observé vs imputé)."""
     k = KNN_CFG["k_neighbors"]
     csets = KNN_CFG["coordinate_sets"]
-    m = zon.merge(coords_df, on=["player_id", "season"], how="left")
-    out = m[["player_id", "season", "zone_5x5"]].copy()
+    m = zon.merge(coords_df, on=["str_player_id", "str_season"], how="left")
+    out = m[["str_player_id", "str_season", "str_zone_5x5"]].copy()
     for t in KNN_CFG["zonal_targets"]:
         vals, imp = _impute_column(m, t["feature"], csets[t["coords"]],
                                    t["side"], t["method"], k)
         out[t["feature"]] = vals
-        out[t["feature"] + "_imputed"] = imp
+        out["bool_" + t["feature"].removeprefix("dec_") + "_imputed"] = imp
     return out
 
 
@@ -270,7 +272,7 @@ def main(write=False, validate=False, db=None):
     d'autres steps (DuckDB = un seul writer)."""
     con = duckdb.connect(db or str(DB_PATH), read_only=not write)
     df = load_player_profiles(con)
-    print(f"Profils joueur-saison : {len(df):,} | avec position : {df['gv'].notna().sum():,}")
+    print(f"Profils joueur-saison : {len(df):,} | avec position : {df['dec_gv'].notna().sum():,}")
 
     off_int, _, _, _ = fit_style_clusters(df, OFFENSIVE_FEATURES, "offensive")
     off_canon = to_canonical(df, off_int, "offensive")

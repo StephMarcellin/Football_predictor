@@ -1,7 +1,7 @@
 {{
     config(
         materialized='incremental',
-        unique_key=['match_id', 'team_id', 'minute'],
+        unique_key=['str_match_id', 'str_team_id', 'int_minute'],
         on_schema_change='sync_all_columns',
         schema='intermediate',
         alias='int_whoscored_team_match_minute'
@@ -12,6 +12,27 @@
 -- Une ligne = équipe + match + minute avec toutes les 35 métriques.
 -- Minute absente d'une métrique -> 0.0 (l'action n'a pas eu lieu cette minute-là).
 
+-- ══ Refonte nommage (préfixe de type en tête de nom : str_, int_, dec_, dt_, bool_) ══
+-- Entrées : les modèles amont refondus sont relus via des CTE in_<modèle> qui les
+-- remappent vers les noms/types de travail utilisés par la logique ci-dessous
+-- (inchangée). Sortie : CTE mdl_out, renommage + cast selon le type logique.
+
+WITH
+
+-- int_whoscored_team_match lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_int_whoscored_team_match AS (
+    SELECT
+        str_match_id                                                 AS "match_id",
+        CAST(str_team_id AS BIGINT)                                  AS "team_id",
+        str_field                                                    AS "field",
+        str_manager_name                                             AS "manager_name",
+        str_country_name                                             AS "country_name",
+        dec_average_age                                              AS "average_age",
+        str_stats_json                                               AS "stats_json"
+    FROM {{ ref('int_whoscored_team_match') }}
+),
+
+mdl_body AS (
 WITH extracted AS (
     SELECT
         match_id,
@@ -53,7 +74,7 @@ WITH extracted AS (
         json_extract_string(stats_json, '$.errors') AS errors,
         json_extract_string(stats_json, '$.defensiveAerials') AS defensive_aerials,
         json_extract_string(stats_json, '$.offensiveAerials') AS offensive_aerials
-    FROM {{ ref('int_whoscored_team_match') }}
+    FROM in_int_whoscored_team_match
 ),
 
 minutes_expanded AS (
@@ -146,3 +167,50 @@ metrics AS (
 )
 
 SELECT * FROM metrics
+),
+
+mdl_out AS (
+    SELECT
+        "match_id"                                                   AS str_match_id,
+        CAST(team_id AS VARCHAR)                                     AS str_team_id,
+        "minute"                                                     AS int_minute,
+        "rating"                                                     AS dec_rating,
+        "shots_total"                                                AS dec_shots_total,
+        "shots_on_target"                                            AS dec_shots_on_target,
+        "shots_off_target"                                           AS dec_shots_off_target,
+        "shots_blocked"                                              AS dec_shots_blocked,
+        "clearances"                                                 AS dec_clearances,
+        "interceptions"                                              AS dec_interceptions,
+        "possession"                                                 AS dec_possession,
+        "touches"                                                    AS dec_touches,
+        "passes_total"                                               AS dec_passes_total,
+        "passes_accurate"                                            AS dec_passes_accurate,
+        "passes_key"                                                 AS dec_passes_key,
+        "pass_success"                                               AS dec_pass_success,
+        "aerials_total"                                              AS dec_aerials_total,
+        "aerials_won"                                                AS dec_aerials_won,
+        "aerial_success"                                             AS dec_aerial_success,
+        "corners_total"                                              AS dec_corners_total,
+        "corners_accurate"                                           AS dec_corners_accurate,
+        "throw_ins_total"                                            AS dec_throw_ins_total,
+        "throw_ins_accurate"                                         AS dec_throw_ins_accurate,
+        "throw_in_accuracy"                                          AS dec_throw_in_accuracy,
+        "offsides_caught"                                            AS dec_offsides_caught,
+        "fouls_committed"                                            AS dec_fouls_committed,
+        "tackles_total"                                              AS dec_tackles_total,
+        "tackles_successful"                                         AS dec_tackles_successful,
+        "tackles_unsuccessful"                                       AS dec_tackles_unsuccessful,
+        "tackle_success"                                             AS dec_tackle_success,
+        "dribbled_past"                                              AS dec_dribbled_past,
+        "dribbles_won"                                               AS dec_dribbles_won,
+        "dribbles_attempted"                                         AS dec_dribbles_attempted,
+        "dribbles_lost"                                              AS dec_dribbles_lost,
+        "dribble_success"                                            AS dec_dribble_success,
+        "dispossessed"                                               AS dec_dispossessed,
+        "errors"                                                     AS dec_errors,
+        "defensive_aerials"                                          AS dec_defensive_aerials,
+        "offensive_aerials"                                          AS dec_offensive_aerials
+    FROM mdl_body
+)
+
+SELECT * FROM mdl_out

@@ -12,7 +12,7 @@ description: >
 source:
   duckdb_path: db/football.duckdb
   query: |
-    SELECT "player_id", "season", "team_id", "player_name", "height", "weight", "n_matchs" FROM intermediate."int_whoscored_players"
+    SELECT "str_player_id", "str_season", "str_team_id", "str_player_name", "int_height", "int_weight", "int_n_matchs" FROM intermediate."int_whoscored_players"
 
 expectations:
 
@@ -26,43 +26,43 @@ expectations:
   # ── COMPLÉTION STRICTE (0 NULL empirique) ──
   - type: expect_column_values_to_not_be_null
     for_each_column:
-      - player_id
-      - season
-      - team_id
-      - player_name
-      - height
-      - weight
-      - n_matchs
+      - str_player_id
+      - str_season
+      - str_team_id
+      - str_player_name
+      - int_height
+      - int_weight
+      - int_n_matchs
     kwargs: { mostly: 1.0 }
     # severity: error
     severity: warn
 
   # ── BORNES DE VALEURS NUMÉRIQUES ──
   - type: expect_column_values_to_be_between
-    kwargs: { column: player_id, min_value: -56107, max_value: 618019, mostly: 1.0 }
+    kwargs: { column: str_player_id, min_value: -56107, max_value: 618019, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [70, 561841], mean=2.55e+05." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
+    kwargs: { column: str_team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [202606100001, 202606100426], mean=2.03e+11." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: height, min_value: 0, max_value: 227, mostly: 1.0 }
+    kwargs: { column: int_height, min_value: 0, max_value: 227, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [0, 206], mean=179." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: weight, min_value: 0, max_value: 116, mostly: 1.0 }
+    kwargs: { column: int_weight, min_value: 0, max_value: 116, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [0, 105], mean=73.4." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: n_matchs, min_value: -4, max_value: 66, mostly: 1.0 }
+    kwargs: { column: int_n_matchs, min_value: -4, max_value: 66, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [1, 60], mean=20.9." }
 
   # ── DÉRIVE VOLUMÉTRIQUE INTER-SAISONS ──
   - type: expect_partition_volume_stability
     kwargs:
-      partition_col: season
+      partition_col: str_season
       max_deviation_warn: 0.20
       max_deviation_error: 0.40
       min_seasons_history: 2

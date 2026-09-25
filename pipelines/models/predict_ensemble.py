@@ -34,9 +34,9 @@ from poisson_markets import markets_from_lambdas
 
 def _filter(df, match_ids, season):
     if match_ids:
-        return df[df["match_id"].isin(match_ids)].copy()
+        return df[df["str_match_id"].isin(match_ids)].copy()
     if season:
-        return df[df["season"] == season].copy()
+        return df[df["str_season"] == season].copy()
     return df
 
 
@@ -47,21 +47,22 @@ def derived_probs(cfg, con, match_ids=None, season=None, rho=None):
     df = _filter(mc.load_mart(cfg, spec["mart"]), match_ids, season)
     X = mc.prepare_x(df, spec["target"], spec.get("exclude")).reindex(
         columns=pay["features"], fill_value=0)
-    df = df[["match_id", "team_id"]].copy()
+    df = df[["str_match_id", "str_team_id"]].copy()
     df["mu"] = pay["model"].predict(X)
-    bb = con.execute("select match_id, team_id, venue from intermediate.backbone").df()
-    df = df.merge(bb, on=["match_id", "team_id"])
-    H = df[df.venue == "Home"].set_index("match_id")["mu"]
-    A = df[df.venue == "Away"].set_index("match_id")["mu"]
+    bb = con.execute("select str_match_id, str_team_id, str_venue "
+                     "from intermediate.backbone").df()
+    df = df.merge(bb, on=["str_match_id", "str_team_id"])
+    H = df[df.str_venue == "Home"].set_index("str_match_id")["mu"]
+    A = df[df.str_venue == "Away"].set_index("str_match_id")["mu"]
     if rho is None:
         rho = cfg.get("predict", {}).get("dixon_coles_rho", -0.08)
     rows = []
     for m in H.index.intersection(A.index):
         mk = markets_from_lambdas(float(H[m]), float(A[m]), rho=rho)
-        rows.append({"match_id": m, "H": mk["prob_H"], "D": mk["prob_D"], "A": mk["prob_A"],
-                     "prob_over": mk["prob_over"], "prob_under": mk["prob_under"],
-                     "prob_btts": mk["prob_btts"], "exp_goals": mk["exp_goals"]})
-    return pd.DataFrame(rows).set_index("match_id")
+        rows.append({"str_match_id": m, "H": mk["prob_H"], "D": mk["prob_D"], "A": mk["prob_A"],
+                     "dec_prob_over": mk["prob_over"], "dec_prob_under": mk["prob_under"],
+                     "dec_prob_btts": mk["prob_btts"], "dec_exp_goals": mk["exp_goals"]})
+    return pd.DataFrame(rows).set_index("str_match_id")
 
 
 def direct_probs(cfg, match_ids=None, season=None):
@@ -75,10 +76,10 @@ def direct_probs(cfg, match_ids=None, season=None):
     if float(proba.std(axis=0).mean()) < 1e-6:
         raise RuntimeError("Probas uniformes : calibration dégénérée — version sklearn ?")
     inv = {v: k for k, v in pay["label_map"].items()}
-    out = df[["match_id"]].copy()
+    out = df[["str_match_id"]].copy()
     for k, cls in enumerate(pay["model"].classes_):
         out[inv[cls]] = proba[:, k]
-    return out.groupby("match_id")[["H", "D", "A"]].mean()
+    return out.groupby("str_match_id")[["H", "D", "A"]].mean()
 
 
 def predict_ensemble(cfg, match_ids=None, season=None):
@@ -92,11 +93,12 @@ def predict_ensemble(cfg, match_ids=None, season=None):
     common = der.index.intersection(dir_.index)
     out = pd.DataFrame(index=common)
     for c in ["H", "D", "A"]:
-        out[f"prob_{c}"] = alpha * der.loc[common, c] + (1 - alpha) * dir_.loc[common, c]
-    for c in ["prob_over", "prob_under", "prob_btts", "exp_goals"]:
+        out[f"dec_prob_{c}"] = alpha * der.loc[common, c] + (1 - alpha) * dir_.loc[common, c]
+    for c in ["dec_prob_over", "dec_prob_under", "dec_prob_btts", "dec_exp_goals"]:
         out[c] = der.loc[common, c]
-    out["pred_1n2"] = out[["prob_H", "prob_D", "prob_A"]].idxmax(1).str.replace("prob_", "", regex=False)
-    return out.reset_index(names="match_id")
+    out["str_pred_1n2"] = (out[["dec_prob_H", "dec_prob_D", "dec_prob_A"]].idxmax(1)
+                           .str.replace("dec_prob_", "", regex=False))
+    return out.reset_index(names="str_match_id")
 
 
 def main(match_ids=None, season=None, write=False):

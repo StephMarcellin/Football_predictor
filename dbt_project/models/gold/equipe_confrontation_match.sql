@@ -1,7 +1,7 @@
 {{
     config(
         materialized='incremental',
-        unique_key=['match_id', 'team_id'],
+        unique_key=['str_match_id', 'str_team_id'],
         on_schema_change='sync_all_columns',
         schema='gold',
         alias='equipe_confrontation_match'
@@ -35,11 +35,84 @@
 -- ppda jamais nul (min ≈ 2,5) → pas de garde.
 -- ══════════════════════════════════════════════════════════════════════════════
 
-WITH team_buildup AS (
+-- Refonte nommage : equipe_match est lu sous ses nouveaux noms et remappé vers les
+-- anciens (CTE equipe_match_in) — les sorties de ce modèle ne changent pas (types
+-- compris : team_id / opponent_id restent INTEGER).
+
+-- ══ Refonte nommage (préfixe de type en tête de nom : str_, int_, dec_, dt_, bool_) ══
+-- Entrées : les modèles amont refondus sont relus via des CTE in_<modèle> qui les
+-- remappent vers les noms/types de travail utilisés par la logique ci-dessous
+-- (inchangée). Sortie : CTE mdl_out, renommage + cast selon le type logique.
+
+WITH
+
+-- int_whoscored_lineup lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_int_whoscored_lineup AS (
+    SELECT
+        str_match_id                                                 AS "match_id",
+        CAST(str_team_id AS BIGINT)                                  AS "team_id",
+        int_formation_seq                                            AS "formation_seq",
+        CAST(str_formation_id AS INTEGER)                            AS "formation_id",
+        int_period                                                   AS "period",
+        int_start_minute                                             AS "start_minute",
+        int_end_minute                                               AS "end_minute",
+        CAST(str_player_id AS BIGINT)                                AS "player_id",
+        int_slot                                                     AS "slot",
+        dec_grid_vertical                                            AS "grid_vertical",
+        dec_grid_horizontal                                          AS "grid_horizontal",
+        bool_is_captain                                              AS "is_captain"
+    FROM {{ ref('int_whoscored_lineup') }}
+),
+
+-- joueur_saison lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_joueur_saison AS (
+    SELECT
+        str_match_id                                                 AS "match_id",
+        CAST(str_team_id AS BIGINT)                                  AS "team_id",
+        CAST(str_player_id AS INTEGER)                               AS "player_id",
+        dt_date                                                      AS "date",
+        str_season                                                   AS "season",
+        str_league_source                                            AS "league_source",
+        int_n_apps_lag                                               AS "n_apps_lag",
+        CAST(int_minutes_lag AS HUGEINT)                             AS "minutes_lag",
+        dec_scorer_xg_per90_lag                                      AS "scorer_xg_per90_lag",
+        dec_scorer_shots_per90_lag                                   AS "scorer_shots_per90_lag",
+        dec_off_chances_created_per90_lag                            AS "off_chances_created_per90_lag",
+        dec_off_key_passes_per90_lag                                 AS "off_key_passes_per90_lag",
+        dec_off_xg_per_shot_lag                                      AS "off_xg_per_shot_lag",
+        dec_def_aerial_win_rate_lag                                  AS "def_aerial_win_rate_lag",
+        dec_def_actions_per90_lag                                    AS "def_actions_per90_lag",
+        dec_def_errors_per90_lag                                     AS "def_errors_per90_lag",
+        dec_player_card_propensity_lag                               AS "player_card_propensity_lag",
+        dec_off_xgchain_per90_lag                                    AS "off_xgchain_per90_lag",
+        dec_off_xgbuildup_per90_lag                                  AS "off_xgbuildup_per90_lag",
+        dec_scorer_team_shot_share_lag                               AS "scorer_team_shot_share_lag",
+        CAST(int_scorer_penalty_taker_lag AS HUGEINT)                AS "scorer_penalty_taker_lag",
+        CAST(int_scorer_freekick_taker_lag AS HUGEINT)               AS "scorer_freekick_taker_lag",
+        dec_def_threat_conceded_per90_lag                            AS "def_threat_conceded_per90_lag",
+        dec_scorer_xgot_overperformance_lag                          AS "scorer_xgot_overperformance_lag",
+        str_profile_confidence_flag                                  AS "profile_confidence_flag"
+    FROM {{ ref('joueur_saison') }}
+),
+
+mdl_body AS (
+WITH equipe_match_in AS (
+    SELECT
+        str_match_id                       AS match_id,
+        CAST(str_team_id AS BIGINT)       AS team_id,
+        CAST(str_opponent_id AS BIGINT)   AS opponent_id,
+        {% for w in [3, 5, 10] %}
+        dec_ppda_rolling_{{ w }}           AS ppda_rolling_{{ w }},
+        dec_ppda_allowed_rolling_{{ w }}   AS ppda_allowed_rolling_{{ w }}{% if not loop.last %},{% endif %}
+        {% endfor %}
+    FROM {{ ref('equipe_match') }}
+),
+
+team_buildup AS (
     SELECT l.match_id, l.team_id,
         SUM(COALESCE(js.off_xgbuildup_per90_lag, 0)) AS team_xgbuildup_lag
-    FROM {{ ref('int_whoscored_lineup') }} l
-    JOIN {{ ref('joueur_saison') }} js
+    FROM in_int_whoscored_lineup l
+    JOIN in_joueur_saison js
         ON  js.match_id  = l.match_id
         AND js.team_id   = l.team_id
         AND js.player_id = l.player_id
@@ -63,8 +136,8 @@ SELECT
     tba.team_xgbuildup_lag AS self_team_xgbuildup_lag,
     tbb.team_xgbuildup_lag AS opp_team_xgbuildup_lag
 
-FROM {{ ref('equipe_match') }} a
-LEFT JOIN {{ ref('equipe_match') }} b
+FROM equipe_match_in a
+LEFT JOIN equipe_match_in b
     ON  b.match_id = a.match_id
     AND b.team_id  = a.opponent_id
 LEFT JOIN team_buildup tba
@@ -78,7 +151,46 @@ WHERE a.match_id IS NOT NULL AND a.team_id IS NOT NULL
 
 {% if is_incremental() %}
 AND a.match_id IN (
-    SELECT match_id FROM {{ ref('equipe_match') }}
-    EXCEPT SELECT match_id FROM {{ this }}
+    SELECT str_match_id FROM {{ ref('equipe_match') }}
+    EXCEPT SELECT match_id FROM (
+    SELECT
+            str_match_id                                                 AS "match_id",
+            CAST(str_team_id AS BIGINT)                                  AS "team_id",
+            CAST(str_opponent_id AS BIGINT)                              AS "opponent_id",
+            dec_opp_press_ppda_rolling_3                                 AS "opp_press_ppda_rolling_3",
+            dec_self_buildup_resistance_rolling_3                        AS "self_buildup_resistance_rolling_3",
+            dec_matchup_high_press_vs_buildup_rolling_3                  AS "matchup_high_press_vs_buildup_rolling_3",
+            dec_opp_press_ppda_rolling_5                                 AS "opp_press_ppda_rolling_5",
+            dec_self_buildup_resistance_rolling_5                        AS "self_buildup_resistance_rolling_5",
+            dec_matchup_high_press_vs_buildup_rolling_5                  AS "matchup_high_press_vs_buildup_rolling_5",
+            dec_opp_press_ppda_rolling_10                                AS "opp_press_ppda_rolling_10",
+            dec_self_buildup_resistance_rolling_10                       AS "self_buildup_resistance_rolling_10",
+            dec_matchup_high_press_vs_buildup_rolling_10                 AS "matchup_high_press_vs_buildup_rolling_10",
+            dec_self_team_xgbuildup_lag                                  AS "self_team_xgbuildup_lag",
+            dec_opp_team_xgbuildup_lag                                   AS "opp_team_xgbuildup_lag"
+        FROM {{ this }}
+    )
 )
 {% endif %}
+),
+
+mdl_out AS (
+    SELECT
+        "match_id"                                                   AS str_match_id,
+        CAST(team_id AS VARCHAR)                                     AS str_team_id,
+        CAST(opponent_id AS VARCHAR)                                 AS str_opponent_id,
+        "opp_press_ppda_rolling_3"                                   AS dec_opp_press_ppda_rolling_3,
+        "self_buildup_resistance_rolling_3"                          AS dec_self_buildup_resistance_rolling_3,
+        "matchup_high_press_vs_buildup_rolling_3"                    AS dec_matchup_high_press_vs_buildup_rolling_3,
+        "opp_press_ppda_rolling_5"                                   AS dec_opp_press_ppda_rolling_5,
+        "self_buildup_resistance_rolling_5"                          AS dec_self_buildup_resistance_rolling_5,
+        "matchup_high_press_vs_buildup_rolling_5"                    AS dec_matchup_high_press_vs_buildup_rolling_5,
+        "opp_press_ppda_rolling_10"                                  AS dec_opp_press_ppda_rolling_10,
+        "self_buildup_resistance_rolling_10"                         AS dec_self_buildup_resistance_rolling_10,
+        "matchup_high_press_vs_buildup_rolling_10"                   AS dec_matchup_high_press_vs_buildup_rolling_10,
+        "self_team_xgbuildup_lag"                                    AS dec_self_team_xgbuildup_lag,
+        "opp_team_xgbuildup_lag"                                     AS dec_opp_team_xgbuildup_lag
+    FROM mdl_body
+)
+
+SELECT * FROM mdl_out

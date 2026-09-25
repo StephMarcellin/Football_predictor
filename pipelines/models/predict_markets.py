@@ -35,17 +35,18 @@ def _lambdas(cfg, con, match_ids, season):
     pay = joblib.load(mc.MODELS_DIR / "buts_equipe.joblib")
     df = mc.load_mart(cfg, spec["mart"])
     if match_ids:
-        df = df[df["match_id"].isin(match_ids)].copy()
+        df = df[df["str_match_id"].isin(match_ids)].copy()
     elif season:
-        df = df[df["season"] == season].copy()
+        df = df[df["str_season"] == season].copy()
     X = mc.prepare_x(df, spec["target"], spec.get("exclude")).reindex(
         columns=pay["features"], fill_value=0)
-    df = df[["match_id", "team_id"]].copy()
+    df = df[["str_match_id", "str_team_id"]].copy()
     df["mu"] = pay["model"].predict(X)
-    bb = con.execute("select match_id, team_id, venue from intermediate.backbone").df()
-    df = df.merge(bb, on=["match_id", "team_id"])
-    H = df[df.venue == "Home"].set_index("match_id")["mu"]
-    A = df[df.venue == "Away"].set_index("match_id")["mu"]
+    bb = con.execute("select str_match_id, str_team_id, str_venue "
+                     "from intermediate.backbone").df()
+    df = df.merge(bb, on=["str_match_id", "str_team_id"])
+    H = df[df.str_venue == "Home"].set_index("str_match_id")["mu"]
+    A = df[df.str_venue == "Away"].set_index("str_match_id")["mu"]
     return {m: (float(H[m]), float(A[m])) for m in H.index.intersection(A.index)}
 
 
@@ -62,17 +63,17 @@ def _print_match(mid, fm):
 
 
 def _flatten(mid, fm):
-    row = {"match_id": mid,
-           "exp_goals_home": fm["exp_goals_home"], "exp_goals_away": fm["exp_goals_away"],
-           "prob_H": fm["result"]["H"], "prob_D": fm["result"]["D"], "prob_A": fm["result"]["A"],
-           "clean_sheet_home": fm["clean_sheet_home"], "clean_sheet_away": fm["clean_sheet_away"],
-           "btts_yes": fm["btts"]["yes"]}
+    row = {"str_match_id": mid,
+           "dec_exp_goals_home": fm["exp_goals_home"], "dec_exp_goals_away": fm["exp_goals_away"],
+           "dec_prob_H": fm["result"]["H"], "dec_prob_D": fm["result"]["D"], "dec_prob_A": fm["result"]["A"],
+           "dec_clean_sheet_home": fm["clean_sheet_home"], "dec_clean_sheet_away": fm["clean_sheet_away"],
+           "dec_btts_yes": fm["btts"]["yes"]}
     for k, v in fm["goals_home"].items():
-        row[f"home_{k}"] = v
+        row[f"dec_home_{k}"] = v
     for k, v in fm["goals_away"].items():
-        row[f"away_{k}"] = v
+        row[f"dec_away_{k}"] = v
     for L, d in fm["over_under"].items():
-        row[f"over_{L}"] = d["over"]
+        row[f"dec_over_{L}"] = d["over"]
     return row
 
 

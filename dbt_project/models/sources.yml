@@ -10,11 +10,12 @@ sources:
     tables:
 
       - name: fbref_schedule
-        description: "Table centrale FBref — 1 ligne par équipe par match. Point de départ de toute la chaîne features."
+        description: "Table centrale FBref — 1 ligne par équipe par match (matchs à venir inclus). Point de départ de toute la chaîne features. Colonnes numériques en VARCHAR brut (cast et validation faits en aval dans int_fbref_schedule, cf. tests déplacés là-bas)."
         tests:
-          # ── Grain silver — 0 doublon empirique ──
+          # ── Grain silver — 0 doublon empirique sur (date, team, opponent, league_source) ──
           - dbt_utils.unique_combination_of_columns:
-              combination_of_columns: [date, team, opponent, league_source]
+              arguments:
+                combination_of_columns: [date, team, opponent, league_source]
         columns:
           - name: date
             description: "Date du match"
@@ -29,38 +30,31 @@ sources:
           - name: day
             description: "Jour de la semaine"
           - name: venue
-            description: "Lieu du match du point de vue de l'équipe : Home ou Away"
+            description: "Lieu du match du point de vue de l'équipe : Home, Away ou Neutral"
             tests:
               - not_null
               - accepted_values:
                   arguments:
                     values: ['Home', 'Away', 'Neutral']
           - name: result
-            description: "Résultat brut FBref : W (victoire), D (nul), L (défaite)"
+            description: "Résultat brut FBref : W (victoire), D (nul), L (défaite), '' (match non joué ou arrêté — 4 278 lignes)"
             tests:
+              - not_null
               - accepted_values:
                   arguments:
-                    values: ['W', 'D', 'L']
-                  config:
-                    severity: warn
+                    values: ['W', 'D', 'L', '']
           - name: gf
-            description: "Buts marqués par l'équipe"
-            tests:
-              - not_null
-              - is_positive
+            description: "Buts marqués par l'équipe (VARCHAR brut, vide si match non joué — cast en int_gf dans int_fbref_schedule)"
           - name: ga
-            description: "Buts encaissés par l'équipe"
-            tests:
-              - not_null
-              - is_positive
+            description: "Buts encaissés par l'équipe (VARCHAR brut, vide si match non joué — cast en int_ga dans int_fbref_schedule)"
           - name: opponent
             description: "Nom normalisé de l'adversaire"
             tests:
               - not_null
           - name: poss
-            description: "Possession en pourcentage (VARCHAR — castée en DOUBLE dans gold)"
+            description: "Possession en pourcentage (VARCHAR brut, vide avant 2014-2015 ; '100' = donnée manquante — cast en int_poss et neutralisé dans int_fbref_schedule)"
           - name: formation
-            description: "Formation tactique de l'équipe (ex: 4-3-3)"
+            description: "Formation tactique de l'équipe (ex: 4-3-3), chaîne vide si non fournie"
           - name: opp_formation
             description: "Formation tactique de l'adversaire"
           - name: team
@@ -79,11 +73,14 @@ sources:
                   arguments:
                     values: ['fbref']
           - name: scraped_at
-            description: "Timestamp du scraping"
+            description: "Timestamp du scraping (VARCHAR ISO — cast en dt_scraped_at dans int_fbref_schedule)"
           - name: comp_category
-            description: "Catégorie de compétition : Big5, Cup, Europe"
+            description: "Catégorie de compétition : Big5, Cup, D2, Europe, Other"
             tests:
               - not_null
+              - accepted_values:
+                  arguments:
+                    values: ['Big5', 'Cup', 'D2', 'Europe', 'Other']
           - name: raw_team
             description: "Nom brut de l'équipe avant normalisation"
             tests:
@@ -92,43 +89,19 @@ sources:
             description: "Nom brut de l'adversaire avant normalisation"
             tests:
               - not_null
-
           - name: result_1n2
-            description: "Résultat encodé du point de vue de l'équipe : H (victoire domicile), D (nul), A (victoire extérieur)"
+            description: "Résultat encodé du point de vue neutre : H (victoire domicile), D (nul), A (victoire extérieur). NULL si match non joué."
             tests:
               - accepted_values:
                   arguments:
                     values: ['H', 'D', 'A']
 
       - name: fbref_keeper
-        description: "Statistiques de gardien FBref — 1 ligne par équipe par match"
+        description: "Statistiques de gardien FBref — 1 ligne par équipe par match. Colonnes numériques en VARCHAR brut (cast et validation faits en aval dans int_fbref_keeper, cf. tests déplacés là-bas)."
         tests:
           # ── Grain silver — 0 doublon empirique sur (date, team, opponent, league_source) ──
           - dbt_utils.unique_combination_of_columns:
               combination_of_columns: [date, team, opponent, league_source]
-          # ── A-004 (silver.fbref_keeper : bug scraping FBref, 1 186 lignes) ──
-          # Contrainte physique : les buts encaissés ne peuvent excéder les tirs cadrés subis.
-          # Warn ici parce que la dette est connue et suivie via audits.scraping_targets_int_fbref_keeper.
-          - dbt_utils.expression_is_true:
-              expression: "ga_keeper <= sota"
-              config:
-                severity: warn
-          # ── A-012 (nouveau) : cs devrait être binaire {0, 1} ──
-          # 119 lignes avec cs = 2, 203 contradictions cs ↔ ga_keeper.
-          # L'intermediate camoufle en recalculant cs depuis ga_keeper — silver expose la vérité brute.
-          - dbt_utils.expression_is_true:
-              expression: "cs IN (0, 1)"
-              config:
-                severity: warn
-          - dbt_utils.expression_is_true:
-              expression: "(ga_keeper > 0 AND cs = 0) OR (ga_keeper = 0 AND cs = 1)"
-              config:
-                severity: warn
-          # ── Contrainte comptable sur les penaltys ──
-          - dbt_utils.expression_is_true:
-              expression: "pk_allowed + pk_saved + pk_missed <= pk_att"
-              config:
-                severity: warn
         columns:
           - name: date
             description: "Date du match"
@@ -143,7 +116,7 @@ sources:
           - name: day
             description: "Jour de la semaine"
           - name: venue
-            description: "Lieu du match : Home ou Away"
+            description: "Lieu du match : Home, Away ou Neutral"
             tests:
               - not_null
               - accepted_values:
@@ -156,61 +129,31 @@ sources:
                   arguments:
                     values: ['W', 'D', 'L']
           - name: gf
-            description: "Buts marqués"
-            tests:
-              - not_null
-              - is_positive
+            description: "Buts marqués (VARCHAR brut — cast en int_gf dans int_fbref_keeper)"
           - name: ga
-            description: "Buts encaissés"
-            tests:
-              - not_null
-              - is_positive
+            description: "Buts encaissés (VARCHAR brut — cast en int_ga dans int_fbref_keeper)"
           - name: opponent
             description: "Nom normalisé de l'adversaire"
             tests:
               - not_null
           - name: sota
-            description: "Shots on target against — tirs cadrés subis par le gardien"
-            tests:
-              - not_null
-              - is_positive
+            description: "Shots on target against (VARCHAR brut, souvent vide — cast et complété par identité dans int_fbref_keeper)"
           - name: ga_keeper
-            description: "Buts encaissés par le gardien (hors CSC)"
-            tests:
-              - not_null
-              - is_positive
+            description: "Buts encaissés par le gardien (VARCHAR brut, souvent vide — cast et complété par identité dans int_fbref_keeper)"
           - name: saves
-            description: "Arrêts du gardien"
-            tests:
-              - not_null
-              - is_positive
+            description: "Arrêts du gardien (VARCHAR brut, souvent vide — cast dans int_fbref_keeper, vide = 0)"
           - name: save_pct
-            description: "Pourcentage d'arrêts (saves / sota)"
+            description: "Pourcentage d'arrêts brut FBref — non fiable (valeurs jusqu'à -400 observées), recalculé dans int_fbref_keeper"
           - name: cs
-            description: "Clean sheet — 1 si aucun but encaissé, 0 sinon"
-            tests:
-              - not_null
-              - is_positive
+            description: "Clean sheet brut FBref — non fiable (A-012 : 150 lignes à cs=2 empiriques, incohérences avec ga_keeper), recalculé dans int_fbref_keeper depuis ga_keeper"
           - name: pk_att
-            description: "Penaltys tentés contre le gardien"
-            tests:
-              - not_null
-              - is_positive
+            description: "Penaltys tentés contre le gardien (VARCHAR brut — cast dans int_fbref_keeper, vide = 0)"
           - name: pk_allowed
-            description: "Penaltys accordés (transformés contre)"
-            tests:
-              - not_null
-              - is_positive
+            description: "Penaltys accordés (transformés contre) (VARCHAR brut — cast dans int_fbref_keeper, vide = 0)"
           - name: pk_saved
-            description: "Penaltys arrêtés"
-            tests:
-              - not_null
-              - is_positive
+            description: "Penaltys arrêtés (VARCHAR brut — cast dans int_fbref_keeper, vide = 0)"
           - name: pk_missed
-            description: "Penaltys manqués par l'attaquant adverse"
-            tests:
-              - not_null
-              - is_positive
+            description: "Penaltys manqués par l'attaquant adverse (VARCHAR brut — cast dans int_fbref_keeper, vide = 0)"
           - name: team
             description: "Nom normalisé de l'équipe"
             tests:
@@ -227,11 +170,14 @@ sources:
                   arguments:
                     values: ['fbref']
           - name: scraped_at
-            description: "Timestamp du scraping"
+            description: "Timestamp du scraping (VARCHAR ISO — cast en dt_scraped_at dans int_fbref_keeper)"
           - name: comp_category
-            description: "Catégorie de compétition : Big5, Cup, Europe"
+            description: "Catégorie de compétition : Big5, Cup, D2, Europe, Other"
             tests:
               - not_null
+              - accepted_values:
+                  arguments:
+                    values: ['Big5', 'Cup', 'D2', 'Europe', 'Other']
           - name: raw_team
             description: "Nom brut de l'équipe avant normalisation"
             tests:
@@ -248,27 +194,18 @@ sources:
                     values: ['H', 'D', 'A']
 
       - name: fbref_shooting
-        description: "Statistiques de tir FBref — 1 ligne par équipe par match"
+        description: "Statistiques de tir FBref — 1 ligne par équipe par match. Colonnes numériques en VARCHAR brut (cast et validation faits en aval dans int_fbref_shooting, cf. tests déplacés là-bas)."
         tests:
-          # ── Grain silver — 0 doublon empirique ──
+          # ── Grain silver — 0 doublon empirique sur (date, team, opponent, league_source) ──
           - dbt_utils.unique_combination_of_columns:
-              combination_of_columns: [date, team, opponent, league_source]
-          # ── Contraintes physiques dures (0 violation empirique) ──
-          - dbt_utils.expression_is_true:
-              expression: "standard_sot <= standard_sh"
-          - dbt_utils.expression_is_true:
-              expression: "standard_pk <= standard_pkatt"
-          # ── A-011 (silver.fbref_shooting : bug scraping FBref suspecté) ──
-          # 1 475 lignes empiriques avec standard_gls > standard_sot + 5 avec standard_gls > gf.
-          # Warn en attendant investigation. Justifie un futur scraping_targets_int_fbref_shooting.
-          - dbt_utils.expression_is_true:
-              expression: "standard_gls <= standard_sot"
-              config:
-                severity: warn
-          - dbt_utils.expression_is_true:
-              expression: "standard_gls <= gf"
-              config:
-                severity: warn
+              arguments:
+                combination_of_columns: [date, team, opponent, league_source]
+          # ── Tests numériques retirés (colonnes VARCHAR : comparaison lexicographique, '10' <= '9' faux) ──
+          # standard_sot <= standard_sh et standard_pk <= standard_pkatt → int_fbref_shooting (error).
+          # A-011 (standard_gls <= standard_sot, 1 475 lignes ; standard_gls <= gf, 5 lignes) →
+          # int_fbref_shooting, règle révisée : gls - pk <= sot (Gls inclut les penalties, SoT non),
+          # 5 violations résiduelles après neutralisation des faux zéros sh = 0 ; gls <= gf = 7 lignes
+          # (matchs gagnés sur tapis vert). Les deux en warn.
         columns:
           - name: date
             description: "Date du match"
@@ -283,7 +220,7 @@ sources:
           - name: day
             description: "Jour de la semaine"
           - name: venue
-            description: "Lieu du match : Home ou Away"
+            description: "Lieu du match : Home, Away ou Neutral"
             tests:
               - not_null
               - accepted_values:
@@ -296,50 +233,29 @@ sources:
                   arguments:
                     values: ['W', 'D', 'L']
           - name: gf
-            description: "Buts marqués"
-            tests:
-              - not_null
-              - is_positive
+            description: "Buts marqués (VARCHAR brut — cast en int_gf dans int_fbref_shooting)"
           - name: ga
-            description: "Buts encaissés"
-            tests:
-              - not_null
-              - is_positive
+            description: "Buts encaissés (VARCHAR brut — cast en int_ga dans int_fbref_shooting)"
           - name: opponent
             description: "Nom normalisé de l'adversaire"
             tests:
               - not_null
           - name: standard_gls
-            description: "Buts marqués (hors pénaltys)"
-            tests:
-              - not_null
-              - is_positive
+            description: "Buts marqués vus par le rapport de tirs, penalties INCLUS (VARCHAR brut — cast en int_standard_gls dans int_fbref_shooting)"
           - name: standard_sh
-            description: "Total de tirs tentés"
-            tests:
-              - not_null
-              - is_positive
+            description: "Tirs tentés hors penalties (VARCHAR brut, vide avant 2014-2015 ; '0' = donnée manquante, neutralisé en NULL dans int_fbref_shooting)"
           - name: standard_sot
-            description: "Tirs cadrés"
-            tests:
-              - not_null
-              - is_positive
+            description: "Tirs cadrés hors penalties (VARCHAR brut, vide avant 2014-2015 — cast en int_standard_sot dans int_fbref_shooting)"
           - name: standard_sot_pct
-            description: "Pourcentage de tirs cadrés (standard_sot / standard_sh)"
+            description: "Taux de tirs cadrés brut FBref, échelle 0-100 — recalculé en 0-1 dans int_fbref_shooting"
           - name: standard_g_sh
-            description: "Buts par tir (efficacité offensive brute)"
+            description: "Buts par tir brut FBref — définition non homogène (penalties inclus en 2014-2017 et 2026-2027), recalculé hors penalty dans int_fbref_shooting"
           - name: standard_g_sot
-            description: "Buts par tir cadré (efficacité offensive sur les tirs dangereux)"
+            description: "Buts par tir cadré brut FBref — même hétérogénéité que standard_g_sh, recalculé hors penalty dans int_fbref_shooting"
           - name: standard_pk
-            description: "Buts sur penalty"
-            tests:
-              - not_null
-              - is_positive
+            description: "Buts sur penalty (VARCHAR brut — cast en int_standard_pk dans int_fbref_shooting)"
           - name: standard_pkatt
-            description: "Penaltys tentés"
-            tests:
-              - not_null
-              - is_positive
+            description: "Penaltys tentés (VARCHAR brut, vide avant 2014-2015 — laissé NULL dans int_fbref_shooting, non dérivable)"
           - name: team
             description: "Nom normalisé de l'équipe"
             tests:
@@ -356,13 +272,16 @@ sources:
                   arguments:
                     values: ['fbref']
           - name: scraped_at
-            description: "Timestamp du scraping"
+            description: "Timestamp du scraping (VARCHAR ISO — cast en dt_scraped_at dans int_fbref_shooting)"
           - name: comp_category
-            description: "Catégorie de compétition : Big5, Cup, Europe"
+            description: "Catégorie de compétition : Big5, Cup, D2, Europe, Other"
             tests:
               - not_null
+              - accepted_values:
+                  arguments:
+                    values: ['Big5', 'Cup', 'D2', 'Europe', 'Other']
           - name: raw_team
-            description: "Nom brut de l'équipe"
+            description: "Nom brut de l'équipe avant normalisation"
             tests:
               - not_null
           - name: raw_opponent
@@ -377,17 +296,14 @@ sources:
                     values: ['H', 'D', 'A']
 
       - name: fbref_misc
-        description: "Statistiques diverses FBref — cartons, fautes, corners, penaltys — 1 ligne par équipe par match"
+        description: "Statistiques diverses FBref — cartons, fautes, hors-jeux, centres, interceptions, tacles, penaltys, CSC — 1 ligne par équipe par match. Colonnes numériques en VARCHAR brut (cast et validation faits en aval dans int_fbref_misc, cf. tests déplacés là-bas)."
         tests:
-          # ── Grain silver — 0 doublon empirique ──
+          # ── Grain silver — 0 doublon empirique sur (date, team, opponent, league_source) ──
           - dbt_utils.unique_combination_of_columns:
-              combination_of_columns: [date, team, opponent, league_source]
-          # ── Plafond de plausibilité disciplinaire ──
-          # Empirique max = 9+3+2 = 14. Marge à 15.
-          - dbt_utils.expression_is_true:
-              expression: "crdy + crdr + crdy2 <= 15"
-              config:
-                severity: warn
+              arguments:
+                combination_of_columns: [date, team, opponent, league_source]
+          # ── Plafond disciplinaire retiré (crdy + crdr + crdy2 sur VARCHAR = erreur de type) ──
+          # Déplacé dans int_fbref_misc (warn, marge à 15, empirique max = 13).
         columns:
           - name: date
             description: "Date du match"
@@ -402,7 +318,7 @@ sources:
           - name: day
             description: "Jour de la semaine"
           - name: venue
-            description: "Lieu du match : Home ou Away"
+            description: "Lieu du match : Home, Away ou Neutral"
             tests:
               - not_null
               - accepted_values:
@@ -415,79 +331,37 @@ sources:
                   arguments:
                     values: ['W', 'D', 'L']
           - name: gf
-            description: "Buts marqués"
-            tests:
-              - not_null
-              - is_positive
+            description: "Buts marqués (VARCHAR brut — cast en int_gf dans int_fbref_misc)"
           - name: ga
-            description: "Buts encaissés"
-            tests:
-              - not_null
-              - is_positive
+            description: "Buts encaissés (VARCHAR brut — cast en int_ga dans int_fbref_misc)"
           - name: opponent
             description: "Nom normalisé de l'adversaire"
             tests:
               - not_null
           - name: crdy
-            description: "Cartons jaunes reçus"
-            tests:
-              - not_null
-              - is_positive
+            description: "Cartons jaunes reçus (VARCHAR brut, jamais vide — cast dans int_fbref_misc)"
           - name: crdr
-            description: "Cartons rouges directs reçus"
-            tests:
-              - not_null
-              - is_positive
+            description: "Cartons rouges reçus (VARCHAR brut, jamais vide — cast dans int_fbref_misc)"
           - name: crdy2
-            description: "Deuxièmes cartons jaunes (expulsion indirecte)"
-            tests:
-              - not_null
-              - is_positive
+            description: "Deuxièmes cartons jaunes (VARCHAR brut, jamais vide — cast dans int_fbref_misc)"
           - name: fls
-            description: "Fautes commises"
-            tests:
-              - not_null
-              - is_positive
+            description: "Fautes commises (VARCHAR brut, vide avant 2014-2015 ; '0' en bloc avec fld et crosses = donnée manquante, neutralisé dans int_fbref_misc)"
           - name: fld
-            description: "Fautes subies"
-            tests:
-              - not_null
-              - is_positive
+            description: "Fautes subies (VARCHAR brut — mêmes règles que fls)"
           - name: "off"
-            description: "Hors-jeux"
-            tests:
-              - not_null
-              - is_positive
+            description: "Hors-jeux (VARCHAR brut, mot réservé DuckDB — mêmes règles que fls)"
           - name: crosses
-            description: "Centres tentés"
-            tests:
-              - not_null
-              - is_positive
+            description: "Centres (VARCHAR brut — mêmes règles que fls)"
           - name: int
-            description: "Interceptions"
-            tests:
-              - not_null
-              - is_positive
+            description: "Interceptions (VARCHAR brut, mot réservé DuckDB — mêmes règles que fls, et int = tklw = 0 ensemble neutralisé)"
           - name: tklw
-            description: "Tacles remportés"
-            tests:
-              - not_null
-              - is_positive
+            description: "Tacles gagnés (VARCHAR brut — mêmes règles que int)"
           - name: pkwon
-            description: "Penaltys obtenus"
-            tests:
-              - not_null
-              - is_positive
+            description: "Penaltys obtenus (VARCHAR brut, fourni uniquement de 2014-2015 à 2018-2019 — laissé NULL ailleurs dans int_fbref_misc)"
           - name: pkcon
-            description: "Penaltys concédés"
-            tests:
-              - not_null
-              - is_positive
+            description: "Penaltys concédés (VARCHAR brut, même couverture que pkwon)"
           - name: og
-            description: "Buts contre son camp"
-            tests:
-              - not_null
-              - is_positive
+            description: "Buts contre son camp (VARCHAR brut, 175 vides — cast dans int_fbref_misc)"
           - name: team
             description: "Nom normalisé de l'équipe"
             tests:
@@ -504,13 +378,16 @@ sources:
                   arguments:
                     values: ['fbref']
           - name: scraped_at
-            description: "Timestamp du scraping"
+            description: "Timestamp du scraping (VARCHAR ISO — cast en dt_scraped_at dans int_fbref_misc)"
           - name: comp_category
-            description: "Catégorie de compétition : Big5, Cup, Europe"
+            description: "Catégorie de compétition : Big5, Cup, D2, Europe, Other"
             tests:
               - not_null
+              - accepted_values:
+                  arguments:
+                    values: ['Big5', 'Cup', 'D2', 'Europe', 'Other']
           - name: raw_team
-            description: "Nom brut de l'équipe"
+            description: "Nom brut de l'équipe avant normalisation"
             tests:
               - not_null
           - name: raw_opponent
@@ -1286,93 +1163,93 @@ sources:
           int_xt_contributions pour le xT ajouté par déplacement. Réécrite
           (CREATE OR REPLACE) à chaque run.
         columns:
-          - name: col
+          - name: int_col
             description: "Colonne de la case (0-15 ; 0 = son but, 15 = but adverse)."
             tests:
               - not_null
-          - name: row
+          - name: int_row
             description: "Ligne de la case (0-11 ; 6 ≈ axe central)."
             tests:
               - not_null
-          - name: shots
+          - name: int_shots
             description: "Nombre de tirs partis de la case."
-          - name: goals
+          - name: int_goals
             description: "Nombre de buts depuis la case."
-          - name: moves
+          - name: int_moves
             description: "Déplacements réussis (avec destination) partis de la case."
-          - name: turnover
+          - name: int_turnover
             description: "Pertes de balle dans la case (fin de possession)."
-          - name: shoot_pct
-            description: "P(tir) = shots / (shots + moves + turnover)."
-          - name: goal_prob
-            description: "P(but | tir) = goals / shots."
-          - name: move_pct
-            description: "P(déplacement réussi) = moves / (shots + moves + turnover)."
-          - name: xt
+          - name: dec_shoot_pct
+            description: "P(tir) = int_shots / (int_shots + int_moves + int_turnover)."
+          - name: dec_goal_prob
+            description: "P(but | tir) = int_goals / int_shots."
+          - name: dec_move_pct
+            description: "P(déplacement réussi) = int_moves / (int_shots + int_moves + int_turnover)."
+          - name: dec_xt
             description: "Valeur Expected Threat de la case (résultat de l'itération)."
         tests:
           - dbt_utils.unique_combination_of_columns:
               combination_of_columns:
-                - col
-                - row
+                - int_col
+                - int_row
 
       - name: xgot_predictions
         description: >
                 xGOT par tir cadré, écrit par pipelines/xgot_score.py (application de
                 models/xgot.joblib à machine_learning.xgot_features). Réécrite
                 (CREATE OR REPLACE) à chaque run. Lue par int_keeper_shots. Grain :
-                (match_id, row_num).
+                (str_match_id, int_row_num).
         columns:
-            - name: match_id
+            - name: str_match_id
               description: "Identifiant unifié du match (SHA1)."
-            - name: row_num
-              description: "Index de l'événement de tir dans le flux du match. Avec match_id, clé unique."
-            - name: season
+            - name: int_row_num
+              description: "Index de l'événement de tir dans le flux du match. Avec str_match_id, clé unique."
+            - name: str_season
               description: "Saison du match (ex. 2023-2024)."
-            - name: is_goal
+            - name: bool_is_goal
               description: "Booléen : le tir cadré a fini au fond."
-            - name: xgot
+            - name: dec_xgot
               description: "Post-Shot xG (xGOT) du tir, calibré, dans [0,1]."
       - name: player_style_clusters
         description: >
-          Clusters de style par (player_id, season), écrits par
+          Clusters de style par (str_player_id, str_season), écrits par
           pipelines/03_knn_impute.py (KMeans standardisé sur profil + position,
           3 clusters/côté, labels sémantiques ; gardiens = 'GK'). Réécrite
           (CREATE OR REPLACE) à chaque run. Pré-restreint le vivier de voisins du
-          KNN et sert de repli. Grain : (player_id, season).
+          KNN et sert de repli. Grain : (str_player_id, str_season).
         columns:
-          - name: player_id
+          - name: str_player_id
             description: "Identifiant joueur."
-          - name: season
+          - name: str_season
             description: "Saison (ex. 2023-2024)."
-          - name: cluster_offensive
+          - name: str_cluster_offensive
             description: "Style offensif : off_finisher / off_creator / off_low / GK."
-          - name: cluster_defensive
+          - name: str_cluster_defensive
             description: "Style défensif : def_aerial / def_recuperator / def_low / GK."
         tests:
           - dbt_utils.unique_combination_of_columns:
               combination_of_columns:
-                - player_id
-                - season
+                - str_player_id
+                - str_season
 
       - name: zonal_profiles_imputed
         description: >
           Profils zonaux imputés (famille 11), écrits par
           pipelines/03_knn_impute.py. Même grain que gold.joueur_zone_saison : les
           cellules fiables (flag high/medium) sont conservées, les autres imputées
-          par KNN action-spécifique (repli cluster). Un flag <feature>_imputed par
+          par KNN action-spécifique (repli cluster). Un flag bool_<feature>_imputed par
           colonne. Réécrite (CREATE OR REPLACE) à chaque run.
-          Grain : (player_id, season, zone_5x5).
+          Grain : (str_player_id, str_season, str_zone_5x5).
         columns:
-          - name: player_id
+          - name: str_player_id
             description: "Identifiant joueur."
-          - name: season
+          - name: str_season
             description: "Saison (ex. 2023-2024)."
-          - name: zone_5x5
+          - name: str_zone_5x5
             description: "Cellule zonale z{1..5}_c{1..5} (25 cases)."
         tests:
           - dbt_utils.unique_combination_of_columns:
               combination_of_columns:
-                - player_id
-                - season
-                - zone_5x5
+                - str_player_id
+                - str_season
+                - str_zone_5x5

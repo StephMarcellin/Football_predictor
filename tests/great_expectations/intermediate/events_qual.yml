@@ -14,10 +14,10 @@ source:
   query: |
     SELECT
       COUNT(*) AS n_rows,
-      COUNT(*) FILTER (WHERE match_id IS NULL) AS null_match_id,
-      COUNT(*) FILTER (WHERE team_id IS NULL) AS null_team_id,
-      COUNT(*) FILTER (WHERE event_id IS NULL) AS null_event_id,
-      COUNT(*) FILTER (WHERE qual_type_id IS NULL) AS null_qual_type_id
+      COUNT(*) FILTER (WHERE str_match_id IS NULL) AS null_match_id,
+      COUNT(*) FILTER (WHERE str_team_id IS NULL) AS null_team_id,
+      COUNT(*) FILTER (WHERE str_event_id IS NULL) AS null_event_id,
+      COUNT(*) FILTER (WHERE str_qual_type_id IS NULL) AS null_qual_type_id
     FROM intermediate.events_qual
 
 expectations:

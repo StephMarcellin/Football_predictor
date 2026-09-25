@@ -1,14 +1,88 @@
 {{
     config(
         materialized='incremental',
-        unique_key=['match_id', 'team_id'],
+        unique_key=['str_match_id', 'str_team_id'],
         on_schema_change='sync_all_columns',
         schema='gold',
         alias='rolling_corners'
     )
 }}
 
+-- Refonte nommage : backbone lu sous ses nouveaux noms (CTE backbone_in), sorties
+-- renommées selon docs/proposition_nommage_definitif.csv (CTE renamed). Le filtre
+-- incrémental s'applique désormais APRÈS le calcul des fenêtres : avant, il filtrait
+-- base avant les fenêtres, qui perdaient alors l'historique en run incrémental.
+
+-- ══ Refonte nommage (préfixe de type en tête de nom : str_, int_, dec_, dt_, bool_) ══
+-- Entrées : les modèles amont refondus sont relus via des CTE in_<modèle> qui les
+-- remappent vers les noms/types de travail utilisés par la logique ci-dessous
+-- (inchangée). Sortie : CTE mdl_out, renommage + cast selon le type logique.
+
 WITH
+
+-- corner_profiles lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_corner_profiles AS (
+    SELECT
+        str_match_id                                                 AS "match_id",
+        CAST(str_team_id AS BIGINT)                                  AS "team_id",
+        CAST(str_corner_taker_id AS INTEGER)                         AS "corner_taker_id",
+        int_corner_row_num                                           AS "corner_row_num",
+        int_expanded_minute                                          AS "expanded_minute",
+        str_corner_side                                              AS "corner_side",
+        str_landing_zone                                             AS "landing_zone",
+        int_n_aerial_duels                                           AS "n_aerial_duels",
+        str_shot_body_part                                           AS "shot_body_part",
+        CAST(str_clearance_player_id AS INTEGER)                     AS "clearance_player_id",
+        str_clearance_quality                                        AS "clearance_quality",
+        bool_is_headed_clearance                                     AS "is_headed_clearance",
+        str_outcome                                                  AS "outcome",
+        dec_chain_danger_total                                       AS "chain_danger_total",
+        dec_chain_danger_momentum                                    AS "chain_danger_momentum"
+    FROM {{ ref('corner_profiles') }}
+),
+
+-- player_possession_chains lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_player_possession_chains AS (
+    SELECT
+        str_match_id                                                 AS "match_id",
+        str_season                                                   AS "season",
+        str_league_source                                            AS "league_source",
+        str_chain_id                                                 AS "chain_id",
+        CAST(int_chain_number AS HUGEINT)                            AS "chain_number",
+        CAST(str_chain_team_id AS BIGINT)                            AS "chain_team_id",
+        CAST(str_team_id AS BIGINT)                                  AS "team_id",
+        CAST(str_player_id AS INTEGER)                               AS "player_id",
+        CAST(str_event_id AS INTEGER)                                AS "event_id",
+        int_row_num                                                  AS "row_num",
+        int_expanded_minute                                          AS "expanded_minute",
+        int_second                                                   AS "second",
+        int_period                                                   AS "period",
+        CAST(str_type_id AS INTEGER)                                 AS "type_id",
+        str_type_name                                                AS "type_name",
+        CAST(str_outcome_id AS INTEGER)                              AS "outcome_id",
+        bool_is_shot                                                 AS "is_shot",
+        dec_x                                                        AS "x",
+        dec_y                                                        AS "y",
+        int_is_rupture                                               AS "is_rupture",
+        str_chain_trigger                                            AS "chain_trigger",
+        int_certain_possessor                                        AS "certain_possessor",
+        CAST(dt_scraped_at AS VARCHAR)                               AS "scraped_at"
+    FROM {{ ref('player_possession_chains') }}
+),
+
+mdl_body AS (
+WITH
+
+backbone_in AS (
+    SELECT
+        str_match_id                       AS match_id,
+        CAST(str_team_id AS BIGINT)       AS team_id,
+        CAST(str_opponent_id AS BIGINT)   AS opponent_id,
+        dt_date                            AS date,
+        str_season                         AS season,
+        str_league_source                  AS league_source
+    FROM {{ ref('backbone') }}
+),
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- CORNER_MATCH_AGG
@@ -42,7 +116,7 @@ corner_match_agg AS (
         -- selon corner_profiles.sql). Utiliser n_clearances comme dénominateur ici
         -- produisait des taux > 1 (numérateur pas un sous-ensemble du dénominateur).
         COUNT(*) FILTER (WHERE is_headed_clearance IS NOT NULL)                  AS n_clearances_bodypart_known
-    FROM {{ ref('corner_profiles') }}
+    FROM in_corner_profiles
     GROUP BY match_id, team_id
 ),
 
@@ -54,7 +128,7 @@ corner_match_agg AS (
 -- ══════════════════════════════════════════════════════════════════════════════
 match_coverage AS (
     SELECT DISTINCT match_id
-    FROM {{ ref('player_possession_chains') }}
+    FROM in_player_possession_chains
 ),
 
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -105,15 +179,16 @@ base AS (
         CASE WHEN mc.match_id IS NOT NULL THEN COALESCE(ca.n_clearances_headed, 0)   ELSE NULL END AS n_clearances_headed_against,
         CASE WHEN mc.match_id IS NOT NULL THEN COALESCE(ca.n_clearances_bodypart_known, 0) ELSE NULL END AS n_clearances_bodypart_known_against
 
-    FROM {{ ref('backbone') }} bb
+    FROM backbone_in bb
     LEFT JOIN match_coverage mc
         ON mc.match_id = bb.match_id
     LEFT JOIN corner_match_agg cf
         ON cf.match_id = bb.match_id AND cf.team_id = bb.team_id
     LEFT JOIN corner_match_agg ca
         ON ca.match_id = bb.match_id AND ca.team_id = bb.opponent_id
-)
+),
 
+rolled AS (
 SELECT
     match_id, team_id, date, season, league_source,
 
@@ -154,9 +229,197 @@ SELECT
     {% endfor %}
 
 FROM base
+),
+
+-- Renommage final (docs/proposition_nommage_definitif.csv)
+renamed AS (
+    SELECT
+        match_id                                             AS str_match_id,
+        CAST(team_id AS VARCHAR)                             AS str_team_id,
+        date                                                 AS dt_date,
+        season                                               AS str_season,
+        league_source                                        AS str_league_source,
+        corners_for_3                                        AS int_corners_for_3,
+        corner_danger_rate_for_3                             AS dec_corner_danger_rate_for_3,
+        corner_conversion_rate_for_3                         AS dec_corner_conversion_rate_for_3,
+        corners_against_3                                    AS int_corners_against_3,
+        corner_danger_rate_against_3                         AS dec_corner_danger_rate_against_3,
+        corner_conversion_rate_against_3                     AS dec_corner_conversion_rate_against_3,
+        corner_danger_intensity_for_3                        AS dec_corner_danger_intensity_for_3,
+        corner_danger_intensity_against_3                    AS dec_corner_danger_intensity_against_3,
+        corner_header_share_for_3                            AS dec_corner_header_share_for_3,
+        corner_header_share_against_3                        AS dec_corner_header_share_against_3,
+        corner_header_goal_share_for_3                       AS dec_corner_header_goal_share_for_3,
+        corner_header_goal_share_against_3                   AS dec_corner_header_goal_share_against_3,
+        corner_short_rate_for_3                              AS dec_corner_short_rate_for_3,
+        corner_short_rate_against_3                          AS dec_corner_short_rate_against_3,
+        corner_forced_bad_clearance_rate_for_3               AS dec_corner_forced_bad_clearance_rate_for_3,
+        corner_clearance_fail_rate_against_3                 AS dec_corner_clearance_fail_rate_against_3,
+        corner_headed_clearance_rate_against_3               AS dec_corner_headed_clearance_rate_against_3,
+        corners_for_5                                        AS int_corners_for_5,
+        corner_danger_rate_for_5                             AS dec_corner_danger_rate_for_5,
+        corner_conversion_rate_for_5                         AS dec_corner_conversion_rate_for_5,
+        corners_against_5                                    AS int_corners_against_5,
+        corner_danger_rate_against_5                         AS dec_corner_danger_rate_against_5,
+        corner_conversion_rate_against_5                     AS dec_corner_conversion_rate_against_5,
+        corner_danger_intensity_for_5                        AS dec_corner_danger_intensity_for_5,
+        corner_danger_intensity_against_5                    AS dec_corner_danger_intensity_against_5,
+        corner_header_share_for_5                            AS dec_corner_header_share_for_5,
+        corner_header_share_against_5                        AS dec_corner_header_share_against_5,
+        corner_header_goal_share_for_5                       AS dec_corner_header_goal_share_for_5,
+        corner_header_goal_share_against_5                   AS dec_corner_header_goal_share_against_5,
+        corner_short_rate_for_5                              AS dec_corner_short_rate_for_5,
+        corner_short_rate_against_5                          AS dec_corner_short_rate_against_5,
+        corner_forced_bad_clearance_rate_for_5               AS dec_corner_forced_bad_clearance_rate_for_5,
+        corner_clearance_fail_rate_against_5                 AS dec_corner_clearance_fail_rate_against_5,
+        corner_headed_clearance_rate_against_5               AS dec_corner_headed_clearance_rate_against_5,
+        corners_for_10                                       AS int_corners_for_10,
+        corner_danger_rate_for_10                            AS dec_corner_danger_rate_for_10,
+        corner_conversion_rate_for_10                        AS dec_corner_conversion_rate_for_10,
+        corners_against_10                                   AS int_corners_against_10,
+        corner_danger_rate_against_10                        AS dec_corner_danger_rate_against_10,
+        corner_conversion_rate_against_10                    AS dec_corner_conversion_rate_against_10,
+        corner_danger_intensity_for_10                       AS dec_corner_danger_intensity_for_10,
+        corner_danger_intensity_against_10                   AS dec_corner_danger_intensity_against_10,
+        corner_header_share_for_10                           AS dec_corner_header_share_for_10,
+        corner_header_share_against_10                       AS dec_corner_header_share_against_10,
+        corner_header_goal_share_for_10                      AS dec_corner_header_goal_share_for_10,
+        corner_header_goal_share_against_10                  AS dec_corner_header_goal_share_against_10,
+        corner_short_rate_for_10                             AS dec_corner_short_rate_for_10,
+        corner_short_rate_against_10                         AS dec_corner_short_rate_against_10,
+        corner_forced_bad_clearance_rate_for_10              AS dec_corner_forced_bad_clearance_rate_for_10,
+        corner_clearance_fail_rate_against_10                AS dec_corner_clearance_fail_rate_against_10,
+        corner_headed_clearance_rate_against_10              AS dec_corner_headed_clearance_rate_against_10
+    FROM rolled
+)
+
+SELECT * FROM renamed
 
 {% if is_incremental() %}
-WHERE (match_id::VARCHAR || '_' || team_id) NOT IN (
-    SELECT (match_id::VARCHAR || '_' || team_id) FROM {{ this }}
+WHERE (str_match_id || '_' || str_team_id) NOT IN (
+    SELECT (str_match_id || '_' || str_team_id) FROM (
+    SELECT
+            str_match_id                                                 AS "str_match_id",
+            str_team_id                                                  AS "str_team_id",
+            dt_date                                                      AS "dt_date",
+            str_season                                                   AS "str_season",
+            str_league_source                                            AS "str_league_source",
+            CAST(int_corners_for_3 AS HUGEINT)                           AS "int_corners_for_3",
+            dec_corner_danger_rate_for_3                                 AS "dec_corner_danger_rate_for_3",
+            dec_corner_conversion_rate_for_3                             AS "dec_corner_conversion_rate_for_3",
+            CAST(int_corners_against_3 AS HUGEINT)                       AS "int_corners_against_3",
+            dec_corner_danger_rate_against_3                             AS "dec_corner_danger_rate_against_3",
+            dec_corner_conversion_rate_against_3                         AS "dec_corner_conversion_rate_against_3",
+            dec_corner_danger_intensity_for_3                            AS "dec_corner_danger_intensity_for_3",
+            dec_corner_danger_intensity_against_3                        AS "dec_corner_danger_intensity_against_3",
+            dec_corner_header_share_for_3                                AS "dec_corner_header_share_for_3",
+            dec_corner_header_share_against_3                            AS "dec_corner_header_share_against_3",
+            dec_corner_header_goal_share_for_3                           AS "dec_corner_header_goal_share_for_3",
+            dec_corner_header_goal_share_against_3                       AS "dec_corner_header_goal_share_against_3",
+            dec_corner_short_rate_for_3                                  AS "dec_corner_short_rate_for_3",
+            dec_corner_short_rate_against_3                              AS "dec_corner_short_rate_against_3",
+            dec_corner_forced_bad_clearance_rate_for_3                   AS "dec_corner_forced_bad_clearance_rate_for_3",
+            dec_corner_clearance_fail_rate_against_3                     AS "dec_corner_clearance_fail_rate_against_3",
+            dec_corner_headed_clearance_rate_against_3                   AS "dec_corner_headed_clearance_rate_against_3",
+            CAST(int_corners_for_5 AS HUGEINT)                           AS "int_corners_for_5",
+            dec_corner_danger_rate_for_5                                 AS "dec_corner_danger_rate_for_5",
+            dec_corner_conversion_rate_for_5                             AS "dec_corner_conversion_rate_for_5",
+            CAST(int_corners_against_5 AS HUGEINT)                       AS "int_corners_against_5",
+            dec_corner_danger_rate_against_5                             AS "dec_corner_danger_rate_against_5",
+            dec_corner_conversion_rate_against_5                         AS "dec_corner_conversion_rate_against_5",
+            dec_corner_danger_intensity_for_5                            AS "dec_corner_danger_intensity_for_5",
+            dec_corner_danger_intensity_against_5                        AS "dec_corner_danger_intensity_against_5",
+            dec_corner_header_share_for_5                                AS "dec_corner_header_share_for_5",
+            dec_corner_header_share_against_5                            AS "dec_corner_header_share_against_5",
+            dec_corner_header_goal_share_for_5                           AS "dec_corner_header_goal_share_for_5",
+            dec_corner_header_goal_share_against_5                       AS "dec_corner_header_goal_share_against_5",
+            dec_corner_short_rate_for_5                                  AS "dec_corner_short_rate_for_5",
+            dec_corner_short_rate_against_5                              AS "dec_corner_short_rate_against_5",
+            dec_corner_forced_bad_clearance_rate_for_5                   AS "dec_corner_forced_bad_clearance_rate_for_5",
+            dec_corner_clearance_fail_rate_against_5                     AS "dec_corner_clearance_fail_rate_against_5",
+            dec_corner_headed_clearance_rate_against_5                   AS "dec_corner_headed_clearance_rate_against_5",
+            CAST(int_corners_for_10 AS HUGEINT)                          AS "int_corners_for_10",
+            dec_corner_danger_rate_for_10                                AS "dec_corner_danger_rate_for_10",
+            dec_corner_conversion_rate_for_10                            AS "dec_corner_conversion_rate_for_10",
+            CAST(int_corners_against_10 AS HUGEINT)                      AS "int_corners_against_10",
+            dec_corner_danger_rate_against_10                            AS "dec_corner_danger_rate_against_10",
+            dec_corner_conversion_rate_against_10                        AS "dec_corner_conversion_rate_against_10",
+            dec_corner_danger_intensity_for_10                           AS "dec_corner_danger_intensity_for_10",
+            dec_corner_danger_intensity_against_10                       AS "dec_corner_danger_intensity_against_10",
+            dec_corner_header_share_for_10                               AS "dec_corner_header_share_for_10",
+            dec_corner_header_share_against_10                           AS "dec_corner_header_share_against_10",
+            dec_corner_header_goal_share_for_10                          AS "dec_corner_header_goal_share_for_10",
+            dec_corner_header_goal_share_against_10                      AS "dec_corner_header_goal_share_against_10",
+            dec_corner_short_rate_for_10                                 AS "dec_corner_short_rate_for_10",
+            dec_corner_short_rate_against_10                             AS "dec_corner_short_rate_against_10",
+            dec_corner_forced_bad_clearance_rate_for_10                  AS "dec_corner_forced_bad_clearance_rate_for_10",
+            dec_corner_clearance_fail_rate_against_10                    AS "dec_corner_clearance_fail_rate_against_10",
+            dec_corner_headed_clearance_rate_against_10                  AS "dec_corner_headed_clearance_rate_against_10"
+        FROM {{ this }}
+    )
 )
 {% endif %}
+),
+
+mdl_out AS (
+    SELECT
+        "str_match_id"                                               AS str_match_id,
+        "str_team_id"                                                AS str_team_id,
+        "dt_date"                                                    AS dt_date,
+        "str_season"                                                 AS str_season,
+        "str_league_source"                                          AS str_league_source,
+        CAST(int_corners_for_3 AS BIGINT)                            AS int_corners_for_3,
+        "dec_corner_danger_rate_for_3"                               AS dec_corner_danger_rate_for_3,
+        "dec_corner_conversion_rate_for_3"                           AS dec_corner_conversion_rate_for_3,
+        CAST(int_corners_against_3 AS BIGINT)                        AS int_corners_against_3,
+        "dec_corner_danger_rate_against_3"                           AS dec_corner_danger_rate_against_3,
+        "dec_corner_conversion_rate_against_3"                       AS dec_corner_conversion_rate_against_3,
+        "dec_corner_danger_intensity_for_3"                          AS dec_corner_danger_intensity_for_3,
+        "dec_corner_danger_intensity_against_3"                      AS dec_corner_danger_intensity_against_3,
+        "dec_corner_header_share_for_3"                              AS dec_corner_header_share_for_3,
+        "dec_corner_header_share_against_3"                          AS dec_corner_header_share_against_3,
+        "dec_corner_header_goal_share_for_3"                         AS dec_corner_header_goal_share_for_3,
+        "dec_corner_header_goal_share_against_3"                     AS dec_corner_header_goal_share_against_3,
+        "dec_corner_short_rate_for_3"                                AS dec_corner_short_rate_for_3,
+        "dec_corner_short_rate_against_3"                            AS dec_corner_short_rate_against_3,
+        "dec_corner_forced_bad_clearance_rate_for_3"                 AS dec_corner_forced_bad_clearance_rate_for_3,
+        "dec_corner_clearance_fail_rate_against_3"                   AS dec_corner_clearance_fail_rate_against_3,
+        "dec_corner_headed_clearance_rate_against_3"                 AS dec_corner_headed_clearance_rate_against_3,
+        CAST(int_corners_for_5 AS BIGINT)                            AS int_corners_for_5,
+        "dec_corner_danger_rate_for_5"                               AS dec_corner_danger_rate_for_5,
+        "dec_corner_conversion_rate_for_5"                           AS dec_corner_conversion_rate_for_5,
+        CAST(int_corners_against_5 AS BIGINT)                        AS int_corners_against_5,
+        "dec_corner_danger_rate_against_5"                           AS dec_corner_danger_rate_against_5,
+        "dec_corner_conversion_rate_against_5"                       AS dec_corner_conversion_rate_against_5,
+        "dec_corner_danger_intensity_for_5"                          AS dec_corner_danger_intensity_for_5,
+        "dec_corner_danger_intensity_against_5"                      AS dec_corner_danger_intensity_against_5,
+        "dec_corner_header_share_for_5"                              AS dec_corner_header_share_for_5,
+        "dec_corner_header_share_against_5"                          AS dec_corner_header_share_against_5,
+        "dec_corner_header_goal_share_for_5"                         AS dec_corner_header_goal_share_for_5,
+        "dec_corner_header_goal_share_against_5"                     AS dec_corner_header_goal_share_against_5,
+        "dec_corner_short_rate_for_5"                                AS dec_corner_short_rate_for_5,
+        "dec_corner_short_rate_against_5"                            AS dec_corner_short_rate_against_5,
+        "dec_corner_forced_bad_clearance_rate_for_5"                 AS dec_corner_forced_bad_clearance_rate_for_5,
+        "dec_corner_clearance_fail_rate_against_5"                   AS dec_corner_clearance_fail_rate_against_5,
+        "dec_corner_headed_clearance_rate_against_5"                 AS dec_corner_headed_clearance_rate_against_5,
+        CAST(int_corners_for_10 AS BIGINT)                           AS int_corners_for_10,
+        "dec_corner_danger_rate_for_10"                              AS dec_corner_danger_rate_for_10,
+        "dec_corner_conversion_rate_for_10"                          AS dec_corner_conversion_rate_for_10,
+        CAST(int_corners_against_10 AS BIGINT)                       AS int_corners_against_10,
+        "dec_corner_danger_rate_against_10"                          AS dec_corner_danger_rate_against_10,
+        "dec_corner_conversion_rate_against_10"                      AS dec_corner_conversion_rate_against_10,
+        "dec_corner_danger_intensity_for_10"                         AS dec_corner_danger_intensity_for_10,
+        "dec_corner_danger_intensity_against_10"                     AS dec_corner_danger_intensity_against_10,
+        "dec_corner_header_share_for_10"                             AS dec_corner_header_share_for_10,
+        "dec_corner_header_share_against_10"                         AS dec_corner_header_share_against_10,
+        "dec_corner_header_goal_share_for_10"                        AS dec_corner_header_goal_share_for_10,
+        "dec_corner_header_goal_share_against_10"                    AS dec_corner_header_goal_share_against_10,
+        "dec_corner_short_rate_for_10"                               AS dec_corner_short_rate_for_10,
+        "dec_corner_short_rate_against_10"                           AS dec_corner_short_rate_against_10,
+        "dec_corner_forced_bad_clearance_rate_for_10"                AS dec_corner_forced_bad_clearance_rate_for_10,
+        "dec_corner_clearance_fail_rate_against_10"                  AS dec_corner_clearance_fail_rate_against_10,
+        "dec_corner_headed_clearance_rate_against_10"                AS dec_corner_headed_clearance_rate_against_10
+    FROM mdl_body
+)
+
+SELECT * FROM mdl_out

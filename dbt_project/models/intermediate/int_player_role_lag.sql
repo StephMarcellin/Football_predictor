@@ -1,5 +1,48 @@
 {{ config(materialized='table', schema='intermediate', alias='int_player_role_lag') }}
 
+-- ══ Refonte nommage (préfixe de type en tête de nom : str_, int_, dec_, dt_, bool_) ══
+-- Entrées : les modèles amont refondus sont relus via des CTE in_<modèle> qui les
+-- remappent vers les noms/types de travail utilisés par la logique ci-dessous
+-- (inchangée). Sortie : CTE mdl_out, renommage + cast selon le type logique.
+
+WITH
+
+-- int_whoscored_lineup lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_int_whoscored_lineup AS (
+    SELECT
+        str_match_id                                                 AS "match_id",
+        CAST(str_team_id AS BIGINT)                                  AS "team_id",
+        int_formation_seq                                            AS "formation_seq",
+        CAST(str_formation_id AS INTEGER)                            AS "formation_id",
+        int_period                                                   AS "period",
+        int_start_minute                                             AS "start_minute",
+        int_end_minute                                               AS "end_minute",
+        CAST(str_player_id AS BIGINT)                                AS "player_id",
+        int_slot                                                     AS "slot",
+        dec_grid_vertical                                            AS "grid_vertical",
+        dec_grid_horizontal                                          AS "grid_horizontal",
+        bool_is_captain                                              AS "is_captain"
+    FROM {{ ref('int_whoscored_lineup') }}
+),
+
+-- int_whoscored_match_index lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_int_whoscored_match_index AS (
+    SELECT
+        str_match_id                                                 AS "match_id",
+        str_ws_match_id                                              AS "ws_match_id",
+        dt_match_date                                                AS "match_date",
+        CAST(str_team_id AS BIGINT)                                  AS "team_id",
+        CAST(str_opponent_id AS BIGINT)                              AS "opponent_id",
+        CAST(str_ws_home_team_id AS INTEGER)                         AS "ws_home_team_id",
+        CAST(str_ws_away_team_id AS INTEGER)                         AS "ws_away_team_id",
+        str_league_source                                            AS "league_source",
+        str_season                                                   AS "season",
+        CAST(dt_scraped_at AS VARCHAR)                               AS "scraped_at",
+        str_comp_category                                            AS "comp_category"
+    FROM {{ ref('int_whoscored_match_index') }}
+),
+
+mdl_body AS (
 with
 -- Nouvelle logique dans int_player_role_lag
 apparitions_classified as (
@@ -18,8 +61,8 @@ apparitions_classified as (
             when abs(l.grid_horizontal - 5) <= 1.5 then 'ST'
             else 'W'
         end as role_this_app
-    from {{ ref('int_whoscored_lineup') }} l
-    join {{ ref('int_whoscored_match_index') }} idx using (match_id)
+    from in_int_whoscored_lineup l
+    join in_int_whoscored_match_index idx using (match_id)
     where (l.end_minute - l.start_minute) > 0
 ),
 
@@ -51,7 +94,7 @@ season_agg as (
         sum(grid_vertical * minutes_titu)   / sum(minutes_titu) as gv_avg,
         sum(grid_horizontal * minutes_titu) / sum(minutes_titu) as gh_avg
     from apparitions_classified ac
-    join {{ ref('int_whoscored_lineup') }} l
+    join in_int_whoscored_lineup l
         on l.player_id = ac.player_id
         -- ...
     group by 1, 2
@@ -105,3 +148,19 @@ select
         else                                                   'W'
     end as role_fin_lag
 from lagged
+),
+
+mdl_out AS (
+    SELECT
+        CAST(player_id AS VARCHAR)                                   AS str_player_id,
+        "season"                                                     AS str_season,
+        "gv_avg"                                                     AS dec_gv_avg,
+        "gh_avg"                                                     AS dec_gh_avg,
+        "gh_offaxis"                                                 AS dec_gh_offaxis,
+        CAST(minutes_titu_lag AS BIGINT)                             AS int_minutes_titu_lag,
+        "apps_starter_lag"                                           AS int_apps_starter_lag,
+        "role_fin_lag"                                               AS str_role_fin_lag
+    FROM mdl_body
+)
+
+SELECT * FROM mdl_out

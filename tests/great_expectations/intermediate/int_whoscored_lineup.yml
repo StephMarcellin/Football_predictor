@@ -13,48 +13,39 @@ source:
   query: |
     SELECT
           COUNT(*) AS n_rows,
-          COUNT(*) FILTER (WHERE "match_id" IS NULL) AS null_match_id,
-          COUNT(*) FILTER (WHERE "team_id" IS NULL) AS null_team_id,
-          COUNT(*) FILTER (WHERE "formation_seq" IS NULL) AS null_formation_seq,
-          COUNT(*) FILTER (WHERE "formation_id" IS NULL) AS null_formation_id,
-          COUNT(*) FILTER (WHERE "period" IS NULL) AS null_period,
-          COUNT(*) FILTER (WHERE "start_minute" IS NULL) AS null_start_minute,
-          COUNT(*) FILTER (WHERE "end_minute" IS NULL) AS null_end_minute,
-          COUNT(*) FILTER (WHERE "player_id" IS NULL) AS null_player_id,
-          COUNT(*) FILTER (WHERE "slot" IS NULL) AS null_slot,
-          COUNT(*) FILTER (WHERE "grid_vertical" IS NULL) AS null_grid_vertical,
-          COUNT(*) FILTER (WHERE "grid_horizontal" IS NULL) AS null_grid_horizontal,
-          COUNT(*) FILTER (WHERE "is_captain" IS NULL) AS null_is_captain,
-          MIN("team_id") AS min_team_id,
-          MAX("team_id") AS max_team_id,
-          AVG("team_id") AS avg_team_id,
-          MIN("formation_seq") AS min_formation_seq,
-          MAX("formation_seq") AS max_formation_seq,
-          AVG("formation_seq") AS avg_formation_seq,
-          MIN("formation_id") AS min_formation_id,
-          MAX("formation_id") AS max_formation_id,
-          AVG("formation_id") AS avg_formation_id,
-          MIN("period") AS min_period,
-          MAX("period") AS max_period,
-          AVG("period") AS avg_period,
-          MIN("start_minute") AS min_start_minute,
-          MAX("start_minute") AS max_start_minute,
-          AVG("start_minute") AS avg_start_minute,
-          MIN("end_minute") AS min_end_minute,
-          MAX("end_minute") AS max_end_minute,
-          AVG("end_minute") AS avg_end_minute,
-          MIN("player_id") AS min_player_id,
-          MAX("player_id") AS max_player_id,
-          AVG("player_id") AS avg_player_id,
-          MIN("slot") AS min_slot,
-          MAX("slot") AS max_slot,
-          AVG("slot") AS avg_slot,
-          MIN("grid_vertical") AS min_grid_vertical,
-          MAX("grid_vertical") AS max_grid_vertical,
-          AVG("grid_vertical") AS avg_grid_vertical,
-          MIN("grid_horizontal") AS min_grid_horizontal,
-          MAX("grid_horizontal") AS max_grid_horizontal,
-          AVG("grid_horizontal") AS avg_grid_horizontal
+          COUNT(*) FILTER (WHERE "str_match_id" IS NULL) AS null_match_id,
+          COUNT(*) FILTER (WHERE "str_team_id" IS NULL) AS null_team_id,
+          COUNT(*) FILTER (WHERE "int_formation_seq" IS NULL) AS null_formation_seq,
+          COUNT(*) FILTER (WHERE "str_formation_id" IS NULL) AS null_formation_id,
+          COUNT(*) FILTER (WHERE "int_period" IS NULL) AS null_period,
+          COUNT(*) FILTER (WHERE "int_start_minute" IS NULL) AS null_start_minute,
+          COUNT(*) FILTER (WHERE "int_end_minute" IS NULL) AS null_end_minute,
+          COUNT(*) FILTER (WHERE "str_player_id" IS NULL) AS null_player_id,
+          COUNT(*) FILTER (WHERE "int_slot" IS NULL) AS null_slot,
+          COUNT(*) FILTER (WHERE "dec_grid_vertical" IS NULL) AS null_grid_vertical,
+          COUNT(*) FILTER (WHERE "dec_grid_horizontal" IS NULL) AS null_grid_horizontal,
+          COUNT(*) FILTER (WHERE "bool_is_captain" IS NULL) AS null_is_captain,
+          MIN("int_formation_seq") AS min_formation_seq,
+          MAX("int_formation_seq") AS max_formation_seq,
+          AVG("int_formation_seq") AS avg_formation_seq,
+          MIN("int_period") AS min_period,
+          MAX("int_period") AS max_period,
+          AVG("int_period") AS avg_period,
+          MIN("int_start_minute") AS min_start_minute,
+          MAX("int_start_minute") AS max_start_minute,
+          AVG("int_start_minute") AS avg_start_minute,
+          MIN("int_end_minute") AS min_end_minute,
+          MAX("int_end_minute") AS max_end_minute,
+          AVG("int_end_minute") AS avg_end_minute,
+          MIN("int_slot") AS min_slot,
+          MAX("int_slot") AS max_slot,
+          AVG("int_slot") AS avg_slot,
+          MIN("dec_grid_vertical") AS min_grid_vertical,
+          MAX("dec_grid_vertical") AS max_grid_vertical,
+          AVG("dec_grid_vertical") AS avg_grid_vertical,
+          MIN("dec_grid_horizontal") AS min_grid_horizontal,
+          MAX("dec_grid_horizontal") AS max_grid_horizontal,
+          AVG("dec_grid_horizontal") AS avg_grid_horizontal
         FROM intermediate."int_whoscored_lineup"
 
 expectations:
@@ -138,19 +129,9 @@ expectations:
   # ── BORNES NUMÉRIQUES (push-down MIN/MAX) ──
   - type: expect_row_condition_to_hold
     kwargs:
-      condition: "min_team_id >= 202606099958.5000 and max_team_id <= 202606100468.5000"
-    severity: warn
-    meta: { description: "team_id empirique [202606100001.0, 202606100426.0]." }
-  - type: expect_row_condition_to_hold
-    kwargs:
       condition: "min_formation_seq >= 0.0000 and max_formation_seq <= 11.0000"
     severity: warn
     meta: { description: "formation_seq empirique [0.0, 10.0]." }
-  - type: expect_row_condition_to_hold
-    kwargs:
-      condition: "min_formation_id >= -0.3000 and max_formation_id <= 27.3000"
-    severity: warn
-    meta: { description: "formation_id empirique [2.0, 25.0]." }
   - type: expect_row_condition_to_hold
     kwargs:
       condition: "min_period >= -0.5000 and max_period <= 17.5000"
@@ -166,11 +147,6 @@ expectations:
       condition: "min_end_minute >= 0.0000 and max_end_minute <= 129.8000"
     severity: warn
     meta: { description: "end_minute empirique [0.0, 118.0]." }
-  - type: expect_row_condition_to_hold
-    kwargs:
-      condition: "min_player_id >= 0.0000 and max_player_id <= 617974.5000"
-    severity: warn
-    meta: { description: "player_id empirique [0.0, 561795.0]." }
   - type: expect_row_condition_to_hold
     kwargs:
       condition: "min_slot >= 0.0000 and max_slot <= 12.0000"

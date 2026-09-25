@@ -1,5 +1,5 @@
 # ── Stockage & traitement ──────────────────────────────────────────────────
-duckdb==1.5.1
+duckdb==1.5.5
 polars==1.39.3
 pandas==2.3.3
 pyarrow==23.0.1

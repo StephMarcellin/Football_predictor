@@ -24,3 +24,12 @@ football_prediction:
         max_temp_directory_size: '40GB'
         enable_progress_bar: true
         progress_bar_time: 10000
+
+elementary:
+  target: default
+  outputs:
+    default:
+      type: duckdb
+      path: "C:/dev/Projet_3etoiles/db/football_dev.duckdb"
+      schema: elementary
+      threads: 4

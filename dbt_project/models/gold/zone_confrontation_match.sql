@@ -1,7 +1,7 @@
 {{
     config(
         materialized='incremental',
-        unique_key=['match_id', 'attacking_team_id', 'attack_corridor'],
+        unique_key=['str_match_id', 'str_attacking_team_id', 'str_attack_corridor'],
         on_schema_change='sync_all_columns',
         schema='gold',
         alias='zone_confrontation_match'
@@ -21,7 +21,35 @@
 --   matchup_danger = off_strength(A, couloir) × (1 − def_solidity(B, couloir miroir)).
 -- NULL si la solidité adverse est inconnue (aucun duel) → imputation famille 11.
 -- Features dérivées (matchup_cross/dribble/central, high_press) : passes suivantes.
+--
+-- Refonte nommage : team_corridor_profile est lu sous ses nouveaux noms et remappé
+-- vers les anciens (CTE corridor_in) — les sorties de ce modèle ne changent pas
+-- (types compris : attacking/defending_team_id restent INTEGER).
 -- ══════════════════════════════════════════════════════════════════════════════
+
+-- ══ Refonte nommage (préfixe de type en tête de nom : str_, int_, dec_, dt_, bool_) ══
+-- Entrées : les modèles amont refondus sont relus via des CTE in_<modèle> qui les
+-- remappent vers les noms/types de travail utilisés par la logique ci-dessous
+-- (inchangée). Sortie : CTE mdl_out, renommage + cast selon le type logique.
+
+WITH
+
+mdl_body AS (
+WITH corridor_in AS (
+    SELECT
+        str_match_id                       AS match_id,
+        CAST(str_team_id AS BIGINT)       AS team_id,
+        CAST(str_opponent_id AS BIGINT)   AS opponent_id,
+        str_corridor                       AS corridor,
+        dec_off_strength                   AS off_strength,
+        dec_off_cross_strength             AS off_cross_strength,
+        dec_off_dribble_strength           AS off_dribble_strength,
+        dec_off_central_progression        AS off_central_progression,
+        dec_off_central_touch              AS off_central_touch,
+        dec_def_central_density            AS def_central_density,
+        dec_def_solidity                   AS def_solidity
+    FROM {{ ref('team_corridor_profile') }}
+)
 
 SELECT
     a.match_id,
@@ -51,8 +79,8 @@ SELECT
     CASE WHEN a.corridor = 'axe' THEN a.off_central_progression ELSE NULL END AS self_central_progression,
     CASE WHEN a.corridor = 'axe' THEN a.off_central_touch       ELSE NULL END AS self_central_touch,
     CASE WHEN a.corridor = 'axe' THEN b.def_central_density      ELSE NULL END AS opp_central_def_density
-FROM {{ ref('team_corridor_profile') }} a
-JOIN {{ ref('team_corridor_profile') }} b
+FROM corridor_in a
+JOIN corridor_in b
     ON  b.match_id = a.match_id
     AND b.team_id  = a.opponent_id
     AND b.corridor = CASE a.corridor
@@ -63,7 +91,44 @@ JOIN {{ ref('team_corridor_profile') }} b
 
 {% if is_incremental() %}
 WHERE a.match_id IN (
-    SELECT match_id FROM {{ ref('team_corridor_profile') }}
-    EXCEPT SELECT match_id FROM {{ this }}
+    SELECT str_match_id FROM {{ ref('team_corridor_profile') }}
+    EXCEPT SELECT match_id FROM (
+    SELECT
+            str_match_id                                                 AS "match_id",
+            CAST(str_attacking_team_id AS BIGINT)                        AS "attacking_team_id",
+            CAST(str_defending_team_id AS BIGINT)                        AS "defending_team_id",
+            str_attack_corridor                                          AS "attack_corridor",
+            dec_off_strength                                             AS "off_strength",
+            dec_opp_def_solidity                                         AS "opp_def_solidity",
+            dec_matchup_danger_by_corridor                               AS "matchup_danger_by_corridor",
+            dec_matchup_cross_threat                                     AS "matchup_cross_threat",
+            dec_matchup_dribble_threat                                   AS "matchup_dribble_threat",
+            dec_matchup_central_control                                  AS "matchup_central_control",
+            dec_self_central_progression                                 AS "self_central_progression",
+            dec_self_central_touch                                       AS "self_central_touch",
+            dec_opp_central_def_density                                  AS "opp_central_def_density"
+        FROM {{ this }}
+    )
 )
 {% endif %}
+),
+
+mdl_out AS (
+    SELECT
+        "match_id"                                                   AS str_match_id,
+        CAST(attacking_team_id AS VARCHAR)                           AS str_attacking_team_id,
+        CAST(defending_team_id AS VARCHAR)                           AS str_defending_team_id,
+        "attack_corridor"                                            AS str_attack_corridor,
+        "off_strength"                                               AS dec_off_strength,
+        "opp_def_solidity"                                           AS dec_opp_def_solidity,
+        "matchup_danger_by_corridor"                                 AS dec_matchup_danger_by_corridor,
+        "matchup_cross_threat"                                       AS dec_matchup_cross_threat,
+        "matchup_dribble_threat"                                     AS dec_matchup_dribble_threat,
+        "matchup_central_control"                                    AS dec_matchup_central_control,
+        "self_central_progression"                                   AS dec_self_central_progression,
+        "self_central_touch"                                         AS dec_self_central_touch,
+        "opp_central_def_density"                                    AS dec_opp_central_def_density
+    FROM mdl_body
+)
+
+SELECT * FROM mdl_out

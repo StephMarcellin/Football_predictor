@@ -12,9 +12,9 @@ models:
       Liste des (team, season) à rescraper : lignes de silver.fbref_keeper où
       ga_keeper > sota (violation physique). Vue mise à jour à chaque `dbt run`.
     columns:
-      - name: team
+      - name: str_team
         description: "Équipe (nom normalisé silver.fbref_keeper)."
-      - name: season
+      - name: str_season
         description: "Saison au format YYYY-YYYY."
 
   - name: scraping_targets_int_fbref_shooting
@@ -23,7 +23,7 @@ models:
       standard_gls > standard_sot OU standard_gls > gf (violations physiques
       A-011). Vue mise à jour à chaque `dbt run`.
     columns:
-      - name: team
+      - name: str_team
         description: "Équipe (nom normalisé silver.fbref_shooting)."
-      - name: season
+      - name: str_season
         description: "Saison au format YYYY-YYYY."

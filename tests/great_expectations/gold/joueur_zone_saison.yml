@@ -13,49 +13,46 @@ source:
   query: |
     SELECT
           COUNT(*) AS n_rows,
-          COUNT(*) FILTER (WHERE "player_id" IS NULL) AS null_player_id,
-          COUNT(*) FILTER (WHERE "zone_5x5" IS NULL) AS null_zone_5x5,
-          COUNT(*) FILTER (WHERE "season" IS NULL) AS null_season,
-          COUNT(*) FILTER (WHERE "off_touch_share_by_zone_lag" IS NULL) AS null_off_touch_share_by_zone_lag,
-          COUNT(*) FILTER (WHERE "off_shot_volume_by_zone_lag" IS NULL) AS null_off_shot_volume_by_zone_lag,
-          COUNT(*) FILTER (WHERE "off_danger_by_zone_lag" IS NULL) AS null_off_danger_by_zone_lag,
-          COUNT(*) FILTER (WHERE "off_progressive_actions_by_zone_lag" IS NULL) AS null_off_progressive_actions_by_zone_lag,
-          COUNT(*) FILTER (WHERE "off_cross_volume_by_zone_lag" IS NULL) AS null_off_cross_volume_by_zone_lag,
-          COUNT(*) FILTER (WHERE "def_duel_win_rate_by_zone_lag" IS NULL) AS null_def_duel_win_rate_by_zone_lag,
-          COUNT(*) FILTER (WHERE "def_actions_by_zone_lag" IS NULL) AS null_def_actions_by_zone_lag,
-          COUNT(*) FILTER (WHERE "n_duels_prev" IS NULL) AS null_n_duels_prev,
-          COUNT(*) FILTER (WHERE "n_matches_prev" IS NULL) AS null_n_matches_prev,
-          COUNT(*) FILTER (WHERE "profile_confidence_flag" IS NULL) AS null_profile_confidence_flag,
-          MIN("player_id") AS min_player_id,
-          MAX("player_id") AS max_player_id,
-          AVG("player_id") AS avg_player_id,
-          MIN("off_touch_share_by_zone_lag") AS min_off_touch_share_by_zone_lag,
-          MAX("off_touch_share_by_zone_lag") AS max_off_touch_share_by_zone_lag,
-          AVG("off_touch_share_by_zone_lag") AS avg_off_touch_share_by_zone_lag,
-          MIN("off_shot_volume_by_zone_lag") AS min_off_shot_volume_by_zone_lag,
-          MAX("off_shot_volume_by_zone_lag") AS max_off_shot_volume_by_zone_lag,
-          AVG("off_shot_volume_by_zone_lag") AS avg_off_shot_volume_by_zone_lag,
-          MIN("off_danger_by_zone_lag") AS min_off_danger_by_zone_lag,
-          MAX("off_danger_by_zone_lag") AS max_off_danger_by_zone_lag,
-          AVG("off_danger_by_zone_lag") AS avg_off_danger_by_zone_lag,
-          MIN("off_progressive_actions_by_zone_lag") AS min_off_progressive_actions_by_zone_lag,
-          MAX("off_progressive_actions_by_zone_lag") AS max_off_progressive_actions_by_zone_lag,
-          AVG("off_progressive_actions_by_zone_lag") AS avg_off_progressive_actions_by_zone_lag,
-          MIN("off_cross_volume_by_zone_lag") AS min_off_cross_volume_by_zone_lag,
-          MAX("off_cross_volume_by_zone_lag") AS max_off_cross_volume_by_zone_lag,
-          AVG("off_cross_volume_by_zone_lag") AS avg_off_cross_volume_by_zone_lag,
-          MIN("def_duel_win_rate_by_zone_lag") AS min_def_duel_win_rate_by_zone_lag,
-          MAX("def_duel_win_rate_by_zone_lag") AS max_def_duel_win_rate_by_zone_lag,
-          AVG("def_duel_win_rate_by_zone_lag") AS avg_def_duel_win_rate_by_zone_lag,
-          MIN("def_actions_by_zone_lag") AS min_def_actions_by_zone_lag,
-          MAX("def_actions_by_zone_lag") AS max_def_actions_by_zone_lag,
-          AVG("def_actions_by_zone_lag") AS avg_def_actions_by_zone_lag,
-          MIN("n_duels_prev") AS min_n_duels_prev,
-          MAX("n_duels_prev") AS max_n_duels_prev,
-          AVG("n_duels_prev") AS avg_n_duels_prev,
-          MIN("n_matches_prev") AS min_n_matches_prev,
-          MAX("n_matches_prev") AS max_n_matches_prev,
-          AVG("n_matches_prev") AS avg_n_matches_prev
+          COUNT(*) FILTER (WHERE "str_player_id" IS NULL) AS null_player_id,
+          COUNT(*) FILTER (WHERE "str_zone_5x5" IS NULL) AS null_zone_5x5,
+          COUNT(*) FILTER (WHERE "str_season" IS NULL) AS null_season,
+          COUNT(*) FILTER (WHERE "dec_off_touch_share_by_zone_lag" IS NULL) AS null_off_touch_share_by_zone_lag,
+          COUNT(*) FILTER (WHERE "dec_off_shot_volume_by_zone_lag" IS NULL) AS null_off_shot_volume_by_zone_lag,
+          COUNT(*) FILTER (WHERE "dec_off_danger_by_zone_lag" IS NULL) AS null_off_danger_by_zone_lag,
+          COUNT(*) FILTER (WHERE "dec_off_progressive_actions_by_zone_lag" IS NULL) AS null_off_progressive_actions_by_zone_lag,
+          COUNT(*) FILTER (WHERE "dec_off_cross_volume_by_zone_lag" IS NULL) AS null_off_cross_volume_by_zone_lag,
+          COUNT(*) FILTER (WHERE "dec_def_duel_win_rate_by_zone_lag" IS NULL) AS null_def_duel_win_rate_by_zone_lag,
+          COUNT(*) FILTER (WHERE "dec_def_actions_by_zone_lag" IS NULL) AS null_def_actions_by_zone_lag,
+          COUNT(*) FILTER (WHERE "int_n_duels_prev" IS NULL) AS null_n_duels_prev,
+          COUNT(*) FILTER (WHERE "int_n_matches_prev" IS NULL) AS null_n_matches_prev,
+          COUNT(*) FILTER (WHERE "str_profile_confidence_flag" IS NULL) AS null_profile_confidence_flag,
+          MIN("dec_off_touch_share_by_zone_lag") AS min_off_touch_share_by_zone_lag,
+          MAX("dec_off_touch_share_by_zone_lag") AS max_off_touch_share_by_zone_lag,
+          AVG("dec_off_touch_share_by_zone_lag") AS avg_off_touch_share_by_zone_lag,
+          MIN("dec_off_shot_volume_by_zone_lag") AS min_off_shot_volume_by_zone_lag,
+          MAX("dec_off_shot_volume_by_zone_lag") AS max_off_shot_volume_by_zone_lag,
+          AVG("dec_off_shot_volume_by_zone_lag") AS avg_off_shot_volume_by_zone_lag,
+          MIN("dec_off_danger_by_zone_lag") AS min_off_danger_by_zone_lag,
+          MAX("dec_off_danger_by_zone_lag") AS max_off_danger_by_zone_lag,
+          AVG("dec_off_danger_by_zone_lag") AS avg_off_danger_by_zone_lag,
+          MIN("dec_off_progressive_actions_by_zone_lag") AS min_off_progressive_actions_by_zone_lag,
+          MAX("dec_off_progressive_actions_by_zone_lag") AS max_off_progressive_actions_by_zone_lag,
+          AVG("dec_off_progressive_actions_by_zone_lag") AS avg_off_progressive_actions_by_zone_lag,
+          MIN("dec_off_cross_volume_by_zone_lag") AS min_off_cross_volume_by_zone_lag,
+          MAX("dec_off_cross_volume_by_zone_lag") AS max_off_cross_volume_by_zone_lag,
+          AVG("dec_off_cross_volume_by_zone_lag") AS avg_off_cross_volume_by_zone_lag,
+          MIN("dec_def_duel_win_rate_by_zone_lag") AS min_def_duel_win_rate_by_zone_lag,
+          MAX("dec_def_duel_win_rate_by_zone_lag") AS max_def_duel_win_rate_by_zone_lag,
+          AVG("dec_def_duel_win_rate_by_zone_lag") AS avg_def_duel_win_rate_by_zone_lag,
+          MIN("dec_def_actions_by_zone_lag") AS min_def_actions_by_zone_lag,
+          MAX("dec_def_actions_by_zone_lag") AS max_def_actions_by_zone_lag,
+          AVG("dec_def_actions_by_zone_lag") AS avg_def_actions_by_zone_lag,
+          MIN("int_n_duels_prev") AS min_n_duels_prev,
+          MAX("int_n_duels_prev") AS max_n_duels_prev,
+          AVG("int_n_duels_prev") AS avg_n_duels_prev,
+          MIN("int_n_matches_prev") AS min_n_matches_prev,
+          MAX("int_n_matches_prev") AS max_n_matches_prev,
+          AVG("int_n_matches_prev") AS avg_n_matches_prev
         FROM gold."joueur_zone_saison"
 
 expectations:
@@ -142,11 +139,6 @@ expectations:
     meta: { description: "profile_confidence_flag empirique 0.00% NULL." }
 
   # ── BORNES NUMÉRIQUES (push-down MIN/MAX) ──
-  - type: expect_row_condition_to_hold
-    kwargs:
-      condition: "min_player_id >= 0.0000 and max_player_id <= 684360.6000"
-    severity: warn
-    meta: { description: "player_id empirique [0.0, 622146.0]." }
   - type: expect_row_condition_to_hold
     kwargs:
       condition: "min_off_touch_share_by_zone_lag >= 0.0000 and max_off_touch_share_by_zone_lag <= 0.9167"

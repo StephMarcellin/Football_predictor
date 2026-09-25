@@ -12,7 +12,7 @@ description: >
 source:
   duckdb_path: db/football.duckdb
   query: |
-    SELECT "match_id", "team_id", "off_danger_gauche", "off_danger_axe", "off_danger_droit", "off_cross_gauche", "off_cross_droit", "off_dribble_gauche", "off_dribble_droit", "off_central_axe", "def_danger_gauche", "def_danger_axe", "def_danger_droit", "def_cross_gauche", "def_cross_droit", "def_dribble_gauche", "def_dribble_droit", "def_central_axe" FROM gold."equipe_confrontation_zone"
+    SELECT "str_match_id", "str_team_id", "dec_off_danger_gauche", "dec_off_danger_axe", "dec_off_danger_droit", "dec_off_cross_gauche", "dec_off_cross_droit", "dec_off_dribble_gauche", "dec_off_dribble_droit", "dec_off_central_axe", "dec_def_danger_gauche", "dec_def_danger_axe", "dec_def_danger_droit", "dec_def_cross_gauche", "dec_def_cross_droit", "dec_def_dribble_gauche", "dec_def_dribble_droit", "dec_def_central_axe" FROM gold."equipe_confrontation_zone"
 
 expectations:
 
@@ -26,8 +26,8 @@ expectations:
   # ── COMPLÉTION STRICTE (0 NULL empirique) ──
   - type: expect_column_values_to_not_be_null
     for_each_column:
-      - match_id
-      - team_id
+      - str_match_id
+      - str_team_id
     kwargs: { mostly: 1.0 }
     # severity: error
     severity: warn
@@ -52,6 +52,6 @@ expectations:
 
   # ── BORNES DE VALEURS NUMÉRIQUES ──
   - type: expect_column_values_to_be_between
-    kwargs: { column: team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
+    kwargs: { column: str_team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [202606100001, 202606100426], mean=2.03e+11." }

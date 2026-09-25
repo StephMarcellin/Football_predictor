@@ -2,13 +2,15 @@
 xt_grid.py — Estimation de la grille Expected Threat (xT)
 =========================================================
 Lit intermediate.int_xt_actions (grille fine 16x12, 192 cases) — seule source, y
-compris les pertes de balle (action_kind='turnover') — estime par itération de
+compris les pertes de balle (str_action_kind='turnover') — estime par itération de
 valeur (Markov) la valeur xT de chaque case :
 
     xT(c) = shoot%(c)·goalProb(c) + move%(c)·Σ T(c→c')·xT(c')
     avec  shoot% + move% < 1  ;  le complément (1-shoot%-move%) = perte de balle,
 
-puis écrit la grille (192 lignes) dans machine_learning.xt_grid.
+puis écrit la grille (192 lignes) dans machine_learning.xt_grid (int_col, int_row,
+int_shots, int_goals, int_moves, int_turnover, dec_shoot_pct, dec_goal_prob,
+dec_move_pct, dec_xt).
 
 Usage :
     python pipelines/xt_grid.py            # calcule ET écrit la table
@@ -51,28 +53,28 @@ def load_aggregates(con):
     # (a) stats par case de départ : tirs, buts, déplacements réussis, pertes
     cell_stats = con.sql("""
         SELECT
-            col_from AS col,
-            row_from AS row,
-            COUNT(*) FILTER (WHERE action_kind='shot')                        AS shots,
-            COUNT(*) FILTER (WHERE action_kind='shot' AND is_goal)            AS goals,
-            COUNT(*) FILTER (WHERE action_kind='move' AND col_to IS NOT NULL) AS moves,
-            COUNT(*) FILTER (WHERE action_kind='turnover')                    AS turnover
+            int_col_from AS int_col,
+            int_row_from AS int_row,
+            COUNT(*) FILTER (WHERE str_action_kind='shot')                            AS int_shots,
+            COUNT(*) FILTER (WHERE str_action_kind='shot' AND bool_is_goal)           AS int_goals,
+            COUNT(*) FILTER (WHERE str_action_kind='move' AND int_col_to IS NOT NULL) AS int_moves,
+            COUNT(*) FILTER (WHERE str_action_kind='turnover')                        AS int_turnover
         FROM intermediate.int_xt_actions
-        WHERE col_from IS NOT NULL AND row_from IS NOT NULL
-        GROUP BY col_from, row_from
+        WHERE int_col_from IS NOT NULL AND int_row_from IS NOT NULL
+        GROUP BY int_col_from, int_row_from
     """).to_df()
 
     # (b) comptes de transition case_départ -> case_arrivée (déplacements only)
     transitions = con.sql("""
         SELECT
-            col_from AS col_o, row_from AS row_o,
-            col_to   AS col_d, row_to   AS row_d,
-            COUNT(*) AS n
+            int_col_from AS int_col_o, int_row_from AS int_row_o,
+            int_col_to   AS int_col_d, int_row_to   AS int_row_d,
+            COUNT(*) AS int_n
         FROM intermediate.int_xt_actions
-        WHERE action_kind = 'move'
-          AND col_to   IS NOT NULL AND row_to   IS NOT NULL
-          AND col_from IS NOT NULL AND row_from IS NOT NULL
-        GROUP BY col_from, row_from, col_to, row_to
+        WHERE str_action_kind = 'move'
+          AND int_col_to   IS NOT NULL AND int_row_to   IS NOT NULL
+          AND int_col_from IS NOT NULL AND int_row_from IS NOT NULL
+        GROUP BY int_col_from, int_row_from, int_col_to, int_row_to
     """).to_df()
 
     return cell_stats, transitions
@@ -95,8 +97,8 @@ def build_probabilities(cell_stats):
     moves = np.zeros(N_CELLS)
     turn  = np.zeros(N_CELLS)
     for r in cell_stats.itertuples(index=False):
-        i = cell_index(int(r.col), int(r.row))
-        shots[i], goals[i], moves[i], turn[i] = r.shots, r.goals, r.moves, r.turnover
+        i = cell_index(int(r.int_col), int(r.int_row))
+        shots[i], goals[i], moves[i], turn[i] = r.int_shots, r.int_goals, r.int_moves, r.int_turnover
 
     actions = shots + moves + turn
     with np.errstate(divide="ignore", invalid="ignore"):
@@ -114,9 +116,9 @@ def build_transition_matrix(transitions):
     """
     T = np.zeros((N_CELLS, N_CELLS))
     for r in transitions.itertuples(index=False):
-        o = cell_index(int(r.col_o), int(r.row_o))
-        d = cell_index(int(r.col_d), int(r.row_d))
-        T[o, d] += r.n
+        o = cell_index(int(r.int_col_o), int(r.int_row_o))
+        d = cell_index(int(r.int_col_d), int(r.int_row_d))
+        T[o, d] += r.int_n
     row_sums = T.sum(axis=1, keepdims=True)
     with np.errstate(divide="ignore", invalid="ignore"):
         T = np.where(row_sums > 0, T / row_sums, 0.0)
@@ -150,11 +152,11 @@ def build_grid_frame(shots, goals, moves, turn, shoot_pct, goal_prob, move_pct, 
         for r in range(N_ROWS):
             i = cell_index(c, r)
             rows.append({
-                "col": c, "row": r,
-                "shots": int(shots[i]), "goals": int(goals[i]),
-                "moves": int(moves[i]), "turnover": int(turn[i]),
-                "shoot_pct": float(shoot_pct[i]), "goal_prob": float(goal_prob[i]),
-                "move_pct": float(move_pct[i]), "xt": float(xt[i]),
+                "int_col": c, "int_row": r,
+                "int_shots": int(shots[i]), "int_goals": int(goals[i]),
+                "int_moves": int(moves[i]), "int_turnover": int(turn[i]),
+                "dec_shoot_pct": float(shoot_pct[i]), "dec_goal_prob": float(goal_prob[i]),
+                "dec_move_pct": float(move_pct[i]), "dec_xt": float(xt[i]),
             })
     return pd.DataFrame(rows)
 

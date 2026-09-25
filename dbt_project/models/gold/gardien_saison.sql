@@ -1,7 +1,7 @@
 {{
     config(
         materialized='incremental',
-        unique_key=['keeper_id', 'season'],
+        unique_key=['str_keeper_id', 'str_season'],
         on_schema_change='sync_all_columns',
         schema='gold',
         alias='gardien_saison'
@@ -26,6 +26,29 @@
 -- sera ajoutée dans une passe ultérieure.
 -- ══════════════════════════════════════════════════════════════════════════════
 
+-- ══ Refonte nommage (préfixe de type en tête de nom : str_, int_, dec_, dt_, bool_) ══
+-- Entrées : les modèles amont refondus sont relus via des CTE in_<modèle> qui les
+-- remappent vers les noms/types de travail utilisés par la logique ci-dessous
+-- (inchangée). Sortie : CTE mdl_out, renommage + cast selon le type logique.
+
+WITH
+
+-- int_keeper_psxg lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_int_keeper_psxg AS (
+    SELECT
+        CAST(str_keeper_id AS BIGINT)                                AS "keeper_id",
+        str_season                                                   AS "season",
+        str_league_source                                            AS "league_source",
+        int_shots_faced                                              AS "shots_faced",
+        CAST(int_goals_conceded AS HUGEINT)                          AS "goals_conceded",
+        CAST(int_saves AS HUGEINT)                                   AS "saves",
+        dec_psxg_faced                                               AS "psxg_faced",
+        dec_psxg_plus_minus                                          AS "psxg_plus_minus",
+        dec_save_pct                                                 AS "save_pct"
+    FROM {{ ref('int_keeper_psxg') }}
+),
+
+mdl_body AS (
 WITH
 
 -- 1) Agrégation au grain (keeper, saison) : un gardien peut avoir 2 championnats
@@ -39,7 +62,7 @@ keeper_season AS (
         SUM(goals_conceded)  AS goals_conceded,
         SUM(psxg_faced)      AS psxg_faced,
         SUM(psxg_plus_minus) AS psxg_plus_minus
-    FROM {{ ref('int_keeper_psxg') }}
+    FROM in_int_keeper_psxg
     GROUP BY keeper_id, season
 ),
 
@@ -70,5 +93,30 @@ SELECT *,
 FROM lagged
 
 {% if is_incremental() %}
-WHERE season > (SELECT MAX(season) FROM {{ this }})
+WHERE season > (SELECT MAX(season) FROM (
+    SELECT
+            CAST(str_keeper_id AS BIGINT)                                AS "keeper_id",
+            str_season                                                   AS "season",
+            dec_keeper_psxg_plus_minus_lag                               AS "keeper_psxg_plus_minus_lag",
+            dec_keeper_psxg_per_shot_lag                                 AS "keeper_psxg_per_shot_lag",
+            dec_keeper_save_pct_lag                                      AS "keeper_save_pct_lag",
+            CAST(int_keeper_shots_faced_lag AS HUGEINT)                  AS "keeper_shots_faced_lag",
+            str_profile_confidence_flag                                  AS "profile_confidence_flag"
+        FROM {{ this }}
+    ))
 {% endif %}
+),
+
+mdl_out AS (
+    SELECT
+        CAST(keeper_id AS VARCHAR)                                   AS str_keeper_id,
+        "season"                                                     AS str_season,
+        "keeper_psxg_plus_minus_lag"                                 AS dec_keeper_psxg_plus_minus_lag,
+        "keeper_psxg_per_shot_lag"                                   AS dec_keeper_psxg_per_shot_lag,
+        "keeper_save_pct_lag"                                        AS dec_keeper_save_pct_lag,
+        CAST(keeper_shots_faced_lag AS BIGINT)                       AS int_keeper_shots_faced_lag,
+        "profile_confidence_flag"                                    AS str_profile_confidence_flag
+    FROM mdl_body
+)
+
+SELECT * FROM mdl_out

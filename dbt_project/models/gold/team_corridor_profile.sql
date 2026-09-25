@@ -19,16 +19,73 @@
 --     couloir ; def_solidity = taux de duels gagnés pondéré par volume, dans les
 --     cellules DÉFENSIVES (z1,z2) du couloir.
 -- Cellules du couloir : gauche=c1,c2 · axe=c3 · droit=c4,c5.
+--
+-- Refonte nommage : backbone lu sous ses nouveaux noms (CTE backbone_in), sorties
+-- renommées selon docs/proposition_nommage_definitif.csv dans la CTE renamed.
 -- ══════════════════════════════════════════════════════════════════════════════
 
-WITH xi AS (
+-- ══ Refonte nommage (préfixe de type en tête de nom : str_, int_, dec_, dt_, bool_) ══
+-- Entrées : les modèles amont refondus sont relus via des CTE in_<modèle> qui les
+-- remappent vers les noms/types de travail utilisés par la logique ci-dessous
+-- (inchangée). Sortie : CTE mdl_out, renommage + cast selon le type logique.
+
+WITH
+
+-- int_whoscored_lineup lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_int_whoscored_lineup AS (
+    SELECT
+        str_match_id                                                 AS "match_id",
+        CAST(str_team_id AS BIGINT)                                  AS "team_id",
+        int_formation_seq                                            AS "formation_seq",
+        CAST(str_formation_id AS INTEGER)                            AS "formation_id",
+        int_period                                                   AS "period",
+        int_start_minute                                             AS "start_minute",
+        int_end_minute                                               AS "end_minute",
+        CAST(str_player_id AS BIGINT)                                AS "player_id",
+        int_slot                                                     AS "slot",
+        dec_grid_vertical                                            AS "grid_vertical",
+        dec_grid_horizontal                                          AS "grid_horizontal",
+        bool_is_captain                                              AS "is_captain"
+    FROM {{ ref('int_whoscored_lineup') }}
+),
+
+-- joueur_zone_saison lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_joueur_zone_saison AS (
+    SELECT
+        CAST(str_player_id AS INTEGER)                               AS "player_id",
+        str_zone_5x5                                                 AS "zone_5x5",
+        str_season                                                   AS "season",
+        dec_off_touch_share_by_zone_lag                              AS "off_touch_share_by_zone_lag",
+        dec_off_shot_volume_by_zone_lag                              AS "off_shot_volume_by_zone_lag",
+        dec_off_danger_by_zone_lag                                   AS "off_danger_by_zone_lag",
+        dec_off_progressive_actions_by_zone_lag                      AS "off_progressive_actions_by_zone_lag",
+        dec_off_cross_volume_by_zone_lag                             AS "off_cross_volume_by_zone_lag",
+        dec_def_duel_win_rate_by_zone_lag                            AS "def_duel_win_rate_by_zone_lag",
+        dec_def_actions_by_zone_lag                                  AS "def_actions_by_zone_lag",
+        int_n_duels_prev                                             AS "n_duels_prev",
+        int_n_matches_prev                                           AS "n_matches_prev",
+        str_profile_confidence_flag                                  AS "profile_confidence_flag"
+    FROM {{ ref('joueur_zone_saison') }}
+),
+
+mdl_body AS (
+WITH backbone_in AS (
+    SELECT
+        str_match_id                       AS match_id,
+        CAST(str_team_id AS BIGINT)       AS team_id,
+        CAST(str_opponent_id AS BIGINT)   AS opponent_id,
+        str_season                         AS season
+    FROM {{ ref('backbone') }}
+),
+
+xi AS (
     SELECT DISTINCT
         l.match_id, l.team_id, b.opponent_id, l.player_id, b.season,
         CASE WHEN l.grid_horizontal < 4.5 THEN 'gauche'
              WHEN l.grid_horizontal <= 5.5 THEN 'axe'
              ELSE 'droit' END AS corridor
-    FROM {{ ref('int_whoscored_lineup') }} l
-    JOIN {{ ref('backbone') }} b
+    FROM in_int_whoscored_lineup l
+    JOIN backbone_in b
         ON b.match_id = l.match_id AND b.team_id = l.team_id
     WHERE l.start_minute = 0 AND l.match_id IS NOT NULL
 ),
@@ -46,10 +103,11 @@ prof AS (
         CAST(substr(jz.zone_5x5, 2, 1) AS INTEGER) AS z,
         CAST(substr(jz.zone_5x5, 5, 1) AS INTEGER) AS c
     FROM xi x
-    JOIN {{ ref('joueur_zone_saison') }} jz
+    JOIN in_joueur_zone_saison jz
         ON jz.player_id = x.player_id AND jz.season = x.season
-)
+),
 
+final AS (
 SELECT
     match_id, team_id, opponent_id, corridor,
     -- Cellules du couloir (in_corridor) : gauche c1,c2 · axe c3 · droit c4,c5
@@ -77,3 +135,26 @@ SELECT
         THEN n_duels_prev ELSE 0 END), 0) AS def_solidity
 FROM prof
 GROUP BY match_id, team_id, opponent_id, corridor
+),
+
+-- Renommage final (docs/proposition_nommage_definitif.csv)
+renamed AS (
+    SELECT
+        match_id                                             AS str_match_id,
+        CAST(team_id AS VARCHAR)                             AS str_team_id,
+        CAST(opponent_id AS VARCHAR)                         AS str_opponent_id,
+        corridor                                             AS str_corridor,
+        off_strength                                         AS dec_off_strength,
+        off_cross_strength                                   AS dec_off_cross_strength,
+        off_dribble_strength                                 AS dec_off_dribble_strength,
+        off_central_progression                              AS dec_off_central_progression,
+        off_central_touch                                    AS dec_off_central_touch,
+        def_central_density                                  AS dec_def_central_density,
+        def_solidity                                         AS dec_def_solidity
+    FROM final
+)
+
+SELECT * FROM renamed
+)
+
+SELECT * FROM mdl_body

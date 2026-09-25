@@ -1,14 +1,106 @@
 {{
     config(
         materialized='incremental',
-        unique_key=['match_id', 'team_id', 'corner_row_num'],
+        unique_key=['str_match_id', 'str_team_id', 'int_corner_row_num'],
         on_schema_change='sync_all_columns',
         schema='intermediate',
         alias='corner_profiles'
     )
 }}
 
+-- ══ Refonte nommage (préfixe de type en tête de nom : str_, int_, dec_, dt_, bool_) ══
+-- Entrées : les modèles amont refondus sont relus via des CTE in_<modèle> qui les
+-- remappent vers les noms/types de travail utilisés par la logique ci-dessous
+-- (inchangée). Sortie : CTE mdl_out, renommage + cast selon le type logique.
 
+WITH
+
+-- event_values lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_event_values AS (
+    SELECT
+        str_match_id                                                 AS "match_id",
+        CAST(str_team_id AS BIGINT)                                  AS "team_id",
+        CAST(str_player_id AS INTEGER)                               AS "player_id",
+        CAST(str_event_id AS INTEGER)                                AS "event_id",
+        int_row_num                                                  AS "row_num",
+        int_expanded_minute                                          AS "expanded_minute",
+        int_period                                                   AS "period",
+        CAST(str_type_id AS INTEGER)                                 AS "type_id",
+        str_type_name                                                AS "type_name",
+        CAST(str_outcome_id AS INTEGER)                              AS "outcome_id",
+        bool_is_shot                                                 AS "is_shot",
+        dec_x                                                        AS "x",
+        dec_y                                                        AS "y",
+        dt_match_date                                                AS "match_date",
+        str_season                                                   AS "season",
+        str_league_source                                            AS "league_source",
+        CAST(dt_scraped_at AS VARCHAR)                               AS "scraped_at",
+        dec_danger_position                                          AS "danger_position",
+        dec_chance_creation                                          AS "chance_creation",
+        dec_def_execution_quality                                    AS "def_execution_quality",
+        dec_pressure_context                                         AS "pressure_context",
+        dec_context_weight                                           AS "context_weight",
+        dec_action_value                                             AS "action_value"
+    FROM {{ ref('event_values') }}
+),
+
+-- events_qual lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_events_qual AS (
+    SELECT
+        str_match_id                                                 AS "match_id",
+        CAST(str_team_id AS BIGINT)                                  AS "team_id",
+        CAST(str_player_id AS INTEGER)                               AS "player_id",
+        CAST(str_event_id AS INTEGER)                                AS "event_id",
+        int_minute                                                   AS "minute",
+        int_second                                                   AS "second",
+        int_expanded_minute                                          AS "expanded_minute",
+        int_period                                                   AS "period",
+        dec_x                                                        AS "x",
+        dec_y                                                        AS "y",
+        dec_end_x                                                    AS "end_x",
+        dec_end_y                                                    AS "end_y",
+        CAST(str_type_id AS INTEGER)                                 AS "type_id",
+        str_type_name                                                AS "type_name",
+        CAST(str_outcome_id AS INTEGER)                              AS "outcome_id",
+        bool_is_touch                                                AS "is_touch",
+        bool_is_shot                                                 AS "is_shot",
+        int_row_num                                                  AS "row_num",
+        CAST(str_qual_type_id AS INTEGER)                            AS "qual_type_id",
+        str_qual_type_name                                           AS "qual_type_name",
+        str_qual_value                                               AS "qual_value"
+    FROM {{ ref('events_qual') }}
+),
+
+-- player_possession_chains lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_player_possession_chains AS (
+    SELECT
+        str_match_id                                                 AS "match_id",
+        str_season                                                   AS "season",
+        str_league_source                                            AS "league_source",
+        str_chain_id                                                 AS "chain_id",
+        CAST(int_chain_number AS HUGEINT)                            AS "chain_number",
+        CAST(str_chain_team_id AS BIGINT)                            AS "chain_team_id",
+        CAST(str_team_id AS BIGINT)                                  AS "team_id",
+        CAST(str_player_id AS INTEGER)                               AS "player_id",
+        CAST(str_event_id AS INTEGER)                                AS "event_id",
+        int_row_num                                                  AS "row_num",
+        int_expanded_minute                                          AS "expanded_minute",
+        int_second                                                   AS "second",
+        int_period                                                   AS "period",
+        CAST(str_type_id AS INTEGER)                                 AS "type_id",
+        str_type_name                                                AS "type_name",
+        CAST(str_outcome_id AS INTEGER)                              AS "outcome_id",
+        bool_is_shot                                                 AS "is_shot",
+        dec_x                                                        AS "x",
+        dec_y                                                        AS "y",
+        int_is_rupture                                               AS "is_rupture",
+        str_chain_trigger                                            AS "chain_trigger",
+        int_certain_possessor                                        AS "certain_possessor",
+        CAST(dt_scraped_at AS VARCHAR)                               AS "scraped_at"
+    FROM {{ ref('player_possession_chains') }}
+),
+
+mdl_body AS (
 WITH
 
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -17,13 +109,31 @@ WITH
 {% if is_incremental() %}
 new_matches AS (
     SELECT DISTINCT match_id
-    FROM {{ ref('player_possession_chains') }}
-    WHERE match_id NOT IN (SELECT DISTINCT match_id FROM {{ this }})
+    FROM in_player_possession_chains
+    WHERE match_id NOT IN (SELECT DISTINCT match_id FROM (
+    SELECT
+            str_match_id                                                 AS "match_id",
+            CAST(str_team_id AS BIGINT)                                  AS "team_id",
+            CAST(str_corner_taker_id AS INTEGER)                         AS "corner_taker_id",
+            int_corner_row_num                                           AS "corner_row_num",
+            int_expanded_minute                                          AS "expanded_minute",
+            str_corner_side                                              AS "corner_side",
+            str_landing_zone                                             AS "landing_zone",
+            int_n_aerial_duels                                           AS "n_aerial_duels",
+            str_shot_body_part                                           AS "shot_body_part",
+            CAST(str_clearance_player_id AS INTEGER)                     AS "clearance_player_id",
+            str_clearance_quality                                        AS "clearance_quality",
+            bool_is_headed_clearance                                     AS "is_headed_clearance",
+            str_outcome                                                  AS "outcome",
+            dec_chain_danger_total                                       AS "chain_danger_total",
+            dec_chain_danger_momentum                                    AS "chain_danger_momentum"
+        FROM {{ this }}
+    ))
 ),
 {% else %}
 new_matches AS (
     SELECT DISTINCT match_id
-    FROM {{ ref('player_possession_chains') }}
+    FROM in_player_possession_chains
 ),
 {% endif %}
 
@@ -44,7 +154,7 @@ corner_chains AS (
         y,
         MIN(row_num) OVER (PARTITION BY chain_id)              AS chain_first_row,
         COUNT(*) OVER (PARTITION BY chain_id)                  AS chain_length
-    FROM {{ ref('player_possession_chains') }}
+    FROM in_player_possession_chains
     WHERE chain_trigger = 'corner'
       AND match_id IN (SELECT match_id FROM new_matches)
 ),
@@ -67,7 +177,7 @@ corner_delivery AS (
         eq.match_id,
         eq.expanded_minute
     FROM corner_chains cc
-    JOIN {{ ref('events_qual') }} eq
+    JOIN in_events_qual eq
         ON  eq.match_id    = cc.match_id
         AND eq.row_num     = cc.chain_first_row
         AND eq.qual_type_id = 6   -- CornerTaken : une ligne par livraison
@@ -108,8 +218,8 @@ corner_attacking_events AS (
         pc.type_id,
         pc.is_shot,
         ev.action_value
-    FROM {{ ref('player_possession_chains') }} pc
-    LEFT JOIN {{ ref('event_values') }} ev
+    FROM in_player_possession_chains pc
+    LEFT JOIN in_event_values ev
         ON  ev.match_id = pc.match_id
         AND ev.row_num  = pc.row_num
     WHERE pc.chain_trigger = 'corner'
@@ -148,7 +258,7 @@ corner_shot_bodypart AS (
             WHEN eq.qual_type_id = 21 THEN 'other'
         END) AS shot_body_part
     FROM corner_last_shot cls
-    JOIN {{ ref('events_qual') }} eq
+    JOIN in_events_qual eq
         ON  eq.match_id = cls.match_id
         AND eq.row_num  = cls.last_shot_row
         AND eq.qual_type_id IN (15, 20, 72, 21)
@@ -174,8 +284,8 @@ corner_defending_clearance AS (
             PARTITION BY pc.match_id, pc.chain_id
             ORDER BY pc.row_num ASC
         ) AS rn_first
-    FROM {{ ref('player_possession_chains') }} pc
-    LEFT JOIN {{ ref('event_values') }} ev
+    FROM in_player_possession_chains pc
+    LEFT JOIN in_event_values ev
         ON  ev.match_id = pc.match_id
         AND ev.row_num  = pc.row_num
     WHERE pc.chain_trigger = 'corner'
@@ -200,7 +310,7 @@ corner_clearance_next_possession AS (
             ORDER BY pc2.row_num ASC
         ) AS rn_recovery
     FROM corner_defending_clearance cdc
-    JOIN {{ ref('player_possession_chains') }} pc2
+    JOIN in_player_possession_chains pc2
         ON  pc2.match_id = cdc.match_id
         AND pc2.row_num  > cdc.row_num
         AND pc2.certain_possessor IS NOT NULL
@@ -229,7 +339,7 @@ corner_clearance_detail AS (
             ELSE                                             'good'
         END)                                                    AS clearance_quality
     FROM corner_defending_clearance cdc
-    LEFT JOIN {{ ref('events_qual') }} eq
+    LEFT JOIN in_events_qual eq
         ON  eq.match_id = cdc.match_id
         AND eq.row_num  = cdc.row_num
         AND eq.qual_type_id IN (15, 21)
@@ -327,3 +437,26 @@ final AS (
 )
 
 SELECT * FROM final
+),
+
+mdl_out AS (
+    SELECT
+        "match_id"                                                   AS str_match_id,
+        CAST(team_id AS VARCHAR)                                     AS str_team_id,
+        CAST(corner_taker_id AS VARCHAR)                             AS str_corner_taker_id,
+        "corner_row_num"                                             AS int_corner_row_num,
+        "expanded_minute"                                            AS int_expanded_minute,
+        "corner_side"                                                AS str_corner_side,
+        "landing_zone"                                               AS str_landing_zone,
+        "n_aerial_duels"                                             AS int_n_aerial_duels,
+        "shot_body_part"                                             AS str_shot_body_part,
+        CAST(clearance_player_id AS VARCHAR)                         AS str_clearance_player_id,
+        "clearance_quality"                                          AS str_clearance_quality,
+        "is_headed_clearance"                                        AS bool_is_headed_clearance,
+        "outcome"                                                    AS str_outcome,
+        "chain_danger_total"                                         AS dec_chain_danger_total,
+        "chain_danger_momentum"                                      AS dec_chain_danger_momentum
+    FROM mdl_body
+)
+
+SELECT * FROM mdl_out

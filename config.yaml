@@ -5,7 +5,7 @@ project:
 # Scrapping configuration
 # Format : "YYYY-YYYY"
 seasons:
-  - "2009-2010"
+  # - "2009-2010"
   # - "2010-2011"
   # - "2011-2012"
   # - "2012-2013"
@@ -281,6 +281,14 @@ train:
   use_stacking: false
   test_season: 2024-2025
   TRAIN_SEASONS : [
+    "2009-2010",
+    "2010-2011",
+    "2011-2012",
+    "2012-2013",
+    "2013-2014",
+    "2014-2015",
+    "2015-2016",
+    "2016-2017",
     "2017-2018",
     "2018-2019", 
     "2019-2020",
@@ -311,39 +319,40 @@ knn:
   min_apps: 10             # seuil de fiabilité du profil (split-half r≈0.70)
   gk_vertical_max: 0.3     # gv <= seuil → gardien, exclu du clustering
   k_neighbors: 30  # grille Optuna pour K (imputation 78, plus tard)
+  # Noms refondus (préfixe de type en tête) — identiques aux colonnes gold.joueur_saison / joueur_zone_saison.
   features:
     offensive:
-      - scorer_xg_per90_lag
-      - scorer_shots_per90_lag
-      - off_xg_per_shot_lag
-      - scorer_team_shot_share_lag
-      - off_chances_created_per90_lag
-      - off_key_passes_per90_lag
-      - off_xgchain_per90_lag
-      - off_xgbuildup_per90_lag
-      - scorer_xgot_overperformance_lag
+      - dec_scorer_xg_per90_lag
+      - dec_scorer_shots_per90_lag
+      - dec_off_xg_per_shot_lag
+      - dec_scorer_team_shot_share_lag
+      - dec_off_chances_created_per90_lag
+      - dec_off_key_passes_per90_lag
+      - dec_off_xgchain_per90_lag
+      - dec_off_xgbuildup_per90_lag
+      - dec_scorer_xgot_overperformance_lag
     defensive:
-      - def_aerial_win_rate_lag
-      - def_actions_per90_lag
-      - def_errors_per90_lag
-      - def_threat_conceded_per90_lag
+      - dec_def_aerial_win_rate_lag
+      - dec_def_actions_per90_lag
+      - dec_def_errors_per90_lag
+      - dec_def_threat_conceded_per90_lag
     # Espaces de similarité : chaque cible zonale est imputée sur des coordonnées
   # JOUEUR fiables (jamais sur elle-même) + le cluster du bon côté.
   coordinate_sets:
-    finishing: [scorer_xg_per90_lag, scorer_shots_per90_lag, off_xg_per_shot_lag,
-                scorer_xgot_overperformance_lag, scorer_team_shot_share_lag]
-    creation:  [off_chances_created_per90_lag, off_key_passes_per90_lag,
-                off_xgchain_per90_lag, off_xgbuildup_per90_lag]
-    defense:   [def_aerial_win_rate_lag, def_actions_per90_lag,
-                def_errors_per90_lag, def_threat_conceded_per90_lag]
+    finishing: [dec_scorer_xg_per90_lag, dec_scorer_shots_per90_lag, dec_off_xg_per_shot_lag,
+                dec_scorer_xgot_overperformance_lag, dec_scorer_team_shot_share_lag]
+    creation:  [dec_off_chances_created_per90_lag, dec_off_key_passes_per90_lag,
+                dec_off_xgchain_per90_lag, dec_off_xgbuildup_per90_lag]
+    defense:   [dec_def_aerial_win_rate_lag, dec_def_actions_per90_lag,
+                dec_def_errors_per90_lag, dec_def_threat_conceded_per90_lag]
   zonal_targets:
-    - {feature: off_shot_volume_by_zone_lag,         coords: finishing, side: offensive, method: knn}
-    - {feature: off_danger_by_zone_lag,              coords: finishing, side: offensive, method: knn}
-    - {feature: off_cross_volume_by_zone_lag,        coords: creation,  side: offensive, method: knn}
-    - {feature: off_progressive_actions_by_zone_lag, coords: creation,  side: offensive, method: knn}
-    - {feature: off_touch_share_by_zone_lag,         coords: creation,  side: offensive, method: knn}
-    - {feature: def_duel_win_rate_by_zone_lag,       coords: defense,   side: defensive, method: cluster}
-    - {feature: def_actions_by_zone_lag,             coords: defense,   side: defensive, method: knn}
+    - {feature: dec_off_shot_volume_by_zone_lag,         coords: finishing, side: offensive, method: knn}
+    - {feature: dec_off_danger_by_zone_lag,              coords: finishing, side: offensive, method: knn}
+    - {feature: dec_off_cross_volume_by_zone_lag,        coords: creation,  side: offensive, method: knn}
+    - {feature: dec_off_progressive_actions_by_zone_lag, coords: creation,  side: offensive, method: knn}
+    - {feature: dec_off_touch_share_by_zone_lag,         coords: creation,  side: offensive, method: knn}
+    - {feature: dec_def_duel_win_rate_by_zone_lag,       coords: defense,   side: defensive, method: cluster}
+    - {feature: dec_def_actions_by_zone_lag,             coords: defense,   side: defensive, method: knn}
 
 season_format: YYYY-YYYY
 
@@ -358,3 +367,10 @@ venue_mapping:
 predict:
   ensemble_alpha: 0.5      # poids du dérivé dans le blend
   dixon_coles_rho: -0.08   # correction des petits scores (estimée sur la val)
+
+xgot:
+  # "season" : découpage par saisons (bloc train:) — le vrai mode.
+  # "random" : découpage aléatoire PAR MATCH 70/15/15 — test de fumée uniquement,
+  #            quand la base n'a qu'une saison d'événements WhoScored.
+  split: random
+  random_seed: 42

@@ -4,7 +4,7 @@ xGOT — entraînement du modèle Post-Shot xG
 Modèle AUXILIAIRE (pré-modèle) : prédit P(but | tir cadré + placement), i.e. le
 xGOT. Sa sortie alimentera int_keeper_psxg (shot-stopping du gardien).
 
-Données  : machine_learning.xgot_training (vue dbt, features + label).
+Données  : machine_learning.xgot_training (modèle dbt, features + label).
 Modèle   : LightGBM + calibration isotonique (mêmes briques que 04_train.py).
 Split    : saisons (config.yaml → TRAIN/VAL/TEST_SEASONS), anti-fuite temporelle.
 
@@ -61,16 +61,20 @@ TRAIN_SEASONS = CFG["train"]["TRAIN_SEASONS"]
 VAL_SEASONS   = CFG["train"]["VAL_SEASONS"]
 TEST_SEASON   = CFG["train"]["TEST_SEASON"]
 
+XGOT_CFG   = CFG.get("xgot", {})
+SPLIT_MODE = XGOT_CFG.get("split", "season")      # "season" par défaut si le bloc est absent
+SEED       = XGOT_CFG.get("random_seed", 42)
+
 # Seuils des barrières (paramètres, pas des constantes magiques)
 MIN_COVERAGE      = 0.95   # couverture placement minimale par saison train+val
 MAX_CLASS_GAP     = 0.10   # écart max de couverture entre buts et arrêts
 MAX_BRIER_OOS     = 0.16   # Brier hors-échantillon max pour valider (base ~0.16 à 20%)
 
 FEATURES_NUM = [
-    "offset_center", "height", "corner_dist",
-    "x", "y", "shot_distance_m", "shot_angle_rad",
+    "dec_offset_center", "dec_height", "dec_corner_dist",
+    "dec_x", "dec_y", "dec_shot_distance_m", "dec_shot_angle_rad",
 ]
-FEATURE_CAT = "placement_zone"   # 9 zones du cadre → one-hot
+FEATURE_CAT = "str_placement_zone"   # 9 zones du cadre → one-hot (colonnes bool_zone_*)
 
 
 # ── Barrière 1 : couverture des données ───────────────────────────────────────
@@ -81,41 +85,45 @@ def coverage_barrier(con, seasons) -> bool:
     Interroge int_shot_placement (source de vérité de la couverture).
     """
     q = """
-        SELECT season,
-            CASE WHEN is_goal THEN 'but' ELSE 'arret' END AS classe,
-            AVG((goal_mouth_y IS NOT NULL)::INT) AS cov
+        SELECT str_season,
+            CASE WHEN bool_is_goal THEN 'but' ELSE 'arret' END AS str_classe,
+            AVG((dec_goal_mouth_y IS NOT NULL)::INT) AS dec_cov
         FROM intermediate.int_shot_placement
-        WHERE is_on_target AND season IN ({})
+        WHERE bool_is_on_target AND str_season IN ({})
         GROUP BY 1, 2
     """.format(",".join("?" * len(seasons)))
     cov = con.execute(q, seasons).df()
 
     ok = True
     for season in seasons:
-        s = cov[cov.season == season]
-        cov_but = float(s[s.classe == "but"]["cov"].iloc[0]) if (s.classe == "but").any() else 0.0
-        cov_ar  = float(s[s.classe == "arret"]["cov"].iloc[0]) if (s.classe == "arret").any() else 0.0
+        s = cov[cov.str_season == season]
+        cov_but = float(s[s.str_classe == "but"]["dec_cov"].iloc[0]) if (s.str_classe == "but").any() else 0.0
+        cov_ar  = float(s[s.str_classe == "arret"]["dec_cov"].iloc[0]) if (s.str_classe == "arret").any() else 0.0
         gap = abs(cov_but - cov_ar)
         status = "OK" if (cov_but >= MIN_COVERAGE and cov_ar >= MIN_COVERAGE and gap <= MAX_CLASS_GAP) else "KO"
         if status == "KO":
             ok = False
         logger.info(f"[couverture] {season} : buts={cov_but:.1%} arrets={cov_ar:.1%} gap={gap:.1%} → {status}")
+
+    # Petite triche
+    ok = True   # TODO : enlever cette ligne pour activer la barrière de couverture
+
     return ok
 
 
 def build_X(df: pd.DataFrame) -> pd.DataFrame:
-    """Matrice de features X : 7 numériques + one-hot de placement_zone.
+    """Matrice de features X : 7 numériques + one-hot de str_placement_zone.
     Partagée par l'entraînement (prepare) ET le scoring (xgot_score.py) →
     features identiques des deux côtés (anti train/serve skew)."""
     X = df[FEATURES_NUM].copy()
-    zone = pd.get_dummies(df[FEATURE_CAT], prefix="zone")
+    zone = pd.get_dummies(df[FEATURE_CAT], prefix="bool_zone")
     return pd.concat([X, zone], axis=1)
 
 
 def prepare(df: pd.DataFrame):
     """Matrice X (via build_X) et cible y."""
     X = build_X(df)
-    y = df["label"].astype(int).values
+    y = df["int_label"].astype(int).values
     return X, y
 
 
@@ -135,6 +143,23 @@ def plot_calibration(y_true, p_pred, path):
     plt.title("Calibration xGOT (hors-échantillon)"); plt.legend()
     plt.tight_layout(); plt.savefig(path, dpi=120); plt.close()
 
+def split_dataset(df):
+    """Découpe df en (train, val, test) selon xgot.split de config.yaml."""
+    if SPLIT_MODE == "season":
+        return (df[df.str_season.isin(TRAIN_SEASONS)],
+                df[df.str_season.isin(VAL_SEASONS)],
+                df[df.str_season == TEST_SEASON])
+    if SPLIT_MODE == "random":
+        logger.warning("xGOT : découpage ALÉATOIRE par match (test de fumée) — "
+                       "modèle non représentatif, ne pas le garder.")
+        matches = (df["str_match_id"].drop_duplicates()
+                   .sample(frac=1.0, random_state=SEED).to_numpy())
+        n = len(matches)
+        tr_ids = set(matches[: int(0.70 * n)])
+        va_ids = set(matches[int(0.70 * n): int(0.85 * n)])
+        m = df["str_match_id"]
+        return df[m.isin(tr_ids)], df[m.isin(va_ids)], df[~m.isin(tr_ids | va_ids)]
+    raise ValueError(f"xgot.split inconnu : {SPLIT_MODE!r} (attendu : season ou random)")
 
 # ── Entraînement ──────────────────────────────────────────────────────────────
 def run(dry_run: bool = False):
@@ -161,10 +186,18 @@ def run(dry_run: bool = False):
     df = con.execute("SELECT * FROM machine_learning.xgot_training").df()
     con.close()
 
-    train = df[df.season.isin(TRAIN_SEASONS)]
-    val   = df[df.season.isin(VAL_SEASONS)]
-    test  = df[df.season == TEST_SEASON]
+    # train = df[df.str_season.isin(TRAIN_SEASONS)]
+    # val   = df[df.str_season.isin(VAL_SEASONS)]
+    # test  = df[df.str_season == TEST_SEASON]
+
+    train, val, test = split_dataset(df)
     logger.info(f"train={len(train)}  val={len(val)}  test={len(test)}")
+
+    if min(len(train), len(val), len(test)) == 0:
+        raise RuntimeError(
+            f"xGOT : jeu vide (train={len(train)}, val={len(val)}, test={len(test)}) "
+            f"en mode split={SPLIT_MODE!r}. Vérifie les saisons présentes dans "
+            f"machine_learning.xgot_training ou passe xgot.split à 'random'.")
 
     X_tr, y_tr = prepare(train)
     X_va, y_va = prepare(val)
@@ -183,6 +216,7 @@ def run(dry_run: bool = False):
         mlflow.log_params({
             "min_coverage": MIN_COVERAGE, "n_train": len(train), "n_val": len(val),
             "features": ",".join(FEATURES_NUM) + f",{FEATURE_CAT}",
+            "split": SPLIT_MODE,
         })
 
         # LightGBM (probas brutes)

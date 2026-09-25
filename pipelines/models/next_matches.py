@@ -4,7 +4,7 @@ next_matches.py — Produit/rafraîchit le fichier des prochains matchs à préd
 Pour chaque championnat de config.yaml → predict.leagues, sélectionne la
 PROCHAINE JOURNÉE à jouer : le plus proche groupe de matchs sans résultat
 (result_1n2 NULL), regroupés par fenêtre de dates (predict.next_matchday_window_days,
-défaut 4 j). Indépendant de la date système. Écrit un CSV (match_id, league, date)
+défaut 4 j). Indépendant de la date système. Écrit un CSV (str_match_id, str_league_source, dt_date)
 — écrase le fichier à chaque run.
 
 Appelé par l'orchestrateur avant predict_1n2 (qui lit --match-ids-file).
@@ -24,7 +24,7 @@ import ml_common as mc
 
 
 def next_matches(cfg):
-    """Retourne un df (match_id, league, date) : la prochaine journée non jouée
+    """Retourne un df (str_match_id, str_league_source, dt_date) : la prochaine journée non jouée
     de chaque championnat configuré."""
     pcfg = cfg.get("predict", {})
     leagues = pcfg.get("leagues", [])
@@ -36,16 +36,16 @@ def next_matches(cfg):
     con = duckdb.connect(str(mc.ROOT_DIR / cfg["paths"]["duckdb"]), read_only=True)
     df = con.execute(f"""
         with unplayed as (
-            select distinct m.match_id, b.league_source as league, m.date
+            select distinct m.str_match_id, b.str_league_source, m.dt_date
             from marts.mart_1n2 m
-            join intermediate.backbone b using (match_id, team_id)
-            where m.result_1n2 is null and b.league_source in ({placeholders})
+            join intermediate.backbone b using (str_match_id, str_team_id)
+            where m.str_result_1n2 is null and b.str_league_source in ({placeholders})
         ),
-        firsts as (select league, min(date) as d0 from unplayed group by league)
-        select u.match_id, u.league, u.date
-        from unplayed u join firsts f using (league)
-        where date_diff('day', f.d0, u.date) between 0 and ?
-        order by u.league, u.date, u.match_id
+        firsts as (select str_league_source, min(dt_date) as dt_d0 from unplayed group by str_league_source)
+        select u.str_match_id, u.str_league_source, u.dt_date
+        from unplayed u join firsts f using (str_league_source)
+        where date_diff('day', f.dt_d0, u.dt_date) between 0 and ?
+        order by u.str_league_source, u.dt_date, u.str_match_id
     """, leagues + [window]).df()
     con.close()
     return df
@@ -62,8 +62,8 @@ def main():
     if df.empty:
         print(f"Aucun match non joué pour les championnats configurés. Fichier vidé : {out_path}")
     else:
-        print(f"{len(df)} matchs sur {df['league'].nunique()} championnat(s) → {out_path}")
-        print(df.groupby("league")["match_id"].count().to_string())
+        print(f"{len(df)} matchs sur {df['str_league_source'].nunique()} championnat(s) → {out_path}")
+        print(df.groupby("str_league_source")["str_match_id"].count().to_string())
 
 
 if __name__ == "__main__":

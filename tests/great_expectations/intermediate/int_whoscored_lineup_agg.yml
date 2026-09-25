@@ -12,7 +12,7 @@ description: >
 source:
   duckdb_path: db/football.duckdb
   query: |
-    SELECT "match_id", "team_id", "player_id", "avg_vertical", "avg_horizontal", "primary_slot", "is_captain", "n_formation_periods" FROM intermediate."int_whoscored_lineup_agg"
+    SELECT "str_match_id", "str_team_id", "str_player_id", "dec_avg_vertical", "dec_avg_horizontal", "int_primary_slot", "bool_is_captain", "int_n_formation_periods" FROM intermediate."int_whoscored_lineup_agg"
 
 expectations:
 
@@ -26,57 +26,57 @@ expectations:
   # ── COMPLÉTION STRICTE (0 NULL empirique) ──
   - type: expect_column_values_to_not_be_null
     for_each_column:
-      - player_id
-      - primary_slot
-      - n_formation_periods
+      - str_player_id
+      - int_primary_slot
+      - int_n_formation_periods
     kwargs: { mostly: 1.0 }
     # severity: error
     severity: warn
 
   # ── COMPLÉTION AVEC NULLs EMPIRIQUES (mostly = 1 - empirique - 5pts) ──
   - type: expect_column_values_to_not_be_null
-    kwargs: { column: match_id, mostly: 0.9462 }
+    kwargs: { column: str_match_id, mostly: 0.9462 }
     severity: warn
     meta: { description: "Empirique 0.38% NULL." }
   - type: expect_column_values_to_not_be_null
-    kwargs: { column: team_id, mostly: 0.9496 }
+    kwargs: { column: str_team_id, mostly: 0.9496 }
     severity: warn
     meta: { description: "Empirique 0.04% NULL." }
   - type: expect_column_values_to_not_be_null
-    kwargs: { column: avg_vertical, mostly: 0.9473 }
+    kwargs: { column: dec_avg_vertical, mostly: 0.9473 }
     severity: warn
     meta: { description: "Empirique 0.27% NULL." }
   - type: expect_column_values_to_not_be_null
-    kwargs: { column: avg_horizontal, mostly: 0.9473 }
+    kwargs: { column: dec_avg_horizontal, mostly: 0.9473 }
     severity: warn
     meta: { description: "Empirique 0.27% NULL." }
   - type: expect_column_values_to_not_be_null
-    kwargs: { column: is_captain, mostly: 0.9499 }
+    kwargs: { column: bool_is_captain, mostly: 0.9499 }
     severity: warn
     meta: { description: "Empirique 0.01% NULL." }
 
   # ── BORNES DE VALEURS NUMÉRIQUES ──
   - type: expect_column_values_to_be_between
-    kwargs: { column: team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
+    kwargs: { column: str_team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [202606100001, 202606100426], mean=2.03e+11." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: player_id, min_value: 0, max_value: 617975, mostly: 1.0 }
+    kwargs: { column: str_player_id, min_value: 0, max_value: 617975, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [0, 561795], mean=2.16e+05." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: avg_vertical, min_value: 0, max_value: 9.9, mostly: 1.0 }
+    kwargs: { column: dec_avg_vertical, min_value: 0, max_value: 9.9, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [0.0, 9.0], mean=5.03." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: avg_horizontal, min_value: 0.19999999999999996, max_value: 9.8, mostly: 1.0 }
+    kwargs: { column: dec_avg_horizontal, min_value: 0.19999999999999996, max_value: 9.8, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [1.0, 9.0], mean=4.99." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: primary_slot, min_value: 0, max_value: 13, mostly: 1.0 }
+    kwargs: { column: int_primary_slot, min_value: 0, max_value: 13, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [1, 11], mean=6.39." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: n_formation_periods, min_value: -40, max_value: 454, mostly: 1.0 }
+    kwargs: { column: int_n_formation_periods, min_value: -40, max_value: 454, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [1, 412], mean=3.57." }

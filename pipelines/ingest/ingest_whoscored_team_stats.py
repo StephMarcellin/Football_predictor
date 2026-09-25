@@ -45,15 +45,15 @@ def process_whoscored_team_season(con: duckdb.DuckDBPyConnection) -> None:
     df = standardize_season(df)
 
     # Cat C
-    df = df.drop_nulls(subset=[c for c in ["team", "season", "league_source"] if c in df.columns])
+    # df = df.drop_nulls(subset=[c for c in ["team", "season", "league_source"] if c in df.columns])
 
     # Cast ws_* → Float64
-    ws_cols = [c for c in df.columns if c.startswith("ws_")]
-    if ws_cols:
-        df = df.with_columns([pl.col(c).cast(pl.Float64, strict=False) for c in ws_cols])
+    # ws_cols = [c for c in df.columns if c.startswith("ws_")]
+    # if ws_cols:
+    #     df = df.with_columns([pl.col(c).cast(pl.Float64, strict=False) for c in ws_cols])
 
-    df = apply_cat_a_zerofill(df, "whoscored")
-    df = apply_cat_d_outliers(df, "whoscored")
+    # df = apply_cat_a_zerofill(df, "whoscored")
+    # df = apply_cat_d_outliers(df, "whoscored")
     df = remove_duplicates(df, ["team", "season", "league_source"], "whoscored")
 
     _write_to_duckdb(con, df, "whoscored_team_season", "whoscored")

@@ -9,7 +9,7 @@ Remplace trois modèles dbt par un job Spark unique :
 
 Entrées  (produites par export_to_parquet.py) :
     data/spark_in/events/season=*/        stg_whoscored_events, brut
-    data/spark_in/match_index/*.parquet   int_whoscored_match_index
+    data/spark_in/match_index/*.parquet   int_whoscored_match_index (noms refondus : str_, dt_…)
 
 Sorties (Parquet zstd, partitionnées par season) :
     data/spark_out/int_whoscored_events/
@@ -46,6 +46,50 @@ from spark_session import get_spark, ROOT_DIR, SPARK_CFG
 
 IN_DIR  = ROOT_DIR / SPARK_CFG["paths"]["input"]
 OUT_DIR = ROOT_DIR / SPARK_CFG["paths"]["output"]
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NOMMAGE — convention du projet : préfixe de type en tête de nom
+# (str_, int_, dec_, dt_, bool_). Les événements bruts viennent de la couche silver
+# (stg_whoscored_events), hors périmètre du renommage : la logique Spark travaille
+# donc avec les noms silver ; les colonnes prises à l'index (déjà refondu) sont
+# lues sous leurs noms refondus. Le renommage (+ cast) des SORTIES a lieu à
+# l'écriture, d'après docs/proposition_nommage_v2.csv — la même table que dbt.
+# ══════════════════════════════════════════════════════════════════════════════
+import csv
+
+_NAMING_CSV = ROOT_DIR / "docs" / "proposition_nommage_v2.csv"
+_SPARK_TYPES = {"VARCHAR": "string", "INTEGER": "int", "BIGINT": "bigint",
+                "DOUBLE": "double", "BOOLEAN": "boolean", "DATE": "date",
+                "TIMESTAMP": "timestamp"}
+_PREFIX_BY_DTYPE = {"string": "str", "int": "int", "bigint": "int", "smallint": "int",
+                    "double": "dec", "float": "dec", "boolean": "bool",
+                    "date": "dt", "timestamp": "dt"}
+
+
+def _naming(table: str) -> dict[str, tuple[str, str, str]]:
+    """{ancien_nom: (nouveau_nom, type_final, type_actuel)} pour une table."""
+    with open(_NAMING_CSV, encoding="utf-8") as f:
+        return {r["nom_variable_actuel"]: (r["new_nom_variable"], r["type_final"], r["type_actuel"])
+                for r in csv.DictReader(f, delimiter=";") if r["nom_table"] == table}
+
+
+def to_final_names(df, table: str):
+    """Renomme (et caste) les colonnes d'une sortie vers la convention du projet.
+    Une colonne absente du CSV (ex. la partition season d'events_qual) reçoit le
+    préfixe déduit de son type Spark, avec un avertissement."""
+    from pyspark.sql import functions as F
+    m = _naming(table)
+    out = []
+    for c, dtype in df.dtypes:
+        if c in m:
+            new, typ, _ = m[c]
+            out.append(F.col(c).cast(_SPARK_TYPES.get(typ, typ.lower())).alias(new))
+        else:
+            pref = _PREFIX_BY_DTYPE.get(dtype.split("(")[0], "str")
+            logger.warning(f"{table}.{c} absent de {_NAMING_CSV.name} → {pref}_{c}")
+            out.append(F.col(c).alias(f"{pref}_{c}"))
+    return df.select(*out)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -137,20 +181,26 @@ def resolve_identity(events, index):
     """
     from pyspark.sql import functions as F
 
+    # L'index est lu sous ses noms refondus (str_/dt_) ; chaque colonne est
+    # rattachée au vocabulaire silver des événements pour la jointure. Les ids
+    # d'équipe sont des VARCHAR côté index, des INTEGER côté silver : cast
+    # explicite pour comparer des entiers à des entiers (et garder le MIN/MAX
+    # numérique de team_1/team_2 dans build_event_enriched). La sortie est
+    # recastée en VARCHAR (str_team_id) par to_final_names.
     idx = index.select(
-        F.col("ws_match_id"),
-        F.col("match_id"),
+        F.col("str_ws_match_id").alias("ws_match_id"),
+        F.col("str_match_id").alias("match_id"),
         # Les deux équipes du match, côté index — uniquement pour le contrôle.
-        F.col("ws_home_team_id").alias("ws_home"),
-        F.col("ws_away_team_id").alias("ws_away"),
-        F.col("team_id").alias("canon_home"),
-        F.col("opponent_id").alias("canon_away"),
+        F.col("str_ws_home_team_id").cast("int").alias("ws_home"),
+        F.col("str_ws_away_team_id").cast("int").alias("ws_away"),
+        F.col("str_team_id").cast("bigint").alias("canon_home"),
+        F.col("str_opponent_id").cast("bigint").alias("canon_away"),
         # Préfixées idx_ : int_event_enriched prend son contexte match de
         # l'INDEX, pas des événements (fidélité au CTE match_dates du SQL dbt).
-        F.col("match_date").alias("idx_match_date"),
-        F.col("season").alias("idx_season"),
-        F.col("league_source").alias("idx_league_source"),
-        F.col("scraped_at").alias("idx_scraped_at"),
+        F.col("dt_match_date").alias("idx_match_date"),
+        F.col("str_season").alias("idx_season"),
+        F.col("str_league_source").alias("idx_league_source"),
+        F.col("dt_scraped_at").alias("idx_scraped_at"),
     ).filter(F.col("match_id").isNotNull())
 
     return (
@@ -284,6 +334,11 @@ def build_qual_flags(events_qual):
     """
     Pivot des 10 qualifiers en 10 colonnes 0/1, au grain (match_id, row_num).
 
+    Entrée : la sortie events_qual TELLE QU'ÉCRITE (noms refondus :
+    str_match_id, int_row_num, str_qual_type_id VARCHAR). Les clés sont rendues
+    sous match_id / row_num pour la jointure avec les événements (vocabulaire
+    silver) dans build_event_enriched.
+
     On n'utilise PAS .groupBy().pivot() : cette API lance un job SUPPLÉMENTAIRE
     pour découvrir les valeurs distinctes de la colonne pivotée. Comme les 10
     qual_type_id sont connus à l'avance, on écrit des agrégations explicites —
@@ -296,13 +351,14 @@ def build_qual_flags(events_qual):
     from pyspark.sql import functions as F
 
     aggs = [
-        F.max(F.when(F.col("qual_type_id") == tid, 1).otherwise(0)).alias(name)
+        F.max(F.when(F.col("str_qual_type_id") == str(tid), 1).otherwise(0)).alias(name)
         for tid, name in QUAL_FLAGS.items()
     ]
     return (
         events_qual
-        .filter(F.col("qual_type_id").isin(list(QUAL_FLAGS)))
-        .groupBy("match_id", "row_num")
+        .filter(F.col("str_qual_type_id").isin([str(t) for t in QUAL_FLAGS]))
+        .groupBy(F.col("str_match_id").alias("match_id"),
+                 F.col("int_row_num").alias("row_num"))
         .agg(*aggs)
     )
 
@@ -457,7 +513,7 @@ def write_out(spark, df, name: str) -> int:
     (
         df.write
         .mode("overwrite")
-        .partitionBy("season")
+        .partitionBy("str_season")          # partition sous le nom refondu
         .parquet(str(path))
     )
     n = spark.read.parquet(str(path)).count()
@@ -509,21 +565,21 @@ def main(season: str | None = None) -> int:
         # et lève "Failed to bind column reference ... inequal types".
         # CONVENTION : toute sortie Parquet lue via une vue DuckDB commence
         # par ses clés.
-        _keys = ["match_id", "team_id", "row_num", "event_id"]
+        out1 = to_final_names(out1, "int_whoscored_events")
+        _keys = ["str_match_id", "str_team_id", "int_row_num", "str_event_id"]
         out1 = out1.select(*_keys, *[c for c in out1.columns if c not in _keys])
         log_plan(out1, "int_whoscored_events")
         write_out(spark, out1, "int_whoscored_events")
 
         # ── Sortie 2 : events_qual ───────────────────────────────────────────
-        events_qual = build_events_qual(resolved)
+        events_qual = to_final_names(build_events_qual(resolved), "events_qual")
         log_plan(events_qual, "events_qual")
         write_out(spark, events_qual, "events_qual")
 
         # ── Sortie 3 : int_event_enriched ────────────────────────────────────
-        qual_flags = build_qual_flags(
-            spark.read.parquet(str(OUT_DIR / "events_qual"))
-        )
-        enriched = build_event_enriched(resolved, qual_flags)
+        qual_flags = build_qual_flags(spark.read.parquet(str(OUT_DIR / "events_qual")))
+        enriched = to_final_names(build_event_enriched(resolved, qual_flags),
+                                  "int_event_enriched")
         log_plan(enriched, "int_event_enriched")
         write_out(spark, enriched, "int_event_enriched")
 

@@ -1,14 +1,67 @@
 {{
     config(
         materialized='incremental',
-        unique_key=['match_id', 'team_id'],
+        unique_key=['str_match_id', 'str_team_id'],
         on_schema_change='sync_all_columns',
         schema='intermediate',
         alias='team_network_features'
     )
 }}
 
+-- ══ Refonte nommage (préfixe de type en tête de nom : str_, int_, dec_, dt_, bool_) ══
+-- Entrées : les modèles amont refondus sont relus via des CTE in_<modèle> qui les
+-- remappent vers les noms/types de travail utilisés par la logique ci-dessous
+-- (inchangée). Sortie : CTE mdl_out, renommage + cast selon le type logique.
 
+WITH
+
+-- player_network_centrality lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_player_network_centrality AS (
+    SELECT
+        str_match_id                                                 AS "match_id",
+        CAST(str_team_id AS BIGINT)                                  AS "team_id",
+        CAST(str_player_id AS INTEGER)                               AS "player_id",
+        str_season                                                   AS "season",
+        str_league_source                                            AS "league_source",
+        int_degree_out                                               AS "degree_out",
+        int_degree_in                                                AS "degree_in",
+        CAST(int_weighted_degree_out AS HUGEINT)                     AS "weighted_degree_out",
+        CAST(int_weighted_degree_in AS HUGEINT)                      AS "weighted_degree_in",
+        CAST(int_n_creative_out AS HUGEINT)                          AS "n_creative_out",
+        CAST(int_n_progressive_out AS HUGEINT)                       AS "n_progressive_out",
+        dec_pass_share                                               AS "pass_share",
+        dec_creative_rate                                            AS "creative_rate",
+        dec_betweenness_proxy                                        AS "betweenness_proxy"
+    FROM {{ ref('player_network_centrality') }}
+),
+
+-- player_passes_raw lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_player_passes_raw AS (
+    SELECT
+        str_match_id                                                 AS "match_id",
+        str_chain_id                                                 AS "chain_id",
+        str_chain_trigger                                            AS "chain_trigger",
+        CAST(str_team_id AS BIGINT)                                  AS "team_id",
+        CAST(str_passer_id AS INTEGER)                               AS "passer_id",
+        CAST(str_receiver_id AS INTEGER)                             AS "receiver_id",
+        int_row_num                                                  AS "row_num",
+        int_expanded_minute                                          AS "expanded_minute",
+        int_second                                                   AS "second",
+        dec_x                                                        AS "x",
+        dec_y                                                        AS "y",
+        dec_end_x                                                    AS "end_x",
+        dec_end_y                                                    AS "end_y",
+        int_is_key_pass                                              AS "is_key_pass",
+        int_is_shot_assist                                           AS "is_shot_assist",
+        str_season                                                   AS "season",
+        str_league_source                                            AS "league_source",
+        bool_is_progressive                                          AS "is_progressive",
+        bool_is_creative                                             AS "is_creative",
+        bool_is_buildup                                              AS "is_buildup"
+    FROM {{ ref('player_passes_raw') }}
+),
+
+mdl_body AS (
 WITH
 
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -18,13 +71,30 @@ WITH
 {% if is_incremental() %}
 new_matches AS (
     SELECT DISTINCT match_id
-    FROM {{ ref('player_network_centrality') }}
-    WHERE match_id NOT IN (SELECT DISTINCT match_id FROM {{ this }})
+    FROM in_player_network_centrality
+    WHERE match_id NOT IN (SELECT DISTINCT match_id FROM (
+    SELECT
+            str_match_id                                                 AS "match_id",
+            CAST(str_team_id AS BIGINT)                                  AS "team_id",
+            str_season                                                   AS "season",
+            str_league_source                                            AS "league_source",
+            int_n_players                                                AS "n_players",
+            CAST(int_n_edges AS HUGEINT)                                 AS "n_edges",
+            dec_network_density                                          AS "network_density",
+            dec_top_creator_share                                        AS "top_creator_share",
+            dec_avg_betweenness                                          AS "avg_betweenness",
+            dec_network_entropy                                          AS "network_entropy",
+            dec_centroid_x                                               AS "centroid_x",
+            dec_centroid_y                                               AS "centroid_y",
+            dec_centroid_x_progressive                                   AS "centroid_x_progressive",
+            dec_centroid_y_progressive                                   AS "centroid_y_progressive"
+        FROM {{ this }}
+    ))
 ),
 {% else %}
 new_matches AS (
     SELECT DISTINCT match_id
-    FROM {{ ref('player_network_centrality') }}
+    FROM in_player_network_centrality
 ),
 {% endif %}
 
@@ -57,7 +127,7 @@ network_agg AS (
             - SUM(pass_share * LN(NULLIF(pass_share, 0)))
             / NULLIF(LN(COUNT(*)), 0)
         , 4)                                                            AS network_entropy
-    FROM {{ ref('player_network_centrality') }}
+    FROM in_player_network_centrality
     WHERE match_id IN (SELECT match_id FROM new_matches)
     GROUP BY match_id, team_id, season, league_source
 ),
@@ -80,7 +150,7 @@ spatial_agg AS (
         ROUND(AVG(CASE WHEN is_progressive THEN x END), 2)            AS centroid_x_progressive,
         ROUND(AVG(CASE WHEN is_progressive THEN y END), 2)            AS centroid_y_progressive
         
-    FROM {{ ref('player_passes_raw') }}
+    FROM in_player_passes_raw
     WHERE match_id IN (SELECT match_id FROM new_matches)
     GROUP BY match_id, team_id
 ),
@@ -132,3 +202,25 @@ final AS (
 -- SELECT FINAL
 -- ══════════════════════════════════════════════════════════════════════════════
 SELECT * FROM final
+),
+
+mdl_out AS (
+    SELECT
+        "match_id"                                                   AS str_match_id,
+        CAST(team_id AS VARCHAR)                                     AS str_team_id,
+        "season"                                                     AS str_season,
+        "league_source"                                              AS str_league_source,
+        "n_players"                                                  AS int_n_players,
+        CAST(n_edges AS BIGINT)                                      AS int_n_edges,
+        "network_density"                                            AS dec_network_density,
+        "top_creator_share"                                          AS dec_top_creator_share,
+        "avg_betweenness"                                            AS dec_avg_betweenness,
+        "network_entropy"                                            AS dec_network_entropy,
+        "centroid_x"                                                 AS dec_centroid_x,
+        "centroid_y"                                                 AS dec_centroid_y,
+        "centroid_x_progressive"                                     AS dec_centroid_x_progressive,
+        "centroid_y_progressive"                                     AS dec_centroid_y_progressive
+    FROM mdl_body
+)
+
+SELECT * FROM mdl_out

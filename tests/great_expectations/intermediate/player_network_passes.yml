@@ -12,7 +12,7 @@ description: >
 source:
   duckdb_path: db/football.duckdb
   query: |
-    SELECT "match_id", "team_id", "passer_id", "receiver_id", "season", "league_source", "n_passes", "n_passes_counter_attack", "n_passes_open_play", "n_passes_recovery", "n_passes_other", "n_progressive", "n_creative", "n_buildup" FROM intermediate."player_network_passes"
+    SELECT "str_match_id", "str_team_id", "str_passer_id", "str_receiver_id", "str_season", "str_league_source", "int_n_passes", "int_n_passes_counter_attack", "int_n_passes_open_play", "int_n_passes_recovery", "int_n_passes_other", "int_n_progressive", "int_n_creative", "int_n_buildup" FROM intermediate."player_network_passes"
 
 expectations:
 
@@ -26,74 +26,74 @@ expectations:
   # ── COMPLÉTION STRICTE (0 NULL empirique) ──
   - type: expect_column_values_to_not_be_null
     for_each_column:
-      - match_id
-      - team_id
-      - passer_id
-      - receiver_id
-      - season
-      - league_source
-      - n_passes
-      - n_passes_counter_attack
-      - n_passes_open_play
-      - n_passes_recovery
-      - n_passes_other
-      - n_progressive
-      - n_creative
-      - n_buildup
+      - str_match_id
+      - str_team_id
+      - str_passer_id
+      - str_receiver_id
+      - str_season
+      - str_league_source
+      - int_n_passes
+      - int_n_passes_counter_attack
+      - int_n_passes_open_play
+      - int_n_passes_recovery
+      - int_n_passes_other
+      - int_n_progressive
+      - int_n_creative
+      - int_n_buildup
     kwargs: { mostly: 1.0 }
     # severity: error
     severity: warn
 
   # ── BORNES DE VALEURS NUMÉRIQUES ──
   - type: expect_column_values_to_be_between
-    kwargs: { column: team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
+    kwargs: { column: str_team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [202606100001, 202606100426], mean=2.03e+11." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: passer_id, min_value: -52893, max_value: 617676, mostly: 1.0 }
+    kwargs: { column: str_passer_id, min_value: -52893, max_value: 617676, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [2987, 561795], mean=3.19e+05." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: receiver_id, min_value: -52893, max_value: 617676, mostly: 1.0 }
+    kwargs: { column: str_receiver_id, min_value: -52893, max_value: 617676, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [2987, 561795], mean=3.22e+05." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: n_passes, min_value: -6, max_value: 88, mostly: 1.0 }
+    kwargs: { column: int_n_passes, min_value: -6, max_value: 88, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [1, 80], mean=3.39." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: n_passes_counter_attack, min_value: 0, max_value: 1, mostly: 1.0 }
+    kwargs: { column: int_n_passes_counter_attack, min_value: 0, max_value: 1, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [0, 0], mean=0." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: n_passes_open_play, min_value: 0, max_value: 28, mostly: 1.0 }
+    kwargs: { column: int_n_passes_open_play, min_value: 0, max_value: 28, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [0, 25], mean=1.24." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: n_passes_recovery, min_value: 0, max_value: 25, mostly: 1.0 }
+    kwargs: { column: int_n_passes_recovery, min_value: 0, max_value: 25, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [0, 22], mean=0.828." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: n_passes_other, min_value: 0, max_value: 52, mostly: 1.0 }
+    kwargs: { column: int_n_passes_other, min_value: 0, max_value: 52, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [0, 47], mean=1.31." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: n_progressive, min_value: 0, max_value: 29, mostly: 1.0 }
+    kwargs: { column: int_n_progressive, min_value: 0, max_value: 29, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [0, 26], mean=0.757." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: n_creative, min_value: 0, max_value: 6, mostly: 1.0 }
+    kwargs: { column: int_n_creative, min_value: 0, max_value: 6, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [0, 5], mean=0.0768." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: n_buildup, min_value: 0, max_value: 73, mostly: 1.0 }
+    kwargs: { column: int_n_buildup, min_value: 0, max_value: 73, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [0, 66], mean=1.9." }
 
   # ── DÉRIVE VOLUMÉTRIQUE INTER-SAISONS ──
   - type: expect_partition_volume_stability
     kwargs:
-      partition_col: season
+      partition_col: str_season
       max_deviation_warn: 0.20
       max_deviation_error: 0.40
       min_seasons_history: 2
