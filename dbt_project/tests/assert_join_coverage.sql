@@ -1,12 +1,12 @@
 -- Vérifie que la couverture Understat est ≥ 95% sur les Big5 uniquement
 -- (Understat ne couvre pas les Coupes ni les ligues secondaires).
--- Refonte nommage : colonnes backbone renommées ; matchs non joués exclus
+-- Refonte nommage : colonnes intermediate_team_match_backbone renommées ; matchs non joués exclus
 -- (pas d'xG attendu avant le match).
 WITH coverage AS (
     SELECT
         COUNT(*)                                            AS total,
         COUNT(CASE WHEN dec_np_xg IS NOT NULL THEN 1 END)   AS matched
-    FROM {{ ref('backbone') }}
+    FROM {{ ref('intermediate_team_match_backbone') }}
     WHERE str_league_source IN (
         'Ligue 1', 'Premier League', 'La Liga', 'Bundesliga', 'Serie A'
     )

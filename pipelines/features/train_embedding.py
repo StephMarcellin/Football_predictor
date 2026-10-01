@@ -35,7 +35,7 @@ MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
 MIN_APPS = CFG["knn"]["min_apps"]
 
-# Noms refondus (préfixe de type en tête), tels qu'exposés par gold.joueur_saison.
+# Noms refondus (préfixe de type en tête), tels qu'exposés par gold.gold_player_match_rolling_profile.
 NON_ZONAL_FEATURES = [
     "dec_scorer_xg_per90_lag", "dec_scorer_shots_per90_lag",
     "dec_off_xg_per_shot_lag", "dec_off_chances_created_per90_lag", "dec_off_key_passes_per90_lag",
@@ -46,7 +46,7 @@ NON_ZONAL_FEATURES = [
     "dec_def_threat_conceded_per90_lag", "dec_scorer_xgot_overperformance_lag",
 ]
 
-# Noms refondus, tels qu'exposés par gold.joueur_zone_saison.
+# Noms refondus, tels qu'exposés par gold.gold_player_zone_season_lag.
 ZONAL_FEATURES = [
     "dec_off_touch_share_by_zone_lag", "dec_off_shot_volume_by_zone_lag",
     "dec_off_danger_by_zone_lag", "dec_off_progressive_actions_by_zone_lag",
@@ -85,7 +85,7 @@ def build_features_matrix(con, seasons, min_apps=0):
         WITH latest AS (
             SELECT *, row_number() OVER (
                 PARTITION BY str_player_id, str_season ORDER BY dt_date DESC, str_match_id DESC) rn
-            FROM gold.joueur_saison
+            FROM gold.gold_player_match_rolling_profile
             WHERE str_season IN ({','.join(['?']*len(seasons))})
         )
         SELECT str_player_id, str_season, int_n_apps_lag, int_minutes_lag, {non_zonal_cols}
@@ -95,7 +95,7 @@ def build_features_matrix(con, seasons, min_apps=0):
     zonal_cols = ",".join(ZONAL_FEATURES)
     zt = con.sql(f"""
         SELECT str_player_id, str_season, str_zone_5x5, {zonal_cols}
-        FROM gold.joueur_zone_saison
+        FROM gold.gold_player_zone_season_lag
         WHERE str_season IN ({','.join(['?']*len(seasons))})
     """, params=seasons).df()
 
@@ -217,7 +217,7 @@ def validate_embedding(con, table="machine_learning.player_embedding_lag"):
     df = con.sql(f"""
         SELECT e.*, r.str_role_fin_lag AS str_role
         FROM {table} e
-        LEFT JOIN intermediate.int_player_role_lag r
+        LEFT JOIN intermediate.intermediate_player_season_role_lag r
           ON r.str_player_id = e.str_player_id AND r.str_season = e.str_season
         WHERE r.str_role_fin_lag IS NOT NULL
     """).df()
@@ -247,7 +247,7 @@ def main():
     args = parser.parse_args()
 
     con = duckdb.connect(str(DB_PATH))
-    all_seasons = sorted([r[0] for r in con.sql("SELECT DISTINCT str_season FROM gold.joueur_saison").fetchall()])
+    all_seasons = sorted([r[0] for r in con.sql("SELECT DISTINCT str_season FROM gold.gold_player_match_rolling_profile").fetchall()])
     
     # Filtrage éventuel via --seasons
     if args.seasons:

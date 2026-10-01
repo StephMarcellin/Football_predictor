@@ -256,7 +256,7 @@ def decode_column(col: str) -> str | None:
     return None
 
 
-# Colonnes legacy conservées à l'identique pour ne pas casser backbone.sql / gold
+# Colonnes legacy conservées à l'identique pour ne pas casser intermediate_team_match_backbone.sql / gold
 # (propagation ultérieure : gold consommera les colonnes riches puis on supprimera
 #  ces doublons). Chaque legacy pointe vers la colonne décodée équivalente.
 LEGACY_ALIASES = {
@@ -280,7 +280,7 @@ def parse_odds_file(filepath: Path, league_source: str, season: str) -> pd.DataF
       - bloc identité (date, season, league_source, home_team, away_team, …)
       - bloc statistiques de match (buts, tirs, cartons, arbitre…)
       - TOUTES les cotes du fichier, renommées en snake_case (decode_column)
-      - colonnes legacy (compat backbone.sql) + probabilités implicites dérivées
+      - colonnes legacy (compat intermediate_team_match_backbone.sql) + probabilités implicites dérivées
 
     Les colonnes absentes d'un fichier ne sont pas créées ici : le remplissage
     à NULL se fait à la concaténation dans load_all_odds (union des colonnes).
@@ -326,7 +326,7 @@ def parse_odds_file(filepath: Path, league_source: str, season: str) -> pd.DataF
         else:
             out[snake] = pd.to_numeric(df[raw], errors="coerce")
 
-    # ── Colonnes legacy (compat backbone.sql) ─────────────────────────────────
+    # ── Colonnes legacy (compat intermediate_team_match_backbone.sql) ─────────────────────────────────
     # Pointent vers la colonne décodée équivalente si présente, sinon NaN.
     for legacy, decoded in LEGACY_ALIASES.items():
         # float('nan') (et non pd.NA) : garde un dtype float64 même si la colonne

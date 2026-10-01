@@ -371,7 +371,7 @@ select
     mm.* exclude (str_result_1n2),
     b.int_gf as int_team_goals
 from in_mart_1n2 mm
-join {{ ref('backbone') }} b using (str_match_id, str_team_id)
+join {{ ref('intermediate_team_match_backbone') }} b using (str_match_id, str_team_id)
 ),
 
 mdl_out AS (

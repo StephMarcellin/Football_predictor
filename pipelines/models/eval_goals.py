@@ -40,7 +40,7 @@ def _pairs_lambda(cfg, seasons):
 
     con = duckdb.connect(str(mc.ROOT_DIR / cfg["paths"]["duckdb"]), read_only=True)
     bb = con.execute("select str_match_id, str_team_id, str_venue, str_result_1n2 "
-                     "from intermediate.backbone").df()
+                     "from intermediate.intermediate_team_match_backbone").df()
     con.close()
     df = df[df["str_season"].isin(seasons)].merge(bb, on=["str_match_id", "str_team_id"])
     H = df[df.str_venue == "Home"].set_index("str_match_id")

@@ -2,16 +2,16 @@
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- mart_assists — grain (match_id, team_id, player_id) — cible assisted (≥1 passe déc.).
--- Population : joueur_saison (tous les joueurs profilés → passeurs de tout poste).
+-- Population : gold_player_match_rolling_profile (tous les joueurs profilés → passeurs de tout poste).
 -- Enrichi de :
---   • exposition + tireur de coups de pied arrêtés (joueur_saison)
+--   • exposition + tireur de coups de pied arrêtés (gold_player_match_rolling_profile)
 --   • contexte offensif de l'équipe + défensif de l'adversaire
---     (equipe_match, fenêtres rolling 3/5/10, anti-leakage)
---   • priors de qualité de saison PRÉCÉDENTE (equipe_match, _lag)
--- Label : player_match_stats.n_assists ≥ 1. Pure sélection (aucun calcul).
+--     (gold_team_match, fenêtres rolling 3/5/10, anti-leakage)
+--   • priors de qualité de saison PRÉCÉDENTE (gold_team_match, _lag)
+-- Label : intermediate_player_match_event_stats.n_assists ≥ 1. Pure sélection (aucun calcul).
 --
--- Refonte nommage : backbone et equipe_match lus sous leurs nouveaux noms ; les
--- features equipe_match héritent de leur nom source (dec_…, opp_dec_…). Colonnes
+-- Refonte nommage : intermediate_team_match_backbone et gold_team_match lus sous leurs nouveaux noms ; les
+-- features gold_team_match héritent de leur nom source (dec_…, opp_dec_…). Colonnes
 -- renommées selon docs/proposition_nommage_definitif.csv : str_match_id,
 -- str_team_id, str_player_id, int_assisted.
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -23,7 +23,7 @@
 
 WITH
 
--- joueur_saison lu sous ses noms refondus, remappé vers les noms de travail du modèle
+-- gold_player_match_rolling_profile lu sous ses noms refondus, remappé vers les noms de travail du modèle
 in_joueur_saison AS (
     SELECT
         str_match_id                                                 AS "match_id",
@@ -51,10 +51,10 @@ in_joueur_saison AS (
         dec_def_threat_conceded_per90_lag                            AS "def_threat_conceded_per90_lag",
         dec_scorer_xgot_overperformance_lag                          AS "scorer_xgot_overperformance_lag",
         str_profile_confidence_flag                                  AS "profile_confidence_flag"
-    FROM {{ ref('joueur_saison') }}
+    FROM {{ ref('gold_player_match_rolling_profile') }}
 ),
 
--- player_match_stats lu sous ses noms refondus, remappé vers les noms de travail du modèle
+-- intermediate_player_match_event_stats lu sous ses noms refondus, remappé vers les noms de travail du modèle
 in_player_match_stats AS (
     SELECT
         str_match_id                                                 AS "match_id",
@@ -353,7 +353,7 @@ in_player_match_stats AS (
         str_season                                                   AS "season",
         str_league_source                                            AS "league_source",
         CAST(dt_scraped_at AS VARCHAR)                               AS "scraped_at"
-    FROM {{ ref('player_match_stats') }}
+    FROM {{ ref('intermediate_player_match_event_stats') }}
 ),
 
 mdl_body AS (
@@ -363,7 +363,7 @@ with backbone_in as (
         cast(str_team_id as bigint)       as team_id,
         str_opponent_id,
         str_venue
-    from {{ ref('backbone') }}
+    from {{ ref('intermediate_team_match_backbone') }}
 )
 
 select
@@ -374,7 +374,7 @@ select
     case when b.str_venue = 'Home' then true else false end as is_home,
     cast(b.str_opponent_id as bigint) as opponent_id,
 
-    -- ── Profil du passeur + exposition (joueur_saison) ───────────────────────
+    -- ── Profil du passeur + exposition (gold_player_match_rolling_profile) ───────────────────────
     js.scorer_xg_per90_lag,
     js.scorer_shots_per90_lag,
     js.off_chances_created_per90_lag,
@@ -386,12 +386,12 @@ select
     js.scorer_freekick_taker_lag,
     js.profile_confidence_flag,
 
-    -- ── Contexte offensif de l'ÉQUIPE (equipe_match, rolling anti-leakage) ────
+    -- ── Contexte offensif de l'ÉQUIPE (gold_team_match, rolling anti-leakage) ────
     em.dec_avg_np_xg_rolling_3,  em.dec_avg_np_xg_rolling_5,  em.dec_avg_np_xg_rolling_10,
     em.dec_failed_to_score_rate_rolling_3, em.dec_failed_to_score_rate_rolling_5, em.dec_failed_to_score_rate_rolling_10,
     em.dec_win_rate_rolling_3,   em.dec_win_rate_rolling_5,   em.dec_win_rate_rolling_10,
 
-    -- ── Contexte défensif de l'ADVERSAIRE (equipe_match sur opponent_id) ──────
+    -- ── Contexte défensif de l'ADVERSAIRE (gold_team_match sur opponent_id) ──────
     opp.dec_avg_np_xg_conceded_rolling_3  as opp_dec_avg_np_xg_conceded_rolling_3,
     opp.dec_avg_np_xg_conceded_rolling_5  as opp_dec_avg_np_xg_conceded_rolling_5,
     opp.dec_avg_np_xg_conceded_rolling_10 as opp_dec_avg_np_xg_conceded_rolling_10,
@@ -399,7 +399,7 @@ select
     opp.dec_clean_sheet_rate_rolling_5  as opp_dec_clean_sheet_rate_rolling_5,
     opp.dec_clean_sheet_rate_rolling_10 as opp_dec_clean_sheet_rate_rolling_10,
 
-    -- ── Priors de qualité de saison PRÉCÉDENTE (equipe_match, _lag) ───────────
+    -- ── Priors de qualité de saison PRÉCÉDENTE (gold_team_match, _lag) ───────────
     em.dec_season_xg_per_shot_for_lag,
     em.dec_season_xg_per_shot_against_lag,
     opp.dec_season_xg_per_shot_for_lag     as opp_dec_season_xg_per_shot_for_lag,
@@ -409,8 +409,8 @@ select
 from in_joueur_saison js
 left join backbone_in                     b   using (match_id, team_id)
 left join in_player_match_stats pms using (match_id, team_id, player_id)
-left join {{ ref('equipe_match') }}       em  on em.str_match_id  = js.match_id and em.str_team_id  = cast(js.team_id as varchar)
-left join {{ ref('equipe_match') }}       opp on opp.str_match_id = js.match_id and opp.str_team_id = b.str_opponent_id
+left join {{ ref('gold_team_match') }}       em  on em.str_match_id  = js.match_id and em.str_team_id  = cast(js.team_id as varchar)
+left join {{ ref('gold_team_match') }}       opp on opp.str_match_id = js.match_id and opp.str_team_id = b.str_opponent_id
 ),
 
 mdl_out AS (

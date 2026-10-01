@@ -8,7 +8,7 @@ models:
       éligible par ligne. Périmètre : tirs cadrés, placement présent, hors CSC,
       hors penalty. Définir features + périmètre à un seul endroit interdit
       structurellement le train/serve skew. Vue → toujours à jour avec
-      int_shot_placement. Schéma : machine_learning.
+      intermediate_shots. Schéma : machine_learning.
     columns:
       - name: str_match_id
         description: "Identifiant unifié du match (SHA1)."

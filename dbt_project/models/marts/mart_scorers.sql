@@ -2,15 +2,15 @@
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- mart_scorers — grain (match_id, team_id, player_id) — cible scored (a marqué ≥1).
--- Population : joueur_match (finition). Enrichi de :
---   • profil de création + exposition (joueur_saison)
+-- Population : gold_player_match_scorer (finition). Enrichi de :
+--   • profil de création + exposition (gold_player_match_rolling_profile)
 --   • contexte offensif de l'équipe + défensif de l'adversaire
---     (equipe_match, fenêtres rolling 3/5/10, anti-leakage)
---   • priors de qualité de saison PRÉCÉDENTE (equipe_match, _lag)
+--     (gold_team_match, fenêtres rolling 3/5/10, anti-leakage)
+--   • priors de qualité de saison PRÉCÉDENTE (gold_team_match, _lag)
 -- Label dérivé des events (is_goal, hors csc). Pure sélection (aucun calcul).
 -- ══════════════════════════════════════════════════════════════════════════════
 
--- Refonte nommage : joueur_match et equipe_match sont lus sous leurs nouveaux noms
+-- Refonte nommage : gold_player_match_scorer et gold_team_match sont lus sous leurs nouveaux noms
 -- et remappés vers les anciens (CTE joueur_match_in, equipe_match_in) — les sorties
 -- de ce mart ne changent pas.
 
@@ -21,7 +21,7 @@
 
 WITH
 
--- int_whoscored_events lu sous ses noms refondus, remappé vers les noms de travail du modèle
+-- intermediate_whoscored_events lu sous ses noms refondus, remappé vers les noms de travail du modèle
 in_int_whoscored_events AS (
     SELECT
         str_match_id                                                 AS "match_id",
@@ -56,10 +56,10 @@ in_int_whoscored_events AS (
         dec_goal_mouth_z                                             AS "goal_mouth_z",
         dec_blocked_x                                                AS "blocked_x",
         dec_blocked_y                                                AS "blocked_y"
-    FROM {{ ref('int_whoscored_events') }}
+    FROM {{ ref('intermediate_whoscored_events') }}
 ),
 
--- joueur_match lu sous ses noms refondus, remappé vers les noms de travail du modèle
+-- gold_player_match_scorer lu sous ses noms refondus, remappé vers les noms de travail du modèle
 in_joueur_match AS (
     SELECT
         str_match_id                                                 AS "str_match_id",
@@ -74,10 +74,10 @@ in_joueur_match AS (
         CAST(int_scorer_freekick_taker_lag AS HUGEINT)               AS "int_scorer_freekick_taker_lag",
         dec_off_xg_per_shot_lag                                      AS "dec_off_xg_per_shot_lag",
         dec_scorer_context_vs_opponent_style                         AS "dec_scorer_context_vs_opponent_style"
-    FROM {{ ref('joueur_match') }}
+    FROM {{ ref('gold_player_match_scorer') }}
 ),
 
--- joueur_saison lu sous ses noms refondus, remappé vers les noms de travail du modèle
+-- gold_player_match_rolling_profile lu sous ses noms refondus, remappé vers les noms de travail du modèle
 in_joueur_saison AS (
     SELECT
         str_match_id                                                 AS "match_id",
@@ -105,7 +105,7 @@ in_joueur_saison AS (
         dec_def_threat_conceded_per90_lag                            AS "def_threat_conceded_per90_lag",
         dec_scorer_xgot_overperformance_lag                          AS "scorer_xgot_overperformance_lag",
         str_profile_confidence_flag                                  AS "profile_confidence_flag"
-    FROM {{ ref('joueur_saison') }}
+    FROM {{ ref('gold_player_match_rolling_profile') }}
 ),
 
 mdl_body AS (
@@ -140,7 +140,7 @@ equipe_match_in as (
         {% endfor %}
         dec_season_xg_per_shot_for_lag            as season_xg_per_shot_for_lag,
         dec_season_xg_per_shot_against_lag        as season_xg_per_shot_against_lag
-    from {{ ref('equipe_match') }}
+    from {{ ref('gold_team_match') }}
 ),
 
 goals as (
@@ -154,7 +154,7 @@ select
     jm.*,
     em.season,   -- requis par le split temporel (retiré des features par prepare_x)
 
-    -- ── Profil de création + exposition (joueur_saison) ──────────────────────
+    -- ── Profil de création + exposition (gold_player_match_rolling_profile) ──────────────────────
     js.off_chances_created_per90_lag,
     js.off_key_passes_per90_lag,
     js.off_xgchain_per90_lag,
@@ -164,12 +164,12 @@ select
     js.minutes_lag,
     js.profile_confidence_flag,
 
-    -- ── Contexte offensif de l'ÉQUIPE (equipe_match, rolling anti-leakage) ────
+    -- ── Contexte offensif de l'ÉQUIPE (gold_team_match, rolling anti-leakage) ────
     em.avg_np_xg_rolling_3,  em.avg_np_xg_rolling_5,  em.avg_np_xg_rolling_10,
     em.failed_to_score_rate_rolling_3, em.failed_to_score_rate_rolling_5, em.failed_to_score_rate_rolling_10,
     em.win_rate_rolling_3,   em.win_rate_rolling_5,   em.win_rate_rolling_10,
 
-    -- ── Contexte défensif de l'ADVERSAIRE (equipe_match sur opponent_id) ──────
+    -- ── Contexte défensif de l'ADVERSAIRE (gold_team_match sur opponent_id) ──────
     opp.avg_np_xg_conceded_rolling_3  as opp_avg_np_xg_conceded_rolling_3,
     opp.avg_np_xg_conceded_rolling_5  as opp_avg_np_xg_conceded_rolling_5,
     opp.avg_np_xg_conceded_rolling_10 as opp_avg_np_xg_conceded_rolling_10,
@@ -177,7 +177,7 @@ select
     opp.clean_sheet_rate_rolling_5  as opp_clean_sheet_rate_rolling_5,
     opp.clean_sheet_rate_rolling_10 as opp_clean_sheet_rate_rolling_10,
 
-    -- ── Priors de qualité de saison PRÉCÉDENTE (equipe_match, _lag) ───────────
+    -- ── Priors de qualité de saison PRÉCÉDENTE (gold_team_match, _lag) ───────────
     em.season_xg_per_shot_for_lag,
     em.season_xg_per_shot_against_lag,
     opp.season_xg_per_shot_for_lag     as opp_season_xg_per_shot_for_lag,

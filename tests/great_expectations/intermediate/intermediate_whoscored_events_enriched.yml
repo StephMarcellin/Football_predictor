@@ -1,0 +1,474 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — intermediate.intermediate_whoscored_events_enriched (PUSH-DOWN 2026-09-09)
+# Volumétrie : 3,766,641 lignes, 41 colonnes
+# Stratégie big data : agrégats DuckDB → 1 ligne en pandas.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: intermediate.intermediate_whoscored_events_enriched
+description: >
+  Push-down agrégats. Volumétrie de référence : 3,766,641 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT
+          COUNT(*) AS n_rows,
+          COUNT(*) FILTER (WHERE "str_match_id" IS NULL) AS null_match_id,
+          COUNT(*) FILTER (WHERE "str_team_id" IS NULL) AS null_team_id,
+          COUNT(*) FILTER (WHERE "str_player_id" IS NULL) AS null_player_id,
+          COUNT(*) FILTER (WHERE "str_event_id" IS NULL) AS null_event_id,
+          COUNT(*) FILTER (WHERE "int_row_num" IS NULL) AS null_row_num,
+          COUNT(*) FILTER (WHERE "int_expanded_minute" IS NULL) AS null_expanded_minute,
+          COUNT(*) FILTER (WHERE "int_second" IS NULL) AS null_second,
+          COUNT(*) FILTER (WHERE "int_period" IS NULL) AS null_period,
+          COUNT(*) FILTER (WHERE "str_type_id" IS NULL) AS null_type_id,
+          COUNT(*) FILTER (WHERE "str_type_name" IS NULL) AS null_type_name,
+          COUNT(*) FILTER (WHERE "str_outcome_id" IS NULL) AS null_outcome_id,
+          COUNT(*) FILTER (WHERE "bool_is_shot" IS NULL) AS null_is_shot,
+          COUNT(*) FILTER (WHERE "bool_is_touch" IS NULL) AS null_is_touch,
+          COUNT(*) FILTER (WHERE "dec_x" IS NULL) AS null_x,
+          COUNT(*) FILTER (WHERE "dec_y" IS NULL) AS null_y,
+          COUNT(*) FILTER (WHERE "dec_end_x" IS NULL) AS null_end_x,
+          COUNT(*) FILTER (WHERE "dec_end_y" IS NULL) AS null_end_y,
+          COUNT(*) FILTER (WHERE "bool_is_own_goal" IS NULL) AS null_is_own_goal,
+          COUNT(*) FILTER (WHERE "str_related_event_id" IS NULL) AS null_related_event_id,
+          COUNT(*) FILTER (WHERE "str_related_player_id" IS NULL) AS null_related_player_id,
+          COUNT(*) FILTER (WHERE "str_card_type" IS NULL) AS null_card_type,
+          COUNT(*) FILTER (WHERE "dec_goal_mouth_y" IS NULL) AS null_goal_mouth_y,
+          COUNT(*) FILTER (WHERE "dec_goal_mouth_z" IS NULL) AS null_goal_mouth_z,
+          COUNT(*) FILTER (WHERE "dec_blocked_x" IS NULL) AS null_blocked_x,
+          COUNT(*) FILTER (WHERE "dec_blocked_y" IS NULL) AS null_blocked_y,
+          COUNT(*) FILTER (WHERE "dt_match_date" IS NULL) AS null_match_date,
+          COUNT(*) FILTER (WHERE "str_season" IS NULL) AS null_season,
+          COUNT(*) FILTER (WHERE "str_league_source" IS NULL) AS null_league_source,
+          COUNT(*) FILTER (WHERE "dt_scraped_at" IS NULL) AS null_scraped_at,
+          COUNT(*) FILTER (WHERE "int_is_leading_to_goal" IS NULL) AS null_is_leading_to_goal,
+          COUNT(*) FILTER (WHERE "int_is_intentional_goal_assist" IS NULL) AS null_is_intentional_goal_assist,
+          COUNT(*) FILTER (WHERE "int_is_intentional_assist" IS NULL) AS null_is_intentional_assist,
+          COUNT(*) FILTER (WHERE "int_is_big_chance_created" IS NULL) AS null_is_big_chance_created,
+          COUNT(*) FILTER (WHERE "int_is_key_pass" IS NULL) AS null_is_key_pass,
+          COUNT(*) FILTER (WHERE "int_is_shot_assist" IS NULL) AS null_is_shot_assist,
+          COUNT(*) FILTER (WHERE "int_is_leading_to_attempt" IS NULL) AS null_is_leading_to_attempt,
+          COUNT(*) FILTER (WHERE "int_has_defensive_qual" IS NULL) AS null_has_defensive_qual,
+          COUNT(*) FILTER (WHERE "int_has_offensive_qual" IS NULL) AS null_has_offensive_qual,
+          COUNT(*) FILTER (WHERE "int_has_opposite_event" IS NULL) AS null_has_opposite_event,
+          COUNT(*) FILTER (WHERE "int_team_score" IS NULL) AS null_team_score,
+          COUNT(*) FILTER (WHERE "int_opp_score" IS NULL) AS null_opp_score,
+          MIN("int_row_num") AS min_row_num,
+          MAX("int_row_num") AS max_row_num,
+          AVG("int_row_num") AS avg_row_num,
+          MIN("int_expanded_minute") AS min_expanded_minute,
+          MAX("int_expanded_minute") AS max_expanded_minute,
+          AVG("int_expanded_minute") AS avg_expanded_minute,
+          MIN("int_second") AS min_second,
+          MAX("int_second") AS max_second,
+          AVG("int_second") AS avg_second,
+          MIN("int_period") AS min_period,
+          MAX("int_period") AS max_period,
+          AVG("int_period") AS avg_period,
+          MIN("dec_x") AS min_x,
+          MAX("dec_x") AS max_x,
+          AVG("dec_x") AS avg_x,
+          MIN("dec_y") AS min_y,
+          MAX("dec_y") AS max_y,
+          AVG("dec_y") AS avg_y,
+          MIN("dec_end_x") AS min_end_x,
+          MAX("dec_end_x") AS max_end_x,
+          AVG("dec_end_x") AS avg_end_x,
+          MIN("dec_end_y") AS min_end_y,
+          MAX("dec_end_y") AS max_end_y,
+          AVG("dec_end_y") AS avg_end_y,
+          MIN("dec_goal_mouth_y") AS min_goal_mouth_y,
+          MAX("dec_goal_mouth_y") AS max_goal_mouth_y,
+          AVG("dec_goal_mouth_y") AS avg_goal_mouth_y,
+          MIN("dec_goal_mouth_z") AS min_goal_mouth_z,
+          MAX("dec_goal_mouth_z") AS max_goal_mouth_z,
+          AVG("dec_goal_mouth_z") AS avg_goal_mouth_z,
+          MIN("dec_blocked_x") AS min_blocked_x,
+          MAX("dec_blocked_x") AS max_blocked_x,
+          AVG("dec_blocked_x") AS avg_blocked_x,
+          MIN("dec_blocked_y") AS min_blocked_y,
+          MAX("dec_blocked_y") AS max_blocked_y,
+          AVG("dec_blocked_y") AS avg_blocked_y,
+          MIN("int_is_leading_to_goal") AS min_is_leading_to_goal,
+          MAX("int_is_leading_to_goal") AS max_is_leading_to_goal,
+          AVG("int_is_leading_to_goal") AS avg_is_leading_to_goal,
+          MIN("int_is_intentional_goal_assist") AS min_is_intentional_goal_assist,
+          MAX("int_is_intentional_goal_assist") AS max_is_intentional_goal_assist,
+          AVG("int_is_intentional_goal_assist") AS avg_is_intentional_goal_assist,
+          MIN("int_is_intentional_assist") AS min_is_intentional_assist,
+          MAX("int_is_intentional_assist") AS max_is_intentional_assist,
+          AVG("int_is_intentional_assist") AS avg_is_intentional_assist,
+          MIN("int_is_big_chance_created") AS min_is_big_chance_created,
+          MAX("int_is_big_chance_created") AS max_is_big_chance_created,
+          AVG("int_is_big_chance_created") AS avg_is_big_chance_created,
+          MIN("int_is_key_pass") AS min_is_key_pass,
+          MAX("int_is_key_pass") AS max_is_key_pass,
+          AVG("int_is_key_pass") AS avg_is_key_pass,
+          MIN("int_is_shot_assist") AS min_is_shot_assist,
+          MAX("int_is_shot_assist") AS max_is_shot_assist,
+          AVG("int_is_shot_assist") AS avg_is_shot_assist,
+          MIN("int_is_leading_to_attempt") AS min_is_leading_to_attempt,
+          MAX("int_is_leading_to_attempt") AS max_is_leading_to_attempt,
+          AVG("int_is_leading_to_attempt") AS avg_is_leading_to_attempt,
+          MIN("int_has_defensive_qual") AS min_has_defensive_qual,
+          MAX("int_has_defensive_qual") AS max_has_defensive_qual,
+          AVG("int_has_defensive_qual") AS avg_has_defensive_qual,
+          MIN("int_has_offensive_qual") AS min_has_offensive_qual,
+          MAX("int_has_offensive_qual") AS max_has_offensive_qual,
+          AVG("int_has_offensive_qual") AS avg_has_offensive_qual,
+          MIN("int_has_opposite_event") AS min_has_opposite_event,
+          MAX("int_has_opposite_event") AS max_has_opposite_event,
+          AVG("int_has_opposite_event") AS avg_has_opposite_event,
+          MIN("int_team_score") AS min_team_score,
+          MAX("int_team_score") AS max_team_score,
+          AVG("int_team_score") AS avg_team_score,
+          MIN("int_opp_score") AS min_opp_score,
+          MAX("int_opp_score") AS max_opp_score,
+          AVG("int_opp_score") AS avg_opp_score
+        FROM intermediate."intermediate_whoscored_events_enriched"
+
+expectations:
+
+  # ── VOLUMÉTRIE (1 ligne agrégée = 1 seule row en output) ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 1, max_value: 1 }
+    # severity: error
+    severity: warn
+    meta: { description: "Agrégat push-down doit renvoyer exactement 1 ligne." }
+
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "n_rows >= 1506656 and n_rows <= 7533282"
+    # severity: error
+    severity: warn
+    meta: { description: "Row count empirique = 3,766,641." }
+
+  # ── COMPLÉTION PAR COLONNE (push-down NULL counts) ──
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_match_id / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "match_id empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_team_id / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "team_id empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_player_id / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "player_id empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_event_id / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "event_id empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_row_num / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "row_num empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_expanded_minute / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "expanded_minute empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_second / n_rows <= 0.0523"
+    severity: warn
+    meta: { description: "second empirique 0.23% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_period / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "period empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_type_id / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "type_id empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_type_name / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "type_name empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_outcome_id / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "outcome_id empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_is_shot / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "is_shot empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_is_touch / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "is_touch empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_x / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "x empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_y / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "y empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_end_x / n_rows <= 0.3773"
+    severity: warn
+    meta: { description: "end_x empirique 32.73% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_end_y / n_rows <= 0.3773"
+    severity: warn
+    meta: { description: "end_y empirique 32.73% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_is_own_goal / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "is_own_goal empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_related_event_id / n_rows <= 1.0"
+    severity: warn
+    meta: { description: "related_event_id empirique 97.18% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_related_player_id / n_rows <= 1.0"
+    severity: warn
+    meta: { description: "related_player_id empirique 97.18% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_card_type / n_rows <= 1.0"
+    severity: warn
+    meta: { description: "card_type empirique 99.72% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_goal_mouth_y / n_rows <= 1.0"
+    severity: warn
+    meta: { description: "goal_mouth_y empirique 98.33% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_goal_mouth_z / n_rows <= 1.0"
+    severity: warn
+    meta: { description: "goal_mouth_z empirique 98.33% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_blocked_x / n_rows <= 1.0"
+    severity: warn
+    meta: { description: "blocked_x empirique 99.04% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_blocked_y / n_rows <= 1.0"
+    severity: warn
+    meta: { description: "blocked_y empirique 99.04% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_match_date / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "match_date empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_season / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "season empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_league_source / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "league_source empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_scraped_at / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "scraped_at empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_is_leading_to_goal / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "is_leading_to_goal empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_is_intentional_goal_assist / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "is_intentional_goal_assist empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_is_intentional_assist / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "is_intentional_assist empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_is_big_chance_created / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "is_big_chance_created empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_is_key_pass / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "is_key_pass empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_is_shot_assist / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "is_shot_assist empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_is_leading_to_attempt / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "is_leading_to_attempt empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_has_defensive_qual / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "has_defensive_qual empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_has_offensive_qual / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "has_offensive_qual empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_has_opposite_event / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "has_opposite_event empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_team_score / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "team_score empirique 0.00% NULL." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "null_opp_score / n_rows <= 0.001"
+    severity: warn
+    meta: { description: "opp_score empirique 0.00% NULL." }
+
+  # ── BORNES NUMÉRIQUES (push-down MIN/MAX) ──
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_row_num >= 0.0000 and max_row_num <= 2057.0000"
+    severity: warn
+    meta: { description: "row_num empirique [0.0, 1870.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_expanded_minute >= 0.0000 and max_expanded_minute <= 140.8000"
+    severity: warn
+    meta: { description: "expanded_minute empirique [0.0, 128.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_second >= 0.0000 and max_second <= 64.9000"
+    severity: warn
+    meta: { description: "second empirique [0.0, 59.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_period >= 0.9000 and max_period <= 2.1000"
+    severity: warn
+    meta: { description: "period empirique [1.0, 2.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_x >= 0.0000 and max_x <= 110.0000"
+    severity: warn
+    meta: { description: "x empirique [0.0, 100.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_y >= 0.0000 and max_y <= 110.0000"
+    severity: warn
+    meta: { description: "y empirique [0.0, 100.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_end_x >= 0.0000 and max_end_x <= 110.0000"
+    severity: warn
+    meta: { description: "end_x empirique [0.0, 100.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_end_y >= 0.0000 and max_end_y <= 110.0000"
+    severity: warn
+    meta: { description: "end_y empirique [0.0, 100.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_goal_mouth_y >= -9.7800 and max_goal_mouth_y <= 109.9800"
+    severity: warn
+    meta: { description: "goal_mouth_y empirique [0.2, 100.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_goal_mouth_z >= 0.0000 and max_goal_mouth_z <= 110.0000"
+    severity: warn
+    meta: { description: "goal_mouth_z empirique [0.0, 100.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_blocked_x >= 43.7900 and max_blocked_x <= 105.1100"
+    severity: warn
+    meta: { description: "blocked_x empirique [48.9, 100.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_blocked_y >= 0.0000 and max_blocked_y <= 110.0000"
+    severity: warn
+    meta: { description: "blocked_y empirique [0.0, 100.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_is_leading_to_goal >= 0.0000 and max_is_leading_to_goal <= 1.1000"
+    severity: warn
+    meta: { description: "is_leading_to_goal empirique [0.0, 1.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_is_intentional_goal_assist >= 0.0000 and max_is_intentional_goal_assist <= 1.1000"
+    severity: warn
+    meta: { description: "is_intentional_goal_assist empirique [0.0, 1.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_is_intentional_assist >= 0.0000 and max_is_intentional_assist <= 1.1000"
+    severity: warn
+    meta: { description: "is_intentional_assist empirique [0.0, 1.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_is_big_chance_created >= 0.0000 and max_is_big_chance_created <= 1.1000"
+    severity: warn
+    meta: { description: "is_big_chance_created empirique [0.0, 1.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_is_key_pass >= 0.0000 and max_is_key_pass <= 1.1000"
+    severity: warn
+    meta: { description: "is_key_pass empirique [0.0, 1.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_is_shot_assist >= 0.0000 and max_is_shot_assist <= 1.1000"
+    severity: warn
+    meta: { description: "is_shot_assist empirique [0.0, 1.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_is_leading_to_attempt >= 0.0000 and max_is_leading_to_attempt <= 1.1000"
+    severity: warn
+    meta: { description: "is_leading_to_attempt empirique [0.0, 1.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_has_defensive_qual >= 0.0000 and max_has_defensive_qual <= 1.1000"
+    severity: warn
+    meta: { description: "has_defensive_qual empirique [0.0, 1.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_has_offensive_qual >= 0.0000 and max_has_offensive_qual <= 1.1000"
+    severity: warn
+    meta: { description: "has_offensive_qual empirique [0.0, 1.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_has_opposite_event >= 0.0000 and max_has_opposite_event <= 1.1000"
+    severity: warn
+    meta: { description: "has_opposite_event empirique [0.0, 1.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_team_score >= 0.0000 and max_team_score <= 7.7000"
+    severity: warn
+    meta: { description: "team_score empirique [0.0, 7.0]." }
+  - type: expect_row_condition_to_hold
+    kwargs:
+      condition: "min_opp_score >= 0.0000 and max_opp_score <= 7.7000"
+    severity: warn
+    meta: { description: "opp_score empirique [0.0, 7.0]." }

@@ -4,21 +4,21 @@
 
 version: 2
 models:
-  - name: rolling_corners
+  - name: gold_team_match_corners_rolling
     description: >
-      Rolling windows W=3/5/10 sur les corners, depuis intermediate.corner_profiles.
+      Rolling windows W=3/5/10 sur les corners, depuis intermediate.intermediate_corner_profiles.
       1 ligne par équipe par match — "for" (corners obtenus) et "against" (corners
-      concédés), jointes via intermediate.backbone (team_id / opponent_id).
+      concédés), jointes via intermediate.intermediate_team_match_backbone (team_id / opponent_id).
       Action dangereuse = corner ayant produit un tir (outcome IN goal/shot_saved/
       shot_off_target). Ratio de sommes sur la fenêtre, pas moyenne de taux par match.
       Enrichi (Vague 5.4) : intensite de danger continue (xG/corner), profil aerien
       (tetes sur tirs/buts), tendance corner court, et bataille du degagement defensif.
     config:
-      alias: rolling_corners
+      alias: gold_team_match_corners_rolling
 
     columns:
       - name: str_match_id
-        description: "ID unique du match provenant du backbone"
+        description: "ID unique du match provenant du intermediate_team_match_backbone"
         tests:
           - not_null
       - name: str_team_id
@@ -136,11 +136,11 @@ models:
       - name: dec_corner_headed_clearance_rate_against_10
         description: "Part de nos dégagements défensifs faits de la tête, sur 10 matchs"
 
-  - name: rolling_freekicks
+  - name: gold_team_match_freekicks_rolling
     description: >
-      Rolling windows W=3/5/10 sur les coups francs, depuis intermediate.freekick_profiles.
+      Rolling windows W=3/5/10 sur les coups francs, depuis intermediate.intermediate_freekick_profiles.
       1 ligne par équipe par match — "for" (coups francs obtenus) et "against" (concédés),
-      jointes via intermediate.backbone (team_id / opponent_id). Filtré sur
+      jointes via intermediate.intermediate_team_match_backbone (team_id / opponent_id). Filtré sur
       fk_zone_type IN (crossed, direct_shot) : les coups francs too_far/own_box sont
       exclus, ils n'ont pas de danger réel et diluent le signal.
       Action dangereuse = coup franc ayant produit un tir. Ratio de sommes sur la
@@ -149,11 +149,11 @@ models:
       dégagement, répartition tactique par zone (direct/crossed/own_box/too_far,
       non filtrée) et qualité de position (distance/angle) des coups francs directs.
     config:
-      alias: rolling_freekicks
+      alias: gold_team_match_freekicks_rolling
 
     columns:
       - name: str_match_id
-        description: "ID unique du match provenant du backbone"
+        description: "ID unique du match provenant du intermediate_team_match_backbone"
         tests:
           - not_null
       - name: str_team_id
@@ -306,7 +306,7 @@ models:
         description: "Part des coups francs obtenus centrés dans la surface, sur 10 matchs"
       - name: dec_freekick_zone_crossed_rate_against_10
         description: "Part des coups francs concédés centrés dans la surface par l'adversaire, sur 10 matchs"
-  - name: equipe_confrontation_zone
+  - name: gold_team_match_corridor_matchup
     description: >
         Confrontations zonales pivotées au grain (match_id, team_id) : perspective
         offensive + défensive par couloir. Consommé par les marts.
@@ -319,7 +319,7 @@ models:
       - name: str_team_id
         tests: [not_null]
 
-  - name: equipe_gardien_match
+  - name: gold_team_match_keeper
     description: >
       Profil de saison décalé du gardien titulaire rattaché à l'équipe —
       grain (match_id, team_id). Clés NULL résiduelles = compos manquantes

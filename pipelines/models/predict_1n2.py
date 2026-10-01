@@ -58,13 +58,13 @@ def read_ids_file(path):
 
 def build_predict_frame(cfg, spec, match_ids=None):
     """Lignes à prédire. Lit le mart en read-only et rattache str_league_source
-    (absent du mart) depuis backbone. Si match_ids est fourni → uniquement ces
+    (absent du mart) depuis intermediate_team_match_backbone. Si match_ids est fourni → uniquement ces
     matchs (tels quels) ; sinon → tous les matchs sans résultat."""
     con = duckdb.connect(str(mc.ROOT_DIR / cfg["paths"]["duckdb"]), read_only=True)
     df = con.execute(f"""
         select m.*, b.str_league_source
         from marts.{spec['mart']} m
-        left join intermediate.backbone b
+        left join intermediate.intermediate_team_match_backbone b
             on b.str_match_id = m.str_match_id and b.str_team_id = m.str_team_id
     """).df()
     con.close()

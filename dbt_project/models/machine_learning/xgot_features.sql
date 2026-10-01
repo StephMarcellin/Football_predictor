@@ -10,7 +10,7 @@
 -- (xgot_training) et le scoring (xgot_scoring). Définir le périmètre « tir cadré
 -- éligible » et les features à UN SEUL endroit interdit structurellement le
 -- train/serve skew (features du scoring calculées autrement qu'à l'entraînement).
--- Grain : un tir cadré éligible. Vue → toujours à jour avec int_shot_placement.
+-- Grain : un tir cadré éligible. Vue → toujours à jour avec intermediate_shots.
 --
 -- Périmètre (identique train ET scoring) :
 --   • is_on_target        : le xGOT n'existe que pour un tir cadré (SavedShot + Goal)
@@ -28,7 +28,7 @@
 
 WITH
 
--- events_qual lu sous ses noms refondus, remappé vers les noms de travail du modèle
+-- intermediate_whoscored_event_qualifiers lu sous ses noms refondus, remappé vers les noms de travail du modèle
 in_events_qual AS (
     SELECT
         str_match_id                                                 AS "match_id",
@@ -52,10 +52,10 @@ in_events_qual AS (
         CAST(str_qual_type_id AS INTEGER)                            AS "qual_type_id",
         str_qual_type_name                                           AS "qual_type_name",
         str_qual_value                                               AS "qual_value"
-    FROM {{ ref('events_qual') }}
+    FROM {{ ref('intermediate_whoscored_event_qualifiers') }}
 ),
 
--- int_shot_placement lu sous ses noms refondus, remappé vers les noms de travail du modèle
+-- intermediate_shots lu sous ses noms refondus, remappé vers les noms de travail du modèle
 in_int_shot_placement AS (
     SELECT
         str_match_id                                                 AS "match_id",
@@ -86,7 +86,7 @@ in_int_shot_placement AS (
         str_placement_row                                            AS "placement_row",
         str_placement_zone                                           AS "placement_zone",
         dec_corner_dist                                              AS "corner_dist"
-    FROM {{ ref('int_shot_placement') }}
+    FROM {{ ref('intermediate_shots') }}
 ),
 
 mdl_body AS (

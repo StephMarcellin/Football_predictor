@@ -8,8 +8,8 @@ $seasons1 = @(
 foreach ($season in $seasons1) {
     Write-Host "  qualifiers + events_qual pour $season..." -ForegroundColor Yellow
     $vars = '{"target_season": "' + $season + '"}'
-    dbt run -s player_match_stats --vars $vars
-    # dbt run -s events_qual --vars $vars
+    dbt run -s intermediate_player_match_event_stats --vars $vars
+    # dbt run -s intermediate_whoscored_event_qualifiers --vars $vars
     if ($LASTEXITCODE -ne 0) { exit 1 }
 }
 

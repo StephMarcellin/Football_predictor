@@ -50,12 +50,12 @@ def load_player_profiles(con):
           SELECT * FROM (
             SELECT *, row_number() OVER (
                 PARTITION BY str_player_id, str_season ORDER BY dt_date DESC, str_match_id DESC) AS rn
-            FROM gold.joueur_saison
+            FROM gold.gold_player_match_rolling_profile
           ) WHERE rn = 1
         ),
         pos AS (
           SELECT str_player_id, AVG(dec_grid_vertical) AS dec_gv, AVG(dec_grid_horizontal) AS dec_gh
-          FROM intermediate.int_whoscored_lineup GROUP BY 1
+          FROM intermediate.intermediate_whoscored_lineup_period GROUP BY 1
         )
         SELECT l.str_player_id, l.str_season, l.int_n_apps_lag,
                {cols},
@@ -167,7 +167,7 @@ def load_impute_context(con):
         WITH latest AS (SELECT * FROM (
           SELECT *, row_number() OVER (PARTITION BY str_player_id, str_season
                     ORDER BY dt_date DESC, str_match_id DESC) rn
-          FROM gold.joueur_saison) WHERE rn = 1)
+          FROM gold.gold_player_match_rolling_profile) WHERE rn = 1)
         SELECT l.str_player_id, l.str_season, l.int_n_apps_lag, {coords_sql},
                c.str_cluster_offensive, c.str_cluster_defensive
         FROM latest l
@@ -177,7 +177,7 @@ def load_impute_context(con):
     targets = [t["feature"] for t in KNN_CFG["zonal_targets"]]
     zon = con.sql(f"""SELECT str_player_id, str_season, str_zone_5x5, str_profile_confidence_flag,
                              {','.join(targets)}
-                      FROM gold.joueur_zone_saison""").df()
+                      FROM gold.gold_player_zone_season_lag""").df()
     return coords_df, zon
 
 
@@ -243,7 +243,7 @@ def _impute_column(m, feature, coords, side, method, k):
 
 
 def impute_zonal_table(con, coords_df, zon):
-    """Table zonale imputée, même grain que joueur_zone_saison. Une colonne
+    """Table zonale imputée, même grain que gold_player_zone_season_lag. Une colonne
     valeur (dec_<feature>) + une colonne bool_<feature>_imputed (traçabilité
     observé vs imputé)."""
     k = KNN_CFG["k_neighbors"]

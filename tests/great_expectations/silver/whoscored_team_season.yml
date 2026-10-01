@@ -7,7 +7,7 @@
 suite_name: silver.whoscored_team_season
 description: >
   Agrégat WhoScored par équipe × saison. Rating home/away sur échelle 0-10,
-  métriques xG/goals/shots par côté. Alimente les colonnes ws_*_rating de backbone.
+  métriques xG/goals/shots par côté. Alimente les colonnes ws_*_rating de intermediate_team_match_backbone.
 
 source:
   query: |

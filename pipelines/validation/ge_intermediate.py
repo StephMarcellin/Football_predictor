@@ -13,17 +13,17 @@ au flow Prefect.
 Suites couvertes (au 2026-09-09) — 47 tables sous tests/great_expectations/intermediate/ :
     - int_fbref_* (keeper, shooting, misc, schedule)
     - int_understat_* (schedule, stats)
-    - int_odds
+    - intermediate_odds
     - int_whoscored_* (14 tables : events, formations, lineup, match_index,
       match_meta, player_match, players, team_match, team_season, xt, etc.)
     - backbone_all / backbone_big5
-    - int_keeper_shots / int_keeper_psxg
-    - int_shot_creating_actions / int_shot_placement / int_progressive_carries
-    - player_match_stats + réseau joueurs (network, passes, duels, xg_chain, ...)
-    - corner_profiles / freekick_profiles / team_features_ws
-    - h2h_history, threat_conceded, etc.
+    - intermediate_keeper_shots_faced / intermediate_keeper_season_psxg
+    - intermediate_shot_creating_actions / intermediate_shots / intermediate_take_on_carries
+    - intermediate_player_match_event_stats + réseau joueurs (network, passes, duels, xg_chain, ...)
+    - intermediate_corner_profiles / intermediate_freekick_profiles / intermediate_team_match_tactical
+    - intermediate_team_match_h2h, intermediate_threat_conceded_credits, etc.
 
-Historique : la version legacy validait uniquement `player_match_stats` avec
+Historique : la version legacy validait uniquement `intermediate_player_match_event_stats` avec
 ~25 expectations hardcodées via la lib great_expectations. Remplacée le
 2026-09-09 par un appel au runner YAML-driven — désormais 47 suites couvertes,
 un seul chemin partagé avec la CI pytest. Le code legacy est dans git.

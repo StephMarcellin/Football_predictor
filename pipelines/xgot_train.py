@@ -2,7 +2,7 @@
 xGOT — entraînement du modèle Post-Shot xG
 ==========================================
 Modèle AUXILIAIRE (pré-modèle) : prédit P(but | tir cadré + placement), i.e. le
-xGOT. Sa sortie alimentera int_keeper_psxg (shot-stopping du gardien).
+xGOT. Sa sortie alimentera intermediate_keeper_season_psxg (shot-stopping du gardien).
 
 Données  : machine_learning.xgot_training (modèle dbt, features + label).
 Modèle   : LightGBM + calibration isotonique (mêmes briques que 04_train.py).
@@ -82,13 +82,13 @@ def coverage_barrier(con, seasons) -> bool:
     """
     Vérifie que chaque saison de `seasons` a une couverture placement >= MIN_COVERAGE
     ET un écart de couverture buts/arrêts <= MAX_CLASS_GAP. Retourne True si OK.
-    Interroge int_shot_placement (source de vérité de la couverture).
+    Interroge intermediate_shots (source de vérité de la couverture).
     """
     q = """
         SELECT str_season,
             CASE WHEN bool_is_goal THEN 'but' ELSE 'arret' END AS str_classe,
             AVG((dec_goal_mouth_y IS NOT NULL)::INT) AS dec_cov
-        FROM intermediate.int_shot_placement
+        FROM intermediate.intermediate_shots
         WHERE bool_is_on_target AND str_season IN ({})
         GROUP BY 1, 2
     """.format(",".join("?" * len(seasons)))

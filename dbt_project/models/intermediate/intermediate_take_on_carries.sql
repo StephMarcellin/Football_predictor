@@ -1,0 +1,243 @@
+{{
+    config(
+        materialized='incremental',
+        unique_key=['str_match_id', 'int_row_num'],
+        on_schema_change='sync_all_columns',
+        schema='intermediate',
+        alias='intermediate_take_on_carries'
+    )
+}}
+
+-- Conduites (dribbles) au grain « un dribble réussi ».
+-- WhoScored/Opta ne loggue AUCUN event « carry » : le seul événement de conduite
+-- balle au pied est le TakeOn (type 3) — un joueur élimine un adversaire en dribble.
+-- On pivote donc sur les TakeOn RÉUSSIS côté offensif (outcome 1 + qual 286).
+--
+-- Le TakeOn est un événement ponctuel (pas de end_x, ni qual Length/Angle) : la
+-- progression se mesure du dribble jusqu'à la PROCHAINE touche du même joueur DANS
+-- LA MÊME CHAÎNE de possession (borne = ne pas capter une touche 2 min plus tard).
+--
+-- Progression = réduction de distance au centre du but adverse, en MÈTRES.
+-- Coordonnées WhoScored 0-100 → terrain 105 m × 68 m : x_m = x*1.05, y_m = y*0.68,
+-- but adverse au centre (105, 34). is_progressive = gain ≥ 5 m vers le but.
+--
+-- Comptes de référence (échantillon 300 matchs, validés read-only) :
+--   ~7 dribbles réussis / équipe / match, progression moyenne +4,8 m,
+--   ~2,8 dribbles progressifs (≥5 m) / équipe / match.
+
+-- ══ Refonte nommage (préfixe de type en tête de nom : str_, int_, dec_, dt_, bool_) ══
+-- Entrées : les modèles amont refondus sont relus via des CTE in_<modèle> qui les
+-- remappent vers les noms/types de travail utilisés par la logique ci-dessous
+-- (inchangée). Sortie : CTE mdl_out, renommage + cast selon le type logique.
+
+WITH
+
+-- intermediate_whoscored_event_qualifiers lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_events_qual AS (
+    SELECT
+        str_match_id                                                 AS "match_id",
+        CAST(str_team_id AS BIGINT)                                  AS "team_id",
+        CAST(str_player_id AS INTEGER)                               AS "player_id",
+        CAST(str_event_id AS INTEGER)                                AS "event_id",
+        int_minute                                                   AS "minute",
+        int_second                                                   AS "second",
+        int_expanded_minute                                          AS "expanded_minute",
+        int_period                                                   AS "period",
+        dec_x                                                        AS "x",
+        dec_y                                                        AS "y",
+        dec_end_x                                                    AS "end_x",
+        dec_end_y                                                    AS "end_y",
+        CAST(str_type_id AS INTEGER)                                 AS "type_id",
+        str_type_name                                                AS "type_name",
+        CAST(str_outcome_id AS INTEGER)                              AS "outcome_id",
+        bool_is_touch                                                AS "is_touch",
+        bool_is_shot                                                 AS "is_shot",
+        int_row_num                                                  AS "row_num",
+        CAST(str_qual_type_id AS INTEGER)                            AS "qual_type_id",
+        str_qual_type_name                                           AS "qual_type_name",
+        str_qual_value                                               AS "qual_value"
+    FROM {{ ref('intermediate_whoscored_event_qualifiers') }}
+),
+
+-- intermediate_possession_chains lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_player_possession_chains AS (
+    SELECT
+        str_match_id                                                 AS "match_id",
+        str_season                                                   AS "season",
+        str_league_source                                            AS "league_source",
+        str_chain_id                                                 AS "chain_id",
+        CAST(int_chain_number AS HUGEINT)                            AS "chain_number",
+        CAST(str_chain_team_id AS BIGINT)                            AS "chain_team_id",
+        CAST(str_team_id AS BIGINT)                                  AS "team_id",
+        CAST(str_player_id AS INTEGER)                               AS "player_id",
+        CAST(str_event_id AS INTEGER)                                AS "event_id",
+        int_row_num                                                  AS "row_num",
+        int_expanded_minute                                          AS "expanded_minute",
+        int_second                                                   AS "second",
+        int_period                                                   AS "period",
+        CAST(str_type_id AS INTEGER)                                 AS "type_id",
+        str_type_name                                                AS "type_name",
+        CAST(str_outcome_id AS INTEGER)                              AS "outcome_id",
+        bool_is_shot                                                 AS "is_shot",
+        dec_x                                                        AS "x",
+        dec_y                                                        AS "y",
+        int_is_rupture                                               AS "is_rupture",
+        str_chain_trigger                                            AS "chain_trigger",
+        int_certain_possessor                                        AS "certain_possessor",
+        CAST(dt_scraped_at AS VARCHAR)                               AS "scraped_at"
+    FROM {{ ref('intermediate_possession_chains') }}
+),
+
+mdl_body AS (
+WITH
+
+-- ── FILTRE INCRÉMENTAL (même patron que intermediate_possession_chains) ──────────────
+{% if is_incremental() %}
+new_matches AS (
+    SELECT DISTINCT match_id
+    FROM in_player_possession_chains
+    WHERE match_id NOT IN (SELECT DISTINCT match_id FROM (
+    SELECT
+            str_match_id                                                 AS "match_id",
+            int_row_num                                                  AS "row_num",
+            CAST(str_event_id AS INTEGER)                                AS "event_id",
+            str_season                                                   AS "season",
+            str_league_source                                            AS "league_source",
+            CAST(dt_scraped_at AS VARCHAR)                               AS "scraped_at",
+            CAST(str_team_id AS BIGINT)                                  AS "team_id",
+            CAST(str_player_id AS INTEGER)                               AS "player_id",
+            int_expanded_minute                                          AS "expanded_minute",
+            dec_dribble_x                                                AS "dribble_x",
+            dec_dribble_y                                                AS "dribble_y",
+            dec_next_x                                                   AS "next_x",
+            dec_next_y                                                   AS "next_y",
+            dec_progress_m                                               AS "progress_m",
+            bool_is_progressive                                          AS "is_progressive"
+        FROM {{ this }}
+    ))
+),
+{% else %}
+new_matches AS (
+    SELECT DISTINCT match_id FROM in_player_possession_chains
+),
+{% endif %}
+
+-- ── Événements de possession, ordonnés dans la chaîne, avec la prochaine touche
+--    du MÊME joueur dans la même chaîne (LEAD sur la partition joueur) ──────────
+pc AS (
+    SELECT
+        c.match_id,
+        c.chain_id,
+        c.season,
+        c.league_source,
+        c.scraped_at,
+        c.event_id,
+        c.row_num,
+        c.team_id,
+        c.player_id,
+        c.type_id,
+        c.outcome_id,
+        c.expanded_minute,
+        c.x,
+        c.y,
+        -- Prochaine touche du même joueur dans la même chaîne = fin de la conduite
+        LEAD(c.x) OVER w AS next_x,
+        LEAD(c.y) OVER w AS next_y,
+        -- Écart de temps (s) jusqu'à cette touche : borne anti-bruit. Si la touche
+        -- suivante arrive > 5 s après (chaîne longue, re-touche tardive), ce n'est
+        -- pas une continuation de la conduite → on ne mesurera pas la progression.
+        LEAD(c.expanded_minute * 60 + c.second) OVER w
+            - (c.expanded_minute * 60 + c.second)               AS next_gap_s
+    FROM in_player_possession_chains c
+    WHERE c.match_id IN (SELECT match_id FROM new_matches)
+    WINDOW w AS (
+        PARTITION BY c.match_id, c.chain_id, c.player_id
+        ORDER BY c.expanded_minute, c.second, c.row_num
+    )
+),
+
+-- ── Flag « côté offensif » (qual 286) : on veut le dribbleur, pas le défenseur ─
+offensive_side AS (
+    SELECT DISTINCT match_id, row_num
+    FROM in_events_qual
+    WHERE qual_type_id = 286
+      AND match_id IN (SELECT match_id FROM new_matches)
+),
+
+-- ── Dribbles réussis (pivot) ──────────────────────────────────────────────────
+dribbles AS (
+    SELECT
+        pc.match_id,
+        pc.row_num,
+        pc.event_id,
+        pc.season,
+        pc.league_source,
+        pc.scraped_at,
+        pc.team_id,
+        pc.player_id,
+        pc.expanded_minute,
+        pc.x            AS dribble_x,
+        pc.y            AS dribble_y,
+        -- Touche suivante seulement si elle suit dans ≤ 5 s (continuation réelle)
+        CASE WHEN pc.next_gap_s <= 5 THEN pc.next_x END AS next_x,
+        CASE WHEN pc.next_gap_s <= 5 THEN pc.next_y END AS next_y
+    FROM pc
+    JOIN offensive_side o
+        ON o.match_id = pc.match_id
+       AND o.row_num  = pc.row_num
+    WHERE pc.type_id    = 3    -- TakeOn
+      AND pc.outcome_id = 1    -- réussi
+)
+
+-- ── ASSEMBLAGE : progression en mètres vers le but ────────────────────────────
+SELECT
+    match_id,
+    row_num,                                     -- (match_id, row_num) = clé unique
+    event_id,
+    season,
+    league_source,
+    scraped_at,
+    team_id,
+    player_id,
+    expanded_minute,
+    dribble_x,
+    dribble_y,
+    next_x,
+    next_y,
+
+    -- Réduction de distance au but (m) entre le dribble et la touche suivante
+    SQRT(POW(105 - dribble_x * 1.05, 2) + POW(34 - dribble_y * 0.68, 2))
+      - SQRT(POW(105 - next_x    * 1.05, 2) + POW(34 - next_y    * 0.68, 2))
+                                                 AS progress_m,
+
+    -- Conduite progressive = gain ≥ 5 m vers le but (FALSE si pas de suite)
+    COALESCE(
+        SQRT(POW(105 - dribble_x * 1.05, 2) + POW(34 - dribble_y * 0.68, 2))
+          - SQRT(POW(105 - next_x * 1.05, 2) + POW(34 - next_y * 0.68, 2)) >= 5,
+        FALSE
+    )                                            AS is_progressive
+
+FROM dribbles
+),
+
+mdl_out AS (
+    SELECT
+        "match_id"                                                   AS str_match_id,
+        "row_num"                                                    AS int_row_num,
+        CAST(event_id AS VARCHAR)                                    AS str_event_id,
+        "season"                                                     AS str_season,
+        "league_source"                                              AS str_league_source,
+        TRY_CAST(scraped_at AS TIMESTAMP)                            AS dt_scraped_at,
+        CAST(team_id AS VARCHAR)                                     AS str_team_id,
+        CAST(player_id AS VARCHAR)                                   AS str_player_id,
+        "expanded_minute"                                            AS int_expanded_minute,
+        "dribble_x"                                                  AS dec_dribble_x,
+        "dribble_y"                                                  AS dec_dribble_y,
+        "next_x"                                                     AS dec_next_x,
+        "next_y"                                                     AS dec_next_y,
+        "progress_m"                                                 AS dec_progress_m,
+        "is_progressive"                                             AS bool_is_progressive
+    FROM mdl_body
+)
+
+SELECT * FROM mdl_out

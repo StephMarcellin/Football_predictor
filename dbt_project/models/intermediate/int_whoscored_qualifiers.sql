@@ -9,9 +9,9 @@
 }}
 
 -- ⚠ DÉSACTIVÉ (refonte nommage, 2026-09-23) : ce modèle explose qualifiers_json
--- depuis int_whoscored_events, mais la sortie Spark de int_whoscored_events ne
+-- depuis intermediate_whoscored_events, mais la sortie Spark de intermediate_whoscored_events ne
 -- contient plus cette colonne (retirée par spark_events.py). Il fait doublon avec
--- events_qual (même explosion, produite par Spark) et aucun modèle ni script ne
+-- intermediate_whoscored_event_qualifiers (même explosion, produite par Spark) et aucun modèle ni script ne
 -- le lit. Réactiver = remettre qualifiers_json dans la sortie Spark.
 
 -- ══ Refonte nommage (préfixe de type en tête de nom : str_, int_, dec_, dt_, bool_) ══
@@ -21,7 +21,7 @@
 
 WITH
 
--- int_whoscored_events lu sous ses noms refondus, remappé vers les noms de travail du modèle
+-- intermediate_whoscored_events lu sous ses noms refondus, remappé vers les noms de travail du modèle
 in_int_whoscored_events AS (
     SELECT
         str_match_id                                                 AS "match_id",
@@ -56,10 +56,10 @@ in_int_whoscored_events AS (
         dec_goal_mouth_z                                             AS "goal_mouth_z",
         dec_blocked_x                                                AS "blocked_x",
         dec_blocked_y                                                AS "blocked_y"
-    FROM {{ ref('int_whoscored_events') }}
+    FROM {{ ref('intermediate_whoscored_events') }}
 ),
 
--- int_whoscored_match_index lu sous ses noms refondus, remappé vers les noms de travail du modèle
+-- intermediate_whoscored_match_bridge lu sous ses noms refondus, remappé vers les noms de travail du modèle
 in_int_whoscored_match_index AS (
     SELECT
         str_match_id                                                 AS "match_id",
@@ -73,7 +73,7 @@ in_int_whoscored_match_index AS (
         str_season                                                   AS "season",
         CAST(dt_scraped_at AS VARCHAR)                               AS "scraped_at",
         str_comp_category                                            AS "comp_category"
-    FROM {{ ref('int_whoscored_match_index') }}
+    FROM {{ ref('intermediate_whoscored_match_bridge') }}
 ),
 
 mdl_body AS (

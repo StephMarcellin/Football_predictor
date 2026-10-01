@@ -19,24 +19,24 @@ def _in_list(ids):
 
 
 def lineup_features(con, match_id, team_id, xi_ids):
-    """Reproduit gold.equipe_lineup_match : agrège les profils SEASON-LAG des 11
-    titulaires (joueur_saison) fournis dans la compo."""
+    """Reproduit gold.gold_team_match_lineup_strength : agrège les profils SEASON-LAG des 11
+    titulaires (gold_player_match_rolling_profile) fournis dans la compo."""
     return con.execute(f"""
         select sum(dec_scorer_xg_per90_lag)     as dec_lineup_sum_xg_per90_lag,
                avg(dec_scorer_shots_per90_lag)  as dec_lineup_avg_shots_per90_lag,
                avg(dec_def_actions_per90_lag)   as dec_lineup_avg_def_actions_per90_lag,
                avg(dec_def_aerial_win_rate_lag) as dec_lineup_avg_aerial_win_rate_lag
-        from gold.joueur_saison
+        from gold.gold_player_match_rolling_profile
         where str_match_id=? and str_team_id=? and str_player_id in ({_in_list(xi_ids)})""",
         [str(match_id), str(team_id)]).fetchdf().iloc[0].to_dict()
 
 
 def keeper_features(con, match_id, team_id, gk_id, season):
-    """Reproduit gold.equipe_gardien_match : profil SEASON-LAG du gardien titulaire
-    (gardien_saison) désigné dans la compo."""
+    """Reproduit gold.gold_team_match_keeper : profil SEASON-LAG du gardien titulaire
+    (gold_keeper_season_lag) désigné dans la compo."""
     cols = ["dec_keeper_psxg_plus_minus_lag", "dec_keeper_psxg_per_shot_lag",
             "dec_keeper_save_pct_lag", "int_keeper_shots_faced_lag"]
-    r = con.execute(f"""select {", ".join(cols)} from gold.gardien_saison
+    r = con.execute(f"""select {", ".join(cols)} from gold.gold_keeper_season_lag
         where str_keeper_id=? and str_season=?""", [str(gk_id), season]).fetchdf()
     return r.iloc[0].to_dict() if len(r) else {c: None for c in cols}
 
@@ -69,26 +69,26 @@ def _values(match_id, xi_positions, with_vertical):
 
 
 def zonal_features(con, match_id, xi_positions):
-    """Reproduit la chaîne zonale (team_corridor_profile → zone_confrontation_match
-    → equipe_confrontation_zone) : 16 features off_/def_ par couloir, pour les DEUX
+    """Reproduit la chaîne zonale (gold_team_corridor_profile → gold_corridor_matchup
+    → gold_team_match_corridor_matchup) : 16 features off_/def_ par couloir, pour les DEUX
     équipes. `xi_positions` = liste de (team_id, player_id, grid_vertical, grid_horizontal).
 
-    NB : joint gold.joueur_zone_saison — ce sur quoi le modèle a été ENTRAÎNÉ.
+    NB : joint gold.gold_player_zone_season_lag — ce sur quoi le modèle a été ENTRAÎNÉ.
     (Le .sql dbt pointe vers zonal_profiles_imputed mais n'est pas reconstruit ;
-    on reste sur joueur_zone_saison pour éviter le train/serve skew.)
+    on reste sur gold_player_zone_season_lag pour éviter le train/serve skew.)
     """
     vals = _values(match_id, xi_positions, with_vertical=False)
     sql = f"""
     with serve_xi(str_match_id,str_team_id,str_player_id,dec_grid_horizontal) as (values {vals}),
     xi as (select distinct s.str_match_id,s.str_team_id,b.str_opponent_id,s.str_player_id,b.str_season,
         case when s.dec_grid_horizontal<4.5 then 'gauche' when s.dec_grid_horizontal<=5.5 then 'axe' else 'droit' end str_corridor
-      from serve_xi s join intermediate.backbone b on b.str_match_id=s.str_match_id and b.str_team_id=s.str_team_id),
+      from serve_xi s join intermediate.intermediate_team_match_backbone b on b.str_match_id=s.str_match_id and b.str_team_id=s.str_team_id),
     prof as (select x.str_match_id,x.str_team_id,x.str_opponent_id,x.str_corridor,
         jz.dec_off_shot_volume_by_zone_lag dec_off_vol, jz.dec_off_cross_volume_by_zone_lag dec_off_cross,
         jz.dec_off_progressive_actions_by_zone_lag dec_off_prog, jz.dec_off_touch_share_by_zone_lag dec_off_touch,
         jz.dec_def_duel_win_rate_by_zone_lag dec_def_wr, jz.dec_def_actions_by_zone_lag dec_def_act, jz.int_n_duels_prev,
         cast(substr(jz.str_zone_5x5,2,1) as int) int_z, cast(substr(jz.str_zone_5x5,5,1) as int) int_c
-      from xi x join gold.joueur_zone_saison jz on jz.str_player_id=x.str_player_id and jz.str_season=x.str_season),
+      from xi x join gold.gold_player_zone_season_lag jz on jz.str_player_id=x.str_player_id and jz.str_season=x.str_season),
     tcp as (select str_match_id,str_team_id,str_opponent_id,str_corridor,
         sum(case when int_z in(4,5) and ((str_corridor='gauche' and int_c in(1,2)) or (str_corridor='axe' and int_c=3) or (str_corridor='droit' and int_c in(4,5))) then dec_off_vol else 0 end) dec_off_strength,
         sum(case when int_z in(4,5) and ((str_corridor='gauche' and int_c in(1,2)) or (str_corridor='axe' and int_c=3) or (str_corridor='droit' and int_c in(4,5))) then dec_off_cross else 0 end) dec_off_cross_strength,
@@ -131,19 +131,19 @@ def zonal_features(con, match_id, xi_positions):
             for _, row in df.iterrows()}
 
 def formation_features(con, match_id, xi_positions):
-    """Reproduit int_lineup_formation + int_formation_matchup_match pour LES DEUX
+    """Reproduit intermediate_team_match_lineup_structure + intermediate_team_match_formation_matchup pour LES DEUX
     équipes. Retourne {team_id: {feature: value, ...}} contenant les features
     self, opp (miroir depuis l'adversaire) et les deltas matchup directionnels.
     `xi_positions` = [(team_id, player_id, grid_vertical, grid_horizontal), ...]
 
     IMPORTANT — TRAIN/SERVE : le CASE de rôle DOIT rester ALIGNÉ AVEC
-    int_player_role_lag / int_player_role_match. Si les seuils changent en dbt,
+    intermediate_player_season_role_lag / intermediate_player_match_role. Si les seuils changent en dbt,
     changer ici aussi (ceinture MANUELLE).
     """
     vals = _values(match_id, xi_positions, with_vertical=True)
     sql = f"""
     with serve_xi(str_match_id, str_team_id, str_player_id, dec_gv_start, dec_gh_start) as (values {vals}),
-    -- Rôle courant (calculé sur la coord slot) + saison via backbone.
+    -- Rôle courant (calculé sur la coord slot) + saison via intermediate_team_match_backbone.
     xi_with_role as (
         select s.*, b.str_season,
             case
@@ -158,16 +158,16 @@ def formation_features(con, match_id, xi_positions):
                 else                                                                 'W'
             end as str_role_current
         from serve_xi s
-        left join intermediate.backbone b on b.str_match_id=s.str_match_id and b.str_team_id=s.str_team_id
+        left join intermediate.intermediate_team_match_backbone b on b.str_match_id=s.str_match_id and b.str_team_id=s.str_team_id
     ),
     -- role_fin = COALESCE(SEASON-LAG, current).
     xi_resolved as (
         select x.*, coalesce(r.str_role_fin_lag, x.str_role_current) as str_role_fin
         from xi_with_role x
-        left join intermediate.int_player_role_lag r
+        left join intermediate.intermediate_player_season_role_lag r
             on r.str_player_id=x.str_player_id and r.str_season=x.str_season
     ),
-    -- int_lineup_formation par (match, team).
+    -- intermediate_team_match_lineup_structure par (match, team).
     form_by_team as (
         select str_match_id, str_team_id,
             count(*) filter (where str_role_fin='GK')                          as int_n_gk,
@@ -280,7 +280,7 @@ def build_template(con):
     Fournit la position (verticale + horizontale) de chaque joueur depuis son slot."""
     tmpl = {}
     for fid, pos in con.execute("""select str_formation_id, any_value(str_formation_positions)
-        from intermediate.int_whoscored_formations group by str_formation_id""").fetchall():
+        from intermediate.intermediate_whoscored_formation_timeline group by str_formation_id""").fetchall():
         p = json.loads(pos)
         tmpl[fid] = {i + 1: (float(p[i]["vertical"]), float(p[i]["horizontal"]))
                      for i in range(min(11, len(p)))}
@@ -290,7 +290,7 @@ def build_template(con):
 def resolve_player(con, name, team_id, season):
     """Nom → player_id, restreint à (équipe, saison). Exact d'abord, puis 'contient'.
     Lève une erreur claire si 0 ou >1 correspondance (homonyme / graphie)."""
-    rows = con.execute("""select str_player_id, str_player_name from intermediate.int_whoscored_players
+    rows = con.execute("""select str_player_id, str_player_name from intermediate.intermediate_whoscored_player_team_season
         where str_team_id=? and str_season=?""", [str(team_id), season]).fetchall()
     n = _norm(name)
     hits = [pid for pid, pn in rows if _norm(pn) == n] or \
@@ -307,7 +307,7 @@ def load_compo(con, path):
     spec = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     mid = str(spec["match_id"])                      # clé du fichier compo (config), pas une colonne
     venue = {("home" if v == "Home" else "away"): t for t, v in con.execute(
-        "select str_team_id, str_venue from intermediate.backbone where str_match_id=?", [mid]).fetchall()}
+        "select str_team_id, str_venue from intermediate.intermediate_team_match_backbone where str_match_id=?", [mid]).fetchall()}
     season = con.execute("select any_value(str_season) from marts.mart_1n2 where str_match_id=?",
                          [mid]).fetchone()[0]
     tmpl = build_template(con)

@@ -38,7 +38,7 @@ def next_matches(cfg):
         with unplayed as (
             select distinct m.str_match_id, b.str_league_source, m.dt_date
             from marts.mart_1n2 m
-            join intermediate.backbone b using (str_match_id, str_team_id)
+            join intermediate.intermediate_team_match_backbone b using (str_match_id, str_team_id)
             where m.str_result_1n2 is null and b.str_league_source in ({placeholders})
         ),
         firsts as (select str_league_source, min(dt_date) as dt_d0 from unplayed group by str_league_source)

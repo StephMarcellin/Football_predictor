@@ -1,7 +1,7 @@
 """
 xt_grid.py — Estimation de la grille Expected Threat (xT)
 =========================================================
-Lit intermediate.int_xt_actions (grille fine 16x12, 192 cases) — seule source, y
+Lit intermediate.intermediate_xt_actions (grille fine 16x12, 192 cases) — seule source, y
 compris les pertes de balle (str_action_kind='turnover') — estime par itération de
 valeur (Markov) la valeur xT de chaque case :
 
@@ -49,7 +49,7 @@ def cell_index(col, row):
 
 # ── Bloc 1 : agrégations SQL (le lourd reste dans DuckDB) ─────────────────────
 def load_aggregates(con):
-    """Rapatrie deux petits agrégats depuis int_xt_actions — jamais les lignes brutes."""
+    """Rapatrie deux petits agrégats depuis intermediate_xt_actions — jamais les lignes brutes."""
     # (a) stats par case de départ : tirs, buts, déplacements réussis, pertes
     cell_stats = con.sql("""
         SELECT
@@ -59,7 +59,7 @@ def load_aggregates(con):
             COUNT(*) FILTER (WHERE str_action_kind='shot' AND bool_is_goal)           AS int_goals,
             COUNT(*) FILTER (WHERE str_action_kind='move' AND int_col_to IS NOT NULL) AS int_moves,
             COUNT(*) FILTER (WHERE str_action_kind='turnover')                        AS int_turnover
-        FROM intermediate.int_xt_actions
+        FROM intermediate.intermediate_xt_actions
         WHERE int_col_from IS NOT NULL AND int_row_from IS NOT NULL
         GROUP BY int_col_from, int_row_from
     """).to_df()
@@ -70,7 +70,7 @@ def load_aggregates(con):
             int_col_from AS int_col_o, int_row_from AS int_row_o,
             int_col_to   AS int_col_d, int_row_to   AS int_row_d,
             COUNT(*) AS int_n
-        FROM intermediate.int_xt_actions
+        FROM intermediate.intermediate_xt_actions
         WHERE str_action_kind = 'move'
           AND int_col_to   IS NOT NULL AND int_row_to   IS NOT NULL
           AND int_col_from IS NOT NULL AND int_row_from IS NOT NULL

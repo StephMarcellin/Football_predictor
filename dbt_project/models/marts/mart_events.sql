@@ -5,7 +5,7 @@
 -- seuils fixés en config). Croise discipline + corners + coups francs des DEUX
 -- équipes (profil d'équipe construit une fois, préfixé home_/away_).
 --
--- Refonte nommage : backbone, equipe_match, rolling_corners et rolling_freekicks
+-- Refonte nommage : intermediate_team_match_backbone, gold_team_match, gold_team_match_corners_rolling et gold_team_match_freekicks_rolling
 -- sont lus sous leurs nouveaux noms (clés str_match_id / str_team_id partout, plus
 -- de conversion de type). Les features héritent du nom de leur modèle source
 -- (ex. home_dec_yellow_cards_rolling_3). Colonnes renommées selon
@@ -20,7 +20,7 @@
 
 WITH
 
--- int_whoscored_player_match lu sous ses noms refondus, remappé vers les noms de travail du modèle
+-- intermediate_whoscored_player_match_official lu sous ses noms refondus, remappé vers les noms de travail du modèle
 in_int_whoscored_player_match AS (
     SELECT
         str_match_id                                                 AS "match_id",
@@ -71,10 +71,10 @@ in_int_whoscored_player_match AS (
         CAST(int_parried_danger AS DOUBLE)                           AS "parried_danger",
         CAST(int_claims_high AS DOUBLE)                              AS "claims_high",
         CAST(int_collected AS DOUBLE)                                AS "collected"
-    FROM {{ ref('int_whoscored_player_match') }}
+    FROM {{ ref('intermediate_whoscored_player_match_official') }}
 ),
 
--- rolling_corners lu sous ses noms refondus, remappé vers les noms de travail du modèle
+-- gold_team_match_corners_rolling lu sous ses noms refondus, remappé vers les noms de travail du modèle
 in_rolling_corners AS (
     SELECT
         str_match_id                                                 AS "str_match_id",
@@ -133,10 +133,10 @@ in_rolling_corners AS (
         dec_corner_forced_bad_clearance_rate_for_10                  AS "dec_corner_forced_bad_clearance_rate_for_10",
         dec_corner_clearance_fail_rate_against_10                    AS "dec_corner_clearance_fail_rate_against_10",
         dec_corner_headed_clearance_rate_against_10                  AS "dec_corner_headed_clearance_rate_against_10"
-    FROM {{ ref('rolling_corners') }}
+    FROM {{ ref('gold_team_match_corners_rolling') }}
 ),
 
--- rolling_freekicks lu sous ses noms refondus, remappé vers les noms de travail du modèle
+-- gold_team_match_freekicks_rolling lu sous ses noms refondus, remappé vers les noms de travail du modèle
 in_rolling_freekicks AS (
     SELECT
         str_match_id                                                 AS "str_match_id",
@@ -213,7 +213,7 @@ in_rolling_freekicks AS (
         dec_freekick_zone_direct_rate_against_10                     AS "dec_freekick_zone_direct_rate_against_10",
         dec_freekick_zone_crossed_rate_for_10                        AS "dec_freekick_zone_crossed_rate_for_10",
         dec_freekick_zone_crossed_rate_against_10                    AS "dec_freekick_zone_crossed_rate_against_10"
-    FROM {{ ref('rolling_freekicks') }}
+    FROM {{ ref('gold_team_match_freekicks_rolling') }}
 ),
 
 mdl_body AS (
@@ -224,7 +224,7 @@ matches as (
         max(case when str_venue='Home' then str_team_id end) as home_team_id,
         max(case when str_venue='Away' then str_team_id end) as away_team_id,
         max(dt_date) as date, max(str_season) as season
-    from {{ ref('backbone') }} where str_match_id is not null
+    from {{ ref('intermediate_team_match_backbone') }} where str_match_id is not null
     group by str_match_id
 ),
 
@@ -232,7 +232,7 @@ matches as (
 -- comportement historique conservé).
 label as (
     select str_match_id, sum(int_yellow_cards + coalesce(int_red_cards, 0)) as int_total_cards
-    from {{ ref('backbone') }} where str_match_id is not null
+    from {{ ref('intermediate_team_match_backbone') }} where str_match_id is not null
     group by str_match_id
 ),
 
@@ -249,7 +249,7 @@ team_events as (
         em.dec_fouls_committed_rolling_3, em.dec_fouls_committed_rolling_5, em.dec_fouls_committed_rolling_10,
         rc.* exclude (str_match_id, str_team_id, dt_date, str_season, str_league_source),
         rf.* exclude (str_match_id, str_team_id, dt_date, str_season, str_league_source)
-    from {{ ref('equipe_match') }} em
+    from {{ ref('gold_team_match') }} em
     left join in_rolling_corners   rc using (str_match_id, str_team_id)
     left join in_rolling_freekicks rf using (str_match_id, str_team_id)
 ),

@@ -3,9 +3,9 @@
 spark_events.py — Chaîne événementielle WhoScored dans Spark
 =============================================================
 Remplace trois modèles dbt par un job Spark unique :
-    intermediate.int_whoscored_events   (jointure d'identité + remapping team_id)
-    intermediate.events_qual            (explosion du JSON des qualifiers)
-    intermediate.int_event_enriched     (score courant + pivot des 10 flags)
+    intermediate.intermediate_whoscored_events (jointure d'identité + remapping team_id)
+    intermediate.intermediate_whoscored_event_qualifiers   (explosion du JSON des qualifiers)
+    intermediate.intermediate_whoscored_events_enriched   (score courant + pivot des 10 flags)
 
 Entrées  (produites par export_to_parquet.py) :
     data/spark_in/events/season=*/        stg_whoscored_events, brut

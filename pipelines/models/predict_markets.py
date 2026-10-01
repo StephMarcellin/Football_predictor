@@ -43,7 +43,7 @@ def _lambdas(cfg, con, match_ids, season):
     df = df[["str_match_id", "str_team_id"]].copy()
     df["mu"] = pay["model"].predict(X)
     bb = con.execute("select str_match_id, str_team_id, str_venue "
-                     "from intermediate.backbone").df()
+                     "from intermediate.intermediate_team_match_backbone").df()
     df = df.merge(bb, on=["str_match_id", "str_team_id"])
     H = df[df.str_venue == "Home"].set_index("str_match_id")["mu"]
     A = df[df.str_venue == "Away"].set_index("str_match_id")["mu"]

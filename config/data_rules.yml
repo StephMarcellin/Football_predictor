@@ -1,8 +1,8 @@
-int_whoscored_lineup:
+intermediate_whoscored_lineup_period:
   end_minute:   {min: 0, max: 130}
   start_minute: {min: 0, max: 130}
-int_fbref_keeper:
+intermediate_fbref_keeper:
   save_pct:     {min: 0, max: 100}
-backbone:
+intermediate_team_match_backbone:
   np_xg:        {min: 0}
   opponent_id:  {not_null: true}

@@ -17,13 +17,13 @@ qu'on cherche à lui retirer.
 
 Ce que l'export produit (data/spark_in/) :
     events/season=<saison>/*.parquet   silver.stg_whoscored_events, brut
-    match_index/match_index.parquet    intermediate.int_whoscored_match_index
+    match_index/match_index.parquet    intermediate.intermediate_whoscored_match_bridge
 
 Le partitionnement par saison est possible sans jointure : stg_whoscored_events
 porte déjà season, league_source et scraped_at.
 
 Prérequis d'exécution :
-    run_scrapping (load_archive)  →  run_ingest  →  dbt run --select int_whoscored_match_index
+    run_scrapping (load_archive)  →  run_ingest  →  dbt run --select intermediate_whoscored_match_bridge
 
 Usage :
     python pipelines/spark/export_to_parquet.py --inventory
@@ -54,7 +54,7 @@ IN_DIR  = ROOT_DIR / CFG["spark"]["paths"]["input"]
 # Tables dont dépend l'export. Vérifiées avant toute écriture.
 REQUIRED = [
     ("silver",       "stg_whoscored_events"),
-    ("intermediate", "int_whoscored_match_index"),
+    ("intermediate", "intermediate_whoscored_match_bridge"),
 ]
 
 
@@ -110,7 +110,7 @@ def check_required(con) -> None:
         raise RuntimeError(
             "Tables source absentes : " + ", ".join(missing) +
             "\nOrdre requis : run_scrapping (load_archive) → run_ingest → "
-            "dbt run --select int_whoscored_match_index"
+            "dbt run --select intermediate_whoscored_match_bridge"
         )
 
 
@@ -131,7 +131,7 @@ def report_index_grain(con, strict: bool = False) -> None:
     """
     total, distinct = con.execute("""
         SELECT COUNT(*), COUNT(DISTINCT str_ws_match_id)
-        FROM intermediate.int_whoscored_match_index
+        FROM intermediate.intermediate_whoscored_match_bridge
     """).fetchone()
 
     if total == distinct:
@@ -147,7 +147,7 @@ def report_index_grain(con, strict: bool = False) -> None:
             SELECT COUNT(*) AS n_events
             FROM silver.stg_whoscored_events e
             JOIN (SELECT str_ws_match_id
-                  FROM intermediate.int_whoscored_match_index
+                  FROM intermediate.intermediate_whoscored_match_bridge
                   GROUP BY str_ws_match_id HAVING COUNT(*) > 1) d
               ON e.ws_match_id = d.str_ws_match_id
             GROUP BY e.ws_match_id
@@ -155,7 +155,7 @@ def report_index_grain(con, strict: bool = False) -> None:
     """).fetchone()[0]
 
     msg = (
-        f"int_whoscored_match_index : {total:,} lignes pour {distinct:,} "
+        f"intermediate_whoscored_match_bridge : {total:,} lignes pour {distinct:,} "
         f"ws_match_id distincts → {n_dupes:,} doublons.\n"
         f"Impact : {impact:,} lignes d'événements seraient dupliquées "
         f"à la jointure Spark."
@@ -179,7 +179,7 @@ def report_match_id_coverage(con) -> None:
                COUNT(str_match_id),
                COUNT(*) FILTER (WHERE str_team_id IS NOT NULL
                                   AND str_opponent_id IS NOT NULL)
-        FROM intermediate.int_whoscored_match_index
+        FROM intermediate.intermediate_whoscored_match_bridge
     """).fetchone()
     logger.info(
         f"Index : {total:,} matchs — "
@@ -192,7 +192,7 @@ def known_seasons(con) -> list[str]:
     """Saisons réellement présentes dans l'index, triées."""
     return [r[0] for r in con.execute("""
         SELECT DISTINCT str_season
-        FROM intermediate.int_whoscored_match_index
+        FROM intermediate.intermediate_whoscored_match_bridge
         WHERE str_season IS NOT NULL
         ORDER BY str_season
     """).fetchall()]
@@ -276,12 +276,12 @@ def export_match_index(con) -> None:
     out = IN_DIR / "match_index"
     out.mkdir(parents=True, exist_ok=True)
     con.execute(f"""
-        COPY (SELECT * FROM intermediate.int_whoscored_match_index)
+        COPY (SELECT * FROM intermediate.intermediate_whoscored_match_bridge)
         TO '{(out / "match_index.parquet").as_posix()}'
         (FORMAT PARQUET, COMPRESSION zstd)
     """)
     n = con.execute(
-        "SELECT COUNT(*) FROM intermediate.int_whoscored_match_index"
+        "SELECT COUNT(*) FROM intermediate.intermediate_whoscored_match_bridge"
     ).fetchone()[0]
     logger.success(f"match_index écrit : {n:,} matchs → {out}")
 

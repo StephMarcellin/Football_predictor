@@ -44,7 +44,7 @@ def con():
 
 def _sample(con):
     return [r[0] for r in con.execute(f"""
-        select distinct l.str_match_id from intermediate.int_whoscored_lineup l
+        select distinct l.str_match_id from intermediate.intermediate_whoscored_lineup_period l
         where l.int_start_minute=0
           and l.str_match_id in (select str_match_id from marts.mart_1n2)
         using sample {N_MATCHS} rows""").fetchall()]
@@ -60,11 +60,11 @@ def test_serve_features_no_skew(con):
             continue
         A, B = teams
         xi = {t: [r[0] for r in con.execute(
-            "select distinct str_player_id from intermediate.int_whoscored_lineup "
+            "select distinct str_player_id from intermediate.intermediate_whoscored_lineup_period "
             "where str_match_id=? and str_team_id=? and int_start_minute=0", [mid, t]).fetchall()]
             for t in teams}
         gk = {t: con.execute(
-            "select str_player_id from intermediate.int_whoscored_player_match "
+            "select str_player_id from intermediate.intermediate_whoscored_player_match_official "
             "where str_match_id=? and str_team_id=? and str_position='GK' and bool_is_first_eleven "
             "qualify row_number() over(partition by str_match_id,str_team_id order by str_player_id)=1",
             [mid, t]).fetchone() for t in teams}
@@ -74,7 +74,7 @@ def test_serve_features_no_skew(con):
         # 4-tuples (team, player, grid_vertical, grid_horizontal) attendus par serve_features
         xi_pos = con.execute(
             "select str_team_id, str_player_id, dec_grid_vertical, dec_grid_horizontal "
-            "from intermediate.int_whoscored_lineup where str_match_id=? and int_start_minute=0",
+            "from intermediate.intermediate_whoscored_lineup_period where str_match_id=? and int_start_minute=0",
             [mid]).fetchall()
 
         zonal = sf.zonal_features(con, mid, xi_pos)

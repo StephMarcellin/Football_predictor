@@ -1,13 +1,13 @@
 version: 2
 
 models:
-  - name: backbone
+  - name: intermediate_team_match_backbone
     description: >
-      Table pivot centrale — 1 ligne par équipe par match (base int_fbref_schedule,
+      Table pivot centrale — 1 ligne par équipe par match (base intermediate_fbref_schedule,
       matchs à venir inclus). Jointure des int_fbref_* (schedule, keeper, shooting, misc),
-      int_understat_stats et int_odds, produite par dbt en mode incremental. Uniquement des
+      intermediate_understat_match_stats et intermediate_odds, produite par dbt en mode incremental. Uniquement des
       faits au grain match : les agrégats de saison WhoScored (grain équipe × saison) sont
-      joints en gold, décalés en N-1 (cf. gold.equipe_match). Schéma intermediate — consommée par les modèles gold.* et marts.*.
+      joints en gold, décalés en N-1 (cf. gold.gold_team_match). Schéma intermediate — consommée par les modèles gold.* et marts.*.
       Noms de colonnes préfixés par type (docs/proposition_nommage_definitif.csv) ;
       premier run après la refonte en --full-refresh.
 
@@ -15,10 +15,10 @@ models:
       - Colonnes Understat (dec_np_xg, dec_ppda, dec_np_xg_diff_match) : 100 % NULL hors Big5
       - Colonnes Odds : 100 % NULL hors Big5, avec sparsité résiduelle en Big5
     config:
-      alias: backbone
+      alias: intermediate_team_match_backbone
     tests:
       # ── Grain de la table (1 ligne par équipe par match) ──
-      # Historique : 1 doublon hérité d'int_fbref_schedule (fan-out registry). Jointures
+      # Historique : 1 doublon hérité d'intermediate_fbref_schedule (fan-out registry). Jointures
       # int_* contraintes sur l'adversaire depuis la refonte → 0 doublon empirique → error.
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -40,7 +40,7 @@ models:
           config:
             severity: error
       # ── Ex-cascade A-024 : saves ≤ shots_on_target_faced ──
-      # Historique : 296 violations. int_fbref_keeper résout désormais sota par identité
+      # Historique : 296 violations. intermediate_fbref_keeper résout désormais sota par identité
       # (sota ≥ ga_keeper + saves) → 0 violation empirique → error.
       - dbt_utils.expression_is_true:
           arguments:
@@ -56,7 +56,7 @@ models:
             expression: "int_clean_sheet IS NULL OR int_clean_sheet = 0 OR int_ga = 0"
           config:
             severity: warn
-      # ── Ex-cascade A-026 : save_pct dans [0, 1] (recalculé en ratio dans int_fbref_keeper) ──
+      # ── Ex-cascade A-026 : save_pct dans [0, 1] (recalculé en ratio dans intermediate_fbref_keeper) ──
       # Historique : 36 violations sur l'échelle [0, 100]. 0 violation empirique → error.
       - dbt_utils.expression_is_true:
           arguments:
@@ -159,7 +159,7 @@ models:
           - is_positive
 
       - name: int_poss
-        description: "Possession en pourcentage (int_poss de int_fbref_schedule, castée en DOUBLE). NULL avant 2014-2015, matchs non joués et 100 % neutralisé (~29 %)."
+        description: "Possession en pourcentage (int_poss de intermediate_fbref_schedule, castée en DOUBLE). NULL avant 2014-2015, matchs non joués et 100 % neutralisé (~29 %)."
         tests:
           - is_positive
 
@@ -170,12 +170,12 @@ models:
           - is_positive
 
       - name: int_saves
-        description: "Arrêts du gardien (vide en source = 0, cf. int_fbref_keeper). Historique A-024 résolu par identité dans int_fbref_keeper."
+        description: "Arrêts du gardien (vide en source = 0, cf. intermediate_fbref_keeper). Historique A-024 résolu par identité dans intermediate_fbref_keeper."
         tests:
           - is_positive
 
       - name: dec_save_pct
-        description: "Ratio d'arrêts [0, 1], recalculé dans int_fbref_keeper. NULL si sota inconnu ou nul."
+        description: "Ratio d'arrêts [0, 1], recalculé dans intermediate_fbref_keeper. NULL si sota inconnu ou nul."
 
       - name: int_clean_sheet
         description: "1 si le gardien n'a encaissé aucun but (dérivé de ga_keeper, CSC exclus), 0 sinon. 18 lignes à 1 avec ga > 0 = CSC uniquement."
@@ -184,7 +184,7 @@ models:
 
       # ── Tirs (fbref_shooting) ────────────────────────────────────────────────
       - name: int_shots_total
-        description: "Tirs tentés, hors penalties. NULL avant 2014-2015 et sur les faux zéros FBref neutralisés (cf. int_fbref_shooting)."
+        description: "Tirs tentés, hors penalties. NULL avant 2014-2015 et sur les faux zéros FBref neutralisés (cf. intermediate_fbref_shooting)."
         tests:
           - is_positive
 
@@ -194,7 +194,7 @@ models:
           - is_positive
 
       - name: dec_goals_per_shot
-        description: "Buts hors penalty par tir, (gls - pk) / sh, échelle 0-1, définition uniforme toutes saisons (cf. int_fbref_shooting)."
+        description: "Buts hors penalty par tir, (gls - pk) / sh, échelle 0-1, définition uniforme toutes saisons (cf. intermediate_fbref_shooting)."
 
       # ── Disciplinaire (fbref_misc) ───────────────────────────────────────────
       - name: int_yellow_cards
@@ -213,7 +213,7 @@ models:
           - is_positive
 
       - name: int_fouls_committed
-        description: "Fautes commises. NULL avant 2014-2015 et sur les faux zéros FBref neutralisés (cf. int_fbref_misc)."
+        description: "Fautes commises. NULL avant 2014-2015 et sur les faux zéros FBref neutralisés (cf. intermediate_fbref_misc)."
         tests:
           - is_positive
 
@@ -418,18 +418,18 @@ models:
               config:
                 severity: warn
 
-  - name: events_qual
+  - name: intermediate_whoscored_event_qualifiers
     description: >
-      Éclatement des qualifiers de int_whoscored_events (via qualifiers_json) :
+      Éclatement des qualifiers de intermediate_whoscored_events (via qualifiers_json) :
       1 ligne par (événement × qualifier). Base de tous les modèles WhoScored.
       Incrémentale. Les colonnes d'événement sont reprises telles quelles de
-      int_whoscored_events ; qual_type_id/name/value sont la transformation (unnest).
+      intermediate_whoscored_events ; qual_type_id/name/value sont la transformation (unnest).
     columns:
-      # ── Colonnes héritées de int_whoscored_events (mêmes définitions) ──────────
+      # ── Colonnes héritées de intermediate_whoscored_events (mêmes définitions) ──────────
       - name: str_match_id
-        description: "Identifiant unifié du match (SHA1), résolu via int_whoscored_match_index."
+        description: "Identifiant unifié du match (SHA1), résolu via intermediate_whoscored_match_bridge."
       - name: str_team_id
-        description: "Id canonique de l'équipe de l'événement (converti depuis l'id WhoScored via int_whoscored_match_index)."
+        description: "Id canonique de l'équipe de l'événement (converti depuis l'id WhoScored via intermediate_whoscored_match_bridge)."
       - name: str_player_id
         description: "Identifiant WhoScored du joueur auteur de l'action. NULL possible sur certains événements."
       - name: str_event_id
@@ -470,7 +470,7 @@ models:
         description: "Index de l'événement dans le flux du match (ordre chronologique)."
         tests:
           - not_null
-      # ── Transformation propre à events_qual : éclatement du qualifiers_json ────
+      # ── Transformation propre à intermediate_whoscored_event_qualifiers : éclatement du qualifiers_json ────
       - name: str_qual_type_id
         description: "Id du type de qualifier (cf. docs/Qualifier_type_definition.txt ; ex. 9 Penalty, 102 GoalMouthY, 233 OppositeRelatedEvent)."
       - name: str_qual_type_name
@@ -478,10 +478,10 @@ models:
       - name: str_qual_value
         description: "Valeur du qualifier (chaîne). NULL pour un qualifier-drapeau sans valeur."
 
-  - name: player_match_stats
+  - name: intermediate_player_match_event_stats
     description: >
       Agrégats WhoScored par joueur par match.
-      Calculé depuis int_whoscored_events et events_qual.
+      Calculé depuis intermediate_whoscored_events et intermediate_whoscored_event_qualifiers.
       Structure en trois CTEs : base_agg (métriques générales),
       offensive_agg (passes, tirs, progressions),
       defensive_agg (tackles, interceptions, dégagements).
@@ -493,7 +493,7 @@ models:
         tests:
           - not_null
       - name: int_minutes_played
-        description: "Minutes jouées par le joueur dans ce match (propagé depuis int_player_minutes). Base du per-90 en Gold. NULL = joueur avec événements mais sans ligne de lineup (~0,4 %)."
+        description: "Minutes jouées par le joueur dans ce match (propagé depuis intermediate_player_match_minutes). Base du per-90 en Gold. NULL = joueur avec événements mais sans ligne de lineup (~0,4 %)."
       - name: str_team_id
         description: "Identifiant WhoScored de l'équipe"
         tests:
@@ -1165,10 +1165,10 @@ models:
         tests:
           - is_positive
 
-  - name: team_features_ws
+  - name: intermediate_team_match_tactical
     description: >
       Features tactiques WhoScored par équipe par match.
-      Calculées depuis silver.stg_whoscored_events et intermediate.events_qual.
+      Calculées depuis silver.stg_whoscored_events et intermediate.intermediate_whoscored_event_qualifiers.
       32 métriques couvrant le pressing, les zones d'attaque, la structure défensive.
     columns:
       - name: str_team_id
@@ -1238,7 +1238,7 @@ models:
       - name: dec_ws_def_exposed_right_pct
         description: "Part des attaques adverses subies sur le flanc droit = opp_att_right / opp_att_total."
 
-  - name: h2h_history
+  - name: intermediate_team_match_h2h
     description: "Registre brut des confrontations directes entre équipes. Une ligne par match."
     columns:
       - name: str_match_id
@@ -1305,20 +1305,20 @@ models:
         description: "Moyenne de buts encaissés sur les 10 dernières confrontations directes."
       - name: dec_h2h_avg_xg_diff_10
         description: "Différentiel xG moyen sur les 10 dernières confrontations directes."
-  - name: player_possession_chains
+  - name: intermediate_possession_chains
     description: >
       Segmente le flux d'événements WhoScored en chaînes de possession.
       Pour chaque événement, détermine l'équipe réellement en possession
       (possession certaine vs indéterminée), puis marque le déclencheur de
       chaque chaîne via chain_trigger (corner, free_kick, counter_attack,
       open_play, recovery, throw_in, goal_kick...).
-      Source : int_event_enriched. Incrémentale sur match_id.
-      Brique de base de corner_profiles, player_passes_raw et player_xg_chain.
+      Source : intermediate_whoscored_events_enriched. Incrémentale sur match_id.
+      Brique de base de intermediate_corner_profiles, intermediate_completed_passes et intermediate_xg_chain_credits.
       Une ligne par action.
     columns:
-      # ── Héritées de int_event_enriched (mêmes définitions) ─────────────────────
+      # ── Héritées de intermediate_whoscored_events_enriched (mêmes définitions) ─────────────────────
       - name: str_match_id
-        description: "Identifiant unifié du match (SHA1), résolu via int_whoscored_match_index."
+        description: "Identifiant unifié du match (SHA1), résolu via intermediate_whoscored_match_bridge."
         tests:
           - not_null
       - name: str_season
@@ -1326,7 +1326,7 @@ models:
       - name: str_league_source
         description: "Championnat / source des données (ex. Bundesliga)."
       - name: str_team_id
-        description: "Id canonique de l'équipe de l'action (converti depuis l'id WhoScored via int_whoscored_match_index)."
+        description: "Id canonique de l'équipe de l'action (converti depuis l'id WhoScored via intermediate_whoscored_match_bridge)."
       - name: str_player_id
         description: "Identifiant WhoScored du joueur auteur de l'action. NULL possible sur certains événements."
       - name: str_event_id
@@ -1379,12 +1379,12 @@ models:
             - str_match_id
             - int_row_num
 
-  - name: freekick_profiles
+  - name: intermediate_freekick_profiles
     description: >
       Profils de coups francs par chaîne. Caractérise chaque coup franc par
       son type (direct, indirect, short_pass) et son issue (goal, shot_saved,
       shot_off_target, offside, foul_won, corner_won, open_play, turnover).
-      Source : player_possession_chains. Incrémentale.
+      Source : intermediate_possession_chains. Incrémentale.
     columns:
       - name: str_match_id
         tests:
@@ -1405,11 +1405,11 @@ models:
               arguments:
                 values: ['goal', 'shot_saved', 'shot_off_target', 'offside', 'foul_won', 'corner_won', 'open_play', 'turnover']
       - name: str_chain_id
-        description: "Identifiant de la chaîne de possession = match_id || '_' || numéro de chaîne (propagé de player_possession_chains)."
+        description: "Identifiant de la chaîne de possession = match_id || '_' || numéro de chaîne (propagé de intermediate_possession_chains)."
       - name: int_chain_number
-        description: "Numéro séquentiel de la chaîne de possession dans le match (propagé de player_possession_chains)."
+        description: "Numéro séquentiel de la chaîne de possession dans le match (propagé de intermediate_possession_chains)."
       - name: str_chain_team_id
-        description: "Id de l'équipe en possession (attaquante) sur le coup franc (propagé de player_possession_chains)."
+        description: "Id de l'équipe en possession (attaquante) sur le coup franc (propagé de intermediate_possession_chains)."
       - name: str_freekick_taker_id
         description: "Identifiant du joueur qui tire le coup franc."
       - name: str_event_id
@@ -1431,7 +1431,7 @@ models:
       - name: str_fk_zone_type
         description: "Nature de la livraison : 'direct_shot' (frappe directe), 'own_box' (jouée dans sa propre surface, x<17), 'crossed' (centrée) ou 'too_far' (sinon)."
       - name: dec_chain_danger_total
-        description: "Somme du danger (action_value de event_values) généré par l'équipe sur la chaîne issue du coup franc."
+        description: "Somme du danger (action_value de intermediate_event_values) généré par l'équipe sur la chaîne issue du coup franc."
       - name: dec_chain_danger_momentum
         description: "Part du danger accumulée AVANT le dernier tir / danger total de la chaîne. NULL si aucun tir."
       - name: str_shot_body_part
@@ -1463,7 +1463,7 @@ models:
   # (match_registry). Matérialisées en table.
   # ════════════════════════════════════════════════════════════════════════════
 
-  - name: int_fbref_keeper
+  - name: intermediate_fbref_keeper
     description: >
       Stats gardien FBref (tirs cadrés subis, arrêts, save%) rematchées sur match_id unifié
       et team_id normalisé. Colonnes numériques castées et corrigées depuis le VARCHAR brut :
@@ -1655,11 +1655,11 @@ models:
           - accepted_values:
               arguments:
                 values: [H, D, A]
-  - name: int_fbref_misc
+  - name: intermediate_fbref_misc
     description: >
       Stats disciplinaires et défensives FBref (cartons, fautes, hors-jeux, centres,
       interceptions, tacles gagnés, penaltys obtenus/concédés, CSC) rematchées sur
-      match_id + team_id. Alimente le bloc disciplinaire de backbone. Colonnes castées
+      match_id + team_id. Alimente le bloc disciplinaire de intermediate_team_match_backbone. Colonnes castées
       depuis le VARCHAR brut de silver.fbref_misc. Stats avancées (fls, fld, off, crosses,
       int, tklw) absentes avant 2014-2015 (~24 900 lignes NULL) ; faux zéros FBref
       neutralisés en NULL (bloc complet 616 lignes, sous-bloc int/tklw). pkwon/pkcon
@@ -1881,11 +1881,11 @@ models:
               arguments:
                 values: [H, D, A]
 
-  - name: int_fbref_schedule
+  - name: intermediate_fbref_schedule
     description: >
       Feuille de match FBref (résultat, buts marqués/encaissés, possession,
       formation) rematchée sur match_id + team_id. Source des résultats bruts
-      et de la possession dans backbone. Couvre toutes les compétitions
+      et de la possession dans intermediate_team_match_backbone. Couvre toutes les compétitions
       (Big5, Cup, D2, Europe, Other) — pas de segmentation Big5-only.
       Inclut les matchs non joués (à venir, reportés, annulés COVID 2019-20) :
       str_result = '', int_gf / int_ga / str_result_1n2 NULL (4 278 lignes).
@@ -2070,10 +2070,10 @@ models:
               arguments:
                 values: [H, D, A]
 
-  - name: int_fbref_shooting
+  - name: intermediate_fbref_shooting
     description: >
       Volume de tirs FBref (tirs totaux, tirs cadrés, ratios d'efficacité) rematché
-      sur match_id + team_id. Alimente le bloc tirs de backbone. Colonnes castées depuis
+      sur match_id + team_id. Alimente le bloc tirs de intermediate_team_match_backbone. Colonnes castées depuis
       le VARCHAR brut de silver.fbref_shooting. Pas de données de tirs FBref avant
       2014-2015 (19 900 lignes : sh, sot, pkatt et ratios NULL). sh = 0 traité comme
       donnée manquante (563 lignes → NULL). Ratios recalculés hors penalty, échelle 0-1.
@@ -2312,11 +2312,11 @@ models:
               arguments:
                 values: [H, D, A]
 
-  - name: int_odds
+  - name: intermediate_odds
     description: >
       Cotes bookmakers (Pinnacle et moyennes marché) rematchées sur match_id
       + team_id/opponent_id. Alimente les colonnes odds_* et les probabilités
-      implicites de backbone.
+      implicites de intermediate_team_match_backbone.
     columns:
       - name: str_match_id
         description: "Identifiant unifié du match (SHA1), rattaché via match_registry."
@@ -2410,12 +2410,12 @@ models:
         tests:
           - is_valid_probability: {config: {severity: warn}}
 
-  - name: int_understat_schedule
+  - name: intermediate_understat_schedule
     description: >
       Calendrier Understat rematché sur le match_id unifié. 1 ligne par match (point de vue
       domicile : str_team_id = domicile, str_opponent_id = extérieur). Conserve str_us_match_id
       (id Understat d'origine) et produit la correspondance str_us_match_id ↔ str_match_id
-      réutilisée par int_understat_stats. Périmètre : Big5 domestique, 2014-2015 → 2025-2026.
+      réutilisée par intermediate_understat_match_stats. Périmètre : Big5 domestique, 2014-2015 → 2025-2026.
       Understat ne fournit pas de date : jointure registre sur (saison, championnat, domicile,
       extérieur), en retenant la première date de la paire (écarte les barrages classés dans
       le même league_source, ex. Spezia-Verona 11/06/2023).
@@ -2525,11 +2525,11 @@ models:
               arguments:
                 values: [Big5]
 
-  - name: int_understat_stats
+  - name: intermediate_understat_match_stats
     description: >
       Stats Understat par match joué (xPts, npxG, PPDA, deep) rattachées au match_id unifié
-      via int_understat_schedule (1-1 sur str_us_match_id). Alimente les colonnes xG et
-      pressing de backbone. Périmètre : Big5 domestique. 21 259 lignes = matchs joués.
+      via intermediate_understat_schedule (1-1 sur str_us_match_id). Alimente les colonnes xG et
+      pressing de intermediate_team_match_backbone. Périmètre : Big5 domestique. 21 259 lignes = matchs joués.
     tests:
       # ── Grain : 1 ligne par match Understat ──
       - dbt_utils.unique_combination_of_columns:
@@ -2566,8 +2566,8 @@ models:
     columns:
       - name: str_match_id
         description: >
-          Identifiant unifié du match (SHA1), via int_understat_schedule. 0 NULL attendu
-          (correctif AC → GFC Ajaccio 2015-2016 appliqué dans int_understat_schedule).
+          Identifiant unifié du match (SHA1), via intermediate_understat_schedule. 0 NULL attendu
+          (correctif AC → GFC Ajaccio 2015-2016 appliqué dans intermediate_understat_schedule).
         tests:
           - unique
           - not_null
@@ -2581,7 +2581,7 @@ models:
           - not_null
           - relationships:
               arguments:
-                to: ref('int_understat_schedule')
+                to: ref('intermediate_understat_schedule')
                 field: str_us_match_id
       - name: dec_home_xpts
         description: "Expected points domicile — points attendus selon les xG du match"
@@ -2664,7 +2664,7 @@ models:
               arguments:
                 values: [Big5]
 
-  - name: int_whoscored_match_index
+  - name: intermediate_whoscored_match_bridge
     description: >
       Pont d'identité entre l'univers WhoScored (ws_match_id, ws_home/away_team_id)
       et les clés unifiées (match_id, team_id normalisé). Table de résolution
@@ -2766,16 +2766,16 @@ models:
               arguments:
                 values: ['Big5', 'D2']
 
-  - name: int_whoscored_events
+  - name: intermediate_whoscored_events
     description: >
       Événements bruts WhoScored (silver.stg_whoscored_events) avec team_id
-      normalisé et match_id unifié, résolus via int_whoscored_match_index.
+      normalisé et match_id unifié, résolus via intermediate_whoscored_match_bridge.
       Point d'entrée de la chaîne événementielle. Grain : un événement.
     columns:
       - name: str_match_id
-        description: "Identifiant unifié du match (SHA1), résolu via int_whoscored_match_index. NULL si le match n'est pas résolu au registre."
+        description: "Identifiant unifié du match (SHA1), résolu via intermediate_whoscored_match_bridge. NULL si le match n'est pas résolu au registre."
       - name: str_team_id
-        description: "Id canonique de l'équipe de l'événement (converti depuis l'id WhoScored via int_whoscored_match_index)."
+        description: "Id canonique de l'équipe de l'événement (converti depuis l'id WhoScored via intermediate_whoscored_match_bridge)."
       - name: str_event_id
         description: >
           Identifiant WhoScored de l'événement. ATTENTION : scopé par (match, équipe),
@@ -2815,7 +2815,7 @@ models:
       - name: bool_is_shot
         description: "Booléen : l'événement est un tir (flag WhoScored isShot)."
       - name: str_qualifiers_json
-        description: "Tableau JSON brut des qualifiers de l'événement — SOURCE DE VÉRITÉ des qualifiers (éclaté dans events_qual)."
+        description: "Tableau JSON brut des qualifiers de l'événement — SOURCE DE VÉRITÉ des qualifiers (éclaté dans intermediate_whoscored_event_qualifiers)."
       - name: dt_scraped_at
         description: "Horodatage ISO du scrape du match."
       - name: int_row_num
@@ -2841,11 +2841,11 @@ models:
       - name: dec_blocked_y
         description: "Coordonnée Y (repère équipe, 0-100) du point où le tir est stoppé (qualifier 147 BlockedY)."
 
-  - name: int_whoscored_team_season
+  - name: intermediate_whoscored_team_season
     description: >
       Agrégats de saison WhoScored par équipe (défense, attaque, xG, différenciés Home/Away),
       castés depuis le VARCHAR brut de silver.whoscored_team_season. Agrégats de SAISON
-      COMPLÈTE : à n'utiliser qu'en saison N-1 (fuite de données sinon — cf. gold.equipe_match).
+      COMPLÈTE : à n'utiliser qu'en saison N-1 (fuite de données sinon — cf. gold.gold_team_match).
       Couverture : 2019-2020 (Premier League seule), puis 2021-2022 → 2024-2025 ;
       2020-2021 absente. 390 lignes, 0 valeur vide, 0 équipe non mappée.
     tests:
@@ -3201,19 +3201,19 @@ models:
   # CHAÎNE ÉVÉNEMENTIELLE — enrichissement et valorisation par action
   # ════════════════════════════════════════════════════════════════════════════
 
-  - name: int_event_enriched
+  - name: intermediate_whoscored_events_enriched
     description: >
       Événements WhoScored enrichis d'un pivot des qualifiers utiles, notamment
       la hiérarchie chance_creation (leading_to_goal, intentional_assist,
-      big_chance_created, key_pass, shot_assist...). Table socle de event_values,
-      player_possession_chains, player_network_duels et player_zone_transitions.
+      big_chance_created, key_pass, shot_assist...). Table socle de intermediate_event_values,
+      intermediate_possession_chains, intermediate_duel_pairs et intermediate_player_zone_transitions.
       Incrémentale sur scraped_at. Filtre : player_id IS NOT NULL.
     columns:
-      # ── Héritées de int_whoscored_events (mêmes définitions) ───────────────────
+      # ── Héritées de intermediate_whoscored_events (mêmes définitions) ───────────────────
       - name: str_match_id
-        description: "Identifiant unifié du match (SHA1), résolu via int_whoscored_match_index."
+        description: "Identifiant unifié du match (SHA1), résolu via intermediate_whoscored_match_bridge."
       - name: str_team_id
-        description: "Id canonique de l'équipe de l'événement (converti depuis l'id WhoScored via int_whoscored_match_index)."
+        description: "Id canonique de l'équipe de l'événement (converti depuis l'id WhoScored via intermediate_whoscored_match_bridge)."
       - name: str_player_id
         description: "Identifiant WhoScored du joueur auteur de l'action. (Ici jamais NULL : la table filtre player_id IS NOT NULL.)"
       - name: str_event_id
@@ -3270,9 +3270,9 @@ models:
         description: "Championnat / source des données (ex. Bundesliga)."
       - name: dt_scraped_at
         description: "Horodatage ISO du scrape du match."
-      # ── Héritée de int_whoscored_match_index ──────────────────────────────────
+      # ── Héritée de intermediate_whoscored_match_bridge ──────────────────────────────────
       - name: dt_match_date
-        description: "Date du match (rattachée via int_whoscored_match_index)."
+        description: "Date du match (rattachée via intermediate_whoscored_match_bridge)."
       # ── Transformation : flags de qualifiers pivotés (0/1) ────────────────────
       - name: int_is_leading_to_goal
         description: "Flag (0/1) : l'action mène à un but (qualifier 170 LeadingToGoal)."
@@ -3300,18 +3300,18 @@ models:
       - name: int_opp_score
         description: "Buts cumulés de l'équipe adverse à cet instant du match (reconstruit)."
 
-  - name: event_values
+  - name: intermediate_event_values
     description: >
       Valorise chaque événement individuel via cinq axes indépendants
       (danger_position, chance_creation, def_execution_quality, pressure_context,
       context_weight) combinés en une note globale action_value. Couche "value par
-      action" consommée par les modèles de chaînes. Source : int_event_enriched.
+      action" consommée par les modèles de chaînes. Source : intermediate_whoscored_events_enriched.
       Incrémentale (clé match_id + team_id + player_id + row_num).
     columns:
       - name: str_match_id
-        description: "Identifiant unifié du match (SHA1), résolu via int_whoscored_match_index."
+        description: "Identifiant unifié du match (SHA1), résolu via intermediate_whoscored_match_bridge."
       - name: str_team_id
-        description: "Id canonique de l'équipe de l'événement (converti depuis l'id WhoScored via int_whoscored_match_index)."
+        description: "Id canonique de l'équipe de l'événement (converti depuis l'id WhoScored via intermediate_whoscored_match_bridge)."
       - name: str_player_id
         description: "Identifiant WhoScored du joueur auteur de l'action (jamais NULL : la source filtre player_id IS NOT NULL)."
       - name: str_event_id
@@ -3335,7 +3335,7 @@ models:
       - name: dec_y
         description: "Position Y de l'action (0-100, largeur, 50 = axe central)."
       - name: dt_match_date
-        description: "Date du match (rattachée via int_whoscored_match_index)."
+        description: "Date du match (rattachée via intermediate_whoscored_match_bridge)."
       - name: str_season
         description: "Saison du match (ex. 2023-2024)."
       - name: str_league_source
@@ -3359,11 +3359,11 @@ models:
   # COUPS DE PIED ARRÊTÉS
   # ════════════════════════════════════════════════════════════════════════════
 
-  - name: corner_profiles
+  - name: intermediate_corner_profiles
     description: >
       Profils de corners. Pour chaque chaîne déclenchée par un corner,
       caractérise la livraison (end_x/end_y, joueur, via qualifier CornerTaken=6)
-      et l'issue de la séquence. Source : player_possession_chains. Incrémentale.
+      et l'issue de la séquence. Source : intermediate_possession_chains. Incrémentale.
     columns:
       - name: str_match_id
         description: "Identifiant unifié du match (SHA1)."
@@ -3392,17 +3392,17 @@ models:
       - name: str_outcome
         description: "Issue de la chaîne du corner : 'goal' (tir 16), 'shot_saved' (15), 'shot_off_target' (13/14), 'clearance' (dégagement), 'retained' (possession conservée sinon)."
       - name: dec_chain_danger_total
-        description: "Somme du danger (action_value de event_values) généré par l'équipe attaquante sur toute la chaîne issue du corner."
+        description: "Somme du danger (action_value de intermediate_event_values) généré par l'équipe attaquante sur toute la chaîne issue du corner."
       - name: dec_chain_danger_momentum
         description: "Part du danger accumulée AVANT le dernier tir / danger total de la chaîne (danger_before_shot / chain_danger_total). NULL si aucun tir."
 
   # ════════════════════════════════════════════════════════════════════════════
   # RÉSEAU DE PASSES JOUEUR
-  # player_passes_raw → player_network_passes → centrality / betweenness / duels
-  #                                          → team_network_features
+  # intermediate_completed_passes → intermediate_pass_network_edges → centrality / betweenness / duels
+  #                                          → intermediate_pass_network_team_match
   # ════════════════════════════════════════════════════════════════════════════
 
-  - name: player_passes_raw
+  - name: intermediate_completed_passes
     description: >
       Passes atomiques passeur → receveur reconstruites depuis les chaînes de
       possession (LEAD sur les événements de l'équipe en possession, sans sauter
@@ -3412,13 +3412,13 @@ models:
     columns:
       # ── Héritées ───────────────────────────────────────────────────────────────
       - name: str_match_id
-        description: "Identifiant unifié du match (SHA1), résolu via int_whoscored_match_index."
+        description: "Identifiant unifié du match (SHA1), résolu via intermediate_whoscored_match_bridge."
         tests:
           - not_null
       - name: str_chain_id
-        description: "Identifiant de la chaîne de possession (repris de player_possession_chains)."
+        description: "Identifiant de la chaîne de possession (repris de intermediate_possession_chains)."
       - name: str_chain_trigger
-        description: "Déclencheur de la chaîne : recovery / corner / goal_kick / throw_in / free_kick / open_play (repris de player_possession_chains)."
+        description: "Déclencheur de la chaîne : recovery / corner / goal_kick / throw_in / free_kick / open_play (repris de intermediate_possession_chains)."
       - name: str_team_id
         description: "Id canonique de l'équipe qui fait la passe (= chain_team_id, l'équipe en possession)."
       - name: int_row_num
@@ -3432,18 +3432,18 @@ models:
       - name: dec_y
         description: "Position Y de départ de la passe (0-100, largeur, 50 = axe central)."
       - name: dec_end_x
-        description: "Position X de fin de la passe (repris de int_event_enriched)."
+        description: "Position X de fin de la passe (repris de intermediate_whoscored_events_enriched)."
       - name: dec_end_y
-        description: "Position Y de fin de la passe (repris de int_event_enriched)."
+        description: "Position Y de fin de la passe (repris de intermediate_whoscored_events_enriched)."
       - name: int_is_key_pass
-        description: "Flag (0/1) : passe clé — mène à un tir (qualifier 11113 KeyPass, repris de int_event_enriched)."
+        description: "Flag (0/1) : passe clé — mène à un tir (qualifier 11113 KeyPass, repris de intermediate_whoscored_events_enriched)."
       - name: int_is_shot_assist
-        description: "Flag (0/1) : passe précédant directement un tir (qualifier 210 ShotAssist, repris de int_event_enriched)."
+        description: "Flag (0/1) : passe précédant directement un tir (qualifier 210 ShotAssist, repris de intermediate_whoscored_events_enriched)."
       - name: str_season
         description: "Saison du match (ex. 2023-2024)."
       - name: str_league_source
         description: "Championnat / source des données (ex. Bundesliga)."
-      # ── Transformations propres à player_passes_raw ───────────────────────────
+      # ── Transformations propres à intermediate_completed_passes ───────────────────────────
       - name: str_passer_id
         description: "Joueur qui effectue la passe (= player_id de l'événement Pass)."
       - name: str_receiver_id
@@ -3460,11 +3460,11 @@ models:
             - str_match_id
             - int_row_num
 
-  - name: player_network_passes
+  - name: intermediate_pass_network_edges
     description: >
       Arêtes du graphe de passes agrégées par (match, équipe, passeur, receveur) :
       volume total et ventilé par contexte (contre-attaque, open play, recovery,
-      autre), passes progressives/créatives/buildup. Source : player_passes_raw.
+      autre), passes progressives/créatives/buildup. Source : intermediate_completed_passes.
     columns:
       - name: str_match_id
         description: "Identifiant unifié du match (SHA1)."
@@ -3489,17 +3489,17 @@ models:
       - name: int_n_passes_other
         description: "Parmi n_passes, celles sur coup de pied arrêté (chain_trigger dans corner / free_kick / throw_in / goal_kick)."
       - name: int_n_progressive
-        description: "Nombre de passes progressives (flag is_progressive de player_passes_raw)."
+        description: "Nombre de passes progressives (flag is_progressive de intermediate_completed_passes)."
       - name: int_n_creative
-        description: "Nombre de passes créatives (flag is_creative de player_passes_raw)."
+        description: "Nombre de passes créatives (flag is_creative de intermediate_completed_passes)."
       - name: int_n_buildup
-        description: "Nombre de passes de construction (flag is_buildup de player_passes_raw)."
+        description: "Nombre de passes de construction (flag is_buildup de intermediate_completed_passes)."
 
-  - name: player_network_centrality
+  - name: intermediate_pass_network_player_centrality
     description: >
       Centralité de chaque joueur dans le réseau de passes : degrés entrant et
       sortant (bruts et pondérés par le volume), passes créatives/progressives
-      émises et reçues. Source : player_network_passes.
+      émises et reçues. Source : intermediate_pass_network_edges.
     columns:
       - name: str_match_id
         description: "Identifiant unifié du match (SHA1)."
@@ -3530,11 +3530,11 @@ models:
       - name: dec_betweenness_proxy
         description: "Proxy de centralité d'intermédiarité = (degree_out × degree_in) / (n_players × (n_players − 1)) : diversité entrante × sortante normalisée par les paires possibles (arrondi 4 déc.)."
 
-  - name: player_network_betweenness
+  - name: intermediate_pass_network_player_betweenness
     description: >
       Modèle Python (dbt-python). Calcule la betweenness centrality exacte par
       (match, équipe) avec networkx sur le graphe pondéré de passes (normalized=True,
-      weight=n_passes). Identifie les joueurs-ponts. Source : player_network_passes.
+      weight=n_passes). Identifie les joueurs-ponts. Source : intermediate_pass_network_edges.
     columns:
       - name: str_match_id
         description: "Identifiant unifié du match (SHA1)."
@@ -3549,11 +3549,11 @@ models:
       - name: dec_betweenness_exact
         description: "Centralité d'intermédiarité EXACTE du joueur, calculée par NetworkX (betweenness_centrality) sur le réseau de passes DIRIGÉ de l'équipe (arêtes passeur->receveur pondérées par n_passes), normalisée dans [0,1], arrondie à 6 décimales. Modèle dbt Python."
 
-  - name: player_network_duels
+  - name: intermediate_duel_pairs
     description: >
       Apparie les duels adverses via le qualifier 233 (miroir d'événement) pour
       relier le joueur A et son vis-à-vis B sur le même affrontement. Matière
-      première des duels individuels. Sources : events_qual, int_event_enriched.
+      première des duels individuels. Sources : intermediate_whoscored_event_qualifiers, intermediate_whoscored_events_enriched.
     columns:
       - name: str_match_id
         description: "Identifiant unifié du match (SHA1)."
@@ -3590,12 +3590,12 @@ models:
       - name: int_outcome_b
         description: "Résultat du côté B (1 = réussi, 0 = raté)."
 
-  - name: team_network_features
+  - name: intermediate_pass_network_team_match
     description: >
       Agrège les métriques réseau joueur → features d'équipe par match : nombre
       de joueurs et d'arêtes actifs, dépendance au top créateur (top_creator_share),
       betweenness moyenne, entropie de Shannon du réseau (network_entropy).
-      Source : player_network_centrality.
+      Source : intermediate_pass_network_player_centrality.
     columns:
       - name: str_match_id
         description: "Identifiant unifié du match (SHA1)."
@@ -3606,7 +3606,7 @@ models:
       - name: str_league_source
         description: "Championnat / source des données (ex. Bundesliga)."
       - name: int_n_players
-        description: "Nombre de joueurs (nœuds) du réseau de passes de l'équipe (depuis player_network_centrality)."
+        description: "Nombre de joueurs (nœuds) du réseau de passes de l'équipe (depuis intermediate_pass_network_player_centrality)."
       - name: int_n_edges
         description: "Nombre d'arêtes dirigées du réseau = somme des degree_out des joueurs."
       - name: dec_network_density
@@ -3630,20 +3630,20 @@ models:
   # xG / MENACE / ZONES
   # ════════════════════════════════════════════════════════════════════════════
 
-  - name: player_xg_chain
+  - name: intermediate_xg_chain_credits
     description: >
       Attribue une valeur xG (proxy via chance_creation du tir terminal) aux
       joueurs impliqués dans une chaîne se terminant par un tir — crédit offensif
-      réparti sur la chaîne. Source : player_possession_chains. Incrémentale.
+      réparti sur la chaîne. Source : intermediate_possession_chains. Incrémentale.
     columns:
       - name: str_match_id
         description: "Identifiant unifié du match (SHA1)."
       - name: str_chain_id
-        description: "Identifiant de la chaîne de possession = match_id || '_' || numéro de chaîne (propagé de player_possession_chains). Regroupe les actions d'une même possession."
+        description: "Identifiant de la chaîne de possession = match_id || '_' || numéro de chaîne (propagé de intermediate_possession_chains). Regroupe les actions d'une même possession."
       - name: int_chain_number
-        description: "Numéro séquentiel de la chaîne de possession dans le match (propagé de player_possession_chains)."
+        description: "Numéro séquentiel de la chaîne de possession dans le match (propagé de intermediate_possession_chains)."
       - name: str_chain_team_id
-        description: "Id canonique de l'équipe EN POSSESSION durant la chaîne (propagé de player_possession_chains). C'est l'équipe attaquante ; team_id peut différer (action d'un autre joueur)."
+        description: "Id canonique de l'équipe EN POSSESSION durant la chaîne (propagé de intermediate_possession_chains). C'est l'équipe attaquante ; team_id peut différer (action d'un autre joueur)."
       - name: str_player_id
         description: "Identifiant du joueur de l'équipe en possession présent dans la chaîne (participant à la construction)."
       - name: str_season
@@ -3657,7 +3657,7 @@ models:
       - name: int_shot_minute
         description: "Minute (expanded_minute) du tir terminal de la chaîne."
       - name: dec_xg_proxy
-        description: "Proxy xG du tir terminal de la chaîne = chance_creation de event_values pour ce tir (0-1)."
+        description: "Proxy xG du tir terminal de la chaîne = chance_creation de intermediate_event_values pour ce tir (0-1)."
       - name: bool_is_counter_attack
         description: "Booléen : la chaîne contient un tir en contre-attaque (qualifier 23 FastBreak) — propriété de la chaîne entière, pas du seul tir."
       - name: int_position_in_chain
@@ -3679,20 +3679,20 @@ models:
       - name: dec_xgbuildup_weighted
         description: "xGBuildup pondéré : = xgchain_weighted pour les joueurs de construction ; NULL pour le tireur et le passeur décisif."
 
-  - name: threat_conceded
+  - name: intermediate_threat_conceded_credits
     description: >
-      Symétrique défensif de player_xg_chain : attribue la menace concédée sur
+      Symétrique défensif de intermediate_xg_chain_credits : attribue la menace concédée sur
       les chaînes adverses terminées par un tir (penalty exclu), pour mesurer la
-      responsabilité défensive. Source : player_xg_chain. Incrémentale.
+      responsabilité défensive. Source : intermediate_xg_chain_credits. Incrémentale.
     columns:
       - name: str_match_id
         description: "Identifiant unifié du match (SHA1)."
       - name: str_chain_id
-        description: "Identifiant de la chaîne de possession = match_id || '_' || numéro de chaîne (propagé de player_possession_chains). Regroupe les actions d'une même possession."
+        description: "Identifiant de la chaîne de possession = match_id || '_' || numéro de chaîne (propagé de intermediate_possession_chains). Regroupe les actions d'une même possession."
       - name: int_chain_number
-        description: "Numéro séquentiel de la chaîne de possession dans le match (propagé de player_possession_chains)."
+        description: "Numéro séquentiel de la chaîne de possession dans le match (propagé de intermediate_possession_chains)."
       - name: str_chain_team_id
-        description: "Id canonique de l'équipe EN POSSESSION durant la chaîne (propagé de player_possession_chains). C'est l'équipe attaquante ; team_id peut différer (action d'un autre joueur)."
+        description: "Id canonique de l'équipe EN POSSESSION durant la chaîne (propagé de intermediate_possession_chains). C'est l'équipe attaquante ; team_id peut différer (action d'un autre joueur)."
       - name: str_player_id
         description: "Identifiant du joueur DÉFENSEUR adverse présent dans la chaîne (team_id != chain_team_id) — celui qui concède la menace."
       - name: str_team_id
@@ -3702,7 +3702,7 @@ models:
       - name: str_league_source
         description: "Championnat / source des données (ex. Bundesliga)."
       - name: dec_xg_proxy
-        description: "Proxy xG du tir terminal de la chaîne (propagé de player_xg_chain) = chance_creation de event_values pour ce tir (0-1)."
+        description: "Proxy xG du tir terminal de la chaîne (propagé de intermediate_xg_chain_credits) = chance_creation de intermediate_event_values pour ce tir (0-1)."
       - name: bool_is_penalty
         description: "Booléen : le tir terminal de la chaîne est un penalty (qualifier 9). Si TRUE, le gardien n'est pas sanctionné."
       - name: int_position_in_chain
@@ -3720,20 +3720,20 @@ models:
       - name: dec_threat_conceded_weighted
         description: "Menace concédée pondérée + règles gardien : penalty -> gardien = 0 ; erreur du gardien -> sanction pleine (xg_proxy × position_weight) ; défense trouée (gardien sans erreur) -> 0 ; défenseur non-gardien -> xg_proxy × position_weight."
 
-  - name: player_zone_transitions
+  - name: intermediate_player_zone_transitions
     description: >
       Compte les transitions de zone (zone_from → zone_to) par joueur, ventilées
       par période, état au score (score_state) et formation. Décrit les patterns
-      de circulation du ballon. Source : int_event_enriched (via player_passes_raw
+      de circulation du ballon. Source : intermediate_whoscored_events_enriched (via intermediate_completed_passes
       pour les passes + TakeOns réussis). Incrémentale.
       Grain : (match, équipe, joueur, zone_from, zone_to, période, score_state, formation).
       Les « déplacements » = passes réussies + dribbles (TakeOn) réussis.
     columns:
       # ── Héritées ───────────────────────────────────────────────────────────────
       - name: str_match_id
-        description: "Identifiant unifié du match (SHA1), résolu via int_whoscored_match_index."
+        description: "Identifiant unifié du match (SHA1), résolu via intermediate_whoscored_match_bridge."
       - name: str_team_id
-        description: "Id canonique de l'équipe du joueur (converti depuis l'id WhoScored via int_whoscored_match_index)."
+        description: "Id canonique de l'équipe du joueur (converti depuis l'id WhoScored via intermediate_whoscored_match_bridge)."
       - name: str_player_id
         description: "Identifiant WhoScored du joueur auteur des déplacements."
       - name: str_season
@@ -3761,12 +3761,12 @@ models:
       - name: dec_progressive_rate
         description: "Part des déplacements progressifs (end_x > x + 10, ≈10 m vers le but adverse) dans le groupe."
 
-  - name: int_whoscored_player_match
+  - name: intermediate_whoscored_player_match_official
     description: >
       Stats + note WhoScored par joueur par match, identités normalisées.
       Traduit l'id d'équipe WhoScored vers le team_id canonique et rattache le
-      match_id unifié via int_whoscored_match_index (même logique que
-      int_whoscored_events). player_id reste l'id WhoScored (clé vers
+      match_id unifié via intermediate_whoscored_match_bridge (même logique que
+      intermediate_whoscored_events). player_id reste l'id WhoScored (clé vers
       silver.stg_whoscored_players_ref). Source : silver.stg_whoscored_player_match.
     columns:
       - name: str_match_id
@@ -3872,10 +3872,10 @@ models:
       - name: int_collected
         description: "Ballons captés/récupérés (gardien)."
 
-  - name: int_whoscored_formations
+  - name: intermediate_whoscored_formation_timeline
     description: >
       Timeline tactique par équipe par match, identités normalisées (team_id
-      canonique + match_id unifié via int_whoscored_match_index).
+      canonique + match_id unifié via intermediate_whoscored_match_bridge).
       formation_id reste la clé vers silver.stg_whoscored_formations_ref.
       Source : silver.stg_whoscored_formations.
     columns:
@@ -3910,7 +3910,7 @@ models:
             - str_team_id
             - int_formation_seq
 
-  - name: int_whoscored_team_match
+  - name: intermediate_whoscored_team_match_json
     description: >
       Stats d'équipe officielles WhoScored par match, identités normalisées.
       Conserve stats_json brut (35 métriques par minute) ; extraction des totaux
@@ -3939,16 +3939,16 @@ models:
           combination_of_columns:
             - str_match_id
             - str_team_id
-  - name: int_whoscored_team_match_minute
+  - name: intermediate_whoscored_team_match_minute
     description: >
       Stats d'équipe WhoScored éclatées minute par minute — grain (match × équipe
-      × minute jouée). Minute au format expanded (45+2 = 47, cf. int_whoscored_formations).
+      × minute jouée). Minute au format expanded (45+2 = 47, cf. intermediate_whoscored_formation_timeline).
       Une minute absente d'une métrique dans le JSON source = l'action n'a pas eu
       lieu → 0.0 (COALESCE), jamais NULL. Colonnes *_success_value / *_accuracy_value
       / *_pct_value sont des ratios cumulatifs glissants du JSON source (biaisés,
       cf. rating) — ne jamais les sommer ni les moyenner ; recalculer depuis les
-      compteurs bruts (accurate/total) en aval, cf. int_whoscored_team_match_agg.
-      Source : int_whoscored_team_match.
+      compteurs bruts (accurate/total) en aval, cf. intermediate_whoscored_team_match_totals.
+      Source : intermediate_whoscored_team_match_json.
     columns:
       - name: str_match_id
         description: "Identifiant unifié du match (SHA1)"
@@ -4039,14 +4039,14 @@ models:
             - str_team_id
             - int_minute
 
-  - name: int_whoscored_team_match_agg
+  - name: intermediate_whoscored_team_match_totals
     description: >
       Agrégation au niveau match des stats WhoScored — grain (match × équipe).
       Compteurs bruts : SUM() des minutes. Colonnes *_pct : recalculées depuis
       les sommes (accurate/total, NULLIF(0) sur le dénominateur), jamais moyennées
-      depuis le JSON source (cumulatif glissant biaisé, cf. int_whoscored_team_match_minute).
+      depuis le JSON source (cumulatif glissant biaisé, cf. intermediate_whoscored_team_match_minute).
       rating exclu (moyenne cumulative glissante, non agrégeable). Source :
-      int_whoscored_team_match_minute.
+      intermediate_whoscored_team_match_minute.
     columns:
       - name: str_match_id
         description: "Identifiant unifié du match (SHA1)"
@@ -4131,14 +4131,21 @@ models:
           combination_of_columns:
             - str_match_id
             - str_team_id
-  - name: int_whoscored_players
+  - name: intermediate_whoscored_player_team_season
     description: >
       Dimension joueur par saison et par équipe — grain (player_id, season,
       team_id canonique). Un transfert en cours de saison = plusieurs lignes.
       Profil courant height/weight (âge exclu car WhoScored renvoie l'âge du
-      scrape, pas du match). Sources : int_whoscored_player_match,
-      int_whoscored_match_index, silver.stg_whoscored_players_ref.
+      scrape, pas du match). Sources : intermediate_whoscored_player_match_official,
+      intermediate_whoscored_match_bridge, silver.stg_whoscored_players_ref,
+      referentiel.team_mapping. Macro-poste calculé sur la saison entière :
+      table de RÉFÉRENCE, pas une source de features au match (fuite).
     columns:
+      - name: str_player_team_season_key
+        description: "Clé du grain : '<player_id>_<team_id>_<saison>' (ex. 1234_56_2023-2024)"
+        tests:
+          - not_null
+          - unique
       - name: str_player_id
         description: "Identifiant WhoScored du joueur"
         tests:
@@ -4147,14 +4154,26 @@ models:
         description: "Saison (rattachée via le match)"
       - name: str_team_id
         description: "Id canonique de l'équipe"
+      - name: str_team_name
+        description: "Nom du club (referentiel.team_mapping, 1 nom par team_id)"
       - name: str_player_name
         description: "Nom du joueur (depuis la table de référence)"
+      - name: str_macro_position
+        description: >
+          Macro-poste (GK/DEF/MIL/ATT) le plus fréquent en titulaire sur la saison.
+          NULL si le joueur n'a fait que des entrées en jeu.
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['GK', 'DEF', 'MIL', 'ATT']
       - name: int_height
         description: "Taille du joueur (cm, depuis la table de référence)"
       - name: int_weight
         description: "Poids du joueur (kg, depuis la table de référence)"
       - name: int_n_matchs
         description: "Nombre de matchs joués pour cette équipe cette saison"
+      - name: int_n_starts
+        description: "Dont titularisations"
     tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns:
@@ -4162,13 +4181,13 @@ models:
             - str_season
             - str_team_id
 
-  - name: int_whoscored_lineup
+  - name: intermediate_whoscored_lineup_period
     description: >
       Composition positionnelle par période de formation — grain (match × équipe
       × formation_seq × joueur), une ligne par titulaire (slot 1..11). La position
       est récupérée via le slot du joueur (formation_positions[slot]), pas par
       alignement d'index : robuste aux trous de slot (carton rouge). Identités
-      normalisées (team_id canonique + match_id unifié via int_whoscored_match_index).
+      normalisées (team_id canonique + match_id unifié via intermediate_whoscored_match_bridge).
       Source : silver.stg_whoscored_formations (prérequis : formation_slots rempli).
     columns:
       - name: str_match_id
@@ -4209,14 +4228,14 @@ models:
             - int_formation_seq
             - str_player_id
 
-  - name: int_shot_placement
+  - name: intermediate_shots
     description: >
       Placement de tir au grain « un tir » — base du Post-Shot xG (xGOT).
-      Tirs (types 13/14/15/16) issus de int_event_enriched, avec la géométrie du
+      Tirs (types 13/14/15/16) issus de intermediate_whoscored_events_enriched, avec la géométrie du
       placement dans le cadre du but (goal_mouth_y/z) dérivée pour les tirs cadrés :
       zone 3×3, écart au centre, hauteur, distance normalisée à la lucarne. Le xGOT
       entraîné reste en aval ; ce modèle expose les entrées + un xG pré-tir proxy.
-      Sources : int_event_enriched, event_values.
+      Sources : intermediate_whoscored_events_enriched, intermediate_event_values.
     columns:
       - name: str_match_id
         description: "Identifiant unifié du match (SHA1). Clé de match commune à tout le projet."
@@ -4285,12 +4304,12 @@ models:
         description: >
           Booléen : le but est un but contre son camp (CSC). TRUE pour les 306 CSC
           (type 16), sinon FALSE/NULL. Combiné à is_goal, permet d'isoler les vrais
-          buts de l'équipe qui tire. Propagé depuis int_event_enriched.
+          buts de l'équipe qui tire. Propagé depuis intermediate_whoscored_events_enriched.
       - name: bool_is_on_target
         description: "Booléen : tir cadré (SavedShot ou Goal, type 15/16). Seuls les tirs cadrés portent les dérivés de placement."
       - name: dec_pre_shot_xg_proxy
         description: >
-          Proxy de xG pré-tir = chance_creation issu de event_values (baseline du xGOT).
+          Proxy de xG pré-tir = chance_creation issu de intermediate_event_values (baseline du xGOT).
           Non calibré : sert d'entrée/repère, pas de probabilité exacte.
       - name: dec_offset_center
         description: "Écart horizontal au centre du but : ABS(goal_mouth_y - 50). Tirs cadrés uniquement, NULL sinon."
@@ -4310,13 +4329,13 @@ models:
             - str_match_id
             - int_row_num
 
-  - name: int_whoscored_lineup_agg
+  - name: intermediate_player_match_position
     description: >
       Features positionnelles au grain joueur×match, agrégées depuis
-      int_whoscored_lineup : position moyenne pondérée par les minutes, slot
+      intermediate_whoscored_lineup_period : position moyenne pondérée par les minutes, slot
       principal, capitaine, nombre de périodes tactiques. Couverture liée à
       formation_slots (se remplit avec le load des archives).
-      Source : int_whoscored_lineup.
+      Source : intermediate_whoscored_lineup_period.
     columns:
       - name: str_match_id
         description: "Identifiant unifié du match (SHA1)"
@@ -4347,14 +4366,14 @@ models:
             - str_team_id
             - str_player_id
 
-  - name: int_penalties
+  - name: intermediate_penalties
     description: >
       Penaltys au grain « un penalty tiré ». Pivot = la frappe (types 13/14/15/16
       portant qual 9) : tireur, résultat (marqué/arrêté/poteau/hors-cadre) et
       placement (goal_mouth_*). Rattachés en LEFT JOIN : PenaltyFaced (type 58, même
       instant) → équipe qui défend + gardien ; le foul en double (type 4 + qual 9)
       → joueur qui obtient / concède, dans une fenêtre de 300 s avant la frappe.
-      Sources : int_event_enriched, int_whoscored_events, events_qual.
+      Sources : intermediate_whoscored_events_enriched, intermediate_whoscored_events, intermediate_whoscored_event_qualifiers.
     columns:
       - name: str_match_id
         description: "Identifiant unifié du match (SHA1)"
@@ -4370,6 +4389,42 @@ models:
         description: "Joueur qui tire le penalty"
         tests:
           - not_null
+      - name: str_taker_player_id_team_season_key
+        description: "Clé '<player_id>_<team_id>_<saison>' du tireur (équipe qui attaque). Non unique ici : clé étrangère."
+        tests:
+          - relationships:
+              arguments:
+                to: ref('intermediate_whoscored_player_team_season')
+                field: str_player_team_season_key
+              config:
+                severity: warn
+      - name: str_gk_player_id_team_season_key
+        description: "Clé '<player_id>_<team_id>_<saison>' du gardien (équipe qui défend). NULL si pas de PenaltyFaced."
+        tests:
+          - relationships:
+              arguments:
+                to: ref('intermediate_whoscored_player_team_season')
+                field: str_player_team_season_key
+              config:
+                severity: warn
+      - name: str_player_drew_team_season_key
+        description: "Clé '<player_id>_<team_id>_<saison>' du joueur qui obtient la faute. NULL si joueur inconnu."
+        tests:
+          - relationships:
+              arguments:
+                to: ref('intermediate_whoscored_player_team_season')
+                field: str_player_team_season_key
+              config:
+                severity: warn
+      - name: str_player_conceded_team_season_key
+        description: "Clé '<player_id>_<team_id>_<saison>' du fautif (équipe de l'événement faute)."
+        tests:
+          - relationships:
+              arguments:
+                to: ref('intermediate_whoscored_player_team_season')
+                field: str_player_team_season_key
+              config:
+                severity: warn
       - name: str_defending_team_id
         description: "Équipe qui défend (via type 58). NULL si pas de PenaltyFaced apparié (~0,1 %)."
       - name: str_gk_player_id
@@ -4412,13 +4467,13 @@ models:
             - str_match_id
             - int_row_num
 
-  - name: int_fouls_drawn
+  - name: intermediate_fouls_drawn
     description: >
       Fautes subies (coups francs obtenus) au grain « une faute subie » : côté
       outcome_id=1 des events Foul (type 4). Rattache le fautif via le qual 233
       (OppositeRelatedEvent, déterministe 100 %), la localisation (x/y, zone), le
       tiers offensif (x > 66.7) et si la faute donne un penalty. Le joueur qui subit
-      est NULL ~5 % (limite source). Source : int_whoscored_events, events_qual.
+      est NULL ~5 % (limite source). Source : intermediate_whoscored_events, intermediate_whoscored_event_qualifiers.
     columns:
       - name: str_match_id
         description: "Identifiant unifié du match (SHA1)"
@@ -4462,14 +4517,14 @@ models:
             - str_match_id
             - int_row_num
 
-  - name: int_defensive_blocks
+  - name: intermediate_pass_blocks
     description: >
       Contres défensifs au grain « un contre », avec le défenseur qui bloque.
       Basé sur l'event type 74 BlockedPass (bloqueur toujours nommé), rattaché à la
       passe bloquée via le qual 233 (99,4 %). Ce sont des contres de PASSE ; les
       contres de tir n'ont pas de bloqueur nommé chez Opta et sont hors périmètre.
       Le join qual 233 contraint l'équipe adverse (event_id scopé par équipe).
-      Source : int_whoscored_events, events_qual.
+      Source : intermediate_whoscored_events, intermediate_whoscored_event_qualifiers.
     columns:
       - name: str_match_id
         description: "Identifiant unifié du match (SHA1)"
@@ -4513,13 +4568,13 @@ models:
             - str_match_id
             - int_row_num
 
-  - name: int_shot_creating_actions
+  - name: intermediate_shot_creating_actions
     description: >
       Actions créatrices de tir (SCA) et de but (GCA), standard FBref/StatsBomb.
       Une ligne par crédit = (tir, sca_order 1|2) : les 2 actions offensives de
       l'équipe qui tire, dans la même chaîne de possession, juste avant le tir
       (Pass, TakeOn, faute obtenue, tir/rebond). is_gca vrai si le tir est un but.
-      Source : player_possession_chains.
+      Source : intermediate_possession_chains.
     columns:
       - name: str_match_id
         description: "Identifiant unifié du match (SHA1)"
@@ -4546,7 +4601,7 @@ models:
       - name: str_shot_event_id
         description: "event_id du tir."
       - name: str_chain_id
-        description: "Identifiant de la chaîne de possession (propagé de player_possession_chains)."
+        description: "Identifiant de la chaîne de possession (propagé de intermediate_possession_chains)."
       - name: str_season
         description: "Saison du match (ex. 2023-2024)."
       - name: str_league_source
@@ -4564,14 +4619,14 @@ models:
             - int_shot_row_num
             - int_sca_order
 
-  - name: int_progressive_carries
+  - name: intermediate_take_on_carries
     description: >
       Conduites (dribbles) au grain « un dribble réussi » : TakeOn (type 3) réussis
       côté offensif (outcome 1 + qual 286). WhoScored n'a pas d'event carry ; le
       TakeOn est la seule conduite balle au pied enregistrée. Progression mesurée du
       dribble jusqu'à la touche suivante du joueur dans la même chaîne, en mètres
       (réduction de distance au but). is_progressive = gain ≥ 5 m.
-      Source : player_possession_chains, events_qual.
+      Source : intermediate_possession_chains, intermediate_whoscored_event_qualifiers.
     columns:
       - name: str_match_id
         description: "Identifiant unifié du match (SHA1)"
@@ -4617,13 +4672,13 @@ models:
             - str_match_id
             - int_row_num
 
-  - name: int_substitutions
+  - name: intermediate_substitutions
     description: >
       Changements au grain « un remplacement » : joueur qui sort (SubstitutionOff,
       type 18) apparié à celui qui entre (SubstitutionOn, type 19) par rang au sein
       du groupe (match, équipe, minute, seconde) — gère les changements simultanés.
       Croisé avec related_player_id (présent 27 %) : concordance 99,8 %. sub_number =
-      k-ième changement de l'équipe. Source : int_whoscored_events.
+      k-ième changement de l'équipe. Source : intermediate_whoscored_events.
     columns:
       - name: str_match_id
         description: "Identifiant unifié du match (SHA1)"
@@ -4659,15 +4714,15 @@ models:
             - str_match_id
             - int_off_row_num
 
-  - name: int_xt_actions
+  - name: intermediate_xt_actions
     description: >
       Actions atomiques pour l'expected threat (xT), affectées à la grille fine
       16×12. Grain : une action de possession (déplacement, tir OU perte de balle).
       L'affectation (x,y)→case est définie UNIQUEMENT ici (col/row) et relue telle
-      quelle par xt_grid.py et int_xt_contributions. Déplacements = passes réussies
-      (player_passes_raw) + dribbles TakeOn réussis. Tirs = int_shot_placement, hors
+      quelle par xt_grid.py et intermediate_xt_contributions. Déplacements = passes réussies
+      (intermediate_completed_passes) + dribbles TakeOn réussis. Tirs = intermediate_shots, hors
       CSC. Pertes = fin de possession (passe/dribble ratés, contrôle manqué,
-      Dispossessed, OffsidePass) depuis int_event_enriched.
+      Dispossessed, OffsidePass) depuis intermediate_whoscored_events_enriched.
     columns:
       - name: str_match_id
         description: "Identifiant unifié du match (SHA1)."
@@ -4703,10 +4758,10 @@ models:
             - str_match_id
             - int_row_num
 
-  - name: int_xt_contributions
+  - name: intermediate_xt_contributions
     description: >
       Contributions Expected Threat (xT) : xT ajouté par déplacement. Grain :
-      1 ligne par déplacement (int_xt_actions action_kind='move' avec destination).
+      1 ligne par déplacement (intermediate_xt_actions action_kind='move' avec destination).
       xT_ajouté = xT(case d'arrivée) − xT(case de départ), attribué au joueur/équipe ;
       positif = progression vers le but adverse. Grille lue depuis
       machine_learning.xt_grid (étalon global). Matérialisé en table.
@@ -4749,9 +4804,9 @@ models:
   # SHOT-STOPPING GARDIEN (PSxG+/-)
   # ════════════════════════════════════════════════════════════════════════════
 
-  - name: int_keeper_shots
+  - name: intermediate_keeper_shots_faced
     description: >
-      Attribution du gardien à chaque tir cadré subi — brique de int_keeper_psxg.
+      Attribution du gardien à chaque tir cadré subi — brique de intermediate_keeper_season_psxg.
       Grain : un tir cadré (SavedShot + Goal, hors CSC/penalty), avec son xGOT
       (machine_learning.xgot_predictions) et le gardien qui l'a subi.
       Deux voies : tirs arrêtés → Save miroir relié au tir par le qualifier 233
@@ -4790,7 +4845,7 @@ models:
       - name: bool_def_gk_available
         description: >
           Booléen : l'équipe qui défend a un GK lineup dans ce match (donc buts
-          ET arrêts attribuables). Garde-fou symétrique consommé par int_keeper_psxg
+          ET arrêts attribuables). Garde-fou symétrique consommé par intermediate_keeper_season_psxg
           — FALSE = tirs non fiables (arrêts sans risque de but), exclus de l'agrégat.
     tests:
       - dbt_utils.unique_combination_of_columns:
@@ -4798,10 +4853,10 @@ models:
             - str_match_id
             - int_row_num
 
-  - name: int_keeper_psxg
+  - name: intermediate_keeper_season_psxg
     description: >
       Post-Shot Expected Goals +/- (PSxG+/-) par gardien = mesure de shot-stopping.
-      Grain : gardien × saison × championnat. Source : int_keeper_shots.
+      Grain : gardien × saison × championnat. Source : intermediate_keeper_shots_faced.
       psxg_plus_minus = Σ xGOT subi − buts encaissés ; > 0 = le gardien arrête plus
       que la qualité des tirs ne le prédit (surperformance). Garde-fou symétrique :
       uniquement les tirs des matchs où def_gk_available (pas d'arrêt sans but
@@ -4838,10 +4893,10 @@ models:
             - str_season
             - str_league_source
 
-  - name: int_player_minutes
+  - name: intermediate_player_match_minutes
     description: >
       Minutes jouées par joueur et par match, dérivées de la timeline de formation
-      WhoScored (int_whoscored_lineup) — Σ des durées de segments, minutes expanded
+      WhoScored (intermediate_whoscored_lineup_period) — Σ des durées de segments, minutes expanded
       (absolues). Base du per-90 en couche Gold. Garde-fous : match_id non NULL
       (exclut les orphelins D2), segments bornés 0..130 (exclut la sentinelle 32767),
       GREATEST(end-start,0).
@@ -4873,11 +4928,11 @@ models:
             - str_team_id
             - str_player_id
 
-  - name: int_player_zone_season
+  - name: intermediate_player_zone_season
     description: >
       Agrégat zonal 5×5 offensif par (joueur, cellule, saison jouée) : part
       moyenne des touches (grille pct_zX_cY remise en tall) et tirs pris dans la
-      cellule (int_shot_placement binné, CSC exclus). Base de gold.joueur_zone_saison.
+      cellule (intermediate_shots binné, CSC exclus). Base de gold.gold_player_zone_season_lag.
       Scindé + matérialisé pour contourner un bug du planner DuckDB 1.5.1.
     columns:
       - name: str_player_id
@@ -4903,9 +4958,9 @@ models:
       - name: int_duels_won
         description: "Duels défensifs gagnés dans la cellule (outcome_b = 1)."
       - name: dec_total_danger
-        description: "Σ danger_position des actions OFFENSIVES du joueur dans la cellule (event_values, feature 35)."
+        description: "Σ danger_position des actions OFFENSIVES du joueur dans la cellule (intermediate_event_values, feature 35)."
       - name: int_total_progressive
-        description: "Passes progressives du joueur dans la cellule sur la saison (player_passes_raw.is_progressive, feature 41)."
+        description: "Passes progressives du joueur dans la cellule sur la saison (intermediate_completed_passes.is_progressive, feature 41)."
       - name: int_total_crosses
         description: >
           Centres délivrés depuis la cellule (feature 37). Définition géométrique :
@@ -4913,7 +4968,7 @@ models:
           centrale (end_x≥83, end_y∈[21,79]). is_creative écarté (piquait au centre).
       - name: int_total_def_actions
         description: >
-          Actions défensives du joueur dans la cellule (event_values,
+          Actions défensives du joueur dans la cellule (intermediate_event_values,
           def_execution_quality non NULL ; coords dans le repère du camp du défenseur,
           pas de retournement). Brique de def_actions_by_zone_lag (feature 55).
     tests:
@@ -4923,13 +4978,13 @@ models:
             - str_zone_5x5
             - str_season
 
-  - name: int_player_role_lag
+  - name: intermediate_player_season_role_lag
     description: >
       Grain (player_id, season). Rôle tactique dominant du joueur en saison N-1
       (SEASON-LAG), calculé sur ses apparitions comme titulaire (moyenne pondérée
       par minutes titu de grid_vertical/grid_horizontal, taxonomie 9 : GK, CB,
       FB, DM, CM, WM, AM, W, ST). NULL possible pour une recrue → fallback dans
-      int_player_role_match via role_fin_current.
+      intermediate_player_match_role via role_fin_current.
     tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns: 
@@ -4957,7 +5012,7 @@ models:
               arguments:
                 values: ['GK', 'CB', 'FB', 'DM', 'CM', 'WM', 'AM', 'W', 'ST']
 
-  - name: int_player_role_match
+  - name: intermediate_player_match_role
     description: >
       Grain (match_id, player_id). Rôle tactique résolu pour le match, cascade :
       role_fin_lag (SEASON-LAG) → role_fin_current (slot du joueur dans la
@@ -5004,14 +5059,14 @@ models:
           - accepted_values:
               values: ['season_lag', 'match_slot']
 
-  - name: int_lineup_formation
+  - name: intermediate_team_match_lineup_structure
     description: >
       Grain (match_id, team_id). Features structurelles de la compo de départ
       (période 1) : compteurs par ligne via role_fin_resolved, catégorie 3/4/5-back
       via n_def, écart-type spatial du bloc de champ (GK exclu), hauteur moyenne
       des lignes défensive/offensive, axialité du XI. Base de la Phase 4
-      (features formation) — consommé par int_formation_matchup_match et par
-      equipe_lineup_match.
+      (features formation) — consommé par intermediate_team_match_formation_matchup et par
+      gold_team_match_lineup_strength.
     tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns: 
@@ -5056,13 +5111,13 @@ models:
       - name: dec_axiality_score
         description: "Fraction du XI (hors GK) avec |gh-5| <= 1.5."
 
-  - name: int_formation_matchup_match
+  - name: intermediate_team_match_formation_matchup
     description: >
       Grain (match_id, team_id) directionnel A→B. Deltas structurels entre la
       formation de A et celle de l'adversaire B (attack_overload, mid_control_delta,
       back_depth_delta, width_delta, depth_delta, axiality_delta) + clé catégorielle
       croisée matchup_family (ex. '4-back_vs_3-back'). Complète le signal individuel
-      d'int_lineup_formation par les effets non-linéaires de matchup formation × formation.
+      d'intermediate_team_match_lineup_structure par les effets non-linéaires de matchup formation × formation.
     tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns: 

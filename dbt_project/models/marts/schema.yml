@@ -18,9 +18,9 @@ models:
       - name: str_result_1n2
         description: >
           Cible : résultat du match encodé H/D/A (H=victoire home, D=nul, A=victoire away).
-          Repris tel quel depuis backbone/source, IDENTIQUE sur les 2 lignes du même match
+          Repris tel quel depuis intermediate_team_match_backbone/source, IDENTIQUE sur les 2 lignes du même match
           (vue match, pas vue équipe). La désambiguïsation côté équipe se fait via is_home
-          (equipe_match). Implication training : split train/test PAR match_id obligatoire
+          (gold_team_match). Implication training : split train/test PAR match_id obligatoire
           (jamais par ligne), sinon leakage direct entre les 2 lignes miroirs du même match.
           NULL = match à venir (servi par predict_1n2).
         tests:

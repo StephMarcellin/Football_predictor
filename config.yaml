@@ -5,23 +5,23 @@ project:
 # Scrapping configuration
 # Format : "YYYY-YYYY"
 seasons:
-  # - "2009-2010"
-  # - "2010-2011"
-  # - "2011-2012"
-  # - "2012-2013"
-  # - "2013-2014"
-  # - "2014-2015"
-  # - "2015-2016"
-  # - "2016-2017"
-  # - "2017-2018"
-  # - "2018-2019"
-  # - "2019-2020"
-  # - "2020-2021"
-  # - "2021-2022"
-  # - "2022-2023"
-  # - "2023-2024"
-  # - "2024-2025"
-  # - "2025-2026"
+  - "2009-2010"
+  - "2010-2011"
+  - "2011-2012"
+  - "2012-2013"
+  - "2013-2014"
+  - "2014-2015"
+  - "2015-2016"
+  - "2016-2017"
+  - "2017-2018"
+  - "2018-2019"
+  - "2019-2020"
+  - "2020-2021"
+  - "2021-2022"
+  - "2022-2023"
+  - "2023-2024"
+  - "2024-2025"
+  - "2025-2026"
   # - "2026-2027"
 
 
@@ -295,8 +295,8 @@ train:
     "2020-2021", 
     "2021-2022",
   ]
-  VAL_SEASONS : ["2022-2023", "2023-2024"]   # deux saisons pour plus de robustesse
-  TEST_SEASON : "2024-2025"
+  VAL_SEASONS : ["2024-2025"]   # deux saisons pour plus de robustesse
+  TEST_SEASON : "2025-2026"
   val_split_pct: 0.5
   bottleneck_dim: 32
   bayes_n_iter: 50
@@ -309,7 +309,7 @@ backtest:
   KELLY_FRACTION : 0.5      # Half Kelly
   MAX_MISE_PCT   : 0.05     # mise max = 5% de la bankroll (protection)
   MIN_MISE       : 1.0      # mise minimale en unités
-  BACKTEST_SEASONS_DEFAULT : ["2023-2024", "2024-2025"]
+  BACKTEST_SEASONS_DEFAULT : ["2025-2026"]
 
 # ── Famille 11 : clusters de style (76/77) + imputation KNN (78) ──────────────
 # Paramètres figés par le diagnostic du 16/08 (cf. Concepts_Session_2026-08-16_KNN).
@@ -319,7 +319,7 @@ knn:
   min_apps: 10             # seuil de fiabilité du profil (split-half r≈0.70)
   gk_vertical_max: 0.3     # gv <= seuil → gardien, exclu du clustering
   k_neighbors: 30  # grille Optuna pour K (imputation 78, plus tard)
-  # Noms refondus (préfixe de type en tête) — identiques aux colonnes gold.joueur_saison / joueur_zone_saison.
+  # Noms refondus (préfixe de type en tête) — identiques aux colonnes gold.gold_player_match_rolling_profile / gold_player_zone_season_lag.
   features:
     offensive:
       - dec_scorer_xg_per90_lag

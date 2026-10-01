@@ -12,11 +12,11 @@ c'est la dernière ligne de défense avant que le pipeline ML ne
 consomme des features potentiellement corrompues.
 
 Suites couvertes (au 2026-09-09) — 14 modèles gold :
-    - equipe_match, equipe_adversaire_match, equipe_confrontation_match,
-      equipe_confrontation_zone, equipe_gardien_match, equipe_lineup_match
-    - gardien_saison, joueur_match, joueur_saison, joueur_zone_saison
-    - rolling_corners, rolling_freekicks
-    - team_corridor_profile, zone_confrontation_match
+    - gold_team_match, gold_team_match_h2h, gold_team_match_press_matchup,
+      gold_team_match_corridor_matchup, gold_team_match_keeper, gold_team_match_lineup_strength
+    - gold_keeper_season_lag, gold_player_match_scorer, gold_player_match_rolling_profile, gold_player_zone_season_lag
+    - gold_team_match_corners_rolling, gold_team_match_freekicks_rolling
+    - gold_team_corridor_profile, gold_corridor_matchup
 
 Historique : la version legacy validait uniquement `gold.features_final`
 avec ~30 expectations hardcodées via la lib great_expectations. Remplacée

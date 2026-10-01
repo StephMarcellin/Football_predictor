@@ -11,7 +11,7 @@ Chaque expectation a une implémentation pandas native — GE n'est pas requis.
 Compatible pytest via un simple `assert result.success, result.report()`.
 
 Usage direct (CLI) :
-    python tests/great_expectations/runner.py tests/great_expectations/intermediate/int_fbref_keeper.yml
+    python tests/great_expectations/runner.py tests/great_expectations/intermediate/intermediate_fbref_keeper.yml
 """
 from __future__ import annotations
 import sys

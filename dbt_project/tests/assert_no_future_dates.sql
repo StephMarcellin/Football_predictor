@@ -3,5 +3,5 @@
 {{ config(severity='warn') }}
 
 SELECT str_match_id, str_team_id, dt_date
-FROM {{ ref('backbone') }}
+FROM {{ ref('intermediate_team_match_backbone') }}
 WHERE dt_date > CURRENT_DATE

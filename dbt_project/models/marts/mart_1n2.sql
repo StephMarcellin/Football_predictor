@@ -6,10 +6,10 @@
 -- UNE fois dans team_profile, puis réutilisé pour soi et pour l'adversaire.
 -- (Couche zonale imputée + gardien : étape B.)
 --
--- Refonte nommage : backbone, equipe_match et equipe_gardien_match sont lus sous
+-- Refonte nommage : intermediate_team_match_backbone, gold_team_match et gold_team_match_keeper sont lus sous
 -- leurs nouveaux noms ; les CLÉS sont remappées vers des noms de travail (match_id,
 -- team_id INTEGER…) pour joindre les modèles pas encore refondus
--- (equipe_lineup_match, int_lineup_formation, equipe_adversaire_match, …).
+-- (gold_team_match_lineup_strength, intermediate_team_match_lineup_structure, gold_team_match_h2h, …).
 -- Les FEATURES héritent du nom de leur modèle source (ex. dec_avg_gf_rolling_3,
 -- opp_dec_avg_gf_rolling_3). Seules les colonnes listées dans
 -- docs/proposition_nommage_definitif.csv pour mart_1n2 sont renommées ici
@@ -23,7 +23,7 @@
 
 WITH
 
--- equipe_adversaire_match lu sous ses noms refondus, remappé vers les noms de travail du modèle
+-- gold_team_match_h2h lu sous ses noms refondus, remappé vers les noms de travail du modèle
 in_equipe_adversaire_match AS (
     SELECT
         str_match_id                                                 AS "match_id",
@@ -41,10 +41,10 @@ in_equipe_adversaire_match AS (
         dec_h2h_avg_gf_10                                            AS "h2h_avg_gf_10",
         dec_h2h_avg_ga_10                                            AS "h2h_avg_ga_10",
         dec_h2h_avg_xg_diff_10                                       AS "h2h_avg_xg_diff_10"
-    FROM {{ ref('equipe_adversaire_match') }}
+    FROM {{ ref('gold_team_match_h2h') }}
 ),
 
--- equipe_confrontation_match lu sous ses noms refondus, remappé vers les noms de travail du modèle
+-- gold_team_match_press_matchup lu sous ses noms refondus, remappé vers les noms de travail du modèle
 in_equipe_confrontation_match AS (
     SELECT
         str_match_id                                                 AS "match_id",
@@ -61,10 +61,10 @@ in_equipe_confrontation_match AS (
         dec_matchup_high_press_vs_buildup_rolling_10                 AS "matchup_high_press_vs_buildup_rolling_10",
         dec_self_team_xgbuildup_lag                                  AS "self_team_xgbuildup_lag",
         dec_opp_team_xgbuildup_lag                                   AS "opp_team_xgbuildup_lag"
-    FROM {{ ref('equipe_confrontation_match') }}
+    FROM {{ ref('gold_team_match_press_matchup') }}
 ),
 
--- equipe_confrontation_zone lu sous ses noms refondus, remappé vers les noms de travail du modèle
+-- gold_team_match_corridor_matchup lu sous ses noms refondus, remappé vers les noms de travail du modèle
 in_equipe_confrontation_zone AS (
     SELECT
         str_match_id                                                 AS "match_id",
@@ -85,10 +85,10 @@ in_equipe_confrontation_zone AS (
         dec_def_dribble_gauche                                       AS "def_dribble_gauche",
         dec_def_dribble_droit                                        AS "def_dribble_droit",
         dec_def_central_axe                                          AS "def_central_axe"
-    FROM {{ ref('equipe_confrontation_zone') }}
+    FROM {{ ref('gold_team_match_corridor_matchup') }}
 ),
 
--- equipe_gardien_match lu sous ses noms refondus, remappé vers les noms de travail du modèle
+-- gold_team_match_keeper lu sous ses noms refondus, remappé vers les noms de travail du modèle
 in_equipe_gardien_match AS (
     SELECT
         str_match_id                                                 AS "str_match_id",
@@ -97,10 +97,10 @@ in_equipe_gardien_match AS (
         dec_keeper_psxg_per_shot_lag                                 AS "keeper_psxg_per_shot_lag",
         dec_keeper_save_pct_lag                                      AS "keeper_save_pct_lag",
         CAST(int_keeper_shots_faced_lag AS HUGEINT)                  AS "keeper_shots_faced_lag"
-    FROM {{ ref('equipe_gardien_match') }}
+    FROM {{ ref('gold_team_match_keeper') }}
 ),
 
--- equipe_lineup_match lu sous ses noms refondus, remappé vers les noms de travail du modèle
+-- gold_team_match_lineup_strength lu sous ses noms refondus, remappé vers les noms de travail du modèle
 in_equipe_lineup_match AS (
     SELECT
         str_match_id                                                 AS "match_id",
@@ -110,10 +110,10 @@ in_equipe_lineup_match AS (
         dec_lineup_avg_def_actions_per90_lag                         AS "lineup_avg_def_actions_per90_lag",
         dec_lineup_avg_aerial_win_rate_lag                           AS "lineup_avg_aerial_win_rate_lag",
         int_n_starters_profiled                                      AS "n_starters_profiled"
-    FROM {{ ref('equipe_lineup_match') }}
+    FROM {{ ref('gold_team_match_lineup_strength') }}
 ),
 
--- int_formation_matchup_match lu sous ses noms refondus, remappé vers les noms de travail du modèle
+-- intermediate_team_match_formation_matchup lu sous ses noms refondus, remappé vers les noms de travail du modèle
 in_int_formation_matchup_match AS (
     SELECT
         str_match_id                                                 AS "match_id",
@@ -128,10 +128,10 @@ in_int_formation_matchup_match AS (
         str_formation_family_self                                    AS "formation_family_self",
         str_formation_family_opp                                     AS "formation_family_opp",
         str_matchup_family                                           AS "matchup_family"
-    FROM {{ ref('int_formation_matchup_match') }}
+    FROM {{ ref('intermediate_team_match_formation_matchup') }}
 ),
 
--- int_lineup_formation lu sous ses noms refondus, remappé vers les noms de travail du modèle
+-- intermediate_team_match_lineup_structure lu sous ses noms refondus, remappé vers les noms de travail du modèle
 in_int_lineup_formation AS (
     SELECT
         str_match_id                                                 AS "match_id",
@@ -149,7 +149,7 @@ in_int_lineup_formation AS (
         dec_line_defensive_avg                                       AS "line_defensive_avg",
         dec_line_offensive_avg                                       AS "line_offensive_avg",
         dec_axiality_score                                           AS "axiality_score"
-    FROM {{ ref('int_lineup_formation') }}
+    FROM {{ ref('intermediate_team_match_lineup_structure') }}
 ),
 
 mdl_body AS (
@@ -164,7 +164,7 @@ base as (
         str_season                         as season,
         str_result_1n2                     as result_1n2,
 
-        -- ── Cotes / probabilités (déjà pivotées par venue dans backbone) ──────
+        -- ── Cotes / probabilités (déjà pivotées par venue dans intermediate_team_match_backbone) ──────
         -- Passage quasi-direct : faits ponctuels du match, pas d'agrégat glissant.
         -- Ouverture
         dec_odds_pinnacle_team, dec_odds_pinnacle_draw, dec_odds_pinnacle_opp,
@@ -182,11 +182,11 @@ base as (
         dec_pinnacle_prob_over25,       dec_pinnacle_prob_under25,
         dec_pinnacle_prob_close_over25, dec_pinnacle_prob_close_under25
 
-    from {{ ref('backbone') }}
+    from {{ ref('intermediate_team_match_backbone') }}
     where str_match_id is not null and str_team_id is not null
 ),
 
--- equipe_match sous ses nouveaux noms : clés remappées pour les jointures,
+-- gold_team_match sous ses nouveaux noms : clés remappées pour les jointures,
 -- features conservées telles quelles (préfixes dec_/int_).
 equipe_match_in as (
     select
@@ -200,7 +200,7 @@ equipe_match_in as (
         str_comp_category                  as comp_category,
         * exclude (str_match_id, str_team_id, str_opponent_id, dt_date, str_season,
                    str_league_source, str_venue, str_comp_category)
-    from {{ ref('equipe_match') }}
+    from {{ ref('gold_team_match') }}
 ),
 
 equipe_gardien_match_in as (
@@ -211,7 +211,7 @@ equipe_gardien_match_in as (
     from in_equipe_gardien_match
 ),
 
--- Profil d'équipe : forme/style (equipe_match) + qualité du onze (equipe_lineup_match).
+-- Profil d'équipe : forme/style (gold_team_match) + qualité du onze (gold_team_match_lineup_strength).
 team_profile as (
     select em.*,
            lu.* exclude (match_id, team_id),

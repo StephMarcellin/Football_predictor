@@ -1,0 +1,164 @@
+{{ config(materialized='table', schema='intermediate', alias='intermediate_player_match_role') }}
+
+-- intermediate_player_match_role — grain (match_id, player_id).
+-- Rôle tactique résolu pour ce match, cascade :
+--   role_fin_lag     = intermediate_player_season_role_lag (peut être NULL : recrue N-1)
+--   role_fin_current = calculé sur la coord (gv, gh) du slot du joueur dans
+--                      la formation INITIALE de ce match (période 1).
+--   role_fin_resolved = COALESCE(role_fin_lag, role_fin_current) — JAMAIS NULL
+--                       pour un titulaire du XI de départ.
+-- Anti-leakage : la formation initiale est annoncée pré-match, la coord slot
+-- n'est pas de l'info future.
+-- Consommée par le KNN (Phase 3) et serve_features.py.
+
+-- ══ Refonte nommage (préfixe de type en tête de nom : str_, int_, dec_, dt_, bool_) ══
+-- Entrées : les modèles amont refondus sont relus via des CTE in_<modèle> qui les
+-- remappent vers les noms/types de travail utilisés par la logique ci-dessous
+-- (inchangée). Sortie : CTE mdl_out, renommage + cast selon le type logique.
+
+WITH
+
+-- intermediate_player_season_role_lag lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_int_player_role_lag AS (
+    SELECT
+        CAST(str_player_id AS BIGINT)                                AS "player_id",
+        str_season                                                   AS "season",
+        dec_gv_avg                                                   AS "gv_avg",
+        dec_gh_avg                                                   AS "gh_avg",
+        dec_gh_offaxis                                               AS "gh_offaxis",
+        CAST(int_minutes_titu_lag AS HUGEINT)                        AS "minutes_titu_lag",
+        int_apps_starter_lag                                         AS "apps_starter_lag",
+        str_role_fin_lag                                             AS "role_fin_lag"
+    FROM {{ ref('intermediate_player_season_role_lag') }}
+),
+
+-- intermediate_whoscored_lineup_period lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_int_whoscored_lineup AS (
+    SELECT
+        str_match_id                                                 AS "match_id",
+        CAST(str_team_id AS BIGINT)                                  AS "team_id",
+        int_formation_seq                                            AS "formation_seq",
+        CAST(str_formation_id AS INTEGER)                            AS "formation_id",
+        int_period                                                   AS "period",
+        int_start_minute                                             AS "start_minute",
+        int_end_minute                                               AS "end_minute",
+        CAST(str_player_id AS BIGINT)                                AS "player_id",
+        int_slot                                                     AS "slot",
+        dec_grid_vertical                                            AS "grid_vertical",
+        dec_grid_horizontal                                          AS "grid_horizontal",
+        bool_is_captain                                              AS "is_captain"
+    FROM {{ ref('intermediate_whoscored_lineup_period') }}
+),
+
+-- intermediate_whoscored_match_bridge lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_int_whoscored_match_index AS (
+    SELECT
+        str_match_id                                                 AS "match_id",
+        str_ws_match_id                                              AS "ws_match_id",
+        dt_match_date                                                AS "match_date",
+        CAST(str_team_id AS BIGINT)                                  AS "team_id",
+        CAST(str_opponent_id AS BIGINT)                              AS "opponent_id",
+        CAST(str_ws_home_team_id AS INTEGER)                         AS "ws_home_team_id",
+        CAST(str_ws_away_team_id AS INTEGER)                         AS "ws_away_team_id",
+        str_league_source                                            AS "league_source",
+        str_season                                                   AS "season",
+        CAST(dt_scraped_at AS VARCHAR)                               AS "scraped_at",
+        str_comp_category                                            AS "comp_category"
+    FROM {{ ref('intermediate_whoscored_match_bridge') }}
+),
+
+mdl_body AS (
+with
+
+-- XI de départ : première période de formation (start_minute = 0).
+-- qualify row_number() = 1 protège du cas rare où plusieurs enregistrements
+-- existent pour un même joueur en période 1 (pas connu à ce jour, ceinture+bretelles).
+starting_xi as (
+    select
+        l.match_id,
+        l.team_id,
+        l.player_id,
+        l.grid_vertical   as gv_start,
+        l.grid_horizontal as gh_start
+    from in_int_whoscored_lineup l
+    where l.start_minute = 0
+    qualify row_number() over (
+        partition by l.match_id, l.player_id
+        order by l.formation_seq, l.slot
+    ) = 1
+),
+
+-- Ajout de la saison (nécessaire pour la jointure sur intermediate_player_season_role_lag).
+with_season as (
+    select
+        xi.*,
+        idx.season
+    from starting_xi xi
+    join in_int_whoscored_match_index idx using (match_id)
+),
+
+-- role_fin_current : mêmes règles qu'intermediate_player_season_role_lag, sur la coord DE CE MATCH.
+with_current as (
+    select
+        ws.*,
+        case
+            when gv_start is null                               then null
+            when gv_start <= 0.5                                then 'GK'
+            
+            -- gv ∈ ]0.5, 3.0] : Défenseurs
+            when gv_start <= 3.0 and abs(gh_start - 5) <= 2.0     then 'CB'
+            when gv_start <= 3.0                                then 'FB'
+            
+            -- gv ∈ ]3.0, 5.0[ : Milieux Défensifs (strictement inférieur à 5.0 pour inclure 4.5)
+            when gv_start <  5.0 and abs(gh_start - 5) <= 1.5     then 'DM'
+            
+            -- gv ∈ [5.0, 6.0] : Milieux Centraux & Au-delà
+            when gv_start <= 6.0 and abs(gh_start - 5) <= 1.5     then 'CM'
+            when gv_start <= 5.5                                then 'WM'
+            
+            -- gv ∈ ]6.0, 7.5] : Milieux Offensifs & Ailiers
+            when gv_start <= 7.5 and abs(gh_start - 5) <= 1.5     then 'AM'
+            
+            -- gv > 7.5 : Attaquants
+            when abs(gh_start - 5) <= 1.5                       then 'ST'
+            else                                                   'W'
+        end as role_fin_current
+    from with_season ws
+)
+
+select
+    wc.match_id,
+    wc.team_id,
+    wc.player_id,
+    wc.season,
+    wc.gv_start,
+    wc.gh_start,
+    lag.role_fin_lag,
+    wc.role_fin_current,
+    coalesce(lag.role_fin_lag, wc.role_fin_current) as role_fin_resolved,
+    case
+        when lag.role_fin_lag is not null then 'season_lag'
+        else                                   'match_slot'
+    end as role_source
+from with_current wc
+left join in_int_player_role_lag lag
+    on lag.player_id = wc.player_id
+   and lag.season    = wc.season
+),
+
+mdl_out AS (
+    SELECT
+        "match_id"                                                   AS str_match_id,
+        CAST(team_id AS VARCHAR)                                     AS str_team_id,
+        CAST(player_id AS VARCHAR)                                   AS str_player_id,
+        "season"                                                     AS str_season,
+        "gv_start"                                                   AS dec_gv_start,
+        "gh_start"                                                   AS dec_gh_start,
+        "role_fin_lag"                                               AS str_role_fin_lag,
+        "role_fin_current"                                           AS str_role_fin_current,
+        "role_fin_resolved"                                          AS str_role_fin_resolved,
+        "role_source"                                                AS str_role_source
+    FROM mdl_body
+)
+
+SELECT * FROM mdl_out

@@ -15,10 +15,10 @@ défensif) et 78 (imputation KNN) :
 Connexion en READ-ONLY : ce script ne modifie jamais la base.
 Lancement :  python pipelines/diagnostics/knn_diagnostic.py [--db db/football.duckdb]
 
-Note anti-leakage : les colonnes *_lag de gold.joueur_saison sont déjà décalées
+Note anti-leakage : les colonnes *_lag de gold.gold_player_match_rolling_profile sont déjà décalées
 dans le passé (fenêtre 38 apparitions ANTÉRIEURES, match courant exclu). Le
 diagnostic de stabilité, lui, repart des valeurs par match brutes
-(intermediate.player_match_stats) pour mesurer la reproductibilité d'un profil.
+(intermediate.intermediate_player_match_event_stats) pour mesurer la reproductibilité d'un profil.
 """
 
 import argparse
@@ -90,12 +90,12 @@ def stability(con, ks=(3, 5, 8, 10, 12, 15, 20, 25, 30)):
           SELECT str_player_id, str_team_id, str_match_id, dt_date, int_minutes_played,
                  dec_xg_contribution, int_n_shots, int_n_chances_created, int_n_key_passes,
                  int_n_tackles, int_n_interceptions, int_n_aerial_won, int_n_aerial_duels
-          FROM intermediate.player_match_stats
+          FROM intermediate.intermediate_player_match_event_stats
           QUALIFY ROW_NUMBER() OVER (
               PARTITION BY str_match_id, str_team_id, str_player_id ORDER BY dt_scraped_at DESC) = 1
         ),
         tc AS (SELECT str_match_id, str_player_id, SUM(dec_threat_conceded) dec_tc
-               FROM intermediate.threat_conceded WHERE str_match_id IS NOT NULL GROUP BY 1,2)
+               FROM intermediate.intermediate_threat_conceded_credits WHERE str_match_id IS NOT NULL GROUP BY 1,2)
         SELECT b.*, COALESCE(tc.dec_tc, 0) dec_threat
         FROM base b LEFT JOIN tc USING (str_match_id, str_player_id)
         WHERE int_minutes_played > 0
@@ -129,8 +129,8 @@ def stability(con, ks=(3, 5, 8, 10, 12, 15, 20, 25, 30)):
 
 # ── 3. CLUSTERS (silhouette + inertie) ───────────────────────────────────────
 def clusters(con, min_apps=10, gk_vertical_max=0.3):
-    """Profil courant par joueur (dernière ligne joueur_saison) enrichi de la
-    position moyenne (int_whoscored_lineup). On exclut les gardiens (position
+    """Profil courant par joueur (dernière ligne gold_player_match_rolling_profile) enrichi de la
+    position moyenne (intermediate_whoscored_lineup_period). On exclut les gardiens (position
     très basse) et on ne garde que les profils fiables (n_apps_lag ≥ seuil).
     KMeans standardisé k=2..8, silhouette + inertie, côté offensif et défensif.
     Silhouette modérée attendue : le style est un continuum."""
@@ -138,10 +138,10 @@ def clusters(con, min_apps=10, gk_vertical_max=0.3):
         WITH latest AS (
           SELECT * FROM (
             SELECT *, row_number() OVER (PARTITION BY str_player_id ORDER BY dt_date DESC) rn
-            FROM gold.joueur_saison) WHERE rn = 1
+            FROM gold.gold_player_match_rolling_profile) WHERE rn = 1
         ),
         pos AS (SELECT str_player_id, AVG(dec_grid_vertical) dec_gv, AVG(dec_grid_horizontal) dec_gh
-                FROM intermediate.int_whoscored_lineup GROUP BY 1)
+                FROM intermediate.intermediate_whoscored_lineup_period GROUP BY 1)
         SELECT l.*, pos.dec_gv, pos.dec_gh
         FROM latest l LEFT JOIN pos ON pos.str_player_id = l.str_player_id
         WHERE l.int_n_apps_lag >= {min_apps}
@@ -180,8 +180,8 @@ def main():
 
     con = duckdb.connect(str(Path(args.db)), read_only=True)
 
-    completion(con, "gold.joueur_saison", OFFENSIVE_PROFILE + DEFENSIVE_PROFILE)
-    completion(con, "gold.joueur_zone_saison", [
+    completion(con, "gold.gold_player_match_rolling_profile", OFFENSIVE_PROFILE + DEFENSIVE_PROFILE)
+    completion(con, "gold.gold_player_zone_season_lag", [
         "dec_off_touch_share_by_zone_lag", "dec_off_shot_volume_by_zone_lag",
         "dec_off_danger_by_zone_lag", "dec_off_progressive_actions_by_zone_lag",
         "dec_off_cross_volume_by_zone_lag", "dec_def_duel_win_rate_by_zone_lag",

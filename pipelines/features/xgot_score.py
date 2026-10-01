@@ -7,7 +7,7 @@ machine_learning.xgot_predictions (str_match_id, int_row_num, str_season,
 bool_is_goal, dec_xgot).
 
 C'est le « predict » du modèle auxiliaire xGOT — pendant de 05_predict.py pour le
-modèle 1N2 — consommé ensuite par int_keeper_psxg (shot-stopping du gardien).
+modèle 1N2 — consommé ensuite par intermediate_keeper_season_psxg (shot-stopping du gardien).
 
 Anti train/serve skew : les features sont construites via build_X importé de
 xgot_train (donc identiques à l'entraînement), puis alignées sur les colonnes
@@ -82,7 +82,7 @@ def main():
     p_raw = model.predict_proba(X)[:, 1]
     xgot  = calibrator.predict(p_raw)
 
-    # 5. Résultat au grain (str_match_id, int_row_num) — clé de jointure pour int_keeper_shots
+    # 5. Résultat au grain (str_match_id, int_row_num) — clé de jointure pour intermediate_keeper_shots_faced
     out = df[["str_match_id", "int_row_num", "str_season", "bool_is_goal"]].copy()
     out["dec_xgot"] = xgot
 
