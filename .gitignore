@@ -78,6 +78,7 @@ pipelines/old/
 *.tfstate.backup
 *.tfvars
 !terraform.tfvars.example
+*.tfplan
 
 # ── Notebooks ─────────────────────────────────────────────
 notebooks/.ipynb_checkpoints/

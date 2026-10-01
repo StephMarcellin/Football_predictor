@@ -21,18 +21,30 @@ provider "google" {
 resource "google_storage_bucket" "bronze" {
   name          = var.bucket_name
   location      = var.region
-  force_destroy = true    # permet de supprimer le bucket même s'il contient des fichiers
+    force_destroy = false   # terraform destroy refuse de supprimer un bucket non vide
 
-  # Versioning désactivé — on n'a pas besoin de garder l'historique des fichiers Bronze
+  # Versioning : un objet écrasé ou supprimé est conservé comme version "non courante"
   versioning {
-    enabled = false
+    enabled = true
   }
 
-  # Lifecycle — supprime automatiquement les fichiers de plus de 90 jours
-  # Évite que les coûts augmentent avec l'accumulation de vieux fichiers
+  # Règle 1 — sauvegardes : passage en Coldline après 30 jours
   lifecycle_rule {
     condition {
-      age = 90
+      age            = 30
+      matches_prefix = ["backup/"]
+    }
+    action {
+      type          = "SetStorageClass"
+      storage_class = "COLDLINE"
+    }
+  }
+
+  # Règle 2 — ménage : on supprime une version non courante dès qu'il en existe 3 plus récentes
+  lifecycle_rule {
+    condition {
+      num_newer_versions = 3
+      with_state         = "ARCHIVED"
     }
     action {
       type = "Delete"
