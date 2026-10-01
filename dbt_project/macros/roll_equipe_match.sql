@@ -34,7 +34,7 @@
     AVG(ppda)                      OVER ({{ f }}) AS ppda_rolling_{{ w }},
     AVG(ppda_allowed)              OVER ({{ f }}) AS ppda_allowed_rolling_{{ w }},
 
-    -- ══ Famille 3 — Style & identité (roulé depuis team_features_ws) ══════
+    -- ══ Famille 3 — Style & identité (roulé depuis intermediate_team_match_tactical) ══════
     AVG(ws_field_tilt_actions)     OVER ({{ f }}) AS field_tilt_rolling_{{ w }},
     AVG(ws_counter_attack_dna)     OVER ({{ f }}) AS counter_attack_dna_rolling_{{ w }},
     AVG(ws_attack_left_pct)        OVER ({{ f }}) AS attack_left_pct_rolling_{{ w }},
@@ -52,7 +52,7 @@
     AVG(ws_set_piece_pressure)     OVER ({{ f }}) AS set_piece_reliance_rolling_{{ w }},
     AVG(ws_defensive_line_height)  OVER ({{ f }}) AS defensive_line_height_rolling_{{ w }},
 
-    -- ══ Famille 8 — Discipline (partie native backbone ; corners/fautes
+    -- ══ Famille 8 — Discipline (partie native intermediate_team_match_backbone ; corners/fautes
     --    subies/tirs contrés à ajouter après agrégation des sources dédiées) ═
     AVG((yellow_cards + second_yellow_cards)::DOUBLE) OVER ({{ f }}) AS yellow_cards_rolling_{{ w }},
     AVG(fouls_committed)           OVER ({{ f }}) AS fouls_committed_rolling_{{ w }},

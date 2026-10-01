@@ -15,10 +15,10 @@ défensif) et 78 (imputation KNN) :
 Connexion en READ-ONLY : ce script ne modifie jamais la base.
 Lancement :  python pipelines/diagnostics/knn_diagnostic.py [--db db/football.duckdb]
 
-Note anti-leakage : les colonnes *_lag de gold.joueur_saison sont déjà décalées
+Note anti-leakage : les colonnes *_lag de gold.gold_player_match_rolling_profile sont déjà décalées
 dans le passé (fenêtre 38 apparitions ANTÉRIEURES, match courant exclu). Le
 diagnostic de stabilité, lui, repart des valeurs par match brutes
-(intermediate.player_match_stats) pour mesurer la reproductibilité d'un profil.
+(intermediate.intermediate_player_match_event_stats) pour mesurer la reproductibilité d'un profil.
 """
 
 import argparse
@@ -34,14 +34,14 @@ from sklearn.metrics import silhouette_score
 
 # ── Espaces de similarité (référence, colonnes des 2 tables profils) ──────────
 OFFENSIVE_PROFILE = [
-    "scorer_xg_per90_lag", "scorer_shots_per90_lag", "off_xg_per_shot_lag",
-    "scorer_team_shot_share_lag", "off_chances_created_per90_lag",
-    "off_key_passes_per90_lag", "off_xgchain_per90_lag", "off_xgbuildup_per90_lag",
-    "scorer_xgot_overperformance_lag",
+    "dec_scorer_xg_per90_lag", "dec_scorer_shots_per90_lag", "dec_off_xg_per_shot_lag",
+    "dec_scorer_team_shot_share_lag", "dec_off_chances_created_per90_lag",
+    "dec_off_key_passes_per90_lag", "dec_off_xgchain_per90_lag", "dec_off_xgbuildup_per90_lag",
+    "dec_scorer_xgot_overperformance_lag",
 ]
 DEFENSIVE_PROFILE = [
-    "def_aerial_win_rate_lag", "def_actions_per90_lag", "def_errors_per90_lag",
-    "def_threat_conceded_per90_lag",
+    "dec_def_aerial_win_rate_lag", "dec_def_actions_per90_lag", "dec_def_errors_per90_lag",
+    "dec_def_threat_conceded_per90_lag",
 ]
 
 
@@ -66,16 +66,16 @@ def completion(con, table, cols):
 def _half_profile(sub):
     """Profil agrégé d'un lot de matchs : volumes en per-90 (Σstat/Σmin×90) et
     ratios exacts. Un profil = un vecteur de features."""
-    m = sub.minutes_played.sum()
-    d = sub.n_aerial_duels.sum()
+    m = sub.int_minutes_played.sum()
+    d = sub.int_n_aerial_duels.sum()
     return {
-        "xg90":  sub.xg_contribution.sum() / m * 90,
-        "sh90":  sub.n_shots.sum() / m * 90,
-        "cc90":  sub.n_chances_created.sum() / m * 90,
-        "kp90":  sub.n_key_passes.sum() / m * 90,
-        "def90": (sub.n_tackles.sum() + sub.n_interceptions.sum()) / m * 90,
-        "aer":   (sub.n_aerial_won.sum() / d) if d > 0 else np.nan,
-        "thr90": sub.threat.sum() / m * 90,
+        "xg90":  sub.dec_xg_contribution.sum() / m * 90,
+        "sh90":  sub.int_n_shots.sum() / m * 90,
+        "cc90":  sub.int_n_chances_created.sum() / m * 90,
+        "kp90":  sub.int_n_key_passes.sum() / m * 90,
+        "def90": (sub.int_n_tackles.sum() + sub.int_n_interceptions.sum()) / m * 90,
+        "aer":   (sub.int_n_aerial_won.sum() / d) if d > 0 else np.nan,
+        "thr90": sub.dec_threat.sum() / m * 90,
     }
 
 
@@ -87,21 +87,21 @@ def stability(con, ks=(3, 5, 8, 10, 12, 15, 20, 25, 30)):
     Spearman-Brown projette la fiabilité d'un profil de 2k matchs : 2r/(1+r)."""
     df = con.sql("""
         WITH base AS (
-          SELECT player_id, team_id, match_id, date, minutes_played,
-                 xg_contribution, n_shots, n_chances_created, n_key_passes,
-                 n_tackles, n_interceptions, n_aerial_won, n_aerial_duels
-          FROM intermediate.player_match_stats
+          SELECT str_player_id, str_team_id, str_match_id, dt_date, int_minutes_played,
+                 dec_xg_contribution, int_n_shots, int_n_chances_created, int_n_key_passes,
+                 int_n_tackles, int_n_interceptions, int_n_aerial_won, int_n_aerial_duels
+          FROM intermediate.intermediate_player_match_event_stats
           QUALIFY ROW_NUMBER() OVER (
-              PARTITION BY match_id, team_id, player_id ORDER BY scraped_at DESC) = 1
+              PARTITION BY str_match_id, str_team_id, str_player_id ORDER BY dt_scraped_at DESC) = 1
         ),
-        tc AS (SELECT match_id, player_id, SUM(threat_conceded) tc
-               FROM intermediate.threat_conceded WHERE match_id IS NOT NULL GROUP BY 1,2)
-        SELECT b.*, COALESCE(tc.tc, 0) threat
-        FROM base b LEFT JOIN tc USING (match_id, player_id)
-        WHERE minutes_played > 0
-    """).df().sort_values(["player_id", "date", "match_id"])
+        tc AS (SELECT str_match_id, str_player_id, SUM(dec_threat_conceded) dec_tc
+               FROM intermediate.intermediate_threat_conceded_credits WHERE str_match_id IS NOT NULL GROUP BY 1,2)
+        SELECT b.*, COALESCE(tc.dec_tc, 0) dec_threat
+        FROM base b LEFT JOIN tc USING (str_match_id, str_player_id)
+        WHERE int_minutes_played > 0
+    """).df().sort_values(["str_player_id", "dt_date", "str_match_id"])
 
-    groups = {pid: sub for pid, sub in df.groupby("player_id", sort=False)}
+    groups = {pid: sub for pid, sub in df.groupby("str_player_id", sort=False)}
     feats = ["xg90", "sh90", "cc90", "kp90", "def90", "aer", "thr90"]
 
     print("\n===== STABILITÉ (fiabilité split-half du profil joueur) =====")
@@ -129,27 +129,27 @@ def stability(con, ks=(3, 5, 8, 10, 12, 15, 20, 25, 30)):
 
 # ── 3. CLUSTERS (silhouette + inertie) ───────────────────────────────────────
 def clusters(con, min_apps=10, gk_vertical_max=0.3):
-    """Profil courant par joueur (dernière ligne joueur_saison) enrichi de la
-    position moyenne (int_whoscored_lineup). On exclut les gardiens (position
+    """Profil courant par joueur (dernière ligne gold_player_match_rolling_profile) enrichi de la
+    position moyenne (intermediate_whoscored_lineup_period). On exclut les gardiens (position
     très basse) et on ne garde que les profils fiables (n_apps_lag ≥ seuil).
     KMeans standardisé k=2..8, silhouette + inertie, côté offensif et défensif.
     Silhouette modérée attendue : le style est un continuum."""
     df = con.sql(f"""
         WITH latest AS (
           SELECT * FROM (
-            SELECT *, row_number() OVER (PARTITION BY player_id ORDER BY date DESC) rn
-            FROM gold.joueur_saison) WHERE rn = 1
+            SELECT *, row_number() OVER (PARTITION BY str_player_id ORDER BY dt_date DESC) rn
+            FROM gold.gold_player_match_rolling_profile) WHERE rn = 1
         ),
-        pos AS (SELECT player_id, AVG(grid_vertical) gv, AVG(grid_horizontal) gh
-                FROM intermediate.int_whoscored_lineup GROUP BY 1)
-        SELECT l.*, pos.gv, pos.gh
-        FROM latest l LEFT JOIN pos ON pos.player_id = CAST(l.player_id AS BIGINT)
-        WHERE l.n_apps_lag >= {min_apps}
+        pos AS (SELECT str_player_id, AVG(dec_grid_vertical) dec_gv, AVG(dec_grid_horizontal) dec_gh
+                FROM intermediate.intermediate_whoscored_lineup_period GROUP BY 1)
+        SELECT l.*, pos.dec_gv, pos.dec_gh
+        FROM latest l LEFT JOIN pos ON pos.str_player_id = l.str_player_id
+        WHERE l.int_n_apps_lag >= {min_apps}
     """).df()
 
-    gk = df.gv.notna() & (df.gv <= gk_vertical_max)
+    gk = df.dec_gv.notna() & (df.dec_gv <= gk_vertical_max)
     d = df[~gk].copy()
-    d["width"] = (d.gh - 5).abs()
+    d["dec_width"] = (d.dec_gh - 5).abs()
     print(f"\n===== CLUSTERS (joueurs ≥{min_apps} apps, {gk.sum()} gardiens exclus) =====")
 
     def run(name, feats):
@@ -164,7 +164,7 @@ def clusters(con, min_apps=10, gk_vertical_max=0.3):
             sil = silhouette_score(Xs[idx], km.labels_[idx])
             print(f"{k:>2} {sil:11.3f} {km.inertia_:12.0f}")
 
-    pos_feats = ["gv", "width"]
+    pos_feats = ["dec_gv", "dec_width"]
     run("OFFENSIF profil seul", OFFENSIVE_PROFILE)
     run("OFFENSIF profil + position", OFFENSIVE_PROFILE + pos_feats)
     run("DÉFENSIF profil seul", DEFENSIVE_PROFILE)
@@ -180,12 +180,12 @@ def main():
 
     con = duckdb.connect(str(Path(args.db)), read_only=True)
 
-    completion(con, "gold.joueur_saison", OFFENSIVE_PROFILE + DEFENSIVE_PROFILE)
-    completion(con, "gold.joueur_zone_saison", [
-        "off_touch_share_by_zone_lag", "off_shot_volume_by_zone_lag",
-        "off_danger_by_zone_lag", "off_progressive_actions_by_zone_lag",
-        "off_cross_volume_by_zone_lag", "def_duel_win_rate_by_zone_lag",
-        "def_actions_by_zone_lag"])
+    completion(con, "gold.gold_player_match_rolling_profile", OFFENSIVE_PROFILE + DEFENSIVE_PROFILE)
+    completion(con, "gold.gold_player_zone_season_lag", [
+        "dec_off_touch_share_by_zone_lag", "dec_off_shot_volume_by_zone_lag",
+        "dec_off_danger_by_zone_lag", "dec_off_progressive_actions_by_zone_lag",
+        "dec_off_cross_volume_by_zone_lag", "dec_def_duel_win_rate_by_zone_lag",
+        "dec_def_actions_by_zone_lag"])
 
     if not args.skip_stability:
         stability(con)

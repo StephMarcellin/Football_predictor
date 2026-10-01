@@ -1,0 +1,46 @@
+# ═════════════════════════════════════════════════════════════════════
+# Suite Great Expectations — gold.gold_team_match_keeper (GÉNÉRÉE AUTO 2026-09-09)
+# Volumétrie : 33,461 lignes, 6 colonnes
+# Bornes empiriques ± marge — à raffiner si nécessaire.
+# ═════════════════════════════════════════════════════════════════════
+
+suite_name: gold.gold_team_match_keeper
+description: >
+  Suite auto-générée le 2026-09-09 pour gold.gold_team_match_keeper.
+  Volumétrie de référence : 33,461 lignes.
+
+source:
+  duckdb_path: db/football.duckdb
+  query: |
+    SELECT "str_match_id", "str_team_id", "dec_keeper_psxg_plus_minus_lag", "dec_keeper_psxg_per_shot_lag", "dec_keeper_save_pct_lag", "int_keeper_shots_faced_lag" FROM gold."gold_team_match_keeper"
+
+expectations:
+
+  # ── VOLUMÉTRIE ──
+  - type: expect_table_row_count_to_be_between
+    kwargs: { min_value: 13384, max_value: 66922 }
+    # severity: error
+    severity: warn
+    meta: { description: "Empirique = 33,461. Bornes [13,384, 66,922]." }
+
+  # ── COMPLÉTION AVEC NULLs EMPIRIQUES (mostly = 1 - empirique - 5pts) ──
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: str_match_id, mostly: 0.9484 }
+    severity: warn
+    meta: { description: "Empirique 0.16% NULL." }
+  - type: expect_column_values_to_not_be_null
+    kwargs: { column: str_team_id, mostly: 0.95 }
+    severity: warn
+    meta: { description: "Empirique 0.00% NULL." }
+
+  # ── COLONNES 100% NULL (documentées, pas testées) ──
+  # keeper_psxg_plus_minus_lag : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+  # keeper_psxg_per_shot_lag : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+  # keeper_save_pct_lag : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+  # keeper_shots_faced_lag : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+
+  # ── BORNES DE VALEURS NUMÉRIQUES ──
+  - type: expect_column_values_to_be_between
+    kwargs: { column: str_team_id, min_value: 202606099958, max_value: 202606100469, mostly: 1.0 }
+    severity: warn
+    meta: { description: "Empirique [202606100001, 202606100426], mean=2.03e+11." }

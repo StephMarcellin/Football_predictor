@@ -3,7 +3,7 @@
 run_features_engineering.py — Orchestrateur PHASE 3 : Feature Engineering
 =========================================================================
 Transforme données Silver en features ML via dbt + modèles Python :
-    1. dbt_run       : backbone + intermediate + stubs (xt_actions, xgot_features)
+    1. dbt_run       : intermediate_team_match_backbone + intermediate + stubs (xt_actions, xgot_features)
     2. xt_grid.py    : calcule grille Expected Threat 2D (~3h)
     3. xgot_score.py : applique modèle xGOT keeper (~2h)
     4. knn_impute.py : impute valeurs manquantes (~1h)
@@ -23,7 +23,7 @@ Usage :
     python run_features_engineering.py --serve            # scheduler Prefect (bloquant)
 
     Le flux `daily` suppose que models/xgot.joblib et machine_learning.xt_grid
-    existent déjà (xgot_score et int_xt_contributions les consomment).
+    existent déjà (xgot_score et intermediate_xt_contributions les consomment).
     Sur une base neuve, lance `--flow yearly` d'abord pour produire ces artefacts.
 """
 
@@ -102,6 +102,7 @@ SPARK_CHECK  = "check_spark_outputs.py"
 
 TABLES_UPDATE = [
     "validate_silver",                                # gate d'entrée
+    "dbt_intermediate_match_index",                     
     "export_to_parquet",                               # export Silver → Parquet
     "spark_events",                                    # calcule les événements (Spark)
     "check_spark_outputs",                             # validation des exports Spark
@@ -111,6 +112,7 @@ TABLES_UPDATE = [
     "xgot_score",
     "dbt_intermediate_downstream",
     "validate_intermediate",                          # après matérialisation intermediate
+    "dbt_gold_base",
     "knn_impute",
     "dbt_joueur_match",
     "dbt_test",
@@ -153,13 +155,22 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
             "critical": True,
         },
 
+        "dbt_intermediate_match_index": {
+            "fn": run_dbt_run,
+            "kwargs": {
+                "select": "intermediate.intermediate_whoscored_match_bridge",
+                "full_refresh": full_refresh,
+            },
+            "critical": True,
+        },
+
         # ── 0b. Frontière DuckDB → Spark (ADR-010) ───────────────────────────
         "export_to_parquet": {
             "fn": run_spark_job,
             "kwargs": {"script_name": SPARK_EXPORT, "extra_args": ["--clean", "--strict"]},
             "critical": True,
         },
-        # Produit int_whoscored_events / events_qual / int_event_enriched en
+        # Produit intermediate_whoscored_events / intermediate_whoscored_event_qualifiers / intermediate_whoscored_events_enriched en
         # Parquet. Les vues dbt du schéma intermediate lisent ces fichiers.
         "spark_events": {
             "fn": run_spark_job,
@@ -179,7 +190,7 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
             "fn": run_dbt_run,
             "kwargs": {
                 "select": "intermediate.*",
-                "exclude": "int_xt_contributions int_keeper_shots int_keeper_psxg",
+                "exclude": "intermediate_xt_contributions intermediate_keeper_shots_faced intermediate_keeper_season_psxg",
                 "full_refresh": full_refresh,
             },
             "critical": True,
@@ -219,7 +230,7 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
         "dbt_intermediate_downstream": {
             "fn": run_dbt_run,
             "kwargs": {
-                "select": "int_xt_contributions int_keeper_shots int_keeper_psxg",
+                "select": "intermediate_xt_contributions intermediate_keeper_shots_faced intermediate_keeper_season_psxg",
                 "full_refresh": full_refresh,
             },
             "critical": True,
@@ -232,12 +243,12 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
             "critical": True,
         },
 
-        # ── 8. Gold base (hors joueur_match) ─────────────────────────────────
+        # ── 8. Gold base (hors gold_player_match_scorer) ─────────────────────────────────
         "dbt_gold_base": {
             "fn": run_dbt_run,
             "kwargs": {
                 "select": "gold.*",
-                "exclude": "joueur_match",
+                "exclude": "gold_player_match_scorer",
                 "full_refresh": full_refresh,
             },
             "critical": True,
@@ -246,7 +257,7 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
         # ── 9. Imputation KNN (Py) ───────────────────────────────────────────
         "knn_impute": {
             "fn": mod_knn.main,
-            "kwargs": {},
+            "kwargs": {"write": True},
             "critical": True,
         },
 
@@ -254,7 +265,7 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
         "dbt_joueur_match": {
             "fn": run_dbt_run,
             "kwargs": {
-                "select": "gold.joueur_match",
+                "select": "gold.gold_player_match_scorer",
                 "full_refresh": full_refresh,
             },
             "critical": True,
@@ -282,8 +293,8 @@ def build_table_steps(cfg: dict, full_refresh: bool = False) -> dict:
     """Catalogue des steps de construction des tables (blocs --flow daily / yearly).
 
     Les frontières de phase autour du KNN/xgot viennent du DAG dbt
-    (opérateur '+' : int_keeper_shots+ = la chaîne gardien jusqu'aux marts ;
-    joueur_match+ = jusqu'à mart_scorers).
+    (opérateur '+' : intermediate_keeper_shots_faced+ = la chaîne gardien jusqu'aux marts ;
+    gold_player_match_scorer+ = jusqu'à mart_scorers).
     """
     mod_xt         = import_from_path("xt_grid_mod", MOD_XT_GRID)
     mod_xgot_train = import_from_path("xgot_train_mod", MOD_XGOT_TRAIN)
@@ -293,9 +304,18 @@ def build_table_steps(cfg: dict, full_refresh: bool = False) -> dict:
     return {
         # ── flow daily (TABLES_UPDATE) ───────────────────────────────────────
         # ── 0. Gate d'entrée (validation Silver) ───────────────────────────────
-            "validate_silver": {
+        "validate_silver": {
                 "fn": run_validate_silver,
                 "kwargs": {},
+                "critical": True,
+            },
+
+        "dbt_intermediate_match_index": {
+                "fn": run_dbt_run,
+                "kwargs": {
+                    "select": "intermediate.intermediate_whoscored_match_bridge",
+                    "full_refresh": full_refresh,
+                },
                 "critical": True,
             },
         # ── 0b. Frontière DuckDB → Spark (ADR-010) ───────────────────────────
@@ -304,7 +324,7 @@ def build_table_steps(cfg: dict, full_refresh: bool = False) -> dict:
             "kwargs": {"script_name": SPARK_EXPORT, "extra_args": ["--clean", "--strict"]},
             "critical": True,
         },
-        # Produit int_whoscored_events / events_qual / int_event_enriched en
+        # Produit intermediate_whoscored_events / intermediate_whoscored_event_qualifiers / intermediate_whoscored_events_enriched en
         # Parquet. Les vues dbt du schéma intermediate lisent ces fichiers.
         "spark_events": {
             "fn": run_spark_job,
@@ -324,7 +344,7 @@ def build_table_steps(cfg: dict, full_refresh: bool = False) -> dict:
                 "fn": run_dbt_run,
                 "kwargs": {
                     "select": "intermediate.*",
-                    "exclude": "int_xt_contributions int_keeper_shots int_keeper_psxg",
+                    "exclude": "intermediate_xt_contributions intermediate_keeper_shots_faced intermediate_keeper_season_psxg",
                     "full_refresh": full_refresh,
                 },
                 "critical": True,
@@ -354,7 +374,7 @@ def build_table_steps(cfg: dict, full_refresh: bool = False) -> dict:
             "dbt_intermediate_downstream": {
                 "fn": run_dbt_run,
                 "kwargs": {
-                    "select": "int_xt_contributions int_keeper_shots int_keeper_psxg",
+                    "select": "intermediate_xt_contributions intermediate_keeper_shots_faced intermediate_keeper_season_psxg",
                     "full_refresh": full_refresh,
                 },
                 "critical": True,
@@ -367,12 +387,12 @@ def build_table_steps(cfg: dict, full_refresh: bool = False) -> dict:
                 "critical": True,
             },
     
-            # ── 8. Gold base (hors joueur_match) ─────────────────────────────────
+            # ── 8. Gold base (hors gold_player_match_scorer) ─────────────────────────────────
             "dbt_gold_base": {
                 "fn": run_dbt_run,
                 "kwargs": {
                     "select": "gold.*",
-                    "exclude": "joueur_match",
+                    "exclude": "gold_player_match_scorer",
                     "full_refresh": full_refresh,
                 },
                 "critical": True,
@@ -381,7 +401,7 @@ def build_table_steps(cfg: dict, full_refresh: bool = False) -> dict:
             # ── 9. Imputation KNN (Py) ───────────────────────────────────────────
             "knn_impute": {
                 "fn": mod_knn.main,
-                "kwargs": {},
+                "kwargs": {"write": True},
                 "critical": True,
             },
     
@@ -389,7 +409,7 @@ def build_table_steps(cfg: dict, full_refresh: bool = False) -> dict:
             "dbt_joueur_match": {
                 "fn": run_dbt_run,
                 "kwargs": {
-                    "select": "gold.joueur_match",
+                    "select": "gold.gold_player_match_scorer",
                     "full_refresh": full_refresh,
                 },
                 "critical": True,

@@ -15,9 +15,27 @@
 --   SELECT team, season FROM audits.scraping_targets_int_fbref_keeper;
 -- ══════════════════════════════════════════════════════════════════════════════
 
+-- ══ Refonte nommage (préfixe de type en tête de nom : str_, int_, dec_, dt_, bool_) ══
+-- Entrées : les modèles amont refondus sont relus via des CTE in_<modèle> qui les
+-- remappent vers les noms/types de travail utilisés par la logique ci-dessous
+-- (inchangée). Sortie : CTE mdl_out, renommage + cast selon le type logique.
+
+WITH
+
+mdl_body AS (
 SELECT DISTINCT
     team,
     season
 FROM {{ source('silver', 'fbref_keeper') }}
 WHERE ga_keeper > sota
 ORDER BY season DESC, team
+),
+
+mdl_out AS (
+    SELECT
+        "team"                                                       AS str_team,
+        "season"                                                     AS str_season
+    FROM mdl_body
+)
+
+SELECT * FROM mdl_out

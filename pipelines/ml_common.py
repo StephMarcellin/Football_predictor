@@ -22,12 +22,26 @@ MODELS_DIR = ROOT_DIR / "models"
 MODELS_DIR.mkdir(exist_ok=True)
 
 # Identifiants / clés : jamais des features.
-ID_COLS = ["match_id", "team_id", "opponent_id", "player_id",
-           "date", "season", "league_source"]
+# Noms refondus (préfixe de type en tête), tels qu'exposés par les marts dbt.
+ID_COLS = ["str_match_id", "str_team_id", "str_opponent_id", "str_player_id",
+           "dt_date", "str_season", "str_league_source"]
 
 # Cotes / marché : jamais des features (value betting = proba_modèle vs marché).
 # Présentes dans les marts pour le backtest, mais bannies de l'entraînement.
+# Depuis la refonte du nommage dbt, ces colonnes portent un préfixe de type
+# (dec_odds_…, dec_pinnacle_…) : on le retire avant de tester le préfixe métier
+# (sinon les cotes redeviendraient des features, silencieusement).
 MARKET_PREFIXES = ("odds", "pinnacle", "market")
+TYPE_PREFIXES = ("str_", "int_", "dec_", "dt_", "bool_")
+
+
+def _is_market_col(col):
+    base = col
+    for p in TYPE_PREFIXES:
+        if base.startswith(p):
+            base = base[len(p):]
+            break
+    return base.startswith(MARKET_PREFIXES)
 
 
 def load_configs():
@@ -53,7 +67,7 @@ def prepare_x(df, target, exclude):
     numérique)."""
     drop = set(ID_COLS + [target] + list(exclude or []))
     keep = [c for c in df.columns
-            if c not in drop and not c.startswith(MARKET_PREFIXES)]
+            if c not in drop and not _is_market_col(c)]
     X = df[keep].copy()
     for c in X.columns:
         if X[c].dtype == "bool":
@@ -65,9 +79,9 @@ def prepare_x(df, target, exclude):
 
 def temporal_split(df, cfg):
     """Masques train / val / test par saison (config.yaml → train:)."""
-    tr = df["season"].isin(cfg["train"]["TRAIN_SEASONS"])
-    va = df["season"].isin(cfg["train"]["VAL_SEASONS"])
-    te = df["season"] == cfg["train"]["TEST_SEASON"]
+    tr = df["str_season"].isin(cfg["train"]["TRAIN_SEASONS"])
+    va = df["str_season"].isin(cfg["train"]["VAL_SEASONS"])
+    te = df["str_season"] == cfg["train"]["TEST_SEASON"]
     return tr, va, te
 
 

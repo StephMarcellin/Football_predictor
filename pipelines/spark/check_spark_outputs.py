@@ -96,7 +96,7 @@ def check_table(con, out_dir: Path, name: str, min_rows: int) -> dict:
     # La lecture elle-même valide que les fichiers ne sont pas corrompus :
     # un Parquet tronqué lève ici, pas trois modèles plus loin.
     n_rows, n_seasons = con.execute(f"""
-        SELECT COUNT(*), COUNT(DISTINCT season)
+        SELECT COUNT(*), COUNT(DISTINCT str_season)   -- partition refondue
         FROM read_parquet('{glob}', hive_partitioning = 1)
     """).fetchone()
 

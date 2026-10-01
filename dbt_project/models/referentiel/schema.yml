@@ -1,0 +1,29 @@
+version: 2
+
+models:
+  - name: referentiel_teams
+    description: >
+      Dimension équipe — 1 ligne par team_id canonique, dérivée de
+      referentiel.team_mapping (grain alias). À utiliser pour récupérer le nom
+      de club à partir d'un team_id sans dupliquer les lignes.
+    columns:
+      - name: str_team_id
+        description: "Identifiant canonique de l'équipe"
+        tests:
+          - not_null
+          - unique
+      - name: str_club_name
+        description: "Nom standard du club"
+        tests:
+          - not_null
+      - name: int_n_club_names
+        description: >
+          Nombre de club_name distincts pour ce team_id dans team_mapping.
+          Doit valoir 1 ; > 1 signale une incohérence du mapping.
+        tests:
+          - accepted_values:
+              arguments:
+                values: [1]
+                quote: false
+              config:
+                severity: warn

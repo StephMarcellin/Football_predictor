@@ -26,9 +26,9 @@ import ml_common as mc
 
 # (issue, proba modèle, proba pinnacle, proba moyenne, proba clôture pinnacle, cote)
 OUTCOMES = [
-    ("H", "p_H", "pinnacle_prob_team", "market_prob_team", "pinnacle_prob_close_team", "odds_pinnacle_team"),
-    ("D", "p_D", "pinnacle_prob_draw", "market_prob_draw", "pinnacle_prob_close_draw", "odds_pinnacle_draw"),
-    ("A", "p_A", "pinnacle_prob_opp",  "market_prob_opp",  "pinnacle_prob_close_opp",  "odds_pinnacle_opp"),
+    ("H", "p_H", "dec_pinnacle_prob_team", "dec_market_prob_team", "dec_pinnacle_prob_close_team", "dec_odds_pinnacle_team"),
+    ("D", "p_D", "dec_pinnacle_prob_draw", "dec_market_prob_draw", "dec_pinnacle_prob_close_draw", "dec_odds_pinnacle_draw"),
+    ("A", "p_A", "dec_pinnacle_prob_opp",  "dec_market_prob_opp",  "dec_pinnacle_prob_close_opp",  "dec_odds_pinnacle_opp"),
 ]
 
 
@@ -37,23 +37,23 @@ def build_bets(cfg, season):
     résultat. On prépare X sur TOUT le mart (encodage catégoriel cohérent avec
     l'entraînement) avant de filtrer sur la saison."""
     df = mc.load_mart(cfg, "mart_1n2")
-    df = df[df["result_1n2"].notna()].copy()
+    df = df[df["str_result_1n2"].notna()].copy()
     bundle = joblib.load(mc.MODELS_DIR / "resultat_1n2.joblib")
     model, feats = bundle["model"], bundle["features"]
 
-    X = mc.prepare_x(df, "result_1n2", None).reindex(columns=feats, fill_value=0)
+    X = mc.prepare_x(df, "str_result_1n2", None).reindex(columns=feats, fill_value=0)
     proba = model.predict_proba(X)
     df["p_H"], df["p_D"], df["p_A"] = proba[:, 0], proba[:, 1], proba[:, 2]
 
-    df = df[(df["season"] == season) & (df["is_home"] == True)
-            & df["odds_pinnacle_team"].notna()]
+    df = df[(df["str_season"] == season) & (df["int_is_home"] == 1)
+            & df["dec_odds_pinnacle_team"].notna()]
     parts = []
     for out, pcol, pin, avg, pinc, odd in OUTCOMES:
         parts.append(pd.DataFrame({
-            "match_id": df["match_id"].values, "date": df["date"].values, "outcome": out,
+            "str_match_id": df["str_match_id"].values, "dt_date": df["dt_date"].values, "outcome": out,
             "p_model": df[pcol].values, "p_pinnacle": df[pin].values, "p_avg": df[avg].values,
             "p_close": df[pinc].values, "odds": df[odd].values,
-            "won": (df["result_1n2"] == out).astype(int).values,
+            "won": (df["str_result_1n2"] == out).astype(int).values,
         }))
     bets = pd.concat(parts, ignore_index=True)
     bets["clv_vs_pinnacle"] = bets["p_close"] - bets["p_pinnacle"]   # >0 = clôture vers nous
@@ -66,7 +66,7 @@ def run(bets, market, edge_min, conf_min, kelly_frac, bankroll_init):
     pm = bets["p_" + market]
     sel = ((bets["p_model"] - pm) > edge_min) & (bets["p_model"] > conf_min) \
         & (bets["odds"] > 1) & pm.notna()
-    b = bets[sel].sort_values("date")
+    b = bets[sel].sort_values("dt_date")
     if len(b) == 0:
         return dict(n=0, hit=0.0, roi=0.0, bankroll=bankroll_init, clv=0.0)
 
@@ -94,7 +94,7 @@ def main(season):
     bank0 = bt.get("BANKROLL_INIT", 1000.0)
 
     bets = build_bets(cfg, season)
-    print(f"Saison {season} : {bets['match_id'].nunique():,} matchs, "
+    print(f"Saison {season} : {bets['str_match_id'].nunique():,} matchs, "
           f"{len(bets):,} paris candidats  (conf≥{conf}, Kelly×{kelly})\n")
     print(f"{'marché':10}{'edge≥':>7}{'nBets':>7}{'hit%':>7}{'ROI%':>8}{'CLV%':>7}{'bankroll':>10}")
     for market in ["pinnacle", "avg"]:

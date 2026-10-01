@@ -1,5 +1,5 @@
 """
-Bridge pytest → suite Great Expectations pour gold.equipe_confrontation_zone.
+Bridge pytest → suite Great Expectations pour gold.gold_team_match_corridor_matchup.
 
 Ce test ne valide pas de logique Python — il rend simplement la suite GE
 visible dans le rapport pytest (utile pour la CI GitHub Actions).
@@ -12,10 +12,10 @@ import pytest
 
 from tests.great_expectations.runner import run_suite
 
-SUITE_PATH = Path(__file__).resolve().parents[1] / "great_expectations" / "gold" / "equipe_confrontation_zone.yml"
+SUITE_PATH = Path(__file__).resolve().parents[1] / "great_expectations" / "gold" / "gold_team_match_corridor_matchup.yml"
 
 
-def test_ge_suite_equipe_confrontation_zone():
+def test_ge_suite_gold_team_match_corridor_matchup():
     """Exécute la suite GE et échoue si une expectation `error` échoue."""
     if not SUITE_PATH.exists():
         pytest.skip(f"Suite YAML absente : {SUITE_PATH}")

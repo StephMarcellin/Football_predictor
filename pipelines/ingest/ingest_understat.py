@@ -54,10 +54,10 @@ def process_understat(con: duckdb.DuckDBPyConnection) -> None:
         df = standardize_date(df)
 
         df = drop_unused_cols(df)
-        df = apply_cat_c_rejection(df, f"understat/{subtype}")
+        # df = apply_cat_c_rejection(df, f"understat/{subtype}")
         df = cast_numeric_cols(df)
-        df = apply_cat_a_zerofill(df, f"understat/{subtype}")
-        df = apply_cat_d_outliers(df, f"understat/{subtype}")
+        # df = apply_cat_a_zerofill(df, f"understat/{subtype}")
+        # df = apply_cat_d_outliers(df, f"understat/{subtype}")
         df = remove_duplicates(df, ["match_id", "home_team", "away_team"], f"understat/{subtype}")
 
         if all(c in df.columns for c in ["home_team", "away_team", "league_source", "season"]):

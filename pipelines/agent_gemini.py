@@ -87,7 +87,7 @@ un pipeline de prédiction de matchs de football.
 
 Le pipeline comporte 6 étapes dans cet ordre :
   1. dbt_seed  — Charge les référentiels (team_mapping, transfermarkt_clubs)
-  2. dbt_run   — Construit toute la chaîne Gold via dbt (backbone, features_rolling,
+  2. dbt_run   — Construit toute la chaîne Gold via dbt (intermediate_team_match_backbone, features_rolling,
                  features_whoscored, features_draw, features_final)
   3. dbt_test  — Exécute les 235 tests qualité automatiques sur les données Gold
   4. train     — Entraînement du modèle LightGBM two-stage (04_train.py)

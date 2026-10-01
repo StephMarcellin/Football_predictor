@@ -1,0 +1,188 @@
+2026-09-24 17:09:19 — INFO — Running with edr=0.26.0
+2026-09-24 17:09:21 — DEBUG — Resolved adapter type 'duckdb' for target 'dev'
+2026-09-24 17:09:21 — DEBUG — Profile 'elementary' not found in profiles.yml
+2026-09-24 17:09:21 — INFO — Installing packages for edr internal dbt package...
+2026-09-24 17:09:21 — INFO — Running dbt command --log-format json deps --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project
+2026-09-24 17:09:27 — DEBUG — Running dbt command --log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_latest_invocation", "macro_args": {}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project
+[31;20m2026-09-24 17:09:28 — ERROR — Unable to get the latest invocation: Failed to run dbt command.
+Runtime Error
+  Could not find profile named 'elementary'[0m
+2026-09-24 17:09:28 — DEBUG — Running dbt command --log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_adapter_type_and_unique_id", "macro_args": {}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project
+2026-09-24 17:09:29 — DEBUG — Could not get warehouse info.
+Traceback (most recent call last):
+  File "C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\data_monitoring\data_monitoring.py", line 142, in _get_warehouse_info
+    self.internal_dbt_runner.run_operation(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        "elementary_cli.get_adapter_type_and_unique_id", quiet=True
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )[0]
+    ^
+  File "C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\clients\dbt\command_line_dbt_runner.py", line 369, in run_operation
+    result = self._run_command(
+        command_args=command_args,
+    ...<2 lines>...
+        log_output=log_output,
+    )
+  File "C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\clients\dbt\command_line_dbt_runner.py", line 227, in _run_command
+    return self._inner_run_command_with_retries(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        dbt_command_args=dbt_command_args,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+        log_format=log_format,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\dev\Projet_3etoiles\.venv\Lib\site-packages\tenacity\__init__.py", line 331, in wrapped_f
+    return copy(f, *args, **kw)
+  File "C:\dev\Projet_3etoiles\.venv\Lib\site-packages\tenacity\__init__.py", line 470, in __call__
+    do = self.iter(retry_state=retry_state)
+  File "C:\dev\Projet_3etoiles\.venv\Lib\site-packages\tenacity\__init__.py", line 371, in iter
+    result = action(retry_state)
+  File "C:\dev\Projet_3etoiles\.venv\Lib\site-packages\tenacity\__init__.py", line 393, in <lambda>
+    self._add_action_func(lambda rs: rs.outcome.result())
+                                     ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\marce\AppData\Local\Programs\Python\Python313\Lib\concurrent\futures\_base.py", line 449, in result
+    return self.__get_result()
+           ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\marce\AppData\Local\Programs\Python\Python313\Lib\concurrent\futures\_base.py", line 401, in __get_result
+    raise self._exception
+  File "C:\dev\Projet_3etoiles\.venv\Lib\site-packages\tenacity\__init__.py", line 473, in __call__
+    result = fn(*args, **kwargs)
+  File "C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\clients\dbt\command_line_dbt_runner.py", line 264, in _inner_run_command_with_retries
+    result = self._inner_run_command(
+        dbt_command_args,
+    ...<2 lines>...
+        log_format=log_format,
+    )
+  File "C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\clients\dbt\api_dbt_runner.py", line 59, in _inner_run_command
+    raise DbtCommandError(
+    ...<3 lines>...
+    )
+elementary.exceptions.exceptions.DbtCommandError: Failed to run dbt command.
+Runtime Error
+  Could not find profile named 'elementary'
+2026-09-24 17:09:29 — DEBUG — Running dbt command --log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_elementary_database_and_schema", "macro_args": {}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project
+[31;20m2026-09-24 17:09:30 — ERROR — Failed to parse Elementary's database and schema.[0m
+2026-09-24 17:09:30 — INFO — Running dbt command --log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_test_results", "macro_args": {"days_back": 7, "invocations_per_test": 720, "disable_passed_test_metrics": false, "skip_test_result_rows": false}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project
+[31;20m2026-09-24 17:09:30 — ERROR — Could not generate the report - Error: Failed to run dbt command.
+Runtime Error
+  Could not find profile named 'elementary'
+Please reach out to our community for help with this issue.[0m
+Traceback (most recent call last):
+  File "C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\api\report\report.py", line 85, in get_report_data
+    tests_api = TestsAPI(
+        dbt_runner=self.dbt_runner,
+    ...<3 lines>...
+        skip_test_result_rows=skip_test_result_rows,
+    )
+  File "C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\api\tests\tests.py", line 53, in __init__
+    self.test_results_db_rows = self._get_test_results_db_rows(
+                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        days_back=days_back,
+        ^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        skip_test_result_rows=skip_test_result_rows,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\api\tests\tests.py", line 67, in _get_test_results_db_rows
+    return self.tests_fetcher.get_all_test_results_db_rows(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        days_back=days_back,
+        ^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        skip_test_result_rows=skip_test_result_rows,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\fetchers\tests\tests.py", line 27, in get_all_test_results_db_rows
+    run_operation_response = self.dbt_runner.run_operation(
+        macro_name="elementary_cli.get_test_results",
+    ...<5 lines>...
+        ),
+    )
+  File "C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\clients\dbt\command_line_dbt_runner.py", line 369, in run_operation
+    result = self._run_command(
+        command_args=command_args,
+    ...<2 lines>...
+        log_output=log_output,
+    )
+  File "C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\clients\dbt\command_line_dbt_runner.py", line 227, in _run_command
+    return self._inner_run_command_with_retries(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        dbt_command_args=dbt_command_args,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+        log_format=log_format,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\dev\Projet_3etoiles\.venv\Lib\site-packages\tenacity\__init__.py", line 331, in wrapped_f
+    return copy(f, *args, **kw)
+  File "C:\dev\Projet_3etoiles\.venv\Lib\site-packages\tenacity\__init__.py", line 470, in __call__
+    do = self.iter(retry_state=retry_state)
+  File "C:\dev\Projet_3etoiles\.venv\Lib\site-packages\tenacity\__init__.py", line 371, in iter
+    result = action(retry_state)
+  File "C:\dev\Projet_3etoiles\.venv\Lib\site-packages\tenacity\__init__.py", line 393, in <lambda>
+    self._add_action_func(lambda rs: rs.outcome.result())
+                                     ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\marce\AppData\Local\Programs\Python\Python313\Lib\concurrent\futures\_base.py", line 449, in result
+    return self.__get_result()
+           ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\marce\AppData\Local\Programs\Python\Python313\Lib\concurrent\futures\_base.py", line 401, in __get_result
+    raise self._exception
+  File "C:\dev\Projet_3etoiles\.venv\Lib\site-packages\tenacity\__init__.py", line 473, in __call__
+    result = fn(*args, **kwargs)
+  File "C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\clients\dbt\command_line_dbt_runner.py", line 264, in _inner_run_command_with_retries
+    result = self._inner_run_command(
+        dbt_command_args,
+    ...<2 lines>...
+        log_format=log_format,
+    )
+  File "C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\clients\dbt\api_dbt_runner.py", line 59, in _inner_run_command
+    raise DbtCommandError(
+    ...<3 lines>...
+    )
+elementary.exceptions.exceptions.DbtCommandError: Failed to run dbt command.
+Runtime Error
+  Could not find profile named 'elementary'
+2026-09-24 17:10:54 — INFO — Running with edr=0.26.0
+2026-09-24 17:10:55 — DEBUG — Resolved adapter type 'duckdb' for target 'dev'
+2026-09-24 17:10:55 — DEBUG — Resolved adapter type 'duckdb' for target 'default'
+2026-09-24 17:10:55 — DEBUG — Running dbt command --log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_latest_invocation", "macro_args": {}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project
+2026-09-24 17:11:01 — DEBUG — Result bytes size for command '--log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_latest_invocation", "macro_args": {}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project' is 2418
+2026-09-24 17:11:01 — DEBUG — Running dbt command --log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_adapter_type_and_unique_id", "macro_args": {}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project
+2026-09-24 17:11:02 — DEBUG — Result bytes size for command '--log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_adapter_type_and_unique_id", "macro_args": {}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project' is 524
+2026-09-24 17:11:02 — INFO — edr (0.26.0) and Elementary's dbt package (0.26.0) are compatible.
+2026-09-24 17:11:02 — DEBUG — Running dbt command --log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_elementary_database_and_schema", "macro_args": {}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project
+2026-09-24 17:11:04 — DEBUG — Result bytes size for command '--log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_elementary_database_and_schema", "macro_args": {}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project' is 452
+2026-09-24 17:11:04 — INFO — Elementary's database and schema: 'football_dev.elementary'
+2026-09-24 17:11:04 — INFO — Running dbt command --log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_test_results", "macro_args": {"days_back": 7, "invocations_per_test": 720, "disable_passed_test_metrics": false, "skip_test_result_rows": false}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project
+2026-09-24 17:11:08 — DEBUG — Result bytes size for command '--log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_test_results", "macro_args": {"days_back": 7, "invocations_per_test": 720, "disable_passed_test_metrics": false, "skip_test_result_rows": false}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project' is 3493578
+2026-09-24 17:11:08 — INFO — Running dbt command --log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_source_freshness_results", "macro_args": {"days_back": 7, "invocations_per_test": 720}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project
+2026-09-24 17:11:09 — DEBUG — Result bytes size for command '--log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_source_freshness_results", "macro_args": {"days_back": 7, "invocations_per_test": 720}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project' is 402
+2026-09-24 17:11:09 — INFO — Running dbt command --log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_seeds", "macro_args": {}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project
+2026-09-24 17:11:10 — DEBUG — Result bytes size for command '--log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_seeds", "macro_args": {}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project' is 4610
+2026-09-24 17:11:10 — INFO — Running dbt command --log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_snapshots", "macro_args": {}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project
+2026-09-24 17:11:12 — DEBUG — Result bytes size for command '--log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_snapshots", "macro_args": {}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project' is 402
+2026-09-24 17:11:12 — INFO — Running dbt command --log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_models", "macro_args": {"exclude_elementary": true}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project
+2026-09-24 17:11:13 — DEBUG — Result bytes size for command '--log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_models", "macro_args": {"exclude_elementary": true}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project' is 130180
+2026-09-24 17:11:13 — INFO — Running dbt command --log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_sources", "macro_args": {}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project
+2026-09-24 17:11:14 — DEBUG — Result bytes size for command '--log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_sources", "macro_args": {}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project' is 28964
+2026-09-24 17:11:14 — INFO — Running dbt command --log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_exposures", "macro_args": {}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project
+2026-09-24 17:11:15 — DEBUG — Result bytes size for command '--log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_exposures", "macro_args": {}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project' is 402
+2026-09-24 17:11:15 — INFO — Running dbt command --log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_singular_tests", "macro_args": {}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project
+2026-09-24 17:11:16 — DEBUG — Result bytes size for command '--log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_singular_tests", "macro_args": {}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project' is 402
+2026-09-24 17:11:16 — INFO — Running dbt command --log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_models_runs", "macro_args": {"days_back": 7, "exclude_elementary": true}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project
+2026-09-24 17:11:17 — DEBUG — Result bytes size for command '--log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_models_runs", "macro_args": {"days_back": 7, "exclude_elementary": true}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project' is 25232
+2026-09-24 17:11:17 — INFO — Running dbt command --log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_dbt_models_test_coverage", "macro_args": {}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project
+2026-09-24 17:11:18 — DEBUG — Result bytes size for command '--log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_dbt_models_test_coverage", "macro_args": {}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project' is 18454
+2026-09-24 17:11:18 — INFO — Running dbt command --log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_tests", "macro_args": {}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project
+2026-09-24 17:11:21 — DEBUG — Result bytes size for command '--log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_tests", "macro_args": {}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project' is 1770128
+2026-09-24 17:11:21 — INFO — Running dbt command --log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_nodes_depends_on_nodes", "macro_args": {"exclude_elementary": true}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project
+2026-09-24 17:11:22 — DEBUG — Result bytes size for command '--log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_nodes_depends_on_nodes", "macro_args": {"exclude_elementary": true}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project' is 52718
+2026-09-24 17:11:22 — INFO — Running dbt command --log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_models_latest_invocation", "macro_args": {}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project
+2026-09-24 17:11:24 — DEBUG — Result bytes size for command '--log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_models_latest_invocation", "macro_args": {}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project' is 7738
+2026-09-24 17:11:24 — INFO — Running dbt command --log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_models_latest_invocations_data", "macro_args": {}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project
+2026-09-24 17:11:25 — DEBUG — Result bytes size for command '--log-format json run-operation elementary.log_macro_results --args {"macro_name": "elementary_cli.get_models_latest_invocations_data", "macro_args": {}} --project-dir C:\dev\Projet_3etoiles\.venv\Lib\site-packages\elementary\monitor\dbt_project --profiles-dir C:\dev\Projet_3etoiles\dbt_project' is 1534
