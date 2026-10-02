@@ -13,3 +13,10 @@ variable "bucket_name" {
   description = "Nom du bucket GCS pour la couche Bronze"
   type        = string
 }
+
+
+variable "github_repo" {
+  description = "Repo GitHub autorisé à utiliser la fédération d'identité (owner/nom)"
+  type        = string
+  default     = "StephMarcellin/Football_predictor"
+}
