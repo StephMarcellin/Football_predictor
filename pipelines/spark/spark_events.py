@@ -164,9 +164,25 @@ def resolve_identity(events, index):
     """
     Attache le match_id unifié et le contexte match aux événements.
 
-    Une seule traduction : ws_match_id → match_id. Les identités d'équipe sont
-    déjà résolues en amont dans silver.stg_whoscored_events — team_id passe
-    donc tel quel, sans CASE de conversion.
+    DEUX traductions, pas une :
+      1. ws_match_id → match_id (jointure sur l'index) ;
+      2. team_id WhoScored → team_id canonique du projet (le CASE plus bas).
+
+    silver.stg_whoscored_events porte des ids d'équipe NATIFS WhoScored, pas
+    les ids canoniques. Vérifié le 05/10/2026 : sur le match 1732025, les
+    événements portent {21, 192} alors que l'index donne {1028, 641} —
+    1028/641 étant les ids de referentiel.team_mapping. Le CASE de traduction
+    est donc INDISPENSABLE, et son otherwise(None) est le seul garde-fou qui
+    signale une équipe non appariée.
+
+    ⚠️ Ce CASE dépend entièrement de str_ws_home_team_id / str_ws_away_team_id
+    de l'index. Si ces colonnes cessent de porter les ids WhoScored, la
+    traduction échoue SILENCIEUSEMENT et team_id sort NULL sur toute la table.
+    C'est arrivé : normalize_team_id_col n'était pas idempotente et écrasait
+    ws_*_team_id par la valeur canonique au second passage (99,6 % de NULL le
+    04/10/2026, propagés jusqu'à possession_chains et aux profils d'événements
+    sans qu'aucun test ne le voie). report_join_quality() surveille ce taux :
+    le lire à chaque run.
 
     La jointure est diffusée (broadcast) : l'index fait quelques milliers de
     lignes, Spark en envoie une copie à chaque tâche qui joint en local.
@@ -176,8 +192,9 @@ def resolve_identity(events, index):
     résolu au registre est écarté — c'est déjà ce que fait int_event_enriched
     via son INNER JOIN match_dates. Le volume écarté est journalisé.
 
-    idx_home_team_id / idx_away_team_id ne servent qu'au contrôle de cohérence
-    de report_join_quality(). Elles sont retirées avant écriture.
+    ws_home / ws_away sont les CIBLES de la traduction d'équipe, et canon_home /
+    canon_away ses valeurs de sortie. Les quatre sont retirées avant écriture :
+    seul le team_id canonique survit dans le Parquet.
     """
     from pyspark.sql import functions as F
 
@@ -190,7 +207,8 @@ def resolve_identity(events, index):
     idx = index.select(
         F.col("str_ws_match_id").alias("ws_match_id"),
         F.col("str_match_id").alias("match_id"),
-        # Les deux équipes du match, côté index — uniquement pour le contrôle.
+        # Ids WhoScored des deux équipes : ce sont eux que le CASE compare au
+        # team_id des événements. Sans eux, aucune traduction n'est possible.
         F.col("str_ws_home_team_id").cast("int").alias("ws_home"),
         F.col("str_ws_away_team_id").cast("int").alias("ws_away"),
         F.col("str_team_id").cast("bigint").alias("canon_home"),

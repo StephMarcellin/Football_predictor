@@ -98,6 +98,25 @@ new_matches AS (
 {% endif %}
 
 -- ── Événements des chaînes, ordonnés dans la chaîne ───────────────────────────
+-- ══════════════════════════════════════════════════════════════════════════════
+-- CHAINS_WITH_SHOT
+-- Les chaines qui contiennent au moins un tir : les seules a pouvoir produire
+-- une action creatrice de tir. Mesure du 05/10/2026 sur football_dev :
+-- 62 548 chaines sur 786 542, soit 8,0 %.
+--
+-- Sans ce filtre, le ROW_NUMBER() de chain_seq numerote TOUTES les lignes de
+-- TOUTES les chaines (3,95 M en dev, ~58 M en prod) et impose donc un tri
+-- complet — alors que 92 % de ces chaines ne produiront jamais une ligne.
+-- Le filtre est semantiquement neutre : pas de tir, pas de SCA.
+-- ══════════════════════════════════════════════════════════════════════════════
+chains_with_shot AS (
+    SELECT DISTINCT match_id, chain_id
+    FROM in_player_possession_chains
+    WHERE match_id IN (SELECT match_id FROM new_matches)
+      AND type_id IN (13, 14, 15, 16)
+),
+
+-- ── Evenements des chaines a tir, ordonnes dans la chaine ────────────────────
 chain_seq AS (
     SELECT
         c.match_id,
@@ -117,6 +136,9 @@ chain_seq AS (
             ORDER BY c.expanded_minute, c.second, c.row_num
         ) AS seq_in_chain
     FROM in_player_possession_chains c
+    JOIN chains_with_shot cws
+        ON  cws.match_id = c.match_id
+        AND cws.chain_id = c.chain_id
     WHERE c.match_id IN (SELECT match_id FROM new_matches)
 ),
 
@@ -138,8 +160,102 @@ shots AS (
     WHERE type_id IN (13, 14, 15, 16)
 ),
 
--- ── Actions créatrices candidates : même chaîne, même équipe, avant le tir ────
-sca AS (
+-- ══════════════════════════════════════════════════════════════════════════════
+-- FREEKICK_ORIGIN_FOUL
+-- La faute obtenue qui a provoque chaque chaine declenchee sur coup franc.
+--
+-- Pourquoi ce CTE existe : une faute obtenue TERMINE sa chaine (regle de
+-- possession_group_increment dans intermediate_possession_chains). Elle vit
+-- donc dans la chaine N, alors que le coup franc et le tir sont dans la N+1.
+-- Le JOIN de sca_candidates, borne par chain_id, ne pouvait jamais les
+-- rapprocher : mesure du 05/10/2026, 1,2 % seulement des chaines a tir
+-- contenaient une faute obtenue, contre 86 % des chaines free_kick qui en ont
+-- une juste avant leur debut. Resultat : la branche type_id=4 du filtre de
+-- sca_candidates etait structurellement morte et ~5 550 actions creatrices
+-- par saison manquaient.
+--
+-- La borne est deterministe, sans fenetre numerique : la DERNIERE faute
+-- obtenue avant le premier row_num de la chaine, par l'equipe en possession.
+-- chain_trigger = 'free_kick' garantit deja que la chaine demarre sur un coup
+-- franc, donc la faute la plus proche en amont est celle qui l'a provoquee.
+-- Un seuil fixe (« 3 lignes avant ») echouerait sur les cas ou un carton ou un
+-- remplacement s'intercale — justement les fautes les plus significatives.
+--
+-- PARTITION BY (match_id, team_id) porte la condition d'equipe : la faute a
+-- team_id = equipe qui l'obtient (outcome_id = 1), la cible a chain_team_id.
+-- Les deux ne se rencontrent dans une meme partition que si elles coincident.
+-- ══════════════════════════════════════════════════════════════════════════════
+fk_origin_stream AS (
+    -- Porteuses : les fautes obtenues.
+    SELECT
+        match_id,
+        team_id,
+        row_num,
+        {'pid': player_id, 'tn': type_name, 'rn': row_num} AS foul,
+        CAST(NULL AS VARCHAR)                              AS chain_id,
+        0                                                  AS is_target
+    FROM in_player_possession_chains
+    WHERE match_id IN (SELECT match_id FROM new_matches)
+      AND type_id    = 4
+      AND outcome_id = 1
+
+    UNION ALL
+
+    -- Cibles : le premier evenement de chaque chaine declenchee sur coup franc.
+    SELECT
+        match_id,
+        chain_team_id AS team_id,
+        first_row     AS row_num,
+        NULL          AS foul,
+        chain_id,
+        1             AS is_target
+    FROM (
+        -- Restreint aux chaines qui contiennent un tir : les autres ne seront
+        -- de toute facon jamais jointes a shots.
+        SELECT pc.match_id, pc.chain_id, pc.chain_team_id, MIN(pc.row_num) AS first_row
+        FROM in_player_possession_chains pc
+        JOIN chains_with_shot cws
+            ON  cws.match_id = pc.match_id
+            AND cws.chain_id = pc.chain_id
+        WHERE pc.match_id IN (SELECT match_id FROM new_matches)
+          AND pc.chain_trigger = 'free_kick'
+        GROUP BY 1, 2, 3
+    )
+),
+
+freekick_origin_foul AS (
+    SELECT
+        match_id,
+        team_id,
+        chain_id,
+        prev_foul['pid'] AS player_id,
+        prev_foul['tn']  AS type_name,
+        prev_foul['rn']  AS row_num
+    FROM (
+        SELECT
+            match_id, team_id, chain_id, is_target,
+            LAG(foul IGNORE NULLS) OVER (
+                PARTITION BY match_id, team_id
+                ORDER BY row_num, is_target
+            ) AS prev_foul
+        FROM fk_origin_stream
+    )
+    WHERE is_target = 1
+      AND prev_foul IS NOT NULL
+),
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- SCA_CANDIDATES
+-- Deux sources : les actions eligibles internes a la chaine du tir, et la faute
+-- obtenue qui a provoque le coup franc (hors chaine, seq_in_chain = 0 pour la
+-- placer avant tout le reste dans le classement ORDER BY seq_in_chain DESC).
+--
+-- La faute occupe un RANG NORMAL, conformement a la definition Opta/FBref ou
+-- « fouls drawn » est un type d'action creatrice : si trois passes la separent
+-- du tir, elle sort du top 2 et n'est pas creditee. Le grain de la table
+-- (match_id, shot_row_num, sca_order <= 2) est donc preserve.
+-- ══════════════════════════════════════════════════════════════════════════════
+sca_candidates AS (
     SELECT
         s.match_id,
         s.shot_row_num,
@@ -154,22 +270,53 @@ sca AS (
         c.player_id   AS creator_player_id,
         c.type_name   AS action_type,
         c.row_num     AS action_row_num,
-        -- 1 = action juste avant le tir, 2 = l'action d'avant
-        ROW_NUMBER() OVER (
-            PARTITION BY s.match_id, s.shot_row_num
-            ORDER BY c.seq_in_chain DESC
-        ) AS sca_order
+        c.seq_in_chain
     FROM shots s
     JOIN chain_seq c
         ON  c.match_id     = s.match_id
         AND c.chain_id     = s.chain_id
-        AND c.team_id      = s.attacking_team_id   -- côté équipe qui tire
+        AND c.team_id      = s.attacking_team_id   -- cote equipe qui tire
         AND c.seq_in_chain < s.seq_in_chain        -- strictement avant le tir
         AND (
                c.type_id IN (1, 3)                 -- Pass, TakeOn
-            OR (c.type_id = 4 AND c.outcome_id = 1) -- faute obtenue
-            OR c.type_id IN (13, 14, 15, 16)       -- tir précédent (rebond)
+            OR c.type_id IN (13, 14, 15, 16)       -- tir precedent (rebond)
         )
+    -- NB : plus de branche type_id=4 ici. Une faute obtenue n'est jamais dans
+    -- la meme chaine que le tir ; elle arrive par l'UNION ci-dessous.
+
+    UNION ALL
+
+    SELECT
+        s.match_id,
+        s.shot_row_num,
+        s.shot_event_id,
+        s.chain_id,
+        s.season,
+        s.league_source,
+        s.scraped_at,
+        s.attacking_team_id,
+        s.shot_taker_player_id,
+        s.is_goal,
+        f.player_id   AS creator_player_id,
+        f.type_name   AS action_type,
+        f.row_num     AS action_row_num,
+        0             AS seq_in_chain              -- avant le 1er evenement
+    FROM shots s
+    JOIN freekick_origin_foul f
+        ON  f.match_id = s.match_id
+        AND f.chain_id = s.chain_id
+        AND f.team_id  = s.attacking_team_id
+),
+
+sca AS (
+    SELECT
+        *,
+        -- 1 = action juste avant le tir, 2 = l'action d'avant
+        ROW_NUMBER() OVER (
+            PARTITION BY match_id, shot_row_num
+            ORDER BY seq_in_chain DESC
+        ) AS sca_order
+    FROM sca_candidates
 )
 
 -- ── SÉLECTION : on ne garde que les 2 premières actions avant chaque tir ──────

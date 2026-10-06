@@ -170,7 +170,7 @@ spark:
   hadoop_home: "C:/hadoop"        # utilisé seulement si winutils.exe s'y trouve
   driver_memory: "8g"             # laisse ~7 Go à Windows + VS Code + Python
   cores: 6                        # 6 tâches concurrentes ; 6 cœurs pour l'OS
-  shuffle_partitions: 64          # à ajuster quand on connaîtra les volumes
+  shuffle_partitions: 256          # à ajuster quand on connaîtra les volumes
   local_dir: "C:/spark-tmp"       # spill Spark — hors OneDrive, hors projet
   log_level: "WARN"
   paths:

@@ -31,12 +31,14 @@ import argparse
 
 import duckdb
 from loguru import logger
+import re
+from pathlib import Path
 
 # On réutilise les fonctions et constantes du scraper : même schéma, même logique
 # de parsing et d'upsert → aucune duplication de code.
 from scrape_whoscored_details import (
-    RAW_DIR, DB_PATH, init_db, use_shared_conn,
-    parse_events, upsert_events, upsert_match_index, mark_scraped,
+    RAW_DIR, DB_PATH,MAIN_CFG_DATA, init_db, use_shared_conn,
+    parse_events, upsert_events, upsert_match_index, mark_scraped,raw_path,
 )
 from whoscored_entities import (
     collect_player_names, collect_formations_ref,
@@ -62,13 +64,46 @@ def load_url_meta() -> dict:
     conn.close()
     return {str(r[0]): (r[1], r[2]) for r in rows}
 
+def build_folder_to_league() -> dict:
+    """
+    Inverse du nommage des dossiers d'archive :
+        'Premier_League' -> 'Premier League', '2_Bundesliga' -> '2. Bundesliga'
+    On fait nommer le dossier par raw_path() lui-même (la fonction qui a écrit
+    les archives) → inverse exact, aucune règle de nommage dupliquée ici.
+    """
+    leagues = MAIN_CFG_DATA.get("whoscored_leagues", {})
+    return {raw_path("0", name, "0000-0000").parent.name: name for name in leagues}
+
+
+def meta_from_path(f: Path, folder_to_league: dict) -> tuple:
+    """
+    (league_source, season) déduits du chemin de l'archive :
+        {RAW_DIR}/{season}/{league_folder}/{ws_id}.json.gz
+    Le chemin est la source de vérité : écrit au scraping, indépendant de la base.
+    """
+    rel = f.relative_to(RAW_DIR)
+    if len(rel.parts) != 3:
+        return None, None
+    season, folder, _ = rel.parts
+    if not re.fullmatch(r"\d{4}-\d{4}", season):
+        return None, None
+    return folder_to_league.get(folder), season
 
 def already_loaded() -> set:
-    """ws_match_id déjà marqués is_scraped=TRUE (pour --skip-existing)."""
+    """
+    ws_match_id déjà correctement chargés (pour --skip-existing / --pending-only).
+
+    Source : stg_whoscored_match_index, écrit uniquement après un upsert_events
+    réussi. On exige league_source ET season non NULL : un match chargé sans
+    métadonnées est considéré comme NON chargé, pour être réparé au prochain run.
+    """
     conn = duckdb.connect(str(DB_PATH), read_only=True)
-    rows = conn.execute(
-        "SELECT ws_match_id FROM silver.stg_whoscored_urls WHERE is_scraped = TRUE"
-    ).fetchall()
+    rows = conn.execute("""
+        SELECT ws_match_id
+        FROM silver.stg_whoscored_match_index
+        WHERE league_source IS NOT NULL
+          AND season IS NOT NULL
+    """).fetchall()
     conn.close()
     return {str(r[0]) for r in rows}
 
@@ -107,7 +142,8 @@ def run_load(limit=None, season_filter=None, skip_existing=False,
     Toute la passe partage UNE connexion DuckDB (use_shared_conn) : on évite de
     rouvrir la base (~42 Go) à chaque upsert.
     """
-    meta = load_url_meta()
+    # meta = load_url_meta()
+    folder_to_league = build_folder_to_league()
     # Matchs déjà chargés (is_scraped=TRUE) : sert au skip events ET au delta.
     scraped = already_loaded() if (skip_existing or pending_only) else set()
     done = scraped if skip_existing else set()
@@ -181,10 +217,10 @@ def run_load(limit=None, season_filter=None, skip_existing=False,
                 summary["skipped"] += 1
                 continue
 
-            league, season = meta.get(ws_id, (None, None))
-            if league is None:
+            league, season = meta_from_path(f, folder_to_league)
+            if league is None or season is None:
                 logger.warning(
-                    f"  {ws_id} absent de stg_whoscored_urls — league/season inconnus"
+                    f"  {ws_id} : league/season non déduits du chemin {f.parent}"
                 )
 
             try:

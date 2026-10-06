@@ -333,21 +333,60 @@ freekick_defending_clearance AS (
       AND pc.team_id != pc.chain_team_id
 ),
 
+-- ══════════════════════════════════════════════════════════════════════════════
+-- CHAIN_NEXT_POSSESSION
+-- Pour chaque ligne du match, la prochaine possession certaine qui la suit.
+--
+-- Remplace une jointure d'inégalité (pc2.row_num > cdc.row_num) qui appariait
+-- chaque dégagement à TOUTES les possessions certaines ultérieures du match
+-- pour n'en garder qu'une via ROW_NUMBER() — un produit cartésien partiel dont
+-- la quasi-totalité du volume était jetée.
+--
+-- UN SEUL LEAD renvoyant un STRUCT, et non deux LEAD séparés : IGNORE NULLS
+-- saute les lignes dont l'expression vaut NULL, donc deux LEAD indépendants
+-- (certain_possessor d'un côté, x de l'autre) se désynchroniseraient dès qu'une
+-- ligne porte un possesseur sans coordonnée — les deux valeurs viendraient
+-- alors d'événements différents. Le struct les lie à la même ligne.
+-- ══════════════════════════════════════════════════════════════════════════════
+chain_next_possession AS (
+    SELECT
+        match_id,
+        row_num,
+        LEAD(
+            CASE WHEN certain_possessor IS NOT NULL
+                 THEN {'cp': certain_possessor, 'x': x}
+            END
+            IGNORE NULLS
+        ) OVER (
+            PARTITION BY match_id
+            ORDER BY row_num
+        )                                                      AS nxt
+    FROM in_player_possession_chains
+    WHERE match_id IN (SELECT match_id FROM new_matches)
+),
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- CTE — FREEKICK_CLEARANCE_NEXT_POSSESSION
+-- Contrat de sortie inchangé (match_id, chain_id, recovering_team_id,
+-- recovery_x, rn_recovery) : aucun consommateur aval à modifier. rn_recovery
+-- vaut 1 en dur — il n'y a plus qu'une ligne par dégagement, la numérotation
+-- n'a plus d'objet.
+--
+-- LEFT JOIN et non JOIN : l'ancienne version écartait les dégagements sans
+-- possession suivante, et le LEFT JOIN aval leur attribuait un NULL. Ici ils
+-- arrivent directement avec nxt à NULL — même résultat, un chemin de moins.
+-- ══════════════════════════════════════════════════════════════════════════════
 freekick_clearance_next_possession AS (
     SELECT
         cdc.match_id,
         cdc.chain_id,
-        pc2.certain_possessor AS recovering_team_id,
-        pc2.x AS recovery_x,
-        ROW_NUMBER() OVER (
-            PARTITION BY cdc.match_id, cdc.chain_id
-            ORDER BY pc2.row_num ASC
-        ) AS rn_recovery
+        cnp.nxt['cp']                                          AS recovering_team_id,
+        cnp.nxt['x']                                           AS recovery_x,
+        1                                                      AS rn_recovery
     FROM freekick_defending_clearance cdc
-    JOIN in_player_possession_chains pc2
-        ON  pc2.match_id = cdc.match_id
-        AND pc2.row_num  > cdc.row_num
-        AND pc2.certain_possessor IS NOT NULL
+    LEFT JOIN chain_next_possession cnp
+        ON  cnp.match_id = cdc.match_id
+        AND cnp.row_num  = cdc.row_num
     WHERE cdc.rn_first = 1
 ),
 

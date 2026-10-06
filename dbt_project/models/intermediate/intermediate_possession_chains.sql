@@ -405,6 +405,29 @@ chain_boundaries AS (
         AND ct.possession_group = pr.possession_group
 ),
 
+-- ==============================================================================
+-- AERIALS
+-- Les seuls Aerial (type_id = 44), extraits une fois et materialises.
+--
+-- Pourquoi une CTE dediee : les trois blocs ci-dessous apparient des Aerial
+-- entre eux. Les brancher sur chain_boundaries revient a relire 3,95 M lignes,
+-- 25 colonnes et 8 fonctions de fenetre a chaque reference, inlinees autant de
+-- fois qu'elles sont citees. Ici : 149 262 lignes, 7 colonnes, calculees une
+-- seule fois. AS MATERIALIZED force DuckDB a ne pas re-inliner.
+-- ==============================================================================
+aerials AS MATERIALIZED (
+    SELECT
+        match_id,
+        row_num,
+        event_id,
+        team_id,
+        expanded_minute,
+        second,
+        possession_group
+    FROM chain_boundaries
+    WHERE type_id = 44
+),
+
 -- ══════════════════════════════════════════════════════════════════════════════
 -- On détecte les aerial orphelins : les aerials qui n'ont pas de pair (OppositeRelatedEvent) dans la même chaîne.
 aerial_orphans AS (
@@ -415,13 +438,12 @@ aerial_orphans AS (
         ppc.expanded_minute,
         ppc.second,
         ppc.possession_group
-    FROM chain_boundaries ppc
+    FROM aerials ppc
     LEFT JOIN in_events_qual eq
         ON  eq.match_id     = ppc.match_id
         AND eq.event_id     = ppc.event_id
         AND eq.qual_type_id = 233
-    WHERE ppc.type_id   = 44
-      AND eq.qual_value IS NULL
+    WHERE eq.qual_value IS NULL
 ),
 
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -432,10 +454,9 @@ aerial_orphan_pairs AS (
         ao.row_num,
         MIN(cb.possession_group) AS pair_possession_group
     FROM aerial_orphans ao
-    JOIN chain_boundaries cb
+    JOIN aerials cb
         ON  cb.match_id        = ao.match_id
         AND cb.team_id        != ao.team_id
-        AND cb.type_id         = 44
         AND cb.expanded_minute = ao.expanded_minute
         AND cb.second          = ao.second
     GROUP BY ao.match_id, ao.row_num
@@ -454,16 +475,39 @@ aerial_with_pair_group AS (
         cb.row_num,
         cb.possession_group,
         cb_pair.possession_group AS pair_possession_group
-    FROM chain_boundaries cb
+    FROM aerials cb
     LEFT JOIN in_events_qual eq
         ON  eq.match_id     = cb.match_id
         AND eq.event_id     = cb.event_id
         AND eq.qual_type_id = 233
-    LEFT JOIN chain_boundaries cb_pair
-        ON  cb_pair.match_id = cb.match_id
-        AND cb_pair.event_id = CAST(eq.qual_value AS INTEGER)
-        AND cb_pair.team_id != cb.team_id
-    WHERE cb.type_id = 44
+    -- CORRIGE le 06/10/2026 — appariement borne dans le temps.
+    --
+    -- Le defaut : event_id n'est unique que par equipe, pas par match. La
+    -- jointure sur le seul event_id appariait donc un homonyme n'importe ou
+    -- dans le match, et le LEAST d'aerial_best_group tirait l'Aerial vers le
+    -- plus ancien des deux groupes — donc toujours en arriere. Mesure avant
+    -- correction (football_dev, 2023-2024) : 5 195 lignes deplacees a tort
+    -- (0,13 % de la table), dont 4 982 Aerial ; ecart temporel median 13 min,
+    -- max 90 min ; 5 076 chain_id portant deux chain_team_id et 7 616
+    -- plusieurs chain_trigger — ce qui faussait silencieusement SCA et les
+    -- profils de coups de pied arretes, qui filtrent sur chain_trigger.
+    --
+    -- La correction : un duel aerien est simultane, donc le pair porte le meme
+    -- (expanded_minute, second). C'est l'hypothese que fait deja
+    -- aerial_orphan_pairs ; les deux blocs sont desormais symetriques. Cout
+    -- mesure : 2 appariements perdus sur 149 262. Un Aerial sans pair retombe
+    -- sur son propre possession_group via le COALESCE d'aerial_best_group.
+    --
+    -- Performance : la tentative du 05/10 ajoutait ces conditions en joignant
+    -- chain_boundaries a lui-meme — OOM a 37,2 Go de spill apres 5 h 11 sur
+    -- UNE saison. D'ou la CTE `aerials` : les deux cotes lisent 149 262 lignes
+    -- et 7 colonnes. Ne jamais rebrancher ce self-join sur chain_boundaries.
+    LEFT JOIN aerials cb_pair
+        ON  cb_pair.match_id        = cb.match_id
+        AND cb_pair.event_id        = CAST(eq.qual_value AS INTEGER)
+        AND cb_pair.team_id        != cb.team_id
+        AND cb_pair.expanded_minute = cb.expanded_minute
+        AND cb_pair.second          = cb.second
     QUALIFY ROW_NUMBER() OVER (
         PARTITION BY cb.match_id, cb.row_num
         ORDER BY COALESCE(cb_pair.possession_group, cb.possession_group)
@@ -541,7 +585,14 @@ FROM chain_boundaries cb
 LEFT JOIN aerial_corrections ac
     ON  ac.match_id = cb.match_id
     AND ac.row_num  = cb.row_num
-ORDER BY cb.match_id, cb.expanded_minute, cb.second, cb.row_num
+-- PAS d'ORDER BY ici : le resultat part dans une TABLE, qui n'a pas d'ordre.
+-- Aucun moteur relationnel ne garantit l'ordre de relecture d'une table, donc
+-- ce tri etait entierement perdu -- mais il coutait un operateur BLOQUANT :
+-- DuckDB materialisait les ~58 M lignes et leurs 25 colonnes avant d'en emettre
+-- une seule, et le spill a sature les 37 Go de max_temp_directory_size
+-- (run du 03/10/2026). Un ORDER BY global annule aussi l'effet de
+-- preserve_insertion_order=false pose dans profiles.yml.
+-- Un consommateur aval qui a besoin d'un ordre le demande lui-meme.
 ),
 
 mdl_out AS (

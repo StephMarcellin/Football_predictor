@@ -752,7 +752,8 @@ def normalize_team_id_col(
     if id_col not in df.columns or name_col not in df.columns:
         return df
 
-    df = df.with_columns(pl.col(id_col).alias(raw_col))
+    if raw_col not in df.columns:
+        df = df.with_columns(pl.col(id_col).alias(raw_col))
 
     df = df.with_columns(
         pl.col(name_col).replace_strict(TEAM_MAPPING_IDS, default=None).alias(id_col)

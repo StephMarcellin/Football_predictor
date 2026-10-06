@@ -116,7 +116,16 @@ def get_spark(app_name: str, shuffle_partitions: int | None = None):
         # skew. Filet de sécurité tant qu'on ne connaît pas les volumes.
         .config("spark.sql.adaptive.enabled", "true")
         .config("spark.sql.adaptive.coalescePartitions.enabled", "true")
-        .config("spark.sql.adaptive.skewJoin.enabled", "true")
+        
+        # Cache colonnaire (persist) : Spark sérialise chaque partition en
+        # batches de colonnes compressées. Pour une colonne STRING il teste un
+        # encodage par DICTIONNAIRE, dont il construit la table en mémoire pour
+        # mesurer le gain. Sur qualifiers_json — des JSON longs et presque tous
+        # distincts — ce dictionnaire pèse autant que les données qu'il devrait
+        # compresser : OutOfMemoryError le 03/10 dans gatherCompressibilityStats.
+        # batchSize = nombre de lignes encodées d'un seul tenant. Défaut 10 000,
+        # soit 10 000 documents JSON en RAM par tâche, × 6 tâches concurrentes.
+        .config("spark.sql.inMemoryColumnarStorage.batchSize", 1000)
 
         # zstd : meilleur ratio que snappy. Compte, avec un seul disque.
         .config("spark.sql.parquet.compression.codec", "zstd")

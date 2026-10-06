@@ -1,5 +1,5 @@
 football_prediction:
-  target: prod
+  target: dev
   outputs:
     dev:
       type: duckdb
