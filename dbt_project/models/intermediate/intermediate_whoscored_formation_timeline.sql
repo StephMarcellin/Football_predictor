@@ -76,8 +76,20 @@ mdl_out AS (
         CAST(formation_id AS VARCHAR)                                AS str_formation_id,
         "period"                                                     AS int_period,
         "start_minute"                                               AS int_start_minute,
-        "start_minute_reg"                                           AS int_start_minute_reg,
-        "end_minute_reg"                                             AS int_end_minute_reg,
+        -- RETIREES le 06/10/2026 : int_start_minute_reg / int_end_minute_reg
+        -- etaient a 100 % NULL sur 26 930 lignes, depuis toujours.
+        -- Cause : pipelines/scrapping/events/whoscored_entities.py lit
+        -- fo.get('startMinute') et fo.get('endMinute'), deux cles qui n'existent
+        -- PAS dans les objets formations du JSON WhoScored. Celui-ci ne porte que
+        -- startMinuteExpanded et endMinuteExpanded.
+        --
+        -- Pour les reconstruire un jour, la minute reglementaire se deduit de la
+        -- minute etendue avec la cle racine periodEndMinutes du JSON Bronze :
+        --     decalage_2e_MT = periodEndMinutes['1'] - 44
+        -- Formule validee sur 250 matchs sur 250 (echantillon aleatoire, 06/10/2026).
+        -- Le -44 et non -45 est la conversion 0-based de int_minute.
+        -- NE PAS se fier a l'entree '2' de periodEndMinutes : elle vaut 100 sur un
+        -- match dont les evenements vont jusqu'a la minute etendue 107.
         CAST(captain_player_id AS VARCHAR)                           AS str_captain_player_id,
         "player_ids"                                                 AS str_player_ids,
         "formation_slots"                                            AS str_formation_slots,

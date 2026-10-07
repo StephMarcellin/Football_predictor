@@ -262,6 +262,16 @@ actions AS (
 )
 
 -- ── AFFECTATION À LA GRILLE (source unique de vérité) ─────────────────────────
+-- FLOOR et non CAST seul : DuckDB ARRONDIT au plus proche quand il caste un
+-- decimal en entier (CAST(2.5 AS INTEGER) = 3, CAST(7.52 AS INTEGER) = 8).
+-- Avant correction (07/10/2026, defaut 8) la frontiere col 0 / col 1 tombait
+-- a x = 3,125 au lieu de 6,25 : la case 0 faisait 3,1 de large, les cases 1 a
+-- 14 faisaient 6,2, et la case 15 faisait 9,2 -- soit la bande qui contient
+-- toute la surface de reparation, une fois et demie trop profonde. Meme effet
+-- sur les lignes (ligne 0 a moitie large, ligne 11 une fois et demie).
+-- 74,8 % des tirs changeaient de case. FLOOR donne le vrai quantile :
+-- la case k prend [6,25k ; 6,25(k+1)[. Les GREATEST/LEAST restent, x = 100
+-- donnant toujours 16.
 SELECT
     match_id,
     row_num,                                     -- (match_id, row_num) = clé unique
@@ -275,19 +285,22 @@ SELECT
 
     -- Case de départ (origine de l'action)
     CASE WHEN x IS NOT NULL
-         THEN GREATEST(0, LEAST(15, CAST(x / 100.0 * 16 AS INTEGER))) END  AS col_from,
+         THEN GREATEST(0, LEAST(15, CAST(FLOOR(x / 100.0 * 16) AS INTEGER))) END  AS col_from,
     CASE WHEN y IS NOT NULL
-         THEN GREATEST(0, LEAST(11, CAST(y / 100.0 * 12 AS INTEGER))) END  AS row_from,
+         THEN GREATEST(0, LEAST(11, CAST(FLOOR(y / 100.0 * 12) AS INTEGER))) END  AS row_from,
 
     -- Case d'arrivée (déplacements ; NULL pour les tirs et dribbles sans suite)
     CASE WHEN end_x IS NOT NULL
-         THEN GREATEST(0, LEAST(15, CAST(end_x / 100.0 * 16 AS INTEGER))) END AS col_to,
+         THEN GREATEST(0, LEAST(15, CAST(FLOOR(end_x / 100.0 * 16) AS INTEGER))) END AS col_to,
     CASE WHEN end_y IS NOT NULL
-         THEN GREATEST(0, LEAST(11, CAST(end_y / 100.0 * 12 AS INTEGER))) END AS row_to
+         THEN GREATEST(0, LEAST(11, CAST(FLOOR(end_y / 100.0 * 12) AS INTEGER))) END AS row_to
 
 FROM actions
--- intermediate_whoscored_events_enriched a des (match_id, row_num) non uniques (~4560 : bug incrémental
--- amont, dont des collisions row_num entre events différents). On garde une action
+-- PERIME depuis le rebuild Spark : (match_id, row_num) EST unique sur
+-- intermediate_whoscored_events_enriched (4 009 737 lignes = 4 009 737 cles,
+-- verifie le 07/10/2026), et ce QUALIFY ne jette plus rien -- 2 053 938
+-- passes + 40 922 dribbles + 67 755 tirs + 703 442 pertes = 2 866 057
+-- attendus, 2 866 057 en sortie. Conserve comme garde-fou. On garde une action
 -- par (match, row_num) — priorité : tir > déplacement > perte (le tir porte le
 -- signal de récompense ; sinon on préfère garder une action qui conserve la balle).
 QUALIFY ROW_NUMBER() OVER (

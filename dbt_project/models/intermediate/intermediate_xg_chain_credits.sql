@@ -172,7 +172,15 @@ chain_shots AS (
       AND pc.is_shot   = TRUE
       AND pc.team_id   = pc.chain_team_id
       AND pc.type_id   IN (13, 14, 15, 16)
-    ORDER BY pc.match_id, pc.chain_id, pc.expanded_minute DESC, pc.second DESC
+    -- row_num DESC departage les ex aequo : 132 chaines ont au moins deux
+    -- tirs a la meme seconde exacte (frappe contree puis reprise), dont 120
+    -- sur le DERNIER instant de la chaine. Sans lui l'ordre n'est pas total
+    -- et DuckDB choisit arbitrairement : deux rebuilds identiques ne donnent
+    -- pas le meme xg_proxy (constate le 07/10/2026, defaut 10).
+    -- (match_id, row_num) est unique (4 009 737 lignes = 4 009 737 cles),
+    -- donc l'ordre devient total. C'est deja la convention de
+    -- chain_players_raw, qui ordonne sur (expanded_minute, second, row_num).
+    ORDER BY pc.match_id, pc.chain_id, pc.expanded_minute DESC, pc.second DESC, pc.row_num DESC
 ),
 
 -- ══════════════════════════════════════════════════════════════════════════════

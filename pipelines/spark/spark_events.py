@@ -460,7 +460,12 @@ def build_event_enriched(resolved, qual_flags):
 
     return joined.select(
         "match_id", "team_id", "player_id", "event_id", "row_num",
-        "expanded_minute", "second", "period",
+        # minute AJOUTEE le 07/10/2026. expanded_minute n'est pas la minute
+        # de jeu : c'est la minute continue de WhoScored, qui absorbe le temps
+        # additionnel de la 1re mi-temps. Ecart mesure en 2e MT : mediane 4,
+        # maximum 28, sur 2 599 matchs. Sans cette colonne, tout seuil absolu
+        # en aval (ex. "apres la 75e") derive d'un montant variable par match.
+        "minute", "expanded_minute", "second", "period",
         "type_id", "type_name", "outcome_id",
         "is_shot", "is_touch",
         "x", "y", "end_x", "end_y",

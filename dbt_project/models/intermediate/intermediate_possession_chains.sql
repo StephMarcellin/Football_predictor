@@ -212,12 +212,38 @@ chain_trigger_quals AS (
         match_id,
         row_num,
         MAX(CASE WHEN qual_type_id = 6   THEN 1 ELSE 0 END) AS is_corner_taken,
-        MAX(CASE WHEN qual_type_id = 5   THEN 1 ELSE 0 END) AS is_free_kick,
+        -- CORRIGE le 07/10/2026 — le qualifier 26 (DirectFreekick) rejoint le 5.
+        --
+        -- WhoScored marque un coup franc de DEUX facons disjointes : le qualifier 5
+        -- (FreekickTaken) sur la PASSE de remise en jeu, et le qualifier 26
+        -- (DirectFreekick) sur le TIR quand le coup franc est frappe directement.
+        -- Les deux ne cohabitent jamais : sur 2 075 evenements a qualifier 26,
+        -- ZERO porte le qualifier 5 (mesure du 07/10/2026). Un coup franc direct
+        -- est un tir, jamais une passe.
+        --
+        -- Ne tester que le 5 laissait 1 985 coups francs directs sur 2 075 etiquetes
+        -- 'open_play'. En aval, la branche freekick_direct_anchor de
+        -- intermediate_freekick_profiles exige chain_trigger = 'free_kick' : elle ne
+        -- ramenait que 58 lignes 'direct' au lieu de ~2 000, soit 2,8 % du signal.
+        -- Taux de reussite reel de ces frappes : 4,6 % (95 buts sur 2 075), conforme
+        -- a la litterature — la source est saine, c'est l'extraction qui perdait.
+        --
+        -- Verifie AVANT correction : 1 940 des 2 075 sont le PREMIER evenement de
+        -- leur chaine (93,5 %), et c'est le premier evenement qui decide du
+        -- chain_trigger ; aucun ne porte les qualifiers 6, 107 ou 124 qui
+        -- gagneraient plus haut dans le CASE ; aucun n'a un type_id 7/8/49 qui
+        -- declencherait la branche 'recovery'. Effet attendu : 1 940 chaines
+        -- passent de 'open_play' a 'free_kick'.
+        --
+        -- Residu assume : 77 tirs a qualifier 26 sont en MILIEU de chaine (45
+        -- open_play, 15 recovery, 10 throw_in, 6 corner, 1 goal_kick). Le coup franc
+        -- n'y ouvre pas la possession, donc ce correctif ne les atteint pas.
+        MAX(CASE WHEN qual_type_id IN (5, 26) THEN 1 ELSE 0 END) AS is_free_kick,
         MAX(CASE WHEN qual_type_id = 107 THEN 1 ELSE 0 END) AS is_throw_in,
         MAX(CASE WHEN qual_type_id = 124 THEN 1 ELSE 0 END) AS is_goal_kick
     FROM in_events_qual
     WHERE match_id IN (SELECT match_id FROM new_matches)
-      AND qual_type_id IN (5, 6, 107, 124)
+      AND qual_type_id IN (5, 6, 26, 107, 124)
     GROUP BY match_id, row_num
 ),
 
