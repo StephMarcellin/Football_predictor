@@ -102,7 +102,13 @@ new_matches AS (
 -- NETWORK_AGG
 -- Agrégation des métriques joueur → équipe depuis intermediate_pass_network_player_centrality.
 --
--- n_players         : nombre de joueurs actifs dans le réseau de passes
+-- n_players         : nombre de noeuds du reseau de passes -- passeurs ET
+--                     receveurs purs. Depuis le correctif du defaut 13 (08/10/2026),
+--                     intermediate_pass_network_player_centrality inclut les joueurs
+--                     qui ont seulement recu : moyenne 15,23 contre 15,04 avant.
+--                     network_density s'en trouve corrigee a la baisse (0,5308
+--                     contre 0,5448) : la densite d'un graphe se normalise sur tous
+--                     les noeuds, l'ancienne valeur la surestimait en en oubliant.
 -- n_edges           : somme des degree_out = nombre total d'arêtes dirigées
 --                     existantes dans le graphe de l'équipe
 -- top_creator_share : pass_share du joueur dominant — mesure la dépendance
@@ -123,9 +129,24 @@ network_agg AS (
         SUM(degree_out)                                                 AS n_edges,
         MAX(pass_share)                                                 AS top_creator_share,
         ROUND(AVG(betweenness_proxy), 4)                               AS avg_betweenness,
+        -- Entropie de Shannon normalisee. Le denominateur compte les PASSEURS,
+        -- pas tous les noeuds du reseau (corrige le 08/10/2026).
+        --
+        -- Le numerateur ne somme que sur les joueurs qui ont passe : un
+        -- pass_share de 0 donne LN(NULLIF(0,0)) = LN(NULL) = NULL, donc
+        -- 0 * NULL = NULL, que SUM ignore. Depuis que
+        -- intermediate_pass_network_player_centrality inclut les joueurs qui ont
+        -- seulement RECU des passes (966 lignes a pass_share = 0, defaut 13),
+        -- COUNT(*) comptait des noeuds absents du numerateur et plafonnait
+        -- l'entropie sous 1 sans raison -- 880 equipe-matchs sur 5 198
+        -- concernes, moyenne 0,9061 au lieu de 0,9104.
+        --
+        -- Une entropie de Shannon se normalise par le logarithme du nombre
+        -- d'issues de probabilite NON NULLE : c'est le support de la
+        -- distribution, donc le nombre de passeurs.
         ROUND(
             - SUM(pass_share * LN(NULLIF(pass_share, 0)))
-            / NULLIF(LN(COUNT(*)), 0)
+            / NULLIF(LN(COUNT(*) FILTER (WHERE pass_share > 0)), 0)
         , 4)                                                            AS network_entropy
     FROM in_player_network_centrality
     WHERE match_id IN (SELECT match_id FROM new_matches)

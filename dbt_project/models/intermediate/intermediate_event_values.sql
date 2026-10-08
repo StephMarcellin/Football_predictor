@@ -148,8 +148,8 @@ calculated_axes AS (
             -- passait avant celles du type : un tir manque servi valait 0.80
             -- quand un tir cadre non servi valait 0.40. 26 355 tirs sur 67 965
             -- (38,8 %) etaient concernes, et comme chance_creation est la source
-            -- unique de intermediate_shots.dec_pre_shot_xg_proxy (ligne 272) et
-            -- de intermediate_xg_chain_credits.xg_proxy, 23 841 chaines sur
+            -- unique de intermediate_shots.dec_shot_outcome_score (ligne 272) et
+            -- de intermediate_xg_chain_credits.shot_outcome_score, 23 841 chaines sur
             -- 62 548 portaient une valeur fausse.
             --
             -- Les branches 13/14/15 ne testent que type_id : aucun evenement

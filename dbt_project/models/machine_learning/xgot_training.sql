@@ -37,7 +37,7 @@ in_xgot_features AS (
         dec_y                                                        AS "y",
         dec_shot_distance_m                                          AS "shot_distance_m",
         dec_shot_angle_rad                                           AS "shot_angle_rad",
-        dec_pre_shot_xg_proxy                                        AS "pre_shot_xg_proxy"
+        dec_shot_outcome_score                                       AS "shot_outcome_score"
     FROM {{ ref('xgot_features') }}
 ),
 
@@ -63,7 +63,7 @@ mdl_out AS (
         "y"                                                          AS dec_y,
         "shot_distance_m"                                            AS dec_shot_distance_m,
         "shot_angle_rad"                                             AS dec_shot_angle_rad,
-        "pre_shot_xg_proxy"                                          AS dec_pre_shot_xg_proxy,
+        "shot_outcome_score"                                          AS dec_shot_outcome_score,
         "label"                                                      AS int_label
     FROM mdl_body
 )

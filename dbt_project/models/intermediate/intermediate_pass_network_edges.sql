@@ -37,7 +37,8 @@ in_player_passes_raw AS (
         str_league_source                                            AS "league_source",
         bool_is_progressive                                          AS "is_progressive",
         bool_is_creative                                             AS "is_creative",
-        bool_is_buildup                                              AS "is_buildup"
+        bool_is_buildup                                              AS "is_buildup",
+        bool_is_counter_attack                                       AS "is_counter_attack"
     FROM {{ ref('intermediate_completed_passes') }}
 ),
 
@@ -84,7 +85,17 @@ network AS (
         league_source,
 
         COUNT(*)                                                                 AS n_passes,
-        COUNT(*) FILTER (WHERE chain_trigger = 'counter_attack')                AS n_passes_counter_attack,
+        -- Corrige le 07/10/2026 (defaut 12) : le filtre testait
+        -- chain_trigger = 'counter_attack', valeur que le CASE de
+        -- intermediate_possession_chains n'emet jamais -- la colonne valait 0 sur
+        -- les 595 333 aretes. Le drapeau est desormais calcule dans
+        -- intermediate_completed_passes depuis le qualificatif 23 FastBreak.
+        -- ATTENTION : ce compteur n'est plus disjoint des trois autres. Une passe
+        -- de contre-attaque est AUSSI comptee dans son declencheur (le plus
+        -- souvent recovery). L'identite n_passes = counter_attack + open_play +
+        -- recovery + other ne tient donc plus, et c'est voulu : contre-attaque et
+        -- declencheur sont deux dimensions orthogonales.
+        COUNT(*) FILTER (WHERE is_counter_attack)                               AS n_passes_counter_attack,
         COUNT(*) FILTER (WHERE chain_trigger = 'open_play')                     AS n_passes_open_play,
         COUNT(*) FILTER (WHERE chain_trigger = 'recovery')                      AS n_passes_recovery,
         COUNT(*) FILTER (WHERE chain_trigger IN ('corner','free_kick',

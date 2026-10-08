@@ -302,6 +302,34 @@ passes_enriched AS (
 -- TAKEONS_RAW
 -- TakeOns réussis avec end_x/end_y via LEAD sur player_id.
 -- ══════════════════════════════════════════════════════════════════════════════
+-- ══════════════════════════════════════════════════════════════════════════════
+-- TAKEONS_RAW
+-- Destination d'un dribble = sa VRAIE prochaine touche, donc LEAD sur TOUS les
+-- evenements du joueur, puis filtre sur les TakeOn.
+--
+-- Corrige le 08/10/2026 (defaut 16). L'ancienne version filtrait
+-- type_id = 3 AND outcome_id = 1 AVANT le LEAD : la fenetre ne balayait que les
+-- dribbles reussis du joueur, et la destination d'un dribble etait donc la
+-- position de son PROCHAIN DRIBBLE REUSSI. Mesure sur la saison :
+--
+--                                      avant        apres
+--   dribbles reussis                   40 922       40 922
+--   avec une destination               15 122 (37%) 40 820 (99,7%)
+--   exclus faute de destination        25 800       102
+--   ecart median dribble -> dest.      847 s        2 s
+--   ecart moyen                        1 173 s      2,4 s
+--
+-- Soit 63 % des dribbles jetes, et pour les 37 % restants une destination
+-- situee en moyenne vingt minutes plus tard et ailleurs sur le terrain.
+--
+-- intermediate_xt_actions fait deja la bonne version et documente le piege :
+-- « la window balaie tous les evenements du joueur (pas seulement les TakeOns) ;
+-- LEAD pointe donc sur sa vraie prochaine touche ». Meme convention ici, borne
+-- de 10 s comprise : au-dela, la touche suivante n'est pas la fin du dribble.
+--
+-- L'ORDER BY passe aussi de row_num seul a (expanded_minute, second, row_num),
+-- la convention du projet : row_num diverge de l'horodatage en 9 407 endroits.
+-- ══════════════════════════════════════════════════════════════════════════════
 takeons_raw AS (
     SELECT
         match_id,
@@ -315,18 +343,27 @@ takeons_raw AS (
         opp_score,
         x,
         y,
-        LEAD(x) OVER (
+        end_x,
+        end_y
+    FROM (
+        SELECT
+            match_id, team_id, player_id, row_num, period, season, league_source,
+            team_score, opp_score, x, y, type_id, outcome_id,
+            expanded_minute, second,
+            LEAD(x)               OVER w AS end_x,
+            LEAD(y)               OVER w AS end_y,
+            LEAD(expanded_minute) OVER w AS next_min,
+            LEAD(second)          OVER w AS next_sec
+        FROM in_int_event_enriched
+        WHERE match_id IN (SELECT match_id FROM new_matches)
+        WINDOW w AS (
             PARTITION BY match_id, player_id
-            ORDER BY row_num
-        )                               AS end_x,
-        LEAD(y) OVER (
-            PARTITION BY match_id, player_id
-            ORDER BY row_num
-        )                               AS end_y
-    FROM in_int_event_enriched
-    WHERE match_id IN (SELECT match_id FROM new_matches)
-      AND type_id    = 3
+            ORDER BY expanded_minute, second, row_num
+        )
+    )
+    WHERE type_id    = 3
       AND outcome_id = 1
+      AND (next_min * 60 + next_sec) - (expanded_minute * 60 + second) <= 10
 ),
 
 -- ══════════════════════════════════════════════════════════════════════════════

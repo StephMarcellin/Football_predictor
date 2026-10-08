@@ -3454,6 +3454,8 @@ models:
         description: "Booléen : la passe mène directement à un tir (is_key_pass OU is_shot_assist)."
       - name: bool_is_buildup
         description: "Booléen : la passe est jouée dans la moitié défensive (x < 50)."
+      - name: bool_is_counter_attack
+        description: "Booléen : la passe appartient à une chaîne de contre-attaque, c'est-à-dire une chaîne dont AU MOINS UN événement porte le qualificatif WhoScored 23 FastBreak. 3 177 chaînes et 6 759 passes sur la saison. Dimension ORTHOGONALE au déclencheur : ces 6 759 passes ont pour str_chain_trigger recovery (4 392), open_play (2 366) ou throw_in (1) — une contre-attaque démarre justement par une récupération. Définition plus large que la CTE counter_attack_chains de intermediate_xg_chain_credits, qui exige que le qualificatif porte sur le tir de la chaîne."
     tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns:
@@ -3481,7 +3483,7 @@ models:
       - name: int_n_passes
         description: "Nombre total de passes réussies passeur -> receveur dans le match (poids de l'arête)."
       - name: int_n_passes_counter_attack
-        description: "Parmi n_passes, celles dont la chaîne est une contre-attaque (chain_trigger = 'counter_attack')."
+        description: "Parmi n_passes, celles jouées dans une chaîne de contre-attaque (bool_is_counter_attack de intermediate_completed_passes, qualificatif 23 FastBreak). Corrigé le 07/10/2026 : le filtre testait chain_trigger = 'counter_attack', valeur que le CASE de intermediate_possession_chains n'émet jamais — la colonne valait 0 sur les 595 333 arêtes. ATTENTION : ce compteur n'est PAS disjoint des trois autres, une passe de contre-attaque est aussi comptée dans son déclencheur. L'identité n_passes = counter_attack + open_play + recovery + other ne tient donc plus, et c'est voulu."
       - name: int_n_passes_open_play
         description: "Parmi n_passes, celles en jeu ouvert (chain_trigger = 'open_play')."
       - name: int_n_passes_recovery
@@ -3656,8 +3658,8 @@ models:
         description: "type_id du tir terminal (13 MissedShots, 14 ShotOnPost, 15 SavedShot, 16 Goal)."
       - name: int_shot_minute
         description: "Minute (expanded_minute) du tir terminal de la chaîne."
-      - name: dec_xg_proxy
-        description: "Proxy xG du tir terminal de la chaîne = chance_creation de intermediate_event_values pour ce tir (0-1)."
+      - name: dec_shot_outcome_score
+        description: "Tir terminal de la chaine. Score d'issue du tir, PAS un xG : 1,00 pour un but, 0,40 pour un tir cadre arrete, 0,10 pour un tir manque (chance_creation de intermediate_event_values). Calibration mesuree le 07/10/2026 contre np_xg Understat sur 3 426 equipe-matchs : 4,568 contre 1,413 pour 1,407 buts reels, soit un facteur 3,23. La quantite ne peut donc pas etre lue comme une esperance de buts, ni comparee a une source externe. Elle correle mieux avec les buts du match (0,674) que le vrai xG (0,578) : signature du codage sur l'issue."
       - name: bool_is_counter_attack
         description: "Booléen : la chaîne contient un tir en contre-attaque (qualifier 23 FastBreak) — propriété de la chaîne entière, pas du seul tir."
       - name: int_position_in_chain
@@ -3671,9 +3673,9 @@ models:
       - name: bool_is_assister
         description: "Booléen : le joueur est le passeur décisif du tir (résolu via RelatedEventId, qualifier 55)."
       - name: dec_xgchain
-        description: "xGChain : crédit uniforme = xg_proxy du tir terminal, attribué à chaque joueur de la chaîne."
+        description: "xGChain : credit uniforme = shot_outcome_score du tir terminal, attribue a chaque joueur de la chaine. Conforme a la definition Understat dans sa forme, mais herite de la non-calibration de shot_outcome_score (facteur 3,23) : ce n'est pas un xGChain comparable a celui d'Understat."
       - name: dec_xgchain_weighted
-        description: "xGChain pondéré = xg_proxy × position_weight (crédit croissant vers le tir)."
+        description: "xGChain pondere = shot_outcome_score x position_weight (credit croissant vers le tir). NON NORMALISE : la somme des credits d'une chaine, rapportee a shot_outcome_score, va de 1,0 (chaine d'1 evenement) a 7,4 (32 evenements). Un but au terme d'une longue construction distribue donc sept fois plus de credit qu'un but en une touche."
       - name: dec_xgbuildup
         description: "xGBuildup : = xgchain pour les joueurs de construction ; NULL pour le tireur et le passeur décisif (isole l'apport hors finition)."
       - name: dec_xgbuildup_weighted
@@ -3701,8 +3703,8 @@ models:
         description: "Saison du match (ex. 2023-2024)."
       - name: str_league_source
         description: "Championnat / source des données (ex. Bundesliga)."
-      - name: dec_xg_proxy
-        description: "Proxy xG du tir terminal de la chaîne (propagé de intermediate_xg_chain_credits) = chance_creation de intermediate_event_values pour ce tir (0-1)."
+      - name: dec_shot_outcome_score
+        description: "Tir terminal de la chaine, propage de intermediate_xg_chain_credits. Score d'issue du tir, PAS un xG : 1,00 pour un but, 0,40 pour un tir cadre arrete, 0,10 pour un tir manque (chance_creation de intermediate_event_values). Calibration mesuree le 07/10/2026 contre np_xg Understat sur 3 426 equipe-matchs : 4,568 contre 1,413 pour 1,407 buts reels, soit un facteur 3,23. La quantite ne peut donc pas etre lue comme une esperance de buts, ni comparee a une source externe. Elle correle mieux avec les buts du match (0,674) que le vrai xG (0,578) : signature du codage sur l'issue."
       - name: bool_is_penalty
         description: "Booléen : le tir terminal de la chaîne est un penalty (qualifier 9). Si TRUE, le gardien n'est pas sanctionné."
       - name: int_position_in_chain
@@ -3716,9 +3718,9 @@ models:
       - name: bool_has_error_leading_to_goal
         description: "Booléen : le gardien a commis une Error menant au but (type 51 + qualifier 170) dans la chaîne."
       - name: dec_threat_conceded
-        description: "Menace concédée brute = xg_proxy du tir de la chaîne (non pondérée)."
+        description: "Menace concédée brute = shot_outcome_score du tir de la chaîne (non pondérée)."
       - name: dec_threat_conceded_weighted
-        description: "Menace concédée pondérée + règles gardien : penalty -> gardien = 0 ; erreur du gardien -> sanction pleine (xg_proxy × position_weight) ; défense trouée (gardien sans erreur) -> 0 ; défenseur non-gardien -> xg_proxy × position_weight."
+        description: "Menace concédée pondérée + règles gardien : penalty -> gardien = 0 ; erreur du gardien -> sanction pleine (shot_outcome_score × position_weight) ; défense trouée (gardien sans erreur) -> 0 ; défenseur non-gardien -> shot_outcome_score × position_weight."
 
   - name: intermediate_player_zone_transitions
     description: >
@@ -4307,9 +4309,9 @@ models:
           buts de l'équipe qui tire. Propagé depuis intermediate_whoscored_events_enriched.
       - name: bool_is_on_target
         description: "Booléen : tir cadré (SavedShot ou Goal, type 15/16). Seuls les tirs cadrés portent les dérivés de placement."
-      - name: dec_pre_shot_xg_proxy
+      - name: dec_shot_outcome_score
         description: >
-          Proxy de xG pré-tir = chance_creation issu de intermediate_event_values (baseline du xGOT).
+          Score d'issue du tir, PAS un xG : 1,00 pour un but, 0,40 pour un tir cadre arrete, 0,10 pour un tir manque (chance_creation de intermediate_event_values). Calibration mesuree le 07/10/2026 contre np_xg Understat sur 3 426 equipe-matchs : 4,568 contre 1,413 pour 1,407 buts reels, soit un facteur 3,23. La quantite ne peut donc pas etre lue comme une esperance de buts, ni comparee a une source externe. Elle correle mieux avec les buts du match (0,674) que le vrai xG (0,578) : signature du codage sur l'issue.
           Non calibré : sert d'entrée/repère, pas de probabilité exacte.
       - name: dec_offset_center
         description: "Écart horizontal au centre du but : ABS(goal_mouth_y - 50). Tirs cadrés uniquement, NULL sinon."

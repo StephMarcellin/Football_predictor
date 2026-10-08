@@ -79,7 +79,7 @@ in_int_shot_placement AS (
         bool_is_goal                                                 AS "is_goal",
         bool_is_blocked                                              AS "is_blocked",
         bool_is_on_target                                            AS "is_on_target",
-        dec_pre_shot_xg_proxy                                        AS "pre_shot_xg_proxy",
+        dec_shot_outcome_score                                       AS "shot_outcome_score",
         dec_offset_center                                            AS "offset_center",
         dec_height                                                   AS "height",
         str_placement_col                                            AS "placement_col",
@@ -106,7 +106,7 @@ WITH base AS (
         -- Localisation de la frappe
         sp.x,
         sp.y,
-        sp.pre_shot_xg_proxy,
+        sp.shot_outcome_score,
         -- Conversion en mètres pour la géométrie
         sp.x * 1.05 AS sx_m,
         sp.y * 0.68 AS sy_m
@@ -159,7 +159,7 @@ SELECT
         ))
     )                                                            AS shot_angle_rad,
 
-    pre_shot_xg_proxy
+    shot_outcome_score
 
 FROM geo
 ),
@@ -180,7 +180,7 @@ mdl_out AS (
         "y"                                                          AS dec_y,
         "shot_distance_m"                                            AS dec_shot_distance_m,
         "shot_angle_rad"                                             AS dec_shot_angle_rad,
-        "pre_shot_xg_proxy"                                          AS dec_pre_shot_xg_proxy
+        "shot_outcome_score"                                          AS dec_shot_outcome_score
     FROM mdl_body
 )
 

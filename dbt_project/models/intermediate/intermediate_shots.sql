@@ -200,7 +200,7 @@ max_scraped AS (
             bool_is_goal                                                 AS "is_goal",
             bool_is_blocked                                              AS "is_blocked",
             bool_is_on_target                                            AS "is_on_target",
-            dec_pre_shot_xg_proxy                                        AS "pre_shot_xg_proxy",
+            dec_shot_outcome_score                                   AS "shot_outcome_score",
             dec_offset_center                                            AS "offset_center",
             dec_height                                                   AS "height",
             str_placement_col                                            AS "placement_col",
@@ -269,7 +269,7 @@ SELECT
     s.*,
 
     -- xG pré-tir (proxy chance_creation) : baseline du xGOT
-    ev.chance_creation AS pre_shot_xg_proxy,
+    ev.chance_creation AS shot_outcome_score,
 
     -- ── Dérivés de placement (tirs cadrés uniquement) ─────────────────
     -- Écart horizontal au centre (0 = plein axe, ~4.8 = près d'un poteau)
@@ -336,7 +336,7 @@ mdl_out AS (
         "is_goal"                                                    AS bool_is_goal,
         "is_blocked"                                                 AS bool_is_blocked,
         "is_on_target"                                               AS bool_is_on_target,
-        "pre_shot_xg_proxy"                                          AS dec_pre_shot_xg_proxy,
+        "shot_outcome_score"                                          AS dec_shot_outcome_score,
         "offset_center"                                              AS dec_offset_center,
         "height"                                                     AS dec_height,
         "placement_col"                                              AS str_placement_col,
