@@ -5117,11 +5117,28 @@ models:
       - name: dec_bloc_depth
         description: "Écart-type de grid_vertical sur les 10 joueurs de champ."
       - name: dec_line_defensive_avg
-        description: "Moyenne grid_vertical des CB+FB (hauteur du bloc défensif)."
+        description: >
+          Moyenne du RANG DE GRILLE vertical des CB+FB de la compo de départ — pas une hauteur
+          sur le terrain. Mesuré le 09/10/2026 : 3 valeurs distinctes seulement sur 5 198
+          équipe-matchs (2,0 · 2,5 · 3,0), dont 2,5 sur 4 876 lignes = 93,8 %. Chelsea en 4-back
+          et Manchester City en 3-back tombent sur la même valeur. La colonne est donc
+          quasi-constante et ne sépare pas une défense à quatre d'une défense à trois.
+          Conséquence en aval : dec_back_depth_delta de intermediate_team_match_formation_matchup
+          est nul sur 88,69 % des lignes. Pour une vraie hauteur de ligne défensive, utiliser
+          dec_ws_defensive_line_height de intermediate_team_match_tactical, calculée sur les
+          tackles, interceptions et dégagements réels (moyenne 26,84 sur l'échelle 0-100).
+          NON RENOMMÉE volontairement : le renommage se propagerait dans formation_matchup et
+          mart_1n2 pour aucun gain de signal. Backlog : remplacer back_depth_delta par un delta
+          sur dec_ws_defensive_line_height — c'est une feature nouvelle, pas un correctif.
       - name: dec_line_offensive_avg
         description: "Moyenne grid_vertical des W+ST (hauteur du bloc offensif)."
       - name: dec_axiality_score
-        description: "Fraction du XI (hors GK) avec |gh-5| <= 1.5."
+        description: >
+          Fraction des 10 joueurs de champ de la compo de départ avec |gh-5| <= 1.5.
+          Granularité de 0,1 par construction, donc 11 valeurs possibles — mais seulement
+          3 observées sur 5 198 équipe-matchs (0,4 · 0,6 · 0,8), dont 0,6 sur 65,6 %.
+          Quasi-dégénérée, comme dec_line_defensive_avg. dec_axiality_delta de
+          intermediate_team_match_formation_matchup en hérite : nul sur 53,79 % des lignes.
 
   - name: intermediate_team_match_formation_matchup
     description: >
