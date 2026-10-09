@@ -250,10 +250,19 @@ shots AS (
         e.blocked_x,
         e.blocked_y,
         e.is_own_goal,                             -- distingue les CSC (type 16 c.s.c.)
+        -- is_goal reste l'enonce brut « cet evenement est un but » : les CSC en sont,
+        -- et is_own_goal juste au-dessus permet de les distinguer. On ne le filtre pas.
         (e.type_id = 16)          AS is_goal,
         (b.match_id IS NOT NULL)  AS is_blocked,     -- contré par un défenseur
-        (e.type_id IN (15, 16) AND b.match_id IS NULL)
-                                  AS is_on_target     -- saved + goal, HORS contre
+        -- « cadre » est une affirmation sur la trajectoire vers le but ADVERSE : un CSC
+        -- n'est pas un tir cadre en ce sens (x moyen 5,7 = sa propre ligne de but, contre
+        -- 89,7 pour les vrais buts). Mesure a l'appui : exclure les CSC fait passer
+        -- l'accord avec int_shots_on_target du fournisseur de 106 933 a 107 140 paires
+        -- joueur-match sur 107 662, soit le meilleur des quatre definitions testees.
+        -- Corrige le 09/10/2026.
+        (e.type_id IN (15, 16) AND b.match_id IS NULL
+                              AND COALESCE(e.is_own_goal, FALSE) = FALSE)
+                                  AS is_on_target     -- saved + goal, HORS contre et HORS csc
     FROM in_int_event_enriched e
     LEFT JOIN blocked b
         ON b.match_id = e.match_id AND b.row_num = e.row_num

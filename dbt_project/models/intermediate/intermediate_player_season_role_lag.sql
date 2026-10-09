@@ -137,8 +137,11 @@ select
         when gv_avg <  5.0 and abs(gh_avg - 5) <= 1.5     then 'DM'
         
         -- gv ∈ [5.0, 6.0] : Milieux Centraux & Au-delà
+        -- Meme correctif que dans intermediate_player_match_role (09/10/2026) : le
+        -- plafond WM doit etre celui de la bande CM. Non verifiable sur dev, ou
+        -- role_fin_lag ne rencontre aucun match (une seule saison en base).
         when gv_avg <= 6.0 and abs(gh_avg - 5) <= 1.5     then 'CM'
-        when gv_avg <= 5.5                                then 'WM'
+        when gv_avg <= 6.0                                then 'WM'
         
         -- gv ∈ ]6.0, 7.5] : Milieux Offensifs & Ailiers
         when gv_avg <= 7.5 and abs(gh_avg - 5) <= 1.5     then 'AM'
