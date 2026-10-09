@@ -1167,9 +1167,16 @@ models:
 
   - name: intermediate_team_match_tactical
     description: >
-      Features tactiques WhoScored par équipe par match.
-      Calculées depuis silver.stg_whoscored_events et intermediate.intermediate_whoscored_event_qualifiers.
-      32 métriques couvrant le pressing, les zones d'attaque, la structure défensive.
+      Features tactiques WhoScored par équipe par match. Grain (match_id, team_id), 2 lignes par match.
+      Calculées depuis intermediate.intermediate_whoscored_events et
+      intermediate.intermediate_whoscored_event_qualifiers.
+      30 métriques couvrant le pressing, les zones d'attaque, la structure défensive.
+      CONVENTION DE REPÈRE : x et y sont relatifs à l'équipe qui agit, et (x, y) → (100 − x, 100 − y)
+      est une rotation de 180°, prouvée sur 74 604 paires de duels aériens. Les colonnes
+      def_exposed_* sont donc exprimées dans le repère de l'équipe QUI SUBIT, pas de l'adversaire.
+      16 des 30 colonnes sont consommées en aval, et uniquement roulées (gold_team_match via
+      roll_equipe_match, fenêtre `ROWS BETWEEN w PRECEDING AND 1 PRECEDING` → pas de fuite).
+      Les 14 autres s'arrêtent à cette couche.
     columns:
       - name: str_team_id
         description: "Identifiant WhoScored de l'équipe"
@@ -1178,11 +1185,11 @@ models:
       - name: dec_ws_field_tilt_actions
         description: "Tilt de terrain — proportion de touches en zone offensive"
       - name: dec_ws_momentum_delta
-        description: "Delta de momentum après avoir encaissé un but (actions post / actions pre)"
+        description: "Delta de momentum après avoir encaissé un but : moyenne, sur les buts encaissés, du rapport actions dans les 10 minutes suivantes / actions dans les 10 minutes précédentes. NULL si l'équipe n'a rien encaissé, ou si la fenêtre amont est vide. Corrigé le 09/10/2026 : l'équipe qui encaisse un CSC est celle à qui l'événement est attribué, pas son adversaire. 400 lignes touchées = 2 × 200 matchs à CSC."
       - name: dec_ws_zone_att_pct
         description: "Pourcentage de touches en zone offensive (x > 66.6)"
       - name: dec_ws_counter_attack_dna
-        description: "ADN contre-attaque — proportion de tirs issus d'une récupération < 15 secondes"
+        description: "ADN contre-attaque — proportion de tirs survenant dans les 15 s suivant une récupération de balle (type 49) de la même équipe. Le 09/10/2026, row_num a été ajouté à l'ORDER BY de la fenêtre : sans lui, les événements d'une même seconde étaient ordonnés arbitrairement et 223 tirs sur 67 965 pouvaient basculer d'un build à l'autre."
       - name: dec_ws_midfield_control_idx
         description: "Contrôle du milieu — part des actions réussies en zone centrale"
       - name: dec_ws_defensive_line_height
@@ -1196,9 +1203,9 @@ models:
       - name: dec_ws_deep_completion_rt
         description: "Taux de passes complétées en zone profonde (deep completions) = deep_completions / total_passes."
       - name: dec_ws_counter_shot_rate
-        description: "Part des tirs issus de contre-attaque = shots_counter_attack / total_shots."
+        description: "Part des tirs issus de contre-attaque = shots_counter_attack / total_shots, depuis le qualificateur 23 FastBreak. Corrigé le 09/10/2026 : lisait le 26 DirectFreekick. Mesure la même notion que dec_ws_counter_attack_dna par une voie indépendante (qualificateur du fournisseur contre fenêtre de 15 s après récupération) — les deux sont conservées pour pouvoir être comparées."
       - name: dec_ws_set_piece_pressure
-        description: "Part des actions offensives issues de coups de pied arrêtés = set_pieces_offensive / offensive_actions."
+        description: "Part des actions offensives issues de coups de pied arrêtés = set_pieces_offensive / offensive_actions, où offensive_actions compte les types 1, 3, 13, 14, 15, 16 à x > 66. Le type 14 ShotOnPost a été ajouté au dénominateur le 09/10/2026 (1 286 événements, 0,19 %)."
       - name: dec_ws_attack_left_pct
         description: "Part des touches offensives sur le flanc gauche = att_touches_left / att_touches_total."
       - name: dec_ws_attack_center_pct
@@ -1218,25 +1225,25 @@ models:
       - name: dec_ws_shot_open_play_pct
         description: "Part des tirs en jeu ouvert = shots_open_play / total_shots."
       - name: dec_ws_shot_set_piece_pct
-        description: "Part des tirs sur coup de pied arrêté = shots_set_piece / total_shots."
+        description: "Part des tirs sur coup de pied arrêté = shots_set_piece / total_shots, depuis les qualificateurs 24 SetPiece + 25 FromCorner + 26 DirectFreekick. Corrigé le 09/10/2026 : lisait le 23 FastBreak, et 24/25 n'étaient lus par personne (15 572 tirs, 23 % du total, sans classe). Les 6 qualificateurs de situation partitionnent les tirs : open_play + set_piece + counter + penalty = 1."
       - name: dec_ws_shot_penalty_att_pct
         description: "Part des tirs qui sont des penalties = shots_penalty / total_shots."
       - name: dec_ws_conversion_rate
-        description: "Taux de conversion = buts marqués / total_shots."
+        description: "Taux de conversion = buts marqués / total_shots, hors CSC. Corrigé le 09/10/2026 : un CSC est un événement type 16 attribué à l'équipe qui l'encaisse (x moyen 5,7), il créditait donc un but à la mauvaise équipe. 210 CSC, 207 lignes touchées."
       - name: dec_ws_cross_rate
         description: "Part des passes qui sont des centres = passes_cross / total_passes."
       - name: dec_ws_through_ball_rate
-        description: "Part des passes en profondeur (through balls) = passes_through_ball / total_passes."
+        description: "Part des passes en profondeur = passes_through_ball / total_passes, depuis le qualificateur 4 Throughball (6 729 passes). Corrigé le 09/10/2026 : lisait le 155 Chipped (248 323 passes), facteur 36,9 et tout autre notion. Moyenne 0,1009 → 0,0026."
       - name: dec_ws_long_ball_rate
         description: "Part des longs ballons = passes_long_ball / total_passes."
       - name: dec_ws_short_pass_rate
-        description: "Part des passes courtes = 1 − (cross + through_ball + long_ball) / total_passes."
+        description: "Part des passes courtes = 1 − passes_non_short / total_passes, où passes_non_short compte les passes portant AU MOINS un de {1 Longball, 2 Cross, 155 Chipped}. Corrigé le 09/10/2026 : la formule soustrayait les trois taux séparément alors que les ensembles se recoupent (155 144 passes portent 2 qualificateurs, 30 589 en portent 3), d'où un biais de −8,8 points. Moyenne 0,7163 → 0,8043."
       - name: dec_ws_def_exposed_left_pct
-        description: "Part des attaques adverses subies sur le flanc gauche = opp_att_left / opp_att_total."
+        description: "Part des attaques adverses subies sur MON flanc gauche = opp_att_my_left / opp_att_total. Corrigé le 09/10/2026 : prenait le flanc gauche de l'adversaire dans SON repère, qui est physiquement mon flanc droit (rotation de 180°). Les colonnes gauche et droite étaient donc permutées sur 5 156 des 5 198 lignes."
       - name: dec_ws_def_exposed_center_pct
-        description: "Part des attaques adverses subies dans l'axe = opp_att_center / opp_att_total."
+        description: "Part des attaques adverses subies dans l'axe = opp_att_my_center / opp_att_total. L'axe est invariant par la rotation de 180°, cette colonne n'était donc pas affectée par la permutation gauche/droite."
       - name: dec_ws_def_exposed_right_pct
-        description: "Part des attaques adverses subies sur le flanc droit = opp_att_right / opp_att_total."
+        description: "Part des attaques adverses subies sur MON flanc droit = opp_att_my_right / opp_att_total. Voir dec_ws_def_exposed_left_pct : les deux étaient permutées avant le 09/10/2026."
 
   - name: intermediate_team_match_h2h
     description: "Registre brut des confrontations directes entre équipes. Une ligne par match."
@@ -2814,8 +2821,11 @@ models:
         description: "Booléen : le joueur a touché le ballon (flag WhoScored isTouch)."
       - name: bool_is_shot
         description: "Booléen : l'événement est un tir (flag WhoScored isShot)."
-      - name: str_qualifiers_json
-        description: "Tableau JSON brut des qualifiers de l'événement — SOURCE DE VÉRITÉ des qualifiers (éclaté dans intermediate_whoscored_event_qualifiers)."
+      # str_qualifiers_json retiree le 08/10/2026 : la colonne n'existe pas dans
+      # la sortie Spark, les qualificatifs ont leur propre table
+      # (intermediate_whoscored_event_qualifiers). Sa description etait restee
+      # orpheline a 8 espaces : PyYAML la lisait comme une cle `description`
+      # dupliquee de bool_is_shot et ecrasait silencieusement la bonne.
       - name: dt_scraped_at
         description: "Horodatage ISO du scrape du match."
       - name: int_row_num
@@ -3964,75 +3974,75 @@ models:
         description: "Minute expanded du match (0-based, ex. 45+2 = 47)"
       - name: dec_rating
         description: "Moyenne des ratings joueurs à cette minute — cumulatif glissant, non exploitable tel quel (cf. note table). Non utilisé en agrégation."
-      - name: shots_total_value
+      - name: dec_shots_total
         description: "Tirs tentés à cette minute"
-      - name: shots_on_target_value
+      - name: dec_shots_on_target
         description: "Tirs cadrés à cette minute"
-      - name: shots_off_target_value
+      - name: dec_shots_off_target
         description: "Tirs non cadrés à cette minute"
-      - name: shots_blocked_value
+      - name: dec_shots_blocked
         description: "Tirs contrés à cette minute"
-      - name: clearances_value
+      - name: dec_clearances
         description: "Dégagements à cette minute"
-      - name: interceptions_value
+      - name: dec_interceptions
         description: "Interceptions à cette minute"
-      - name: possession_value
+      - name: dec_possession
         description: "Compte de possessions (nombre de fois où l'équipe a eu le ballon) à cette minute — pas un pourcentage"
-      - name: touches_value
+      - name: dec_touches
         description: "Touches de balle à cette minute"
-      - name: passes_total_value
+      - name: dec_passes_total
         description: "Passes tentées à cette minute"
-      - name: passes_accurate_value
+      - name: dec_passes_accurate
         description: "Passes réussies à cette minute"
-      - name: passes_key_value
+      - name: dec_passes_key
         description: "Passes clés à cette minute"
-      - name: pass_success_value
+      - name: dec_pass_success
         description: "Pourcentage de passes réussies (source WhoScored, cumulatif glissant) — ne pas sommer/moyenner, recalculer depuis passes_accurate/passes_total en aval"
-      - name: aerials_total_value
+      - name: dec_aerials_total
         description: "Duels aériens disputés à cette minute"
-      - name: aerials_won_value
+      - name: dec_aerials_won
         description: "Duels aériens gagnés à cette minute"
-      - name: aerial_success_value
+      - name: dec_aerial_success
         description: "Pourcentage de duels aériens gagnés (source WhoScored, cumulatif glissant) — ne pas sommer/moyenner, recalculer depuis aerials_won/aerials_total en aval"
-      - name: corners_total_value
+      - name: dec_corners_total
         description: "Corners tentés à cette minute"
-      - name: corners_accurate_value
+      - name: dec_corners_accurate
         description: "Corners réussis à cette minute"
-      - name: throw_ins_total_value
+      - name: dec_throw_ins_total
         description: "Touches (remises en jeu) tentées à cette minute"
-      - name: throw_ins_accurate_value
+      - name: dec_throw_ins_accurate
         description: "Touches (remises en jeu) réussies à cette minute"
-      - name: throw_in_accuracy_value
+      - name: dec_throw_in_accuracy
         description: "Pourcentage de réussite aux touches (source WhoScored, cumulatif glissant) — ne pas sommer/moyenner, recalculer depuis throw_ins_accurate/throw_ins_total en aval"
-      - name: offsides_caught_value
+      - name: dec_offsides_caught
         description: "Hors-jeux sifflés à cette minute"
-      - name: fouls_committed_value
+      - name: dec_fouls_committed
         description: "Fautes commises à cette minute"
-      - name: tackles_total_value
+      - name: dec_tackles_total
         description: "Tacles tentés à cette minute"
-      - name: tackles_successful_value
+      - name: dec_tackles_successful
         description: "Tacles réussis à cette minute"
-      - name: tackles_unsuccessful_value
+      - name: dec_tackles_unsuccessful
         description: "Tacles manqués à cette minute"
-      - name: tackle_success_value
+      - name: dec_tackle_success
         description: "Pourcentage de tacles réussis (source WhoScored, cumulatif glissant) — ne pas sommer/moyenner, recalculer depuis tackles_successful/tackles_total en aval"
-      - name: dribbled_past_value
+      - name: dec_dribbled_past
         description: "Fois où le joueur/l'équipe a été dribblé à cette minute"
-      - name: dribbles_won_value
+      - name: dec_dribbles_won
         description: "Dribbles réussis à cette minute"
-      - name: dribbles_attempted_value
+      - name: dec_dribbles_attempted
         description: "Dribbles tentés à cette minute"
-      - name: dribbles_lost_value
+      - name: dec_dribbles_lost
         description: "Dribbles perdus à cette minute"
-      - name: dribble_success_value
+      - name: dec_dribble_success
         description: "Pourcentage de dribbles réussis (source WhoScored, cumulatif glissant) — ne pas sommer/moyenner, recalculer depuis dribbles_won/dribbles_attempted en aval"
-      - name: dispossessed_value
+      - name: dec_dispossessed
         description: "Pertes de balle sous pression à cette minute"
-      - name: errors_value
+      - name: dec_errors
         description: "Erreurs menant à une occasion adverse à cette minute"
-      - name: defensive_aerials_value
+      - name: dec_defensive_aerials
         description: "Duels aériens défensifs à cette minute — sous-catégorie non confirmée d'aerials_total (à vérifier, cf. passation)"
-      - name: offensive_aerials_value
+      - name: dec_offensive_aerials
         description: "Duels aériens offensifs à cette minute — sous-catégorie non confirmée d'aerials_total (à vérifier, cf. passation)"
     tests:
       - dbt_utils.unique_combination_of_columns:
@@ -4070,8 +4080,8 @@ models:
         description: "Dégagements sur le match"
       - name: dec_interceptions
         description: "Interceptions sur le match"
-      - name: int_possession
-        description: "Compte de possessions sur le match — à convertir en ratio home/away en aval, pas un pourcentage direct"
+      - name: dec_possession
+        description: "Compte de possessions sur le match — à convertir en ratio home/away en aval, pas un pourcentage direct. Mesuré le 08/10/2026 sur 5 198 équipe-matchs : moyenne 475,2 en valeur brute (soit 4,96 par équipe et par minute, les deux équipes sommant à 9,92 par minute et JAMAIS à 100). Normalisé par le total du match, le ratio est exploitable : moyenne 50,0 %, de 17,1 % à 82,9 %."
       - name: dec_touches
         description: "Touches de balle sur le match"
       - name: dec_passes_total
