@@ -1,0 +1,80 @@
+version: 2
+
+models:
+  - name: match_to_predict
+    description: >
+      Table d'entrée de la prédiction : les matchs à prédire (une ligne par équipe et par match,
+      comme intermediate_fbref_schedule). Créée par dbt (incremental, full_refresh=false), remplie
+      à la main ou par script — dbt ne la vide jamais.
+    columns:
+      - name: dt_date
+        description: "Date du match"
+        tests:
+          - not_null
+      - name: str_team_name
+        description: "Nom de l'équipe de la ligne (nom de club ou alias de referentiel.team_mapping)"
+        tests:
+          - not_null
+      - name: str_opponent_name
+        description: "Nom de l'adversaire (nom de club ou alias de referentiel.team_mapping)"
+        tests:
+          - not_null
+      - name: str_venue
+        description: "Côté de str_team_name : Home, Away ou Neutral"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['Home', 'Away', 'Neutral']
+
+  - name: match_resolved
+    description: >
+      Résolution de match_to_predict : noms d'équipes -> team_id, puis (date, équipes) -> str_match_id
+      du backbone. Une ligne par match demandé (les deux lignes « une par équipe » sont regroupées).
+      Seuls les matchs au statut `resolu` peuvent être prédits ; les autres sont listés avec leur motif.
+    columns:
+      - name: dt_date
+        description: "Date demandée"
+      - name: str_home_team_name
+        description: "Équipe à domicile (nom officiel si résolu, sinon ordre déclaré)"
+      - name: str_away_team_name
+        description: "Équipe à l'extérieur"
+      - name: str_match_id
+        description: "match_id du backbone ; NULL tant que le statut n'est pas `resolu`"
+        tests:
+          - unique
+      - name: str_home_team_id
+        description: "team_id de l'équipe à domicile (match résolu)"
+      - name: str_away_team_id
+        description: "team_id de l'équipe à l'extérieur (match résolu)"
+      - name: str_status
+        description: "resolu | equipe_inconnue | incoherent | match_inconnu | ambigu | domicile_contradictoire"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['resolu', 'equipe_inconnue', 'incoherent', 'match_inconnu', 'ambigu', 'domicile_contradictoire']
+      - name: str_message
+        description: "Explication lisible quand le statut n'est pas `resolu`"
+      - name: int_n_input_rows
+        description: "Nombre de lignes de match_to_predict regroupées dans ce match (1 ou 2)"
+
+  - name: match_evaluated
+    description: >
+      Prédictions confrontées au résultat réel et à Pinnacle (ouverture). Une ligne par match prédit et par
+      (modèle, version). Les métriques sont NULL tant que le résultat réel est inconnu.
+    columns:
+      - name: str_match_id
+        tests:
+          - not_null
+      - name: str_actual_outcome
+        description: "Résultat réel côté domicile (H/D/A) ; NULL si match non joué ou non ingéré"
+        tests:
+          - accepted_values:
+              values: ['H', 'D', 'A']
+      - name: dec_log_loss
+        description: "-ln(proba de l'issue réelle) ; plus bas = mieux"
+      - name: dec_brier
+        description: "Somme des carrés des écarts sur les 3 issues ; plus bas = mieux"
+      - name: dec_pinnacle_log_loss
+        description: "Même mesure pour les probabilités d'ouverture de Pinnacle (sans marge)"
+      - name: int_has_odds
+        description: "1 si le match a des cotes Pinnacle d'ouverture exploitables"
