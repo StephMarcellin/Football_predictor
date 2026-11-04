@@ -289,6 +289,103 @@ def check_adu_post() -> None:
         )
 
 
+# Libelles reserves poses par normalize_team_col() : geres par le Quality Gate ADU, pas ici.
+_RESERVED_TEAM_LABELS = {"ADU", "CE", "Minor Club"}
+
+
+def check_teams_in_league(
+    df: pl.DataFrame,
+    source: str,
+    tm_clubs: dict[tuple[str, str], list[tuple[str, int]]] | None = None,
+    team_ids: dict[str, int] | None = None,
+) -> None:
+    """
+    Garde-fou : pour chaque ligne d'un championnat Big5, l'equipe (team) et
+    l'adversaire (opponent) doivent etre l'un des clubs de referentiel.transfermarkt_clubs
+    pour le couple (saison, ligue) de la ligne. Sinon RuntimeError, AVANT l'ecriture
+    dans silver et AVANT upsert_match_registry (sinon le registre garde pour toujours
+    un match fantome : son INSERT est en ON CONFLICT DO NOTHING).
+
+    Comparaison par ID (team_id == club_tm_id), PAS par nom : les noms canoniques de
+    team_mapping ne sont pas toujours ceux de Transfermarkt (ex. 'Empoli FC'), une
+    comparaison de noms donne des centaines de faux positifs. Verifie sur silver
+    (64 804 lignes Big5) : par id, 0 equipe et 272 adversaires hors liste, tous
+    l'id 293 (FSV Frankfurt).
+
+    Pourquoi : le Niveau 1 de normalize_team_col() (alias exact) passe avant tout
+    controle de ligue. L'alias 'Frankfurt' -> 'FSV Frankfurt' (club de 2. Bundesliga)
+    a ainsi cree 272 matchs fantomes en Bundesliga. Ce controle detecte une
+    affectation vers un club ABSENT de la ligue ; il ne detecte pas un alias qui
+    pointe vers un autre club valide de la meme ligue.
+
+    Args:
+        df:        DataFrame deja normalise (noms canoniques, season au format
+                   'YYYY-YYYY', comp_category et league_source canoniques).
+        source:    etiquette pour les messages (ex. 'fbref/schedule').
+        tm_clubs:  {(saison, ligue): [(club_name, club_tm_id), ...]}. Defaut :
+                   TM_CLUBS_BY_SEASON_LEAGUE (global, rempli par _init_transfermarkt).
+        team_ids:  {club_name canonique: team_id}. Defaut : TEAM_MAPPING_IDS (global,
+                   rempli par _init_team_mapping_ids). Les deux parametres existent
+                   pour tester la fonction sans connexion DuckDB.
+
+    Perimetre : lignes comp_category == 'Big5' uniquement (les coupes et l'Europe
+    contiennent des clubs absents de Transfermarkt, c'est normal). Un nom sans id
+    positif (ADU / CE / Minor Club / inconnu) n'est pas controle ici. Un couple
+    (saison, ligue) absent du referentiel est signale en warning, pas en erreur.
+    """
+    if tm_clubs is None:
+        tm_clubs = TM_CLUBS_BY_SEASON_LEAGUE
+    if team_ids is None:
+        team_ids = TEAM_MAPPING_IDS
+    if not {"comp_category", "league_source", "season", "team"}.issubset(df.columns):
+        return
+    big5 = df.filter(pl.col("comp_category") == "Big5")
+    if big5.is_empty():
+        return
+
+    ids_by_key = {k: {int(club_id) for _, club_id in v} for k, v in tm_clubs.items()}
+    anomalies: list[tuple[str, str, str, str, int, int]] = []
+    unknown_keys: set[tuple[str, str]] = set()
+
+    for col in ("team", "opponent"):
+        if col not in big5.columns:
+            continue
+        counts = (
+            big5.select(["season", "league_source", col])
+            .drop_nulls()
+            .group_by(["season", "league_source", col])
+            .len()
+        )
+        for season, league, name, n in counts.iter_rows():
+            if name in _RESERVED_TEAM_LABELS:
+                continue
+            tid = team_ids.get(name)
+            if tid is None or tid <= 0:
+                continue
+            allowed = ids_by_key.get((season, league))
+            if allowed is None:
+                unknown_keys.add((season, league))
+            elif int(tid) not in allowed:
+                anomalies.append((season, league, col, name, int(tid), n))
+
+    if unknown_keys:
+        logger.warning(
+            f"  [{source}] check_teams_in_league : {len(unknown_keys)} couple(s) (saison, ligue) "
+            f"absent(s) de transfermarkt_clubs, non controle(s) : {sorted(unknown_keys)[:5]}"
+        )
+    if anomalies:
+        anomalies.sort(key=lambda a: -a[5])
+        detail = "; ".join(
+            f"{s} {lg} {c}='{nm}' (id {i}, {n} ligne(s))" for s, lg, c, nm, i, n in anomalies[:10]
+        )
+        raise RuntimeError(
+            f"[{source}] {sum(a[5] for a in anomalies)} ligne(s) Big5 avec un club hors de la ligue "
+            f"(selon transfermarkt_clubs) : {detail}. Cause probable : alias de team_mapping "
+            f"affecte au mauvais club. A corriger avant d'ecrire dans silver / match_registry."
+        )
+    logger.info(f"  [{source}] check_teams_in_league : OK ({big5.height:,} lignes Big5 controlees)")
+
+
 # ── Logs ──────────────────────────────────────────────────────────────────────
 Path("logs").mkdir(exist_ok=True)
 logger.add(
@@ -577,8 +674,15 @@ def normalize_team_col(
     if col not in df.columns:
         return df
 
-    # Sauvegarde du nom brut pour la traçabilité
-    df = df.with_columns(pl.col(col).alias(f"raw_{col}"))
+    # Sauvegarde du nom brut : écrite une seule fois, jamais réécrite (idempotence)
+    if f"raw_{col}" not in df.columns:
+        df = df.with_columns(pl.col(col).alias(f"raw_{col}"))
+    df = df.with_columns(
+        pl.when(pl.col(f"raw_{col}").is_null())
+        .then(pl.col(col))
+        .otherwise(pl.col(f"raw_{col}"))
+        .alias(f"raw_{col}")
+    )
 
     # Pré-calcul du slug_mapping pour le Niveau 1
     slug_team_mapping: dict[str, str] = {
@@ -752,9 +856,29 @@ def normalize_team_id_col(
     if id_col not in df.columns or name_col not in df.columns:
         return df
 
+    # ── 1) SAUVEGARDE de l'id natif dans raw_col ────────────────────────────
+    # Le garde-fou est au niveau LIGNE, pas au niveau COLONNE. Au niveau
+    # colonne (`if raw_col not in df.columns` seul), toute ligne inseree
+    # APRES un premier passage voyait sa sauvegarde sautee — la colonne
+    # existait deja dans la table — puis son id natif ecrase a l'etape 2.
+    # C'est ce qui a vide ws_home_team_id / ws_away_team_id sur les
+    # 2 490 matchs de 2022-2023 importes par load_archive, et de la fait
+    # tomber team_id a NULL sur 3,8 M d'evenements en aval.
     if raw_col not in df.columns:
         df = df.with_columns(pl.col(id_col).alias(raw_col))
 
+    df = df.with_columns(
+        pl.when(pl.col(raw_col).is_null())
+          .then(pl.col(id_col))
+          .otherwise(pl.col(raw_col))
+          .alias(raw_col)
+    )
+
+    # ── 2) TRADUCTION : id_col recoit l'id canonique ────────────────────────
+    # Doit venir APRES la sauvegarde, sinon on ecrase l'id natif avant de
+    # l'avoir mis de cote. Le lookup se fait sur le NOM canonique, jamais sur
+    # la valeur courante d'id_col : l'operation est donc idempotente, un
+    # second passage recalcule la meme valeur.
     df = df.with_columns(
         pl.col(name_col).replace_strict(TEAM_MAPPING_IDS, default=None).alias(id_col)
     )
