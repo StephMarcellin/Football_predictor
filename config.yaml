@@ -5,22 +5,22 @@ project:
 # Scrapping configuration
 # Format : "YYYY-YYYY"
 seasons:
-  - "2009-2010"
-  - "2010-2011"
-  - "2011-2012"
-  - "2012-2013"
-  - "2013-2014"
-  - "2014-2015"
-  - "2015-2016"
-  - "2016-2017"
-  - "2017-2018"
-  - "2018-2019"
-  - "2019-2020"
-  - "2020-2021"
-  - "2021-2022"
-  - "2022-2023"
-  - "2023-2024"
-  - "2024-2025"
+  # - "2009-2010"
+  # - "2010-2011"
+  # - "2011-2012"
+  # - "2012-2013"
+  # - "2013-2014"
+  # - "2014-2015"
+  # - "2015-2016"
+  # - "2016-2017"
+  # - "2017-2018"
+  # - "2018-2019"
+  # - "2019-2020"
+  # - "2020-2021"
+  # - "2021-2022"
+  # - "2022-2023"
+  # - "2023-2024"
+  # - "2024-2025"
   - "2025-2026"
   # - "2026-2027"
 
@@ -153,10 +153,10 @@ paths:
   processed: data/processed/
   features: data/features/
   models: models/
-  # db: db/football.duckdb
-  # duckdb: db/football.duckdb
-  db: db/football_dev.duckdb
-  duckdb: db/football_dev.duckdb
+  db: db/football.duckdb
+  duckdb: db/football.duckdb
+  # db: db/football_dev.duckdb
+  # duckdb: db/football_dev.duckdb
   # Archive brute des JSON matchCentreData WhoScored (gzip).
   # Chemin relatif = sous la racine du projet. Pour un disque externe,
   # mets un chemin ABSOLU ici, ex: E:/3etoiles_bronze/whoscored/
@@ -170,7 +170,7 @@ spark:
   hadoop_home: "C:/hadoop"        # utilisé seulement si winutils.exe s'y trouve
   driver_memory: "8g"             # laisse ~7 Go à Windows + VS Code + Python
   cores: 6                        # 6 tâches concurrentes ; 6 cœurs pour l'OS
-  shuffle_partitions: 64          # à ajuster quand on connaîtra les volumes
+  shuffle_partitions: 256          # à ajuster quand on connaîtra les volumes
   local_dir: "C:/spark-tmp"       # spill Spark — hors OneDrive, hors projet
   log_level: "WARN"
   paths:
@@ -294,9 +294,11 @@ train:
     "2019-2020",
     "2020-2021", 
     "2021-2022",
+    "2022-2023",
+
   ]
-  VAL_SEASONS : ["2024-2025"]   # deux saisons pour plus de robustesse
-  TEST_SEASON : "2025-2026"
+  VAL_SEASONS : ["2023-2024"]   # deux saisons pour plus de robustesse
+  TEST_SEASON : "2024-2025"
   val_split_pct: 0.5
   bottleneck_dim: 32
   bayes_n_iter: 50

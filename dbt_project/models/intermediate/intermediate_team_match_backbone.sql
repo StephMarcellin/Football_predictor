@@ -10,7 +10,8 @@
 
 -- Grain : 1 ligne par (match, équipe). Base = intermediate_fbref_schedule (toutes compétitions,
 -- matchs à venir inclus), enrichie par les autres int_* sur (str_match_id, str_team_id).
--- Ne contient QUE des faits au grain match. Les agrégats de saison (intermediate_whoscored_team_season,
+-- Ne contient QUE des faits au grain match. Aucune cote ici : elles vivent dans
+-- gold.gold_odds_pinnacle (grain match) et ne sont jamais des features. Les agrégats de saison (intermediate_whoscored_team_season,
 -- grain équipe × saison) n'ont rien à faire ici : ils sont joints en gold, décalés en N-1
 -- (cf. gold.gold_team_match), sinon fuite de données (agrégat de la saison en cours).
 -- Noms de sortie conformes à docs/proposition_nommage_definitif.csv (préfixes de type).
@@ -22,223 +23,6 @@
 -- (inchangée). Sortie : CTE mdl_out, renommage + cast selon le type logique.
 
 WITH
-
--- intermediate_odds lu sous ses noms refondus, remappé vers les noms de travail du modèle
-in_int_odds AS (
-    SELECT
-        str_match_id                                                 AS "match_id",
-        CAST(str_team_id AS INTEGER)                                 AS "team_id",
-        CAST(str_opponent_id AS INTEGER)                             AS "opponent_id",
-        dt_date                                                      AS "date",
-        str_season                                                   AS "season",
-        str_league_source                                            AS "league_source",
-        str_result_fdc                                               AS "result_fdc",
-        str_div                                                      AS "div",
-        str_time                                                     AS "time",
-        dec_odds_pinnacle_h                                          AS "odds_pinnacle_h",
-        dec_odds_pinnacle_d                                          AS "odds_pinnacle_d",
-        dec_odds_pinnacle_a                                          AS "odds_pinnacle_a",
-        dec_odds_avg_h                                               AS "odds_avg_h",
-        dec_odds_avg_d                                               AS "odds_avg_d",
-        dec_odds_avg_a                                               AS "odds_avg_a",
-        dec_odds_max_h                                               AS "odds_max_h",
-        dec_odds_max_d                                               AS "odds_max_d",
-        dec_odds_max_a                                               AS "odds_max_a",
-        dec_pinnacle_prob_h                                          AS "pinnacle_prob_h",
-        dec_pinnacle_prob_d                                          AS "pinnacle_prob_d",
-        dec_pinnacle_prob_a                                          AS "pinnacle_prob_a",
-        dec_market_prob_h                                            AS "market_prob_h",
-        dec_market_prob_d                                            AS "market_prob_d",
-        dec_market_prob_a                                            AS "market_prob_a",
-        dec_ah_line                                                  AS "ah_line",
-        dec_ah_line_close                                            AS "ah_line_close",
-        CAST(int_away_corners AS DOUBLE)                             AS "away_corners",
-        CAST(int_away_fouls AS DOUBLE)                               AS "away_fouls",
-        CAST(int_away_reds AS DOUBLE)                                AS "away_reds",
-        CAST(int_away_shots AS DOUBLE)                               AS "away_shots",
-        CAST(int_away_shots_target AS DOUBLE)                        AS "away_shots_target",
-        CAST(int_away_yellows AS DOUBLE)                             AS "away_yellows",
-        dec_bet365_1x2_away                                          AS "bet365_1x2_away",
-        dec_bet365_1x2_draw                                          AS "bet365_1x2_draw",
-        dec_bet365_1x2_home                                          AS "bet365_1x2_home",
-        dec_bet365_ah_away                                           AS "bet365_ah_away",
-        dec_bet365_ah_home                                           AS "bet365_ah_home",
-        dec_bet365_close_1x2_away                                    AS "bet365_close_1x2_away",
-        dec_bet365_close_1x2_draw                                    AS "bet365_close_1x2_draw",
-        dec_bet365_close_1x2_home                                    AS "bet365_close_1x2_home",
-        dec_bet365_close_ah_away                                     AS "bet365_close_ah_away",
-        dec_bet365_close_ah_home                                     AS "bet365_close_ah_home",
-        dec_bet365_close_ou25_over                                   AS "bet365_close_ou25_over",
-        dec_bet365_close_ou25_under                                  AS "bet365_close_ou25_under",
-        dec_bet365_ou25_over                                         AS "bet365_ou25_over",
-        dec_bet365_ou25_under                                        AS "bet365_ou25_under",
-        dec_betbrain_ah_line                                         AS "betbrain_ah_line",
-        dec_betbrain_avg_1x2_away                                    AS "betbrain_avg_1x2_away",
-        dec_betbrain_avg_1x2_draw                                    AS "betbrain_avg_1x2_draw",
-        dec_betbrain_avg_1x2_home                                    AS "betbrain_avg_1x2_home",
-        dec_betbrain_avg_ah_away                                     AS "betbrain_avg_ah_away",
-        dec_betbrain_avg_ah_home                                     AS "betbrain_avg_ah_home",
-        dec_betbrain_avg_ou25_over                                   AS "betbrain_avg_ou25_over",
-        dec_betbrain_avg_ou25_under                                  AS "betbrain_avg_ou25_under",
-        dec_betbrain_max_1x2_away                                    AS "betbrain_max_1x2_away",
-        dec_betbrain_max_1x2_draw                                    AS "betbrain_max_1x2_draw",
-        dec_betbrain_max_1x2_home                                    AS "betbrain_max_1x2_home",
-        dec_betbrain_max_ah_away                                     AS "betbrain_max_ah_away",
-        dec_betbrain_max_ah_home                                     AS "betbrain_max_ah_home",
-        dec_betbrain_max_ou25_over                                   AS "betbrain_max_ou25_over",
-        dec_betbrain_max_ou25_under                                  AS "betbrain_max_ou25_under",
-        CAST(int_betbrain_n_1x2 AS DOUBLE)                           AS "betbrain_n_1x2",
-        CAST(int_betbrain_n_ah AS DOUBLE)                            AS "betbrain_n_ah",
-        CAST(int_betbrain_n_ou25 AS DOUBLE)                          AS "betbrain_n_ou25",
-        dec_betfair_1x2_away                                         AS "betfair_1x2_away",
-        dec_betfair_1x2_draw                                         AS "betfair_1x2_draw",
-        dec_betfair_1x2_home                                         AS "betfair_1x2_home",
-        dec_betfair_close_1x2_away                                   AS "betfair_close_1x2_away",
-        dec_betfair_close_1x2_draw                                   AS "betfair_close_1x2_draw",
-        dec_betfair_close_1x2_home                                   AS "betfair_close_1x2_home",
-        dec_betfair_exch_1x2_away                                    AS "betfair_exch_1x2_away",
-        dec_betfair_exch_1x2_draw                                    AS "betfair_exch_1x2_draw",
-        dec_betfair_exch_1x2_home                                    AS "betfair_exch_1x2_home",
-        dec_betfair_exch_ah_away                                     AS "betfair_exch_ah_away",
-        dec_betfair_exch_ah_home                                     AS "betfair_exch_ah_home",
-        dec_betfair_exch_close_1x2_away                              AS "betfair_exch_close_1x2_away",
-        dec_betfair_exch_close_1x2_draw                              AS "betfair_exch_close_1x2_draw",
-        dec_betfair_exch_close_1x2_home                              AS "betfair_exch_close_1x2_home",
-        dec_betfair_exch_close_ah_away                               AS "betfair_exch_close_ah_away",
-        dec_betfair_exch_close_ah_home                               AS "betfair_exch_close_ah_home",
-        dec_betfair_exch_close_ou25_over                             AS "betfair_exch_close_ou25_over",
-        dec_betfair_exch_close_ou25_under                            AS "betfair_exch_close_ou25_under",
-        dec_betfair_exch_ou25_over                                   AS "betfair_exch_ou25_over",
-        dec_betfair_exch_ou25_under                                  AS "betfair_exch_ou25_under",
-        dec_betfred_1x2_away                                         AS "betfred_1x2_away",
-        dec_betfred_1x2_draw                                         AS "betfred_1x2_draw",
-        dec_betfred_1x2_home                                         AS "betfred_1x2_home",
-        dec_betfred_close_1x2_away                                   AS "betfred_close_1x2_away",
-        dec_betfred_close_1x2_draw                                   AS "betfred_close_1x2_draw",
-        dec_betfred_close_1x2_home                                   AS "betfred_close_1x2_home",
-        dec_betmgm_1x2_away                                          AS "betmgm_1x2_away",
-        dec_betmgm_1x2_draw                                          AS "betmgm_1x2_draw",
-        dec_betmgm_1x2_home                                          AS "betmgm_1x2_home",
-        dec_betmgm_close_1x2_away                                    AS "betmgm_close_1x2_away",
-        dec_betmgm_close_1x2_draw                                    AS "betmgm_close_1x2_draw",
-        dec_betmgm_close_1x2_home                                    AS "betmgm_close_1x2_home",
-        dec_betvictor_1x2_away                                       AS "betvictor_1x2_away",
-        dec_betvictor_1x2_draw                                       AS "betvictor_1x2_draw",
-        dec_betvictor_1x2_home                                       AS "betvictor_1x2_home",
-        dec_betvictor_close_1x2_away                                 AS "betvictor_close_1x2_away",
-        dec_betvictor_close_1x2_draw                                 AS "betvictor_close_1x2_draw",
-        dec_betvictor_close_1x2_home                                 AS "betvictor_close_1x2_home",
-        dec_betwin_1x2_away                                          AS "betwin_1x2_away",
-        dec_betwin_1x2_draw                                          AS "betwin_1x2_draw",
-        dec_betwin_1x2_home                                          AS "betwin_1x2_home",
-        dec_betwin_close_1x2_away                                    AS "betwin_close_1x2_away",
-        dec_betwin_close_1x2_draw                                    AS "betwin_close_1x2_draw",
-        dec_betwin_close_1x2_home                                    AS "betwin_close_1x2_home",
-        dec_coral_1x2_away                                           AS "coral_1x2_away",
-        dec_coral_1x2_draw                                           AS "coral_1x2_draw",
-        dec_coral_1x2_home                                           AS "coral_1x2_home",
-        dec_coral_close_1x2_away                                     AS "coral_close_1x2_away",
-        dec_coral_close_1x2_draw                                     AS "coral_close_1x2_draw",
-        dec_coral_close_1x2_home                                     AS "coral_close_1x2_home",
-        CAST(int_ft_away_goals AS DOUBLE)                            AS "ft_away_goals",
-        CAST(int_ft_home_goals AS DOUBLE)                            AS "ft_home_goals",
-        CAST(int_home_corners AS DOUBLE)                             AS "home_corners",
-        CAST(int_home_fouls AS DOUBLE)                               AS "home_fouls",
-        CAST(int_home_reds AS DOUBLE)                                AS "home_reds",
-        CAST(int_home_shots AS DOUBLE)                               AS "home_shots",
-        CAST(int_home_shots_target AS DOUBLE)                        AS "home_shots_target",
-        CAST(int_home_yellows AS DOUBLE)                             AS "home_yellows",
-        CAST(int_ht_away_goals AS DOUBLE)                            AS "ht_away_goals",
-        CAST(int_ht_home_goals AS DOUBLE)                            AS "ht_home_goals",
-        str_ht_result                                                AS "ht_result",
-        dec_interwetten_1x2_away                                     AS "interwetten_1x2_away",
-        dec_interwetten_1x2_draw                                     AS "interwetten_1x2_draw",
-        dec_interwetten_1x2_home                                     AS "interwetten_1x2_home",
-        dec_interwetten_close_1x2_away                               AS "interwetten_close_1x2_away",
-        dec_interwetten_close_1x2_draw                               AS "interwetten_close_1x2_draw",
-        dec_interwetten_close_1x2_home                               AS "interwetten_close_1x2_home",
-        dec_ladbrokes_1x2_away                                       AS "ladbrokes_1x2_away",
-        dec_ladbrokes_1x2_draw                                       AS "ladbrokes_1x2_draw",
-        dec_ladbrokes_1x2_home                                       AS "ladbrokes_1x2_home",
-        dec_ladbrokes_close_1x2_away                                 AS "ladbrokes_close_1x2_away",
-        dec_ladbrokes_close_1x2_draw                                 AS "ladbrokes_close_1x2_draw",
-        dec_ladbrokes_close_1x2_home                                 AS "ladbrokes_close_1x2_home",
-        dec_market_avg_1x2_away                                      AS "market_avg_1x2_away",
-        dec_market_avg_1x2_draw                                      AS "market_avg_1x2_draw",
-        dec_market_avg_1x2_home                                      AS "market_avg_1x2_home",
-        dec_market_avg_ah_away                                       AS "market_avg_ah_away",
-        dec_market_avg_ah_home                                       AS "market_avg_ah_home",
-        dec_market_avg_close_1x2_away                                AS "market_avg_close_1x2_away",
-        dec_market_avg_close_1x2_draw                                AS "market_avg_close_1x2_draw",
-        dec_market_avg_close_1x2_home                                AS "market_avg_close_1x2_home",
-        dec_market_avg_close_ah_away                                 AS "market_avg_close_ah_away",
-        dec_market_avg_close_ah_home                                 AS "market_avg_close_ah_home",
-        dec_market_avg_close_ou25_over                               AS "market_avg_close_ou25_over",
-        dec_market_avg_close_ou25_under                              AS "market_avg_close_ou25_under",
-        dec_market_avg_ou25_over                                     AS "market_avg_ou25_over",
-        dec_market_avg_ou25_under                                    AS "market_avg_ou25_under",
-        dec_market_max_1x2_away                                      AS "market_max_1x2_away",
-        dec_market_max_1x2_draw                                      AS "market_max_1x2_draw",
-        dec_market_max_1x2_home                                      AS "market_max_1x2_home",
-        dec_market_max_ah_away                                       AS "market_max_ah_away",
-        dec_market_max_ah_home                                       AS "market_max_ah_home",
-        dec_market_max_close_1x2_away                                AS "market_max_close_1x2_away",
-        dec_market_max_close_1x2_draw                                AS "market_max_close_1x2_draw",
-        dec_market_max_close_1x2_home                                AS "market_max_close_1x2_home",
-        dec_market_max_close_ah_away                                 AS "market_max_close_ah_away",
-        dec_market_max_close_ah_home                                 AS "market_max_close_ah_home",
-        dec_market_max_close_ou25_over                               AS "market_max_close_ou25_over",
-        dec_market_max_close_ou25_under                              AS "market_max_close_ou25_under",
-        dec_market_max_ou25_over                                     AS "market_max_ou25_over",
-        dec_market_max_ou25_under                                    AS "market_max_ou25_under",
-        dec_onexbet_1x2_away                                         AS "onexbet_1x2_away",
-        dec_onexbet_1x2_draw                                         AS "onexbet_1x2_draw",
-        dec_onexbet_1x2_home                                         AS "onexbet_1x2_home",
-        dec_onexbet_close_1x2_away                                   AS "onexbet_close_1x2_away",
-        dec_onexbet_close_1x2_draw                                   AS "onexbet_close_1x2_draw",
-        dec_onexbet_close_1x2_home                                   AS "onexbet_close_1x2_home",
-        dec_pinnacle_1x2_away                                        AS "pinnacle_1x2_away",
-        dec_pinnacle_1x2_draw                                        AS "pinnacle_1x2_draw",
-        dec_pinnacle_1x2_home                                        AS "pinnacle_1x2_home",
-        dec_pinnacle_ah_away                                         AS "pinnacle_ah_away",
-        dec_pinnacle_ah_home                                         AS "pinnacle_ah_home",
-        dec_pinnacle_close_1x2_away                                  AS "pinnacle_close_1x2_away",
-        dec_pinnacle_close_1x2_draw                                  AS "pinnacle_close_1x2_draw",
-        dec_pinnacle_close_1x2_home                                  AS "pinnacle_close_1x2_home",
-        dec_pinnacle_close_ah_away                                   AS "pinnacle_close_ah_away",
-        dec_pinnacle_close_ah_home                                   AS "pinnacle_close_ah_home",
-        dec_pinnacle_close_ou25_over                                 AS "pinnacle_close_ou25_over",
-        dec_pinnacle_close_ou25_under                                AS "pinnacle_close_ou25_under",
-        dec_pinnacle_ou25_over                                       AS "pinnacle_ou25_over",
-        dec_pinnacle_ou25_under                                      AS "pinnacle_ou25_under",
-        str_referee                                                  AS "referee",
-        dec_vcbet_1x2_away                                           AS "vcbet_1x2_away",
-        dec_vcbet_1x2_draw                                           AS "vcbet_1x2_draw",
-        dec_vcbet_1x2_home                                           AS "vcbet_1x2_home",
-        dec_vcbet_close_1x2_away                                     AS "vcbet_close_1x2_away",
-        dec_vcbet_close_1x2_draw                                     AS "vcbet_close_1x2_draw",
-        dec_vcbet_close_1x2_home                                     AS "vcbet_close_1x2_home",
-        dec_william_hill_1x2_away                                    AS "william_hill_1x2_away",
-        dec_william_hill_1x2_draw                                    AS "william_hill_1x2_draw",
-        dec_william_hill_1x2_home                                    AS "william_hill_1x2_home",
-        dec_william_hill_close_1x2_away                              AS "william_hill_close_1x2_away",
-        dec_william_hill_close_1x2_draw                              AS "william_hill_close_1x2_draw",
-        dec_william_hill_close_1x2_home                              AS "william_hill_close_1x2_home",
-        dec_pinnacle_prob_close_h                                    AS "pinnacle_prob_close_h",
-        dec_pinnacle_prob_close_d                                    AS "pinnacle_prob_close_d",
-        dec_pinnacle_prob_close_a                                    AS "pinnacle_prob_close_a",
-        dec_market_prob_close_h                                      AS "market_prob_close_h",
-        dec_market_prob_close_d                                      AS "market_prob_close_d",
-        dec_market_prob_close_a                                      AS "market_prob_close_a",
-        dec_pinnacle_prob_over25                                     AS "pinnacle_prob_over25",
-        dec_pinnacle_prob_under25                                    AS "pinnacle_prob_under25",
-        dec_pinnacle_prob_close_over25                               AS "pinnacle_prob_close_over25",
-        dec_pinnacle_prob_close_under25                              AS "pinnacle_prob_close_under25",
-        dec_pinnacle_drift_h                                         AS "pinnacle_drift_h",
-        dec_pinnacle_drift_d                                         AS "pinnacle_drift_d",
-        dec_pinnacle_drift_a                                         AS "pinnacle_drift_a"
-    FROM {{ ref('intermediate_odds') }}
-),
 
 mdl_body AS (
 WITH
@@ -321,45 +105,44 @@ fbref_merged AS (
         ON b.str_match_id = m.str_match_id AND b.str_team_id = m.str_team_id
 ),
 
+-- Équipe « domicile » du calendrier (listée en premier) : sert à orienter les matchs sur terrain neutre
+registry_home AS (
+    SELECT match_id AS str_match_id, CAST(home_team_id AS VARCHAR) AS str_listed_home_team_id
+    FROM {{ source('intermediate', 'match_registry') }}
+),
+
+-- Orientation : is_home_side = la ligne est du côté « domicile » du match.
+-- Home → vrai ; Away → faux ; Neutral → vrai pour l'équipe listée en premier.
+-- Label 1N2 : le label est fixé par rapport au côté domicile. Sur terrain neutre, la source
+-- l'encode du point de vue de la ligne (H = la ligne gagne) : on l'inverse (H<->A) sur la ligne
+-- de l'équipe NON listée en premier, pour que les deux lignes disent la même chose.
+fbref_sided AS (
+    SELECT
+        f.* EXCLUDE (str_result_1n2),
+        CASE WHEN f.str_venue = 'Home' THEN TRUE
+             WHEN f.str_venue = 'Neutral' AND f.str_team_id = r.str_listed_home_team_id THEN TRUE
+             ELSE FALSE END AS is_home_side,
+        CASE WHEN f.str_venue = 'Neutral'
+                  AND r.str_listed_home_team_id IS NOT NULL
+                  AND f.str_team_id <> r.str_listed_home_team_id
+             THEN CASE f.str_result_1n2 WHEN 'H' THEN 'A' WHEN 'A' THEN 'H' ELSE f.str_result_1n2 END
+             ELSE f.str_result_1n2 END AS str_result_1n2
+    FROM fbref_merged f
+    LEFT JOIN registry_home r ON r.str_match_id = f.str_match_id
+),
+
 -- Pivot Understat home/away → point de vue de l'équipe (venue)
 fbref_understat AS (
     SELECT
         f.*,
-        CASE WHEN f.str_venue = 'Home' THEN u.dec_home_np_xg      ELSE u.dec_away_np_xg      END AS dec_np_xg,
-        CASE WHEN f.str_venue = 'Home' THEN u.dec_away_np_xg      ELSE u.dec_home_np_xg      END AS dec_np_xg_conceded,
-        CASE WHEN f.str_venue = 'Home' THEN u.dec_home_ppda       ELSE u.dec_away_ppda       END AS dec_ppda,
-        CASE WHEN f.str_venue = 'Home' THEN u.dec_away_ppda       ELSE u.dec_home_ppda       END AS dec_ppda_allowed,
-        CASE WHEN f.str_venue = 'Home' THEN u.dec_home_np_xg_diff ELSE u.dec_away_np_xg_diff END AS dec_np_xg_diff_match
-    FROM fbref_merged f
+        CASE WHEN f.is_home_side THEN u.dec_home_np_xg      ELSE u.dec_away_np_xg      END AS dec_np_xg,
+        CASE WHEN f.is_home_side THEN u.dec_away_np_xg      ELSE u.dec_home_np_xg      END AS dec_np_xg_conceded,
+        CASE WHEN f.is_home_side THEN u.dec_home_ppda       ELSE u.dec_away_ppda       END AS dec_ppda,
+        CASE WHEN f.is_home_side THEN u.dec_away_ppda       ELSE u.dec_home_ppda       END AS dec_ppda_allowed,
+        CASE WHEN f.is_home_side THEN u.dec_home_np_xg_diff ELSE u.dec_away_np_xg_diff END AS dec_np_xg_diff_match
+    FROM fbref_sided f
     LEFT JOIN understat_base u
         ON f.str_match_id = u.str_match_id
-),
-
--- intermediate_odds n'est pas encore refondu (anciens noms, team_id INTEGER) : cast explicite
--- en VARCHAR pour la jointure (DuckDB ne caste plus implicitement VARCHAR ↔ INTEGER).
-odds_base AS (
-    SELECT
-        match_id                                      AS str_match_id,
-        CAST(team_id AS VARCHAR)                      AS str_team_id,
-
-        odds_pinnacle_h, odds_pinnacle_d, odds_pinnacle_a,
-        odds_avg_h, odds_avg_d, odds_avg_a,
-        pinnacle_prob_h, pinnacle_prob_d, pinnacle_prob_a,
-        market_prob_h, market_prob_d, market_prob_a,
-
-        -- 1N2 clôture (Pinnacle + marché) — probas no-vig
-        pinnacle_prob_close_h, pinnacle_prob_close_d, pinnacle_prob_close_a,
-        market_prob_close_h,   market_prob_close_d,   market_prob_close_a,
-
-        -- Drift ouverture→clôture (Pinnacle)
-        pinnacle_drift_h, pinnacle_drift_d, pinnacle_drift_a,
-
-        -- Over/Under 2.5 (Pinnacle) — neutre au venue, pas de pivot
-        pinnacle_prob_over25,       pinnacle_prob_under25,
-        pinnacle_prob_close_over25, pinnacle_prob_close_under25
-
-    FROM in_int_odds
-    WHERE pinnacle_prob_h IS NOT NULL
 ),
 
 final AS (
@@ -380,45 +163,9 @@ final AS (
         f.int_fouls_committed, f.int_interceptions, f.int_tackles_won,
 
         -- Understat
-        f.dec_np_xg, f.dec_np_xg_conceded, f.dec_ppda, f.dec_ppda_allowed, f.dec_np_xg_diff_match,
-
-        -- Cotes Pinnacle / marché, pivotées par venue
-        CASE WHEN f.str_venue = 'Home' THEN o.odds_pinnacle_h ELSE o.odds_pinnacle_a END AS dec_odds_pinnacle_team,
-        o.odds_pinnacle_d                                                                 AS dec_odds_pinnacle_draw,
-        CASE WHEN f.str_venue = 'Home' THEN o.odds_pinnacle_a ELSE o.odds_pinnacle_h END AS dec_odds_pinnacle_opp,
-        CASE WHEN f.str_venue = 'Home' THEN o.odds_avg_h      ELSE o.odds_avg_a      END AS dec_odds_avg_team,
-        o.odds_avg_d                                                                      AS dec_odds_avg_draw,
-        CASE WHEN f.str_venue = 'Home' THEN o.odds_avg_a      ELSE o.odds_avg_h      END AS dec_odds_avg_opp,
-        CASE WHEN f.str_venue = 'Home' THEN o.pinnacle_prob_h ELSE o.pinnacle_prob_a END AS dec_pinnacle_prob_team,
-        o.pinnacle_prob_d                                                                 AS dec_pinnacle_prob_draw,
-        CASE WHEN f.str_venue = 'Home' THEN o.pinnacle_prob_a ELSE o.pinnacle_prob_h END AS dec_pinnacle_prob_opp,
-        CASE WHEN f.str_venue = 'Home' THEN o.market_prob_h   ELSE o.market_prob_a   END AS dec_market_prob_team,
-        o.market_prob_d                                                                   AS dec_market_prob_draw,
-        CASE WHEN f.str_venue = 'Home' THEN o.market_prob_a   ELSE o.market_prob_h   END AS dec_market_prob_opp,
-
-        -- Cotes de clôture (Pinnacle) — probas no-vig, pivotées par venue
-        CASE WHEN f.str_venue = 'Home' THEN o.pinnacle_prob_close_h ELSE o.pinnacle_prob_close_a END AS dec_pinnacle_prob_close_team,
-        o.pinnacle_prob_close_d                                                                       AS dec_pinnacle_prob_close_draw,
-        CASE WHEN f.str_venue = 'Home' THEN o.pinnacle_prob_close_a ELSE o.pinnacle_prob_close_h END AS dec_pinnacle_prob_close_opp,
-        CASE WHEN f.str_venue = 'Home' THEN o.market_prob_close_h   ELSE o.market_prob_close_a   END AS dec_market_prob_close_team,
-        o.market_prob_close_d                                                                         AS dec_market_prob_close_draw,
-        CASE WHEN f.str_venue = 'Home' THEN o.market_prob_close_a   ELSE o.market_prob_close_h   END AS dec_market_prob_close_opp,
-
-        -- Drift ouverture→clôture (Pinnacle), pivoté par venue
-        CASE WHEN f.str_venue = 'Home' THEN o.pinnacle_drift_h ELSE o.pinnacle_drift_a END AS dec_pinnacle_drift_team,
-        o.pinnacle_drift_d                                                                  AS dec_pinnacle_drift_draw,
-        CASE WHEN f.str_venue = 'Home' THEN o.pinnacle_drift_a ELSE o.pinnacle_drift_h END AS dec_pinnacle_drift_opp,
-
-        -- Over/Under 2.5 (Pinnacle) — identique pour les deux équipes du match
-        o.pinnacle_prob_over25                                                              AS dec_pinnacle_prob_over25,
-        o.pinnacle_prob_under25                                                             AS dec_pinnacle_prob_under25,
-        o.pinnacle_prob_close_over25                                                        AS dec_pinnacle_prob_close_over25,
-        o.pinnacle_prob_close_under25                                                       AS dec_pinnacle_prob_close_under25
+        f.dec_np_xg, f.dec_np_xg_conceded, f.dec_ppda, f.dec_ppda_allowed, f.dec_np_xg_diff_match
 
     FROM fbref_understat f
-    LEFT JOIN odds_base o
-        ON  f.str_match_id = o.str_match_id
-        AND f.str_team_id  = o.str_team_id
 )
 
 SELECT * FROM final

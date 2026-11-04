@@ -2,6 +2,8 @@
 -- (Understat ne couvre pas les Coupes ni les ligues secondaires).
 -- Refonte nommage : colonnes intermediate_team_match_backbone renommées ; matchs non joués exclus
 -- (pas d'xG attendu avant le match).
+-- Saisons : Understat n'a pas de données avant 2014-2015 (0 % de couverture de 2009-2010 à
+-- 2013-2014), le seuil ne s'applique donc qu'à partir de 2014-2015.
 WITH coverage AS (
     SELECT
         COUNT(*)                                            AS total,
@@ -11,6 +13,7 @@ WITH coverage AS (
         'Ligue 1', 'Premier League', 'La Liga', 'Bundesliga', 'Serie A'
     )
     AND str_result_1n2 IS NOT NULL
+    AND str_season >= '2014-2015'
 )
 SELECT total, matched,
     ROUND(100.0 * matched / NULLIF(total, 0), 2) AS coverage_pct

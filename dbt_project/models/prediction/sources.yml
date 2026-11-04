@@ -1,0 +1,14 @@
+version: 2
+
+sources:
+  - name: prediction
+    description: >
+      Schéma `prediction`. Les tables créées par dbt (match_to_predict) sont des modèles ; les tables
+      ÉCRITES PAR PYTHON (predict_matches.py) sont déclarées ici pour que dbt puisse les lire.
+    schema: prediction
+    tables:
+      - name: match_predicted
+        description: >
+          Sortie de pipelines/prediction/predict_matches.py : une ligne par match demandé et par
+          (modèle, version) ; probabilités H/D/A vides quand le match n'a pas pu être prédit.
+          Créée au premier lancement du script — lancer le script AVANT `dbt run --select match_evaluated`.

@@ -152,8 +152,14 @@ events_base AS (
         CASE WHEN e.team_id = mt.team_1 THEN mt.team_2 ELSE mt.team_1 END AS opponent_id,
         
         -- Tracking vectorisé du temps de la dernière récupération pour les contre-attaques (0 jointure)
+        -- ORDER BY (t_sec, row_num) : sans row_num, les evenements de la MEME seconde
+        -- sont ordonnes arbitrairement, donc une BallRecovery simultanee d'un tir peut
+        -- etre ou ne pas etre dans la fenetre ROWS UNBOUNDED PRECEDING selon le build.
+        -- 223 tirs sur 67 965 (0,33 %) sont concernes. row_num est l'ordre d'enregistrement
+        -- WhoScored : il est deterministe ET semantiquement juste (la recuperation doit
+        -- preceder le tir dans le flux, pas seulement partager sa seconde).
         MAX(CASE WHEN e.type_id = 49 THEN e.expanded_minute * 60 + e.second END) 
-            OVER (PARTITION BY e.match_id, e.team_id ORDER BY e.expanded_minute * 60 + e.second ROWS UNBOUNDED PRECEDING) AS last_recovery_t_sec,
+            OVER (PARTITION BY e.match_id, e.team_id ORDER BY e.expanded_minute * 60 + e.second, e.row_num ROWS UNBOUNDED PRECEDING) AS last_recovery_t_sec,
             
         -- Total des actions de l'équipe adverse (midfield control)
         COUNT(*) FILTER (WHERE e.x BETWEEN 33 AND 66 AND e.type_id IN (1,7,8) AND e.outcome_id = 1) 
@@ -179,7 +185,10 @@ master_agg AS (
         COUNT(*) FILTER (WHERE e.is_touch = TRUE AND e.x > 66)                          AS touches_offensive_zone,
         COUNT(*) FILTER (WHERE e.type_id = 1 AND e.outcome_id = 1 AND e.end_x > 83)     AS deep_completions,
         COUNT(*) FILTER (WHERE e.type_id = 1 AND e.outcome_id = 0 AND e.x > 66)         AS turnovers_high_zone,
-        COUNT(*) FILTER (WHERE e.x > 66 AND e.type_id IN (1,3,13,15,16))                AS offensive_actions,
+        -- type 14 ShotOnPost etait omis alors que total_shots_ca utilise (13,14,15,16).
+        -- 1 286 evenements sur 686 844 actions offensives (0,19 %). offensive_actions est
+        -- le denominateur de ws_set_piece_pressure, consomme par mart_1n2.
+        COUNT(*) FILTER (WHERE e.x > 66 AND e.type_id IN (1,3,13,14,15,16))             AS offensive_actions,
         
         -- Zones Attaque
         COUNT(*) FILTER (WHERE e.is_touch = TRUE AND e.x > 33 AND e.y < 33.3)           AS att_touches_left,
@@ -194,7 +203,11 @@ master_agg AS (
         COUNT(*) FILTER (WHERE e.is_shot = TRUE AND e.x > 94 AND e.y BETWEEN 36 AND 64) AS shots_six_yard,
         COUNT(*) FILTER (WHERE e.is_shot = TRUE AND e.x > 83 AND e.y BETWEEN 21 AND 79 AND NOT (e.x > 94 AND e.y BETWEEN 36 AND 64)) AS shots_penalty_area,
         COUNT(*) FILTER (WHERE e.is_shot = TRUE AND NOT(e.x > 83 AND e.y BETWEEN 21 AND 79)) AS shots_out_of_box,
-        COUNT(*) FILTER (WHERE e.type_id = 16 AND e.outcome_id = 1 AND e.is_shot = TRUE) AS goals_scored,
+        -- Un CSC est un evenement type 16 / outcome 1 / is_shot TRUE attribue a l'equipe
+        -- qui l'ENCAISSE (x moyen 5,7 = sa propre ligne de but). Sans le filtre, les 210 CSC
+        -- du perimetre creditent un but a la mauvaise equipe dans ws_conversion_rate.
+        COUNT(*) FILTER (WHERE e.type_id = 16 AND e.outcome_id = 1 AND e.is_shot = TRUE
+                           AND COALESCE(e.is_own_goal, FALSE) = FALSE)                  AS goals_scored,
         
         -- Contre-attaques vectorisées (Remplace la double jointure)
         COUNT(*) FILTER (WHERE e.type_id IN (13,14,15,16))                              AS total_shots_ca,
@@ -220,9 +233,17 @@ defensive_exposure AS (
     SELECT 
         opponent_id AS team_id,
         match_id,
-        COUNT(*) FILTER (WHERE is_touch = TRUE AND x > 33 AND y < 33.3)                AS opp_att_left,
-        COUNT(*) FILTER (WHERE is_touch = TRUE AND x > 33 AND y >= 33.3 AND y <= 66.6) AS opp_att_center,
-        COUNT(*) FILTER (WHERE is_touch = TRUE AND x > 33 AND y > 66.6)                AS opp_att_right,
+        -- Repere WhoScored : (x, y) -> (100 - x, 100 - y) est une ROTATION de 180 degres,
+        -- pas deux miroirs independants. Prouve sur 74 604 paires de duels aeriens
+        -- (x_a + x_b = 100,0 ET y_a + y_b = 100,0) et re-prouve sur le match de reference
+        -- (7 paires, somme = 100,00 exactement, min = max).
+        -- Consequence : le flanc GAUCHE de l'adversaire dans SON repere (y < 33,3) est
+        -- physiquement MON flanc DROIT. Ces colonnes sont donc nommees dans MON repere,
+        -- ce qui est ce que def_exposed_* doit exprimer et ce qui les rend coherentes
+        -- avec ws_flank_exposure_asymm, deja calcule sur mes propres evenements.
+        COUNT(*) FILTER (WHERE is_touch = TRUE AND x > 33 AND y > 66.6)                AS opp_att_my_left,
+        COUNT(*) FILTER (WHERE is_touch = TRUE AND x > 33 AND y >= 33.3 AND y <= 66.6) AS opp_att_my_center,
+        COUNT(*) FILTER (WHERE is_touch = TRUE AND x > 33 AND y < 33.3)                AS opp_att_my_right,
         COUNT(*) FILTER (WHERE is_touch = TRUE AND x > 33)                             AS opp_att_total
     FROM events_base
     GROUP BY match_id, opponent_id
@@ -231,14 +252,31 @@ defensive_exposure AS (
 -- 6. QUALIFICATEURS
 qualifier_features AS (
     SELECT match_id, team_id,
-        COUNT(*) FILTER (WHERE is_shot = TRUE AND qual_type_id = 26)                    AS shots_counter_attack,
+        -- Les 6 qualificateurs de situation PARTITIONNENT les tirs : 67 185 tirs en portent
+        -- exactement un, 780 aucun, 0 en portent deux. Noms reels verifies en base :
+        --   9 Penalty · 22 RegularPlay · 23 FastBreak · 24 SetPiece · 25 FromCorner
+        --   26 DirectFreekick
+        -- Avant correctif : 26 servait de "contre-attaque" (c'est un coup franc direct) et
+        -- 23 de "coup de pied arrete" (c'est la contre-attaque) ; 24 et 25 n'etaient lus par
+        -- personne, soit 15 572 tirs = 23 % du total laisses sans classe.
+        COUNT(DISTINCT row_num) FILTER (WHERE is_shot = TRUE AND qual_type_id = 23)     AS shots_counter_attack,
         COUNT(DISTINCT row_num) FILTER (WHERE qual_type_id IN (5,6) AND x > 50)         AS set_pieces_offensive,
         COUNT(DISTINCT row_num) FILTER (WHERE is_shot = TRUE AND qual_type_id = 22)     AS shots_open_play,
-        COUNT(DISTINCT row_num) FILTER (WHERE is_shot = TRUE AND qual_type_id = 23)     AS shots_set_piece,
+        -- CPA = 24 SetPiece + 25 FromCorner + 26 DirectFreekick. Le penalty garde sa
+        -- colonne dediee shots_penalty, donc 22 devient exactement le complement :
+        -- open_play + set_piece + counter + penalty = 1, taxonomie fermee et verifiable.
+        COUNT(DISTINCT row_num) FILTER (WHERE is_shot = TRUE AND qual_type_id IN (24,25,26)) AS shots_set_piece,
         COUNT(DISTINCT row_num) FILTER (WHERE is_shot = TRUE AND qual_type_id = 9)      AS shots_penalty,
         COUNT(DISTINCT row_num) FILTER (WHERE type_id = 1 AND qual_type_id = 2)         AS passes_cross,
-        COUNT(DISTINCT row_num) FILTER (WHERE type_id = 1 AND qual_type_id = 155)       AS passes_through_ball,
-        COUNT(DISTINCT row_num) FILTER (WHERE type_id = 1 AND qual_type_id = 1)         AS passes_long_ball
+        -- 4 = Throughball (6 729 passes). Avant correctif : 155 = Chipped (248 323),
+        -- soit un facteur 36,9 et une tout autre notion.
+        COUNT(DISTINCT row_num) FILTER (WHERE type_id = 1 AND qual_type_id = 4)         AS passes_through_ball,
+        COUNT(DISTINCT row_num) FILTER (WHERE type_id = 1 AND qual_type_id = 1)         AS passes_long_ball,
+        -- Passes portant AU MOINS un de {1 Longball, 2 Cross, 155 Chipped}. Les trois
+        -- ensembles se recoupent (155 144 passes en portent 2, 30 589 en portent 3), donc
+        -- la soustraction des trois taux double et triple comptait : biais de -8,8 points
+        -- sur ws_short_pass_rate (0,7163 au lieu de 0,8043).
+        COUNT(DISTINCT row_num) FILTER (WHERE type_id = 1 AND qual_type_id IN (1,2,155)) AS passes_non_short
     FROM in_events_qual
     WHERE match_id IN (SELECT match_id FROM new_match_ids)
     GROUP BY match_id, team_id
@@ -246,7 +284,13 @@ qualifier_features AS (
 
 -- 7. MOMENTUM (Optimisé avec une pré-agrégation temporelle)
 goals_conceded AS (
-    SELECT match_id, opponent_id AS conceding_team_id, expanded_minute AS goal_minute
+    -- Pour un but normal, l'equipe qui encaisse est l'adversaire du buteur. Pour un CSC,
+    -- l'evenement est deja attribue a l'equipe qui encaisse : prendre opponent_id
+    -- attribuait le but encaisse a l'equipe qui en BENEFICIE. 200 matchs, 400 lignes.
+    SELECT match_id,
+           CASE WHEN COALESCE(is_own_goal, FALSE) THEN team_id ELSE opponent_id END
+                                                      AS conceding_team_id,
+           expanded_minute AS goal_minute
     FROM events_base
     WHERE type_id = 16 AND outcome_id = 1 AND is_shot = TRUE
 ),
@@ -293,10 +337,10 @@ SELECT
     CASE WHEN b.total_passes > 0   THEN CAST(COALESCE(q.passes_cross, 0) AS DOUBLE) / b.total_passes   END AS ws_cross_rate,
     CASE WHEN b.total_passes > 0   THEN CAST(COALESCE(q.passes_through_ball, 0) AS DOUBLE) / b.total_passes END AS ws_through_ball_rate,
     CASE WHEN b.total_passes > 0   THEN CAST(COALESCE(q.passes_long_ball, 0) AS DOUBLE) / b.total_passes END AS ws_long_ball_rate,
-    CASE WHEN b.total_passes > 0   THEN 1.0 - (CAST(COALESCE(q.passes_cross, 0) AS DOUBLE) / b.total_passes + CAST(COALESCE(q.passes_through_ball, 0) AS DOUBLE) / b.total_passes + CAST(COALESCE(q.passes_long_ball, 0) AS DOUBLE) / b.total_passes) END AS ws_short_pass_rate,
-    CASE WHEN de.opp_att_total > 0 THEN CAST(de.opp_att_left AS DOUBLE) / de.opp_att_total   END AS ws_def_exposed_left_pct,
-    CASE WHEN de.opp_att_total > 0 THEN CAST(de.opp_att_center AS DOUBLE) / de.opp_att_total END AS ws_def_exposed_center_pct,
-    CASE WHEN de.opp_att_total > 0 THEN CAST(de.opp_att_right AS DOUBLE) / de.opp_att_total  END AS ws_def_exposed_right_pct,
+    CASE WHEN b.total_passes > 0   THEN 1.0 - (CAST(COALESCE(q.passes_non_short, 0) AS DOUBLE) / b.total_passes) END AS ws_short_pass_rate,
+    CASE WHEN de.opp_att_total > 0 THEN CAST(de.opp_att_my_left AS DOUBLE) / de.opp_att_total   END AS ws_def_exposed_left_pct,
+    CASE WHEN de.opp_att_total > 0 THEN CAST(de.opp_att_my_center AS DOUBLE) / de.opp_att_total END AS ws_def_exposed_center_pct,
+    CASE WHEN de.opp_att_total > 0 THEN CAST(de.opp_att_my_right AS DOUBLE) / de.opp_att_total  END AS ws_def_exposed_right_pct,
     CASE WHEN b.total_shots_ca > 0 THEN CAST(b.counter_attack_shots AS DOUBLE) / b.total_shots_ca ELSE NULL END AS ws_counter_attack_dna,
     CAST(b.midfield_actions AS DOUBLE) / NULLIF(b.match_total_midfield_actions, 0) AS ws_midfield_control_idx,
     b.ws_defensive_line_height,

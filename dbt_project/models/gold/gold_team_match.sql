@@ -79,7 +79,7 @@ in_int_shot_placement AS (
         bool_is_goal                                                 AS "is_goal",
         bool_is_blocked                                              AS "is_blocked",
         bool_is_on_target                                            AS "is_on_target",
-        dec_pre_shot_xg_proxy                                        AS "pre_shot_xg_proxy",
+        dec_shot_outcome_score                                       AS "shot_outcome_score",
         dec_offset_center                                            AS "offset_center",
         dec_height                                                   AS "height",
         str_placement_col                                            AS "placement_col",

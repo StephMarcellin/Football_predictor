@@ -12,7 +12,7 @@ description: >
 source:
   duckdb_path: db/football.duckdb
   query: |
-    SELECT "str_match_id", "str_team_id", "int_end_minute", "int_formation_seq", "str_formation_id", "int_period", "int_start_minute", "int_start_minute_reg", "int_end_minute_reg", "str_captain_player_id", "str_player_ids", "str_formation_slots", "str_formation_positions" FROM intermediate."intermediate_whoscored_formation_timeline"
+    SELECT "str_match_id", "str_team_id", "int_end_minute", "int_formation_seq", "str_formation_id", "int_period", "int_start_minute", "str_captain_player_id", "str_player_ids", "str_formation_slots", "str_formation_positions" FROM intermediate."intermediate_whoscored_formation_timeline"
 
 expectations:
 
@@ -52,9 +52,10 @@ expectations:
     severity: warn
     meta: { description: "Empirique 0.01% NULL." }
 
-  # ── COLONNES 100% NULL (documentées, pas testées) ──
-  # start_minute_reg : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
-  # end_minute_reg : 100% NULL — colonne morte ou Big5-only sans données ce périmètre
+  # ── COLONNES RETIRÉES DU MODÈLE ──
+  # int_start_minute_reg et int_end_minute_reg étaient 100 % NULL : la clé JSON amont
+  # n'existait pas (défaut 6). Les colonnes ont été retirées du modèle ; elles sont
+  # retirées de cette requête le 12/10/2026, elles faisaient échouer le binder.
 
   # ── BORNES DE VALEURS NUMÉRIQUES ──
   - type: expect_column_values_to_be_between

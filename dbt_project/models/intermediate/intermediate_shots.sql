@@ -4,6 +4,7 @@
         unique_key=['str_match_id', 'int_row_num'],
         on_schema_change='sync_all_columns',
         schema='intermediate',
+        tags=['by_season'],
         alias='intermediate_shots'
     )
 }}
@@ -28,7 +29,7 @@
 WITH
 
 -- intermediate_event_values lu sous ses noms refondus, remappé vers les noms de travail du modèle
-in_event_values AS (
+in_event_values AS NOT MATERIALIZED (
     SELECT
         str_match_id                                                 AS "match_id",
         CAST(str_team_id AS BIGINT)                                  AS "team_id",
@@ -57,7 +58,7 @@ in_event_values AS (
 ),
 
 -- intermediate_whoscored_event_qualifiers lu sous ses noms refondus, remappé vers les noms de travail du modèle
-in_events_qual AS (
+in_events_qual AS NOT MATERIALIZED (
     SELECT
         str_match_id                                                 AS "match_id",
         CAST(str_team_id AS BIGINT)                                  AS "team_id",
@@ -84,7 +85,7 @@ in_events_qual AS (
 ),
 
 -- intermediate_whoscored_events_enriched lu sous ses noms refondus, remappé vers les noms de travail du modèle
-in_int_event_enriched AS (
+in_int_event_enriched AS NOT MATERIALIZED (
     SELECT
         str_match_id                                                 AS "match_id",
         CAST(str_team_id AS BIGINT)                                  AS "team_id",
@@ -131,7 +132,7 @@ in_int_event_enriched AS (
 ),
 
 -- intermediate_whoscored_events lu sous ses noms refondus, remappé vers les noms de travail du modèle
-in_int_whoscored_events AS (
+in_int_whoscored_events AS NOT MATERIALIZED (
     SELECT
         str_match_id                                                 AS "match_id",
         CAST(str_team_id AS BIGINT)                                  AS "team_id",
@@ -175,7 +176,20 @@ WITH
 -- Même patron que intermediate_whoscored_events_enriched : on ne traite que les matchs dont le
 -- scraped_at dépasse le dernier déjà présent. Grain « un tir » = append-only
 -- (les tirs passés ne changent pas) → incrémental correct.
-{% if is_incremental() %}
+{% if var('only_season', none) %}
+-- Mode « une saison » (orchestrateur, boucle par saison) : matchs de la saison
+-- pas encore présents dans la table. Remplace le critère habituel (scraped_at,
+-- jointure sur {{ this }}) qui exclurait à tort une saison plus ancienne que
+-- la dernière déjà chargée.
+new_matches AS (
+    SELECT DISTINCT match_id
+    FROM in_int_whoscored_events
+    WHERE match_id IN ({{ season_match_ids(this) }})
+    {%- if is_incremental() %}
+      AND match_id NOT IN (SELECT DISTINCT str_match_id FROM {{ this }})
+    {%- endif %}
+),
+{% elif is_incremental() %}
 max_scraped AS (
     SELECT MAX(scraped_at) AS last_scraped FROM (
     SELECT
@@ -200,7 +214,7 @@ max_scraped AS (
             bool_is_goal                                                 AS "is_goal",
             bool_is_blocked                                              AS "is_blocked",
             bool_is_on_target                                            AS "is_on_target",
-            dec_pre_shot_xg_proxy                                        AS "pre_shot_xg_proxy",
+            dec_shot_outcome_score                                   AS "shot_outcome_score",
             dec_offset_center                                            AS "offset_center",
             dec_height                                                   AS "height",
             str_placement_col                                            AS "placement_col",
@@ -250,10 +264,19 @@ shots AS (
         e.blocked_x,
         e.blocked_y,
         e.is_own_goal,                             -- distingue les CSC (type 16 c.s.c.)
+        -- is_goal reste l'enonce brut « cet evenement est un but » : les CSC en sont,
+        -- et is_own_goal juste au-dessus permet de les distinguer. On ne le filtre pas.
         (e.type_id = 16)          AS is_goal,
         (b.match_id IS NOT NULL)  AS is_blocked,     -- contré par un défenseur
-        (e.type_id IN (15, 16) AND b.match_id IS NULL)
-                                  AS is_on_target     -- saved + goal, HORS contre
+        -- « cadre » est une affirmation sur la trajectoire vers le but ADVERSE : un CSC
+        -- n'est pas un tir cadre en ce sens (x moyen 5,7 = sa propre ligne de but, contre
+        -- 89,7 pour les vrais buts). Mesure a l'appui : exclure les CSC fait passer
+        -- l'accord avec int_shots_on_target du fournisseur de 106 933 a 107 140 paires
+        -- joueur-match sur 107 662, soit le meilleur des quatre definitions testees.
+        -- Corrige le 09/10/2026.
+        (e.type_id IN (15, 16) AND b.match_id IS NULL
+                              AND COALESCE(e.is_own_goal, FALSE) = FALSE)
+                                  AS is_on_target     -- saved + goal, HORS contre et HORS csc
     FROM in_int_event_enriched e
     LEFT JOIN blocked b
         ON b.match_id = e.match_id AND b.row_num = e.row_num
@@ -269,7 +292,7 @@ SELECT
     s.*,
 
     -- xG pré-tir (proxy chance_creation) : baseline du xGOT
-    ev.chance_creation AS pre_shot_xg_proxy,
+    ev.chance_creation AS shot_outcome_score,
 
     -- ── Dérivés de placement (tirs cadrés uniquement) ─────────────────
     -- Écart horizontal au centre (0 = plein axe, ~4.8 = près d'un poteau)
@@ -336,7 +359,7 @@ mdl_out AS (
         "is_goal"                                                    AS bool_is_goal,
         "is_blocked"                                                 AS bool_is_blocked,
         "is_on_target"                                               AS bool_is_on_target,
-        "pre_shot_xg_proxy"                                          AS dec_pre_shot_xg_proxy,
+        "shot_outcome_score"                                          AS dec_shot_outcome_score,
         "offset_center"                                              AS dec_offset_center,
         "height"                                                     AS dec_height,
         "placement_col"                                              AS str_placement_col,

@@ -4,6 +4,7 @@
         unique_key=['str_match_id', 'int_row_num'],
         on_schema_change='sync_all_columns',
         schema='intermediate',
+        tags=['by_season'],
         alias='intermediate_completed_passes'
     )
 }}
@@ -16,7 +17,7 @@
 WITH
 
 -- intermediate_whoscored_events_enriched lu sous ses noms refondus, remappé vers les noms de travail du modèle
-in_int_event_enriched AS (
+in_int_event_enriched AS NOT MATERIALIZED (
     SELECT
         str_match_id                                                 AS "match_id",
         CAST(str_team_id AS BIGINT)                                  AS "team_id",
@@ -63,7 +64,7 @@ in_int_event_enriched AS (
 ),
 
 -- intermediate_possession_chains lu sous ses noms refondus, remappé vers les noms de travail du modèle
-in_player_possession_chains AS (
+in_player_possession_chains AS NOT MATERIALIZED (
     SELECT
         str_match_id                                                 AS "match_id",
         str_season                                                   AS "season",
@@ -91,13 +92,35 @@ in_player_possession_chains AS (
     FROM {{ ref('intermediate_possession_chains') }}
 ),
 
+-- intermediate_whoscored_event_qualifiers lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_events_qual AS NOT MATERIALIZED (
+    SELECT
+        str_match_id                                                 AS "match_id",
+        int_row_num                                                  AS "row_num",
+        CAST(str_qual_type_id AS INTEGER)                            AS "qual_type_id"
+    FROM {{ ref('intermediate_whoscored_event_qualifiers') }}
+),
+
 mdl_body AS (
 WITH
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- FILTRE INCRÉMENTAL
 -- ══════════════════════════════════════════════════════════════════════════════
-{% if is_incremental() %}
+{% if var('only_season', none) %}
+-- Mode « une saison » (orchestrateur, boucle par saison) : matchs de la saison
+-- pas encore présents dans la table. Remplace le critère habituel (scraped_at,
+-- jointure sur {{ this }}) qui exclurait à tort une saison plus ancienne que
+-- la dernière déjà chargée.
+new_matches AS (
+    SELECT DISTINCT match_id
+    FROM in_player_possession_chains
+    WHERE match_id IN ({{ season_match_ids(this) }})
+    {%- if is_incremental() %}
+      AND match_id NOT IN (SELECT DISTINCT str_match_id FROM {{ this }})
+    {%- endif %}
+),
+{% elif is_incremental() %}
 new_matches AS (
     SELECT DISTINCT match_id
     FROM in_player_possession_chains
@@ -211,11 +234,48 @@ passes_raw AS (
 --                  (is_key_pass=1 ou is_shot_assist=1)
 -- is_buildup     : la passe est jouée dans la moitié défensive (x < 50)
 -- ══════════════════════════════════════════════════════════════════════════════
+-- ══════════════════════════════════════════════════════════════════════════════
+-- COUNTER_ATTACK_CHAINS
+-- Une chaine est une contre-attaque si AU MOINS UN de ses evenements porte le
+-- qualificatif 23 FastBreak. 3 751 evenements, 3 177 chaines sur la saison.
+--
+-- Ajoute le 07/10/2026 (defaut 12). intermediate_pass_network_edges comptait
+-- les passes de contre-attaque par COUNT(*) FILTER (WHERE chain_trigger =
+-- 'counter_attack'), mais le CASE de intermediate_possession_chains n'emet que
+-- six valeurs -- open_play, recovery, throw_in, free_kick, goal_kick, corner --
+-- et jamais 'counter_attack'. Le filtre ne pouvait donc jamais matcher :
+-- 0 sur 595 333 aretes, feature morte.
+--
+-- Le drapeau n'a pas sa place dans chain_trigger : le declencheur dit COMMENT la
+-- possession a commence (recuperation, corner, touche...), la contre-attaque dit
+-- ce qu'elle EST. Une contre-attaque demarre justement par une recuperation ;
+-- mettre les deux dans le meme CASE detruirait de l'information au lieu d'en
+-- ajouter. Il est donc calcule ici, ou les passes sont construites, et reste
+-- disponible pour tous les consommateurs de ce modele.
+--
+-- NOTE : intermediate_xg_chain_credits a sa propre CTE counter_attack_chains,
+-- plus etroite -- elle exige que le qualificatif 23 porte sur le TIR de la
+-- chaine. Ici on prend le qualificatif n'importe ou dans la chaine : une
+-- contre-attaque qui ne finit pas par un tir reste une contre-attaque, et un
+-- reseau de passes s'interesse a la circulation, pas a sa conclusion.
+-- ══════════════════════════════════════════════════════════════════════════════
+counter_attack_chains AS (
+    SELECT DISTINCT
+        pc.match_id,
+        pc.chain_id
+    FROM in_player_possession_chains pc
+    JOIN in_events_qual eq
+        ON  eq.match_id = pc.match_id
+        AND eq.row_num  = pc.row_num
+    WHERE pc.match_id IN (SELECT match_id FROM new_matches)
+      AND eq.qual_type_id = 23
+),
+
 passes_network AS (
     SELECT
-        match_id,
-        chain_id,
-        chain_trigger,
+        pr.match_id,
+        pr.chain_id,
+        pr.chain_trigger,
         team_id,
         passer_id,
         receiver_id,
@@ -239,9 +299,15 @@ passes_network AS (
               OR is_shot_assist = 1             THEN TRUE ELSE FALSE END AS is_creative,
 
         -- Passe de construction : dans la moitié défensive
-        CASE WHEN x < 50                        THEN TRUE ELSE FALSE END AS is_buildup
+        CASE WHEN x < 50                        THEN TRUE ELSE FALSE END AS is_buildup,
 
-    FROM passes_raw
+        -- Passe jouee dans une chaine de contre-attaque (qualificatif 23 FastBreak)
+        CASE WHEN ca.chain_id IS NOT NULL       THEN TRUE ELSE FALSE END AS is_counter_attack
+
+    FROM passes_raw pr
+    LEFT JOIN counter_attack_chains ca
+        ON  ca.match_id = pr.match_id
+        AND ca.chain_id = pr.chain_id
 )
 
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -271,7 +337,8 @@ mdl_out AS (
         "league_source"                                              AS str_league_source,
         "is_progressive"                                             AS bool_is_progressive,
         "is_creative"                                                AS bool_is_creative,
-        "is_buildup"                                                 AS bool_is_buildup
+        "is_buildup"                                                 AS bool_is_buildup,
+        "is_counter_attack"                                          AS bool_is_counter_attack
     FROM mdl_body
 )
 

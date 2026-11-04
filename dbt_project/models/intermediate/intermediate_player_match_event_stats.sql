@@ -4,6 +4,7 @@
         unique_key=['str_match_id', 'str_team_id', 'str_player_id'],
         on_schema_change='sync_all_columns',
         schema='intermediate',
+        tags=['by_season'],
         alias='intermediate_player_match_event_stats'
     )
 }}
@@ -16,7 +17,7 @@
 WITH
 
 -- intermediate_whoscored_event_qualifiers lu sous ses noms refondus, remappé vers les noms de travail du modèle
-in_events_qual AS (
+in_events_qual AS NOT MATERIALIZED (
     SELECT
         str_match_id                                                 AS "match_id",
         CAST(str_team_id AS BIGINT)                                  AS "team_id",
@@ -43,7 +44,7 @@ in_events_qual AS (
 ),
 
 -- intermediate_player_match_minutes lu sous ses noms refondus, remappé vers les noms de travail du modèle
-in_int_player_minutes AS (
+in_int_player_minutes AS NOT MATERIALIZED (
     SELECT
         str_match_id                                                 AS "match_id",
         CAST(str_team_id AS BIGINT)                                  AS "team_id",
@@ -53,7 +54,7 @@ in_int_player_minutes AS (
 ),
 
 -- intermediate_whoscored_events lu sous ses noms refondus, remappé vers les noms de travail du modèle
-in_int_whoscored_events AS (
+in_int_whoscored_events AS NOT MATERIALIZED (
     SELECT
         str_match_id                                                 AS "match_id",
         CAST(str_team_id AS BIGINT)                                  AS "team_id",
@@ -91,7 +92,7 @@ in_int_whoscored_events AS (
 ),
 
 -- intermediate_whoscored_match_bridge lu sous ses noms refondus, remappé vers les noms de travail du modèle
-in_int_whoscored_match_index AS (
+in_int_whoscored_match_index AS NOT MATERIALIZED (
     SELECT
         str_match_id                                                 AS "match_id",
         str_ws_match_id                                              AS "ws_match_id",
@@ -113,7 +114,20 @@ WITH
 -- ══════════════════════════════════════════════════════════════════════════════
 -- 1. FILTRE INCRÉMENTAL STRICT (Sans Cross Join)
 -- ══════════════════════════════════════════════════════════════════════════════
-{% if is_incremental() %}
+{% if var('only_season', none) %}
+-- Mode « une saison » (orchestrateur, boucle par saison) : matchs de la saison
+-- pas encore présents dans la table. Remplace le critère habituel (scraped_at,
+-- jointure sur {{ this }}) qui exclurait à tort une saison plus ancienne que
+-- la dernière déjà chargée.
+new_matches AS (
+    SELECT DISTINCT match_id
+    FROM in_int_whoscored_events
+    WHERE match_id IN ({{ season_match_ids(this) }})
+    {%- if is_incremental() %}
+      AND match_id NOT IN (SELECT DISTINCT str_match_id FROM {{ this }})
+    {%- endif %}
+),
+{% elif is_incremental() %}
 new_matches AS (
     SELECT DISTINCT e.match_id
     FROM in_int_whoscored_events e
@@ -441,7 +455,7 @@ match_teams AS (
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- 2. PIVOT DES QUALIFICATEURS
--- Ajout de 178/179 pour éviter la sous-requête corrélée dans n_touches
+-- Les qualifiers 178/179 ont ete RETIRES le 07/10/2026 : voir n_touches plus bas.
 -- ══════════════════════════════════════════════════════════════════════════════
 qual_pivot AS (
     SELECT
@@ -457,10 +471,9 @@ qual_pivot AS (
         MAX(CASE WHEN qual_type_id = 170   THEN 1 ELSE 0 END) AS is_leading_to_goal,
         MAX(CASE WHEN qual_type_id = 169   THEN 1 ELSE 0 END) AS is_leading_to_attempt,
         MAX(CASE WHEN qual_type_id = 286   THEN 1 ELSE 0 END) AS is_offensive_aerial,
-        MAX(CASE WHEN qual_type_id = 285   THEN 1 ELSE 0 END) AS is_defensive_aerial,
-        MAX(CASE WHEN qual_type_id IN (178, 179) THEN 1 ELSE 0 END) AS is_gk_touch
+        MAX(CASE WHEN qual_type_id = 285   THEN 1 ELSE 0 END) AS is_defensive_aerial
     FROM in_events_qual
-    WHERE qual_type_id IN (210, 11113, 1, 2, 4, 22, 215, 170, 169, 285, 286, 178, 179)
+    WHERE qual_type_id IN (210, 11113, 1, 2, 4, 22, 215, 170, 169, 285, 286)
       AND match_id IN (SELECT match_id FROM match_dates)
     GROUP BY match_id, row_num
 ),
@@ -482,7 +495,7 @@ events_enriched AS (
             
         qp.is_shot_assist, qp.is_key_pass, qp.is_longball, qp.is_cross, qp.is_throughball,
         qp.is_regular_play, qp.is_individual_play, qp.is_leading_to_goal, qp.is_leading_to_attempt,
-        qp.is_offensive_aerial, qp.is_defensive_aerial, qp.is_gk_touch
+        qp.is_offensive_aerial, qp.is_defensive_aerial
 
     FROM in_int_whoscored_events e
     INNER JOIN match_dates d ON d.match_id = e.match_id
@@ -501,10 +514,10 @@ events_with_state AS (
 events_final AS (
     SELECT e.*,
         CASE
-            WHEN e.expanded_minute >= 75 AND e.team_score = 0 AND e.opp_score = 0 THEN 'blank_late'
-            WHEN e.expanded_minute >= 75 AND e.team_score = e.opp_score           THEN 'drawing_late'
-            WHEN e.expanded_minute >= 75 AND e.team_score > e.opp_score           THEN 'winning_late'
-            WHEN e.expanded_minute >= 75 AND e.team_score < e.opp_score           THEN 'losing_late'
+            WHEN e.minute >= 75 AND e.team_score = 0 AND e.opp_score = 0 THEN 'blank_late'
+            WHEN e.minute >= 75 AND e.team_score = e.opp_score           THEN 'drawing_late'
+            WHEN e.minute >= 75 AND e.team_score > e.opp_score           THEN 'winning_late'
+            WHEN e.minute >= 75 AND e.team_score < e.opp_score           THEN 'losing_late'
             WHEN e.team_score = 0 AND e.opp_score = 0                             THEN 'blank'
             WHEN e.team_score = e.opp_score                                       THEN 'drawing'
             WHEN e.team_score > e.opp_score                                       THEN 'winning'
@@ -553,8 +566,32 @@ master_agg AS (
         AVG(e.x) FILTER (WHERE e.type_id IN (7, 8, 49, 45, 12))  AS defensive_zone_x,
 
         -- ---------------- SPATIAL ----------------
-        -- La sous-requête corrélée est remplacée par la vérification de notre nouveau flag is_gk_touch
-        COUNT(*) FILTER (WHERE e.is_touch = TRUE AND COALESCE(e.is_gk_touch, 0) = 0) AS n_touches,
+        -- CORRIGE le 07/10/2026 — le filtre is_gk_touch a ete supprime.
+        --
+        -- Il etait bati sur les qualifiers 178 et 179, censes marquer une touche
+        -- de gardien. Mesure du 07/10/2026 : le qualifier 178 est pose sur
+        -- 2 896 674 evenements, dont 78,5 % sont des Pass, et par poste il va a
+        -- DC 713 935, MC 430 331, Sub 280 033, DMC 207 629 et GK seulement
+        -- 195 543 en cinquieme position. Ce n'est pas un marqueur de gardien :
+        -- c'est un qualifier de passe.
+        --
+        -- Consequence : le filtre ecartait 84,5 % de TOUS les contacts de TOUS
+        -- les joueurs. Mediane 5 contacts par joueur-match au lieu de 27, et une
+        -- correlation de 0,49 avec int_touches de WhoScored. Sur Chelsea-City,
+        -- Ruben Dias etait credite de 10 contacts au lieu de 99.
+        --
+        -- Apres correction, COUNT(*) FILTER (WHERE e.is_touch) reproduit
+        -- int_touches de intermediate_whoscored_player_match_official
+        -- EXACTEMENT : correlation 1,0, 100 % d'exactitude, ecart maximum 0,
+        -- sur les 80 082 paires joueur-match de la saison 2023-2024.
+        --
+        -- A savoir : bool_is_touch vient de WhoScored (cle isTouch, recopiee dans
+        -- scrape_whoscored_details.py ligne 1182). Il ne signifie pas tout contact
+        -- avec le ballon : BallRecovery (249 676), Aerial (149 262), Challenge
+        -- (40 922) et KeeperPickup (32 087) sont de vrais contacts que WhoScored
+        -- exclut de sa statistique. n_touches suit donc la definition WhoScored,
+        -- pas la notion large de contact.
+        COUNT(*) FILTER (WHERE e.is_touch = TRUE) AS n_touches,
         {{ spatial_zones() }},
 
         -- ---------------- AÉRIEN ----------------

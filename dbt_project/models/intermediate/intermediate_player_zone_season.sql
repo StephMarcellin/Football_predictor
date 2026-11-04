@@ -83,7 +83,7 @@ in_int_shot_placement AS (
         bool_is_goal                                                 AS "is_goal",
         bool_is_blocked                                              AS "is_blocked",
         bool_is_on_target                                            AS "is_on_target",
-        dec_pre_shot_xg_proxy                                        AS "pre_shot_xg_proxy",
+        dec_shot_outcome_score                                       AS "shot_outcome_score",
         dec_offset_center                                            AS "offset_center",
         dec_height                                                   AS "height",
         str_placement_col                                            AS "placement_col",
@@ -488,19 +488,74 @@ shots_season AS (
     GROUP BY player_id, zone_5x5, season
 ),
 
--- 5) Duels défensifs par (joueur, zone, saison) — côté défenseur (B).
---    RETOURNEMENT vers la cage du défenseur : les coords sont dans le repère de
---    l'attaquant (A), on les inverse en (100−x, 100−y) pour que la cellule soit
---    définie par rapport au but que le défenseur protège. Validé : un duel à
---    x=90 (près du but de A) tombe en z1 (tiers défensif de B).
-duels_season AS (
-    SELECT player_id_b AS player_id, season,
-        'z' || LEAST(FLOOR((100 - x) / 20) + 1, 5)::INT || '_c' || LEAST(FLOOR((100 - y) / 20) + 1, 5)::INT AS zone_5x5,
-        COUNT(*)        AS n_duels,
-        SUM(outcome_b)  AS duels_won
+-- 5) Duels par (joueur, cellule, saison) — CÔTÉ DÉFENSIF SELON LE TYPE DE DUEL.
+--
+--    Refonte du 08/10/2026 (défaut 15). L'ancienne version prenait player_id_b
+--    comme étant le défenseur. Or intermediate_duel_pairs construit A et B par
+--    ORDRE D'ENREGISTREMENT, pas par rôle : son propre commentaire dit « le
+--    filtre dl_a.row_num < dl_b.row_num déduplique ». Mesure du x moyen de chaque
+--    côté, chacun dans le repère de son équipe (ils somment donc à 100) :
+--
+--      type           paires   x moyen A   x moyen B   qui défend
+--      Aerial         74 631      48,31       51,69     arbitraire (symétrique)
+--      TakeOn         59 043      62,45       37,55     B
+--      Foul           58 163      45,61       54,39     ni l'un ni l'autre
+--      Dispossessed   44 183      59,79       40,21     B
+--      Challenge      22 600      37,67       62,33     A, pas B
+--      Tackle              1      64,10       35,90     B
+--
+--    B n'était le défenseur que sur 103 227 paires (39,9 %). Et la conséquence la
+--    plus nette portait sur duels_won = SUM(outcome_b) : l'issue de B est
+--    déterminée par le TYPE, pas par le joueur — Aerial 0,0005, Foul 0,0000,
+--    Challenge 1,0000 avec un écart-type de 0, soit 60,1 % du volume sans aucune
+--    information sur le joueur. La feature remontait jusqu'à def_solidity et
+--    multipliait 14 des 16 colonnes corridor de mart_1n2.
+--
+--    Règle appliquée, un côté par type :
+--      • TakeOn (3), Dispossessed (50), Tackle (7) → B défend
+--      • Challenge (45)                           → A défend
+--      • Aerial (44), Foul (4)                    → LES DEUX participants
+--
+--    Un duel aérien a deux contestants, pas un attaquant et un défenseur : on
+--    crédite les deux, chacun avec SA propre issue. Un seul vainqueur par duel,
+--    donc un taux de 0,5000 exactement sur ce type — c'est l'identité qui le
+--    vérifie. Idem pour Foul, où A est la victime et B le fautif.
+--
+--    REPÈRE : dec_x et dec_y portent les coordonnées de l'événement A — vérifié
+--    sur 258 621 paires sur 258 621. Le côté B est donc ramené dans son propre
+--    repère par (100 − x, 100 − y). C'est une ROTATION de 180°, pas deux miroirs
+--    indépendants : les deux axes sont relatifs à l'équipe, prouvé sur 74 604
+--    paires de duels aériens où x_a + x_b = 100,0 ET y_a + y_b = 100,0 (écarts
+--    moyens 0,003 et 0,005 ; 99,94 % des paires à moins d'une unité).
+duels_cotes AS (
+    -- côté A : coordonnées telles quelles, c'est son repère
+    SELECT season, duel_type_id, player_id_a AS player_id,
+           x AS x_joueur, y AS y_joueur, outcome_a AS outcome_joueur, 'A' AS cote
     FROM in_player_network_duels
-    GROUP BY player_id_b, season,
-        'z' || LEAST(FLOOR((100 - x) / 20) + 1, 5)::INT || '_c' || LEAST(FLOOR((100 - y) / 20) + 1, 5)::INT
+
+    UNION ALL
+
+    -- côté B : rotation de 180° vers son propre repère
+    SELECT season, duel_type_id, player_id_b AS player_id,
+           100 - x, 100 - y, outcome_b, 'B' AS cote
+    FROM in_player_network_duels
+),
+
+duels_defensifs AS (
+    SELECT * FROM duels_cotes
+    WHERE (duel_type_id IN (3, 50, 7) AND cote = 'B')   -- TakeOn, Dispossessed, Tackle
+       OR (duel_type_id = 45          AND cote = 'A')   -- Challenge
+       OR (duel_type_id IN (44, 4))                     -- Aerial, Foul : les deux
+),
+
+duels_season AS (
+    SELECT player_id, season,
+        'z' || LEAST(FLOOR(x_joueur / 20) + 1, 5)::INT || '_c' || LEAST(FLOOR(y_joueur / 20) + 1, 5)::INT AS zone_5x5,
+        COUNT(*)             AS n_duels,
+        SUM(outcome_joueur)  AS duels_won
+    FROM duels_defensifs
+    GROUP BY player_id, season,
+        'z' || LEAST(FLOOR(x_joueur / 20) + 1, 5)::INT || '_c' || LEAST(FLOOR(y_joueur / 20) + 1, 5)::INT
 ),
 
 -- 6) Danger offensif par (joueur, zone, saison) — feature 35, depuis intermediate_event_values.

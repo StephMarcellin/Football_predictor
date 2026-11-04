@@ -12,7 +12,7 @@ description: >
 source:
   duckdb_path: db/football.duckdb
   query: |
-    SELECT "str_match_id", "str_chain_id", "int_chain_number", "str_chain_team_id", "str_player_id", "str_team_id", "str_season", "str_league_source", "dec_xg_proxy", "bool_is_penalty", "int_position_in_chain", "int_chain_length", "dec_position_weight", "bool_is_keeper", "bool_has_error_leading_to_goal", "dec_threat_conceded", "dec_threat_conceded_weighted" FROM intermediate."intermediate_threat_conceded_credits"
+    SELECT "str_match_id", "str_chain_id", "int_chain_number", "str_chain_team_id", "str_player_id", "str_team_id", "str_season", "str_league_source", "dec_shot_outcome_score", "bool_is_penalty", "int_position_in_chain", "int_chain_length", "dec_position_weight", "bool_is_keeper", "bool_has_error_leading_to_goal", "dec_threat_conceded", "dec_threat_conceded_weighted" FROM intermediate."intermediate_threat_conceded_credits"
 
 expectations:
 
@@ -34,7 +34,7 @@ expectations:
       - str_team_id
       - str_season
       - str_league_source
-      - dec_xg_proxy
+      - dec_shot_outcome_score
       - bool_is_penalty
       - int_position_in_chain
       - int_chain_length
@@ -65,7 +65,7 @@ expectations:
     severity: warn
     meta: { description: "Empirique [202606100001, 202606100426], mean=2.03e+11." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: dec_xg_proxy, min_value: 0.009999999999999995, max_value: 1.09, mostly: 1.0 }
+    kwargs: { column: dec_shot_outcome_score, min_value: 0.009999999999999995, max_value: 1.09, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [0.10, 1.00], mean=0.561." }
   - type: expect_column_values_to_be_between

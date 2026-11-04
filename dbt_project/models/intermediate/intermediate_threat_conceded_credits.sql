@@ -4,6 +4,7 @@
         unique_key=['str_match_id', 'str_chain_id', 'str_player_id'],
         on_schema_change='sync_all_columns',
         schema='intermediate',
+        tags=['by_season'],
         alias='intermediate_threat_conceded_credits'
     )
 }}
@@ -16,7 +17,7 @@
 WITH
 
 -- intermediate_whoscored_event_qualifiers lu sous ses noms refondus, remappé vers les noms de travail du modèle
-in_events_qual AS (
+in_events_qual AS NOT MATERIALIZED (
     SELECT
         str_match_id                                                 AS "match_id",
         CAST(str_team_id AS BIGINT)                                  AS "team_id",
@@ -43,7 +44,7 @@ in_events_qual AS (
 ),
 
 -- intermediate_possession_chains lu sous ses noms refondus, remappé vers les noms de travail du modèle
-in_player_possession_chains AS (
+in_player_possession_chains AS NOT MATERIALIZED (
     SELECT
         str_match_id                                                 AS "match_id",
         str_season                                                   AS "season",
@@ -72,7 +73,7 @@ in_player_possession_chains AS (
 ),
 
 -- intermediate_xg_chain_credits lu sous ses noms refondus, remappé vers les noms de travail du modèle
-in_player_xg_chain AS (
+in_player_xg_chain AS NOT MATERIALIZED (
     SELECT
         str_match_id                                                 AS "match_id",
         str_chain_id                                                 AS "chain_id",
@@ -84,7 +85,7 @@ in_player_xg_chain AS (
         CAST(str_shot_event_id AS INTEGER)                           AS "shot_event_id",
         CAST(str_shot_type_id AS INTEGER)                            AS "shot_type_id",
         int_shot_minute                                              AS "shot_minute",
-        dec_xg_proxy                                                 AS "xg_proxy",
+        dec_shot_outcome_score                                       AS "shot_outcome_score",
         bool_is_counter_attack                                       AS "is_counter_attack",
         int_position_in_chain                                        AS "position_in_chain",
         int_chain_length                                             AS "chain_length",
@@ -98,13 +99,35 @@ in_player_xg_chain AS (
     FROM {{ ref('intermediate_xg_chain_credits') }}
 ),
 
+-- intermediate_whoscored_player_match_official lu sous ses noms refondus, remappé vers les noms de travail du modèle
+in_player_match_official AS NOT MATERIALIZED (
+    SELECT
+        str_match_id                                                 AS "match_id",
+        CAST(str_player_id AS INTEGER)                               AS "player_id",
+        str_position                                                 AS "position_name"
+    FROM {{ ref('intermediate_whoscored_player_match_official') }}
+),
+
 mdl_body AS (
 WITH
 
 -- ══════════════════════════════════════════════════════════════════════════════
 -- FILTRE INCRÉMENTAL
 -- ══════════════════════════════════════════════════════════════════════════════
-{% if is_incremental() %}
+{% if var('only_season', none) %}
+-- Mode « une saison » (orchestrateur, boucle par saison) : matchs de la saison
+-- pas encore présents dans la table. Remplace le critère habituel (scraped_at,
+-- jointure sur {{ this }}) qui exclurait à tort une saison plus ancienne que
+-- la dernière déjà chargée.
+new_matches AS (
+    SELECT DISTINCT match_id
+    FROM in_player_xg_chain
+    WHERE match_id IN ({{ season_match_ids(this) }})
+    {%- if is_incremental() %}
+      AND match_id NOT IN (SELECT DISTINCT str_match_id FROM {{ this }})
+    {%- endif %}
+),
+{% elif is_incremental() %}
 new_matches AS (
     SELECT DISTINCT match_id
     FROM in_player_xg_chain
@@ -118,7 +141,7 @@ new_matches AS (
             CAST(str_team_id AS BIGINT)                                  AS "team_id",
             str_season                                                   AS "season",
             str_league_source                                            AS "league_source",
-            dec_xg_proxy                                                 AS "xg_proxy",
+            dec_shot_outcome_score                                   AS "shot_outcome_score",
             bool_is_penalty                                              AS "is_penalty",
             int_position_in_chain                                        AS "position_in_chain",
             int_chain_length                                             AS "chain_length",
@@ -149,7 +172,7 @@ chain_shots AS (
         xgc.chain_id,
         xgc.chain_number,
         xgc.chain_team_id,
-        xgc.xg_proxy,
+        xgc.shot_outcome_score,
         xgc.season,
         xgc.league_source,
         xgc.shot_event_id,
@@ -167,23 +190,55 @@ chain_shots AS (
 ),
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- KEEPER_ACTIONS
--- Identifie les gardiens parmi les joueurs adverses dans chaque chaîne.
--- Un gardien = joueur qui a réalisé au moins une action exclusive de gardien
--- (Save, Claim, Punch, KeeperPickup) dans cette chaîne.
+-- KEEPERS — etre gardien est une propriete du JOUEUR DANS LE MATCH
+-- Refonte du 07/10/2026 (defaut 9). L'ancienne version reconnaissait un gardien
+-- a ses actions DANS LA CHAINE, parmi les types 10/11/41/52. Deux erreurs :
+--
+--   1. Le type 10 Save n'est PAS exclusif au gardien : sur 34 252 evenements,
+--      seuls 46,3 % sont le fait d'un gardien ; 16 779 sont des joueurs de
+--      champ qui ont CONTRE un tir. Resultat : 18 125 lignes etaient marquees
+--      is_keeper a tort (8 944 defenseurs centraux, 2 179 milieux...) et donc
+--      exonerees de toute menace concedee.
+--   2. Le perimetre par chaine inversait la regle : un gardien battu n'a pas
+--      d'evenement Save dans la chaine, donc il n'etait PAS reconnu gardien et
+--      etait facture comme un defenseur ordinaire -- 990 lignes de vrais
+--      gardiens. Sur Chelsea-City, le gardien encaissait 1,0 a la 53e, et
+--      Ederson 1,0 sur le penalty de la 101e alors que la regle 1 l'interdit.
+--
+-- Etre gardien est un fait du match, pas de la possession : le perimetre est
+-- donc (match_id, player_id), sans chain_id.
+--
+-- Deux criteres, qui disent tous deux 'ce joueur est gardien dans ce match' :
+--   a. le poste officiel de la composition (str_position = 'GK') : 5 198 lignes,
+--      soit exactement 2 par match sur 2 599 matchs ;
+--   b. une action reellement exclusive au gardien, pour rattraper le gardien
+--      entre en cours de match, que la composition type 'Sub'. Les sept types
+--      retenus sont a 98,9-99,7 % le fait d'un gardien : 11 Claim (99,5),
+--      41 Punch (99,4), 52 KeeperPickup (99,5), 53 CrossNotClaimed (98,9),
+--      54 Smother (99,1), 58 PenaltyFaced (98,9), 59 KeeperSweeper (99,7).
+--      Le type 10 est exclu, c'est lui le coupable. Ce critere ne concerne que
+--      56 paires (match, joueur) sur 2 599 matchs.
+--
+-- La lecture se fait depuis in_player_possession_chains et non depuis
+-- events_enriched : les deux sources donnent le MEME ensemble de 5 246 paires
+-- (0 difference dans les deux sens), donc on evite un amont de 4 M de lignes.
 -- ══════════════════════════════════════════════════════════════════════════════
-keeper_actions AS (
+keepers AS (
+    SELECT DISTINCT
+        o.match_id,
+        o.player_id
+    FROM in_player_match_official o
+    WHERE o.position_name = 'GK'
+      AND o.match_id IN (SELECT match_id FROM new_matches)
+
+    UNION
+
     SELECT DISTINCT
         pc.match_id,
-        pc.chain_id,
         pc.player_id
     FROM in_player_possession_chains pc
-    JOIN chain_shots cs
-        ON  cs.match_id = pc.match_id
-        AND cs.chain_id = pc.chain_id
     WHERE pc.match_id IN (SELECT match_id FROM new_matches)
-      AND pc.team_id  != pc.chain_team_id
-      AND pc.type_id   IN (10, 11, 41, 52)  -- Save, Claim, Punch, KeeperPickup
+      AND pc.type_id IN (11, 41, 52, 53, 54, 58, 59)
 ),
 
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -258,9 +313,9 @@ defensive_players AS (
         CASE WHEN ka.player_id IS NOT NULL THEN TRUE ELSE FALSE END AS is_keeper,
         CASE WHEN ke.player_id IS NOT NULL THEN TRUE ELSE FALSE END AS has_error_leading_to_goal
     FROM defensive_players_raw dp
-    LEFT JOIN keeper_actions ka
+    -- par (match, joueur) : etre gardien ne depend pas de la chaine
+    LEFT JOIN keepers ka
         ON  ka.match_id  = dp.match_id
-        AND ka.chain_id  = dp.chain_id
         AND ka.player_id = dp.player_id
     LEFT JOIN keeper_errors ke
         ON  ke.match_id  = dp.match_id
@@ -294,7 +349,7 @@ threat_computed AS (
         dp.team_id,
         cs.season,
         cs.league_source,
-        cs.xg_proxy,
+        cs.shot_outcome_score,
         cs.is_penalty,
         dp.position_in_chain,
         dp.chain_length,
@@ -303,7 +358,7 @@ threat_computed AS (
         dp.has_error_leading_to_goal,
 
         -- Sanction brute
-        cs.xg_proxy                                         AS threat_conceded,
+        cs.shot_outcome_score                                         AS threat_conceded,
 
         -- Sanction pondérée avec règles gardien
         CASE
@@ -312,12 +367,12 @@ threat_computed AS (
                 THEN 0.0
             -- Règle 2 : erreur du gardien → sanction pleine
             WHEN dp.is_keeper = TRUE AND dp.has_error_leading_to_goal = TRUE
-                THEN ROUND(cs.xg_proxy * dp.position_weight, 4)
+                THEN ROUND(cs.shot_outcome_score * dp.position_weight, 4)
             -- Règle 3 : défense trouée → gardien non sanctionné
             WHEN dp.is_keeper = TRUE
                 THEN 0.0
             -- Défenseur non-gardien : sanction pondérée normale
-            ELSE ROUND(cs.xg_proxy * dp.position_weight, 4)
+            ELSE ROUND(cs.shot_outcome_score * dp.position_weight, 4)
         END                                                 AS threat_conceded_weighted
 
     FROM defensive_players dp
@@ -343,7 +398,7 @@ mdl_out AS (
         CAST(team_id AS VARCHAR)                                     AS str_team_id,
         "season"                                                     AS str_season,
         "league_source"                                              AS str_league_source,
-        "xg_proxy"                                                   AS dec_xg_proxy,
+        "shot_outcome_score"                                                   AS dec_shot_outcome_score,
         "is_penalty"                                                 AS bool_is_penalty,
         "position_in_chain"                                          AS int_position_in_chain,
         "chain_length"                                               AS int_chain_length,

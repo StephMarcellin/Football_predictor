@@ -4,6 +4,7 @@
         unique_key=['str_match_id', 'str_team_id', 'str_player_id'],
         on_schema_change='sync_all_columns',
         schema='intermediate',
+        tags=['by_season'],
         alias='intermediate_pass_network_player_centrality'
     )
 }}
@@ -16,7 +17,7 @@
 WITH
 
 -- intermediate_pass_network_edges lu sous ses noms refondus, remappé vers les noms de travail du modèle
-in_player_network_passes AS (
+in_player_network_passes AS NOT MATERIALIZED (
     SELECT
         str_match_id                                                 AS "match_id",
         CAST(str_team_id AS BIGINT)                                  AS "team_id",
@@ -43,7 +44,20 @@ WITH
 -- On détecte les nouveaux matchs depuis intermediate_pass_network_edges,
 -- qui est la source unique de cette table.
 -- ══════════════════════════════════════════════════════════════════════════════
-{% if is_incremental() %}
+{% if var('only_season', none) %}
+-- Mode « une saison » (orchestrateur, boucle par saison) : matchs de la saison
+-- pas encore présents dans la table. Remplace le critère habituel (scraped_at,
+-- jointure sur {{ this }}) qui exclurait à tort une saison plus ancienne que
+-- la dernière déjà chargée.
+new_matches AS (
+    SELECT DISTINCT match_id
+    FROM in_player_network_passes
+    WHERE match_id IN ({{ season_match_ids(this) }})
+    {%- if is_incremental() %}
+      AND match_id NOT IN (SELECT DISTINCT str_match_id FROM {{ this }})
+    {%- endif %}
+),
+{% elif is_incremental() %}
 new_matches AS (
     SELECT DISTINCT match_id
     FROM in_player_network_passes
@@ -105,7 +119,7 @@ out_stats AS (
 -- degree_in         : nombre de sources distinctes
 -- weighted_degree_in : volume total de passes reçues
 -- ══════════════════════════════════════════════════════════════════════════════
-in_stats AS (
+in_stats AS NOT MATERIALIZED (
     SELECT
         match_id,
         team_id,
@@ -155,13 +169,43 @@ team_stats AS (
 -- Les joueurs présents uniquement comme receiver (jamais comme passer) auront
 -- degree_out = NULL après le LEFT JOIN — COALESCE les ramène à 0.
 -- ══════════════════════════════════════════════════════════════════════════════
+-- ══════════════════════════════════════════════════════════════════════════════
+-- JOUEURS
+-- L'ensemble des joueurs du reseau : passeurs UNION receveurs.
+--
+-- Ajoute le 07/10/2026 (defaut 13). final pilotait sur out_stats, donc un
+-- joueur qui a RECU des passes sans jamais en donner n'apparaissait pas du
+-- tout -- 966 triplets (match, equipe, joueur) sur 79 167, soit 1,2 %. Le
+-- commentaire du modele affirmait le contraire ('auront degree_out = NULL
+-- apres le LEFT JOIN, COALESCE les ramene a 0'), mais un LEFT JOIN depuis
+-- out_stats ne peut pas inventer une ligne absente de sa table pilote.
+--
+-- Consequence corrigee : un remplaçant entre en fin de match, qui recoit deux
+-- ballons et les perd, a desormais ses features de reseau a zero au lieu de
+-- n'avoir aucune ligne. Sur Chelsea-City c'etait le joueur 393407 (poste Sub).
+--
+-- UNION et non UNION ALL : la deduplication est voulue, un joueur qui a passe
+-- ET recu ne doit apparaitre qu'une fois.
+-- ══════════════════════════════════════════════════════════════════════════════
+joueurs AS (
+    SELECT match_id, team_id, passer_id AS player_id, season, league_source
+    FROM in_player_network_passes
+    WHERE match_id IN (SELECT match_id FROM new_matches)
+
+    UNION
+
+    SELECT match_id, team_id, receiver_id AS player_id, season, league_source
+    FROM in_player_network_passes
+    WHERE match_id IN (SELECT match_id FROM new_matches)
+),
+
 final AS (
     SELECT
-        o.match_id,
-        o.team_id,
-        o.player_id,
-        o.season,
-        o.league_source,
+        j.match_id,
+        j.team_id,
+        j.player_id,
+        j.season,
+        j.league_source,
 
         -- Degrés bruts
         COALESCE(o.degree_out, 0)                                       AS degree_out,
@@ -193,14 +237,18 @@ final AS (
             / NULLIF(t.n_players * (t.n_players - 1), 0)
         , 4)                                                            AS betweenness_proxy
 
-    FROM out_stats o
+    FROM joueurs j
+    LEFT JOIN out_stats o
+        ON  o.match_id  = j.match_id
+        AND o.team_id   = j.team_id
+        AND o.player_id = j.player_id
     LEFT JOIN in_stats i
-        ON  i.match_id  = o.match_id
-        AND i.team_id   = o.team_id
-        AND i.player_id = o.player_id
+        ON  i.match_id  = j.match_id
+        AND i.team_id   = j.team_id
+        AND i.player_id = j.player_id
     LEFT JOIN team_stats t
-        ON  t.match_id = o.match_id
-        AND t.team_id  = o.team_id
+        ON  t.match_id = j.match_id
+        AND t.team_id  = j.team_id
 )
 
 -- ══════════════════════════════════════════════════════════════════════════════

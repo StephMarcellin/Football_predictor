@@ -5,7 +5,7 @@ models:
     description: >
       Table pivot centrale — 1 ligne par équipe par match (base intermediate_fbref_schedule,
       matchs à venir inclus). Jointure des int_fbref_* (schedule, keeper, shooting, misc),
-      intermediate_understat_match_stats et intermediate_odds, produite par dbt en mode incremental. Uniquement des
+      intermediate_understat_match_stats, produite par dbt en mode incremental. Aucune cote ici (cf. gold.gold_odds_pinnacle). Uniquement des
       faits au grain match : les agrégats de saison WhoScored (grain équipe × saison) sont
       joints en gold, décalés en N-1 (cf. gold.gold_team_match). Schéma intermediate — consommée par les modèles gold.* et marts.*.
       Noms de colonnes préfixés par type (docs/proposition_nommage_definitif.csv) ;
@@ -13,7 +13,6 @@ models:
 
       Segmentation Big5-only :
       - Colonnes Understat (dec_np_xg, dec_ppda, dec_np_xg_diff_match) : 100 % NULL hors Big5
-      - Colonnes Odds : 100 % NULL hors Big5, avec sparsité résiduelle en Big5
     config:
       alias: intermediate_team_match_backbone
     tests:
@@ -61,24 +60,6 @@ models:
       - dbt_utils.expression_is_true:
           arguments:
             expression: "dec_save_pct IS NULL OR (dec_save_pct >= 0 AND dec_save_pct <= 1)"
-          config:
-            severity: error
-      # ── Somme des probabilités Pinnacle 1n2 = 1 (0 violation) ──
-      - dbt_utils.expression_is_true:
-          arguments:
-            expression: "dec_pinnacle_prob_team IS NULL OR ABS(dec_pinnacle_prob_team + dec_pinnacle_prob_draw + dec_pinnacle_prob_opp - 1) < 0.001"
-          config:
-            severity: error
-      # ── Somme des probabilités marché moyen 1n2 = 1 (0 violation) ──
-      - dbt_utils.expression_is_true:
-          arguments:
-            expression: "dec_market_prob_team IS NULL OR ABS(dec_market_prob_team + dec_market_prob_draw + dec_market_prob_opp - 1) < 0.001"
-          config:
-            severity: error
-      # ── Somme over25 + under25 = 1 (0 violation) ──
-      - dbt_utils.expression_is_true:
-          arguments:
-            expression: "dec_pinnacle_prob_over25 IS NULL OR ABS(dec_pinnacle_prob_over25 + dec_pinnacle_prob_under25 - 1) < 0.001"
           config:
             severity: error
       # ── Match joué ⇔ résultat et score renseignés (0 violation empirique) ──
@@ -250,173 +231,6 @@ models:
 
       - name: dec_np_xg_diff_match
         description: "Différentiel npxG du match (np_xg - np_xg_conceded) — peut être négatif. NULL hors Big5."
-
-      # ── Cotes Pinnacle (odds) — NULL hors Big5 + sparsité résiduelle Big5 ────
-      - name: dec_odds_pinnacle_team
-        description: "Cote Pinnacle victoire de l'équipe (H si Home, A si Away)"
-        tests:
-          - is_valid_odds:
-              config:
-                severity: warn
-
-      - name: dec_odds_pinnacle_draw
-        description: "Cote Pinnacle match nul"
-        tests:
-          - is_valid_odds:
-              config:
-                severity: warn
-
-      - name: dec_odds_pinnacle_opp
-        description: "Cote Pinnacle victoire de l'adversaire"
-        tests:
-          - is_valid_odds:
-              config:
-                severity: warn
-
-      - name: dec_odds_avg_team
-        description: "Cote moyenne marché victoire de l'équipe"
-        tests:
-          - is_valid_odds:
-              config:
-                severity: warn
-
-      - name: dec_odds_avg_draw
-        description: "Cote moyenne marché match nul"
-        tests:
-          - is_valid_odds:
-              config:
-                severity: warn
-
-      - name: dec_odds_avg_opp
-        description: "Cote moyenne marché victoire adversaire"
-        tests:
-          - is_valid_odds:
-              config:
-                severity: warn
-
-      # ── Probabilités implicites (ouverture) ─────────────────────────────────
-      - name: dec_pinnacle_prob_team
-        description: "Probabilité implicite Pinnacle victoire de l'équipe (ouverture)"
-        tests:
-          - is_valid_probability:
-              config:
-                severity: warn
-
-      - name: dec_pinnacle_prob_draw
-        description: "Probabilité implicite Pinnacle match nul (ouverture)"
-        tests:
-          - is_valid_probability:
-              config:
-                severity: warn
-
-      - name: dec_pinnacle_prob_opp
-        description: "Probabilité implicite Pinnacle victoire adversaire (ouverture)"
-        tests:
-          - is_valid_probability:
-              config:
-                severity: warn
-
-      - name: dec_market_prob_team
-        description: "Probabilité implicite marché moyen victoire de l'équipe (ouverture)"
-        tests:
-          - is_valid_probability:
-              config:
-                severity: warn
-
-      - name: dec_market_prob_draw
-        description: "Probabilité implicite marché moyen match nul (ouverture)"
-        tests:
-          - is_valid_probability:
-              config:
-                severity: warn
-
-      - name: dec_market_prob_opp
-        description: "Probabilité implicite marché moyen victoire adversaire (ouverture)"
-        tests:
-          - is_valid_probability:
-              config:
-                severity: warn
-
-      # ── Probabilités implicites (closing) — ajoutées 2026-09-09 ──────────────
-      - name: dec_pinnacle_prob_close_team
-        description: "Probabilité implicite Pinnacle victoire de l'équipe (closing)"
-        tests:
-          - is_valid_probability:
-              config:
-                severity: warn
-
-      - name: dec_pinnacle_prob_close_draw
-        description: "Probabilité implicite Pinnacle match nul (closing)"
-        tests:
-          - is_valid_probability:
-              config:
-                severity: warn
-
-      - name: dec_pinnacle_prob_close_opp
-        description: "Probabilité implicite Pinnacle victoire adversaire (closing)"
-        tests:
-          - is_valid_probability:
-              config:
-                severity: warn
-
-      - name: dec_market_prob_close_team
-        description: "Probabilité implicite marché moyen victoire équipe (closing)"
-        tests:
-          - is_valid_probability:
-              config:
-                severity: warn
-
-      - name: dec_market_prob_close_draw
-        description: "Probabilité implicite marché moyen match nul (closing)"
-        tests:
-          - is_valid_probability:
-              config:
-                severity: warn
-
-      - name: dec_market_prob_close_opp
-        description: "Probabilité implicite marché moyen victoire adversaire (closing)"
-        tests:
-          - is_valid_probability:
-              config:
-                severity: warn
-
-      # ── Drifts (mouvements de la cote entre ouverture et closing) ───────────
-      # Peuvent être négatifs — bornes empiriques [-0.2, +0.3].
-      - name: dec_pinnacle_drift_team
-        description: "Drift Pinnacle victoire équipe (close - open). Peut être négatif."
-      - name: dec_pinnacle_drift_draw
-        description: "Drift Pinnacle match nul (close - open). Peut être négatif."
-      - name: dec_pinnacle_drift_opp
-        description: "Drift Pinnacle victoire adversaire (close - open). Peut être négatif."
-
-      # ── Probabilités Over/Under 2.5 buts ────────────────────────────────────
-      - name: dec_pinnacle_prob_over25
-        description: "Probabilité implicite Pinnacle Over 2.5 buts (ouverture)"
-        tests:
-          - is_valid_probability:
-              config:
-                severity: warn
-
-      - name: dec_pinnacle_prob_under25
-        description: "Probabilité implicite Pinnacle Under 2.5 buts (ouverture)"
-        tests:
-          - is_valid_probability:
-              config:
-                severity: warn
-
-      - name: dec_pinnacle_prob_close_over25
-        description: "Probabilité implicite Pinnacle Over 2.5 buts (closing)"
-        tests:
-          - is_valid_probability:
-              config:
-                severity: warn
-
-      - name: dec_pinnacle_prob_close_under25
-        description: "Probabilité implicite Pinnacle Under 2.5 buts (closing)"
-        tests:
-          - is_valid_probability:
-              config:
-                severity: warn
 
   - name: intermediate_whoscored_event_qualifiers
     description: >
@@ -1167,9 +981,16 @@ models:
 
   - name: intermediate_team_match_tactical
     description: >
-      Features tactiques WhoScored par équipe par match.
-      Calculées depuis silver.stg_whoscored_events et intermediate.intermediate_whoscored_event_qualifiers.
-      32 métriques couvrant le pressing, les zones d'attaque, la structure défensive.
+      Features tactiques WhoScored par équipe par match. Grain (match_id, team_id), 2 lignes par match.
+      Calculées depuis intermediate.intermediate_whoscored_events et
+      intermediate.intermediate_whoscored_event_qualifiers.
+      30 métriques couvrant le pressing, les zones d'attaque, la structure défensive.
+      CONVENTION DE REPÈRE : x et y sont relatifs à l'équipe qui agit, et (x, y) → (100 − x, 100 − y)
+      est une rotation de 180°, prouvée sur 74 604 paires de duels aériens. Les colonnes
+      def_exposed_* sont donc exprimées dans le repère de l'équipe QUI SUBIT, pas de l'adversaire.
+      16 des 30 colonnes sont consommées en aval, et uniquement roulées (gold_team_match via
+      roll_equipe_match, fenêtre `ROWS BETWEEN w PRECEDING AND 1 PRECEDING` → pas de fuite).
+      Les 14 autres s'arrêtent à cette couche.
     columns:
       - name: str_team_id
         description: "Identifiant WhoScored de l'équipe"
@@ -1178,11 +999,11 @@ models:
       - name: dec_ws_field_tilt_actions
         description: "Tilt de terrain — proportion de touches en zone offensive"
       - name: dec_ws_momentum_delta
-        description: "Delta de momentum après avoir encaissé un but (actions post / actions pre)"
+        description: "Delta de momentum après avoir encaissé un but : moyenne, sur les buts encaissés, du rapport actions dans les 10 minutes suivantes / actions dans les 10 minutes précédentes. NULL si l'équipe n'a rien encaissé, ou si la fenêtre amont est vide. Corrigé le 09/10/2026 : l'équipe qui encaisse un CSC est celle à qui l'événement est attribué, pas son adversaire. 400 lignes touchées = 2 × 200 matchs à CSC."
       - name: dec_ws_zone_att_pct
         description: "Pourcentage de touches en zone offensive (x > 66.6)"
       - name: dec_ws_counter_attack_dna
-        description: "ADN contre-attaque — proportion de tirs issus d'une récupération < 15 secondes"
+        description: "ADN contre-attaque — proportion de tirs survenant dans les 15 s suivant une récupération de balle (type 49) de la même équipe. Le 09/10/2026, row_num a été ajouté à l'ORDER BY de la fenêtre : sans lui, les événements d'une même seconde étaient ordonnés arbitrairement et 223 tirs sur 67 965 pouvaient basculer d'un build à l'autre."
       - name: dec_ws_midfield_control_idx
         description: "Contrôle du milieu — part des actions réussies en zone centrale"
       - name: dec_ws_defensive_line_height
@@ -1196,9 +1017,9 @@ models:
       - name: dec_ws_deep_completion_rt
         description: "Taux de passes complétées en zone profonde (deep completions) = deep_completions / total_passes."
       - name: dec_ws_counter_shot_rate
-        description: "Part des tirs issus de contre-attaque = shots_counter_attack / total_shots."
+        description: "Part des tirs issus de contre-attaque = shots_counter_attack / total_shots, depuis le qualificateur 23 FastBreak. Corrigé le 09/10/2026 : lisait le 26 DirectFreekick. Mesure la même notion que dec_ws_counter_attack_dna par une voie indépendante (qualificateur du fournisseur contre fenêtre de 15 s après récupération) — les deux sont conservées pour pouvoir être comparées."
       - name: dec_ws_set_piece_pressure
-        description: "Part des actions offensives issues de coups de pied arrêtés = set_pieces_offensive / offensive_actions."
+        description: "Part des actions offensives issues de coups de pied arrêtés = set_pieces_offensive / offensive_actions, où offensive_actions compte les types 1, 3, 13, 14, 15, 16 à x > 66. Le type 14 ShotOnPost a été ajouté au dénominateur le 09/10/2026 (1 286 événements, 0,19 %)."
       - name: dec_ws_attack_left_pct
         description: "Part des touches offensives sur le flanc gauche = att_touches_left / att_touches_total."
       - name: dec_ws_attack_center_pct
@@ -1218,25 +1039,25 @@ models:
       - name: dec_ws_shot_open_play_pct
         description: "Part des tirs en jeu ouvert = shots_open_play / total_shots."
       - name: dec_ws_shot_set_piece_pct
-        description: "Part des tirs sur coup de pied arrêté = shots_set_piece / total_shots."
+        description: "Part des tirs sur coup de pied arrêté = shots_set_piece / total_shots, depuis les qualificateurs 24 SetPiece + 25 FromCorner + 26 DirectFreekick. Corrigé le 09/10/2026 : lisait le 23 FastBreak, et 24/25 n'étaient lus par personne (15 572 tirs, 23 % du total, sans classe). Les 6 qualificateurs de situation partitionnent les tirs : open_play + set_piece + counter + penalty = 1."
       - name: dec_ws_shot_penalty_att_pct
         description: "Part des tirs qui sont des penalties = shots_penalty / total_shots."
       - name: dec_ws_conversion_rate
-        description: "Taux de conversion = buts marqués / total_shots."
+        description: "Taux de conversion = buts marqués / total_shots, hors CSC. Corrigé le 09/10/2026 : un CSC est un événement type 16 attribué à l'équipe qui l'encaisse (x moyen 5,7), il créditait donc un but à la mauvaise équipe. 210 CSC, 207 lignes touchées."
       - name: dec_ws_cross_rate
         description: "Part des passes qui sont des centres = passes_cross / total_passes."
       - name: dec_ws_through_ball_rate
-        description: "Part des passes en profondeur (through balls) = passes_through_ball / total_passes."
+        description: "Part des passes en profondeur = passes_through_ball / total_passes, depuis le qualificateur 4 Throughball (6 729 passes). Corrigé le 09/10/2026 : lisait le 155 Chipped (248 323 passes), facteur 36,9 et tout autre notion. Moyenne 0,1009 → 0,0026."
       - name: dec_ws_long_ball_rate
         description: "Part des longs ballons = passes_long_ball / total_passes."
       - name: dec_ws_short_pass_rate
-        description: "Part des passes courtes = 1 − (cross + through_ball + long_ball) / total_passes."
+        description: "Part des passes courtes = 1 − passes_non_short / total_passes, où passes_non_short compte les passes portant AU MOINS un de {1 Longball, 2 Cross, 155 Chipped}. Corrigé le 09/10/2026 : la formule soustrayait les trois taux séparément alors que les ensembles se recoupent (155 144 passes portent 2 qualificateurs, 30 589 en portent 3), d'où un biais de −8,8 points. Moyenne 0,7163 → 0,8043."
       - name: dec_ws_def_exposed_left_pct
-        description: "Part des attaques adverses subies sur le flanc gauche = opp_att_left / opp_att_total."
+        description: "Part des attaques adverses subies sur MON flanc gauche = opp_att_my_left / opp_att_total. Corrigé le 09/10/2026 : prenait le flanc gauche de l'adversaire dans SON repère, qui est physiquement mon flanc droit (rotation de 180°). Les colonnes gauche et droite étaient donc permutées sur 5 156 des 5 198 lignes."
       - name: dec_ws_def_exposed_center_pct
-        description: "Part des attaques adverses subies dans l'axe = opp_att_center / opp_att_total."
+        description: "Part des attaques adverses subies dans l'axe = opp_att_my_center / opp_att_total. L'axe est invariant par la rotation de 180°, cette colonne n'était donc pas affectée par la permutation gauche/droite."
       - name: dec_ws_def_exposed_right_pct
-        description: "Part des attaques adverses subies sur le flanc droit = opp_att_right / opp_att_total."
+        description: "Part des attaques adverses subies sur MON flanc droit = opp_att_my_right / opp_att_total. Voir dec_ws_def_exposed_left_pct : les deux étaient permutées avant le 09/10/2026."
 
   - name: intermediate_team_match_h2h
     description: "Registre brut des confrontations directes entre équipes. Une ligne par match."
@@ -1312,7 +1133,8 @@ models:
       (possession certaine vs indéterminée), puis marque le déclencheur de
       chaque chaîne via chain_trigger (corner, free_kick, counter_attack,
       open_play, recovery, throw_in, goal_kick...).
-      Source : intermediate_whoscored_events_enriched. Incrémentale sur match_id.
+      Calculée par Spark (pipelines/spark/spark_possession_chains.py) à partir des Parquet
+      int_event_enriched et events_qual ; ce modèle relit simplement le Parquet.
       Brique de base de intermediate_corner_profiles, intermediate_completed_passes et intermediate_xg_chain_credits.
       Une ligne par action.
     columns:
@@ -2314,12 +2136,14 @@ models:
 
   - name: intermediate_odds
     description: >
-      Cotes bookmakers (Pinnacle et moyennes marché) rematchées sur match_id
-      + team_id/opponent_id. Alimente les colonnes odds_* et les probabilités
-      implicites de intermediate_team_match_backbone.
+      Cotes bookmakers (Pinnacle, moyennes marché, autres) rattachées au match_id
+      (jointure registre sur date + ligue + saison + équipe domicile + équipe extérieur).
+      Grain : 1 ligne par match. Source de gold.gold_odds_pinnacle.
     columns:
       - name: str_match_id
-        description: "Identifiant unifié du match (SHA1), rattaché via match_registry."
+        description: "Identifiant unifié du match (SHA1), rattaché via match_registry. Unique (1 ligne par match)."
+        tests:
+          - unique
       - name: str_team_id
         description: "Id canonique de l'équipe à DOMICILE (via team_mapping sur home_team)."
       - name: str_opponent_id
@@ -2814,8 +2638,11 @@ models:
         description: "Booléen : le joueur a touché le ballon (flag WhoScored isTouch)."
       - name: bool_is_shot
         description: "Booléen : l'événement est un tir (flag WhoScored isShot)."
-      - name: str_qualifiers_json
-        description: "Tableau JSON brut des qualifiers de l'événement — SOURCE DE VÉRITÉ des qualifiers (éclaté dans intermediate_whoscored_event_qualifiers)."
+      # str_qualifiers_json retiree le 08/10/2026 : la colonne n'existe pas dans
+      # la sortie Spark, les qualificatifs ont leur propre table
+      # (intermediate_whoscored_event_qualifiers). Sa description etait restee
+      # orpheline a 8 espaces : PyYAML la lisait comme une cle `description`
+      # dupliquee de bool_is_shot et ecrasait silencieusement la bonne.
       - name: dt_scraped_at
         description: "Horodatage ISO du scrape du match."
       - name: int_row_num
@@ -3454,6 +3281,8 @@ models:
         description: "Booléen : la passe mène directement à un tir (is_key_pass OU is_shot_assist)."
       - name: bool_is_buildup
         description: "Booléen : la passe est jouée dans la moitié défensive (x < 50)."
+      - name: bool_is_counter_attack
+        description: "Booléen : la passe appartient à une chaîne de contre-attaque, c'est-à-dire une chaîne dont AU MOINS UN événement porte le qualificatif WhoScored 23 FastBreak. 3 177 chaînes et 6 759 passes sur la saison. Dimension ORTHOGONALE au déclencheur : ces 6 759 passes ont pour str_chain_trigger recovery (4 392), open_play (2 366) ou throw_in (1) — une contre-attaque démarre justement par une récupération. Définition plus large que la CTE counter_attack_chains de intermediate_xg_chain_credits, qui exige que le qualificatif porte sur le tir de la chaîne."
     tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns:
@@ -3481,7 +3310,7 @@ models:
       - name: int_n_passes
         description: "Nombre total de passes réussies passeur -> receveur dans le match (poids de l'arête)."
       - name: int_n_passes_counter_attack
-        description: "Parmi n_passes, celles dont la chaîne est une contre-attaque (chain_trigger = 'counter_attack')."
+        description: "Parmi n_passes, celles jouées dans une chaîne de contre-attaque (bool_is_counter_attack de intermediate_completed_passes, qualificatif 23 FastBreak). Corrigé le 07/10/2026 : le filtre testait chain_trigger = 'counter_attack', valeur que le CASE de intermediate_possession_chains n'émet jamais — la colonne valait 0 sur les 595 333 arêtes. ATTENTION : ce compteur n'est PAS disjoint des trois autres, une passe de contre-attaque est aussi comptée dans son déclencheur. L'identité n_passes = counter_attack + open_play + recovery + other ne tient donc plus, et c'est voulu."
       - name: int_n_passes_open_play
         description: "Parmi n_passes, celles en jeu ouvert (chain_trigger = 'open_play')."
       - name: int_n_passes_recovery
@@ -3656,8 +3485,8 @@ models:
         description: "type_id du tir terminal (13 MissedShots, 14 ShotOnPost, 15 SavedShot, 16 Goal)."
       - name: int_shot_minute
         description: "Minute (expanded_minute) du tir terminal de la chaîne."
-      - name: dec_xg_proxy
-        description: "Proxy xG du tir terminal de la chaîne = chance_creation de intermediate_event_values pour ce tir (0-1)."
+      - name: dec_shot_outcome_score
+        description: "Tir terminal de la chaine. Score d'issue du tir, PAS un xG : 1,00 pour un but, 0,40 pour un tir cadre arrete, 0,10 pour un tir manque (chance_creation de intermediate_event_values). Calibration mesuree le 07/10/2026 contre np_xg Understat sur 3 426 equipe-matchs : 4,568 contre 1,413 pour 1,407 buts reels, soit un facteur 3,23. La quantite ne peut donc pas etre lue comme une esperance de buts, ni comparee a une source externe. Elle correle mieux avec les buts du match (0,674) que le vrai xG (0,578) : signature du codage sur l'issue."
       - name: bool_is_counter_attack
         description: "Booléen : la chaîne contient un tir en contre-attaque (qualifier 23 FastBreak) — propriété de la chaîne entière, pas du seul tir."
       - name: int_position_in_chain
@@ -3671,9 +3500,9 @@ models:
       - name: bool_is_assister
         description: "Booléen : le joueur est le passeur décisif du tir (résolu via RelatedEventId, qualifier 55)."
       - name: dec_xgchain
-        description: "xGChain : crédit uniforme = xg_proxy du tir terminal, attribué à chaque joueur de la chaîne."
+        description: "xGChain : credit uniforme = shot_outcome_score du tir terminal, attribue a chaque joueur de la chaine. Conforme a la definition Understat dans sa forme, mais herite de la non-calibration de shot_outcome_score (facteur 3,23) : ce n'est pas un xGChain comparable a celui d'Understat."
       - name: dec_xgchain_weighted
-        description: "xGChain pondéré = xg_proxy × position_weight (crédit croissant vers le tir)."
+        description: "xGChain pondere = shot_outcome_score x position_weight (credit croissant vers le tir). NON NORMALISE : la somme des credits d'une chaine, rapportee a shot_outcome_score, va de 1,0 (chaine d'1 evenement) a 7,4 (32 evenements). Un but au terme d'une longue construction distribue donc sept fois plus de credit qu'un but en une touche."
       - name: dec_xgbuildup
         description: "xGBuildup : = xgchain pour les joueurs de construction ; NULL pour le tireur et le passeur décisif (isole l'apport hors finition)."
       - name: dec_xgbuildup_weighted
@@ -3701,8 +3530,8 @@ models:
         description: "Saison du match (ex. 2023-2024)."
       - name: str_league_source
         description: "Championnat / source des données (ex. Bundesliga)."
-      - name: dec_xg_proxy
-        description: "Proxy xG du tir terminal de la chaîne (propagé de intermediate_xg_chain_credits) = chance_creation de intermediate_event_values pour ce tir (0-1)."
+      - name: dec_shot_outcome_score
+        description: "Tir terminal de la chaine, propage de intermediate_xg_chain_credits. Score d'issue du tir, PAS un xG : 1,00 pour un but, 0,40 pour un tir cadre arrete, 0,10 pour un tir manque (chance_creation de intermediate_event_values). Calibration mesuree le 07/10/2026 contre np_xg Understat sur 3 426 equipe-matchs : 4,568 contre 1,413 pour 1,407 buts reels, soit un facteur 3,23. La quantite ne peut donc pas etre lue comme une esperance de buts, ni comparee a une source externe. Elle correle mieux avec les buts du match (0,674) que le vrai xG (0,578) : signature du codage sur l'issue."
       - name: bool_is_penalty
         description: "Booléen : le tir terminal de la chaîne est un penalty (qualifier 9). Si TRUE, le gardien n'est pas sanctionné."
       - name: int_position_in_chain
@@ -3716,9 +3545,9 @@ models:
       - name: bool_has_error_leading_to_goal
         description: "Booléen : le gardien a commis une Error menant au but (type 51 + qualifier 170) dans la chaîne."
       - name: dec_threat_conceded
-        description: "Menace concédée brute = xg_proxy du tir de la chaîne (non pondérée)."
+        description: "Menace concédée brute = shot_outcome_score du tir de la chaîne (non pondérée)."
       - name: dec_threat_conceded_weighted
-        description: "Menace concédée pondérée + règles gardien : penalty -> gardien = 0 ; erreur du gardien -> sanction pleine (xg_proxy × position_weight) ; défense trouée (gardien sans erreur) -> 0 ; défenseur non-gardien -> xg_proxy × position_weight."
+        description: "Menace concédée pondérée + règles gardien : penalty -> gardien = 0 ; erreur du gardien -> sanction pleine (shot_outcome_score × position_weight) ; défense trouée (gardien sans erreur) -> 0 ; défenseur non-gardien -> shot_outcome_score × position_weight."
 
   - name: intermediate_player_zone_transitions
     description: >
@@ -3962,75 +3791,75 @@ models:
         description: "Minute expanded du match (0-based, ex. 45+2 = 47)"
       - name: dec_rating
         description: "Moyenne des ratings joueurs à cette minute — cumulatif glissant, non exploitable tel quel (cf. note table). Non utilisé en agrégation."
-      - name: shots_total_value
+      - name: dec_shots_total
         description: "Tirs tentés à cette minute"
-      - name: shots_on_target_value
+      - name: dec_shots_on_target
         description: "Tirs cadrés à cette minute"
-      - name: shots_off_target_value
+      - name: dec_shots_off_target
         description: "Tirs non cadrés à cette minute"
-      - name: shots_blocked_value
+      - name: dec_shots_blocked
         description: "Tirs contrés à cette minute"
-      - name: clearances_value
+      - name: dec_clearances
         description: "Dégagements à cette minute"
-      - name: interceptions_value
+      - name: dec_interceptions
         description: "Interceptions à cette minute"
-      - name: possession_value
+      - name: dec_possession
         description: "Compte de possessions (nombre de fois où l'équipe a eu le ballon) à cette minute — pas un pourcentage"
-      - name: touches_value
+      - name: dec_touches
         description: "Touches de balle à cette minute"
-      - name: passes_total_value
+      - name: dec_passes_total
         description: "Passes tentées à cette minute"
-      - name: passes_accurate_value
+      - name: dec_passes_accurate
         description: "Passes réussies à cette minute"
-      - name: passes_key_value
+      - name: dec_passes_key
         description: "Passes clés à cette minute"
-      - name: pass_success_value
+      - name: dec_pass_success
         description: "Pourcentage de passes réussies (source WhoScored, cumulatif glissant) — ne pas sommer/moyenner, recalculer depuis passes_accurate/passes_total en aval"
-      - name: aerials_total_value
+      - name: dec_aerials_total
         description: "Duels aériens disputés à cette minute"
-      - name: aerials_won_value
+      - name: dec_aerials_won
         description: "Duels aériens gagnés à cette minute"
-      - name: aerial_success_value
+      - name: dec_aerial_success
         description: "Pourcentage de duels aériens gagnés (source WhoScored, cumulatif glissant) — ne pas sommer/moyenner, recalculer depuis aerials_won/aerials_total en aval"
-      - name: corners_total_value
+      - name: dec_corners_total
         description: "Corners tentés à cette minute"
-      - name: corners_accurate_value
+      - name: dec_corners_accurate
         description: "Corners réussis à cette minute"
-      - name: throw_ins_total_value
+      - name: dec_throw_ins_total
         description: "Touches (remises en jeu) tentées à cette minute"
-      - name: throw_ins_accurate_value
+      - name: dec_throw_ins_accurate
         description: "Touches (remises en jeu) réussies à cette minute"
-      - name: throw_in_accuracy_value
+      - name: dec_throw_in_accuracy
         description: "Pourcentage de réussite aux touches (source WhoScored, cumulatif glissant) — ne pas sommer/moyenner, recalculer depuis throw_ins_accurate/throw_ins_total en aval"
-      - name: offsides_caught_value
+      - name: dec_offsides_caught
         description: "Hors-jeux sifflés à cette minute"
-      - name: fouls_committed_value
+      - name: dec_fouls_committed
         description: "Fautes commises à cette minute"
-      - name: tackles_total_value
+      - name: dec_tackles_total
         description: "Tacles tentés à cette minute"
-      - name: tackles_successful_value
+      - name: dec_tackles_successful
         description: "Tacles réussis à cette minute"
-      - name: tackles_unsuccessful_value
+      - name: dec_tackles_unsuccessful
         description: "Tacles manqués à cette minute"
-      - name: tackle_success_value
+      - name: dec_tackle_success
         description: "Pourcentage de tacles réussis (source WhoScored, cumulatif glissant) — ne pas sommer/moyenner, recalculer depuis tackles_successful/tackles_total en aval"
-      - name: dribbled_past_value
+      - name: dec_dribbled_past
         description: "Fois où le joueur/l'équipe a été dribblé à cette minute"
-      - name: dribbles_won_value
+      - name: dec_dribbles_won
         description: "Dribbles réussis à cette minute"
-      - name: dribbles_attempted_value
+      - name: dec_dribbles_attempted
         description: "Dribbles tentés à cette minute"
-      - name: dribbles_lost_value
+      - name: dec_dribbles_lost
         description: "Dribbles perdus à cette minute"
-      - name: dribble_success_value
+      - name: dec_dribble_success
         description: "Pourcentage de dribbles réussis (source WhoScored, cumulatif glissant) — ne pas sommer/moyenner, recalculer depuis dribbles_won/dribbles_attempted en aval"
-      - name: dispossessed_value
+      - name: dec_dispossessed
         description: "Pertes de balle sous pression à cette minute"
-      - name: errors_value
+      - name: dec_errors
         description: "Erreurs menant à une occasion adverse à cette minute"
-      - name: defensive_aerials_value
+      - name: dec_defensive_aerials
         description: "Duels aériens défensifs à cette minute — sous-catégorie non confirmée d'aerials_total (à vérifier, cf. passation)"
-      - name: offensive_aerials_value
+      - name: dec_offensive_aerials
         description: "Duels aériens offensifs à cette minute — sous-catégorie non confirmée d'aerials_total (à vérifier, cf. passation)"
     tests:
       - dbt_utils.unique_combination_of_columns:
@@ -4068,8 +3897,8 @@ models:
         description: "Dégagements sur le match"
       - name: dec_interceptions
         description: "Interceptions sur le match"
-      - name: int_possession
-        description: "Compte de possessions sur le match — à convertir en ratio home/away en aval, pas un pourcentage direct"
+      - name: dec_possession
+        description: "Compte de possessions sur le match — à convertir en ratio home/away en aval, pas un pourcentage direct. Mesuré le 08/10/2026 sur 5 198 équipe-matchs : moyenne 475,2 en valeur brute (soit 4,96 par équipe et par minute, les deux équipes sommant à 9,92 par minute et JAMAIS à 100). Normalisé par le total du match, le ratio est exploitable : moyenne 50,0 %, de 17,1 % à 82,9 %."
       - name: dec_touches
         description: "Touches de balle sur le match"
       - name: dec_passes_total
@@ -4307,9 +4136,9 @@ models:
           buts de l'équipe qui tire. Propagé depuis intermediate_whoscored_events_enriched.
       - name: bool_is_on_target
         description: "Booléen : tir cadré (SavedShot ou Goal, type 15/16). Seuls les tirs cadrés portent les dérivés de placement."
-      - name: dec_pre_shot_xg_proxy
+      - name: dec_shot_outcome_score
         description: >
-          Proxy de xG pré-tir = chance_creation issu de intermediate_event_values (baseline du xGOT).
+          Score d'issue du tir, PAS un xG : 1,00 pour un but, 0,40 pour un tir cadre arrete, 0,10 pour un tir manque (chance_creation de intermediate_event_values). Calibration mesuree le 07/10/2026 contre np_xg Understat sur 3 426 equipe-matchs : 4,568 contre 1,413 pour 1,407 buts reels, soit un facteur 3,23. La quantite ne peut donc pas etre lue comme une esperance de buts, ni comparee a une source externe. Elle correle mieux avec les buts du match (0,674) que le vrai xG (0,578) : signature du codage sur l'issue.
           Non calibré : sert d'entrée/repère, pas de probabilité exacte.
       - name: dec_offset_center
         description: "Écart horizontal au centre du but : ABS(goal_mouth_y - 50). Tirs cadrés uniquement, NULL sinon."
@@ -5039,7 +4868,7 @@ models:
           - accepted_values:
               values: ['GK', 'CB', 'FB', 'DM', 'CM', 'WM', 'AM', 'W', 'ST']
               config:
-                where: "role_fin_lag IS NOT NULL"
+                where: "str_role_fin_lag IS NOT NULL"
       - name: str_role_fin_current
         description: "Rôle calculé sur la coord slot de CE match."
         tests:
@@ -5105,11 +4934,28 @@ models:
       - name: dec_bloc_depth
         description: "Écart-type de grid_vertical sur les 10 joueurs de champ."
       - name: dec_line_defensive_avg
-        description: "Moyenne grid_vertical des CB+FB (hauteur du bloc défensif)."
+        description: >
+          Moyenne du RANG DE GRILLE vertical des CB+FB de la compo de départ — pas une hauteur
+          sur le terrain. Mesuré le 09/10/2026 : 3 valeurs distinctes seulement sur 5 198
+          équipe-matchs (2,0 · 2,5 · 3,0), dont 2,5 sur 4 876 lignes = 93,8 %. Chelsea en 4-back
+          et Manchester City en 3-back tombent sur la même valeur. La colonne est donc
+          quasi-constante et ne sépare pas une défense à quatre d'une défense à trois.
+          Conséquence en aval : dec_back_depth_delta de intermediate_team_match_formation_matchup
+          est nul sur 88,69 % des lignes. Pour une vraie hauteur de ligne défensive, utiliser
+          dec_ws_defensive_line_height de intermediate_team_match_tactical, calculée sur les
+          tackles, interceptions et dégagements réels (moyenne 26,84 sur l'échelle 0-100).
+          NON RENOMMÉE volontairement : le renommage se propagerait dans formation_matchup et
+          mart_1n2 pour aucun gain de signal. Backlog : remplacer back_depth_delta par un delta
+          sur dec_ws_defensive_line_height — c'est une feature nouvelle, pas un correctif.
       - name: dec_line_offensive_avg
         description: "Moyenne grid_vertical des W+ST (hauteur du bloc offensif)."
       - name: dec_axiality_score
-        description: "Fraction du XI (hors GK) avec |gh-5| <= 1.5."
+        description: >
+          Fraction des 10 joueurs de champ de la compo de départ avec |gh-5| <= 1.5.
+          Granularité de 0,1 par construction, donc 11 valeurs possibles — mais seulement
+          3 observées sur 5 198 équipe-matchs (0,4 · 0,6 · 0,8), dont 0,6 sur 65,6 %.
+          Quasi-dégénérée, comme dec_line_defensive_avg. dec_axiality_delta de
+          intermediate_team_match_formation_matchup en hérite : nul sur 53,79 % des lignes.
 
   - name: intermediate_team_match_formation_matchup
     description: >
@@ -5154,3 +5000,33 @@ models:
         description: "concat(family_self, '_vs_', family_opp). Max 16 modalités, typiquement 6-9."
         tests:
           - not_null
+
+  - name: intermediate_matchs_sans_score
+    description: >
+      Liste de contrôle, 1 ligne par match : matchs du backbone sans aucun score connu.
+      str_statut = 'passe_sans_score' (date passée : résultat non ingéré, match annulé ou donnée
+      absente) ou 'a_venir'. Sert à décider quoi ré-ingérer ; aucune feature n'en dépend.
+      Le statut dépend de CURRENT_DATE au moment du dbt run.
+    columns:
+      - name: str_match_id
+        description: "ID du match (clé, 1 ligne par match)"
+        tests:
+          - unique
+          - not_null
+      - name: str_ws_match_id
+        description: "Identifiant WhoScored du match (via intermediate_whoscored_match_bridge). NULL si le match est absent de l'index WhoScored."
+      - name: str_home_team_id
+        tests: [not_null]
+      - name: str_away_team_id
+        tests: [not_null]
+      - name: str_home_team_name
+        description: "Nom canonique (club_name de team_mapping) de l'équipe à domicile"
+      - name: str_away_team_name
+        description: "Nom canonique de l'équipe à l'extérieur"
+      - name: dt_match_date
+        tests: [not_null]
+      - name: str_statut
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['passe_sans_score', 'a_venir']

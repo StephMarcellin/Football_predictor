@@ -110,7 +110,12 @@ mdl_out AS (
         CAST(player_id AS VARCHAR)                                   AS str_player_id,
         "shirt_no"                                                   AS int_shirt_no,
         "position"                                                   AS str_position,
-        "is_first_eleven"                                            AS bool_is_first_eleven,
+        -- COALESCE ajoute le 06/10/2026 : la source ne porte isFirstEleven que
+        -- pour les titulaires, les remplacants arrivaient donc en NULL. Un booleen
+        -- a trois etats est un piege silencieux : `= FALSE` ne ramenait aucune ligne
+        -- et `NOT bool_is_first_eleven` valait NULL, donc faux. Mesure avant
+        -- correctif : 57 178 TRUE et 50 484 NULL sur la saison 2023-2024.
+        COALESCE("is_first_eleven", FALSE)                           AS bool_is_first_eleven,
         "is_man_of_the_match"                                        AS bool_is_man_of_the_match,
         "height"                                                     AS int_height,
         "weight"                                                     AS int_weight,

@@ -4,6 +4,7 @@
         unique_key=['str_match_id', 'str_team_id', 'str_passer_id', 'str_receiver_id'],
         on_schema_change='sync_all_columns',
         schema='intermediate',
+        tags=['by_season'],
         alias='intermediate_pass_network_edges'
     )
 }}
@@ -16,7 +17,7 @@
 WITH
 
 -- intermediate_completed_passes lu sous ses noms refondus, remappé vers les noms de travail du modèle
-in_player_passes_raw AS (
+in_player_passes_raw AS NOT MATERIALIZED (
     SELECT
         str_match_id                                                 AS "match_id",
         str_chain_id                                                 AS "chain_id",
@@ -37,14 +38,28 @@ in_player_passes_raw AS (
         str_league_source                                            AS "league_source",
         bool_is_progressive                                          AS "is_progressive",
         bool_is_creative                                             AS "is_creative",
-        bool_is_buildup                                              AS "is_buildup"
+        bool_is_buildup                                              AS "is_buildup",
+        bool_is_counter_attack                                       AS "is_counter_attack"
     FROM {{ ref('intermediate_completed_passes') }}
 ),
 
 mdl_body AS (
 WITH
 
-{% if is_incremental() %}
+{% if var('only_season', none) %}
+-- Mode « une saison » (orchestrateur, boucle par saison) : matchs de la saison
+-- pas encore présents dans la table. Remplace le critère habituel (scraped_at,
+-- jointure sur {{ this }}) qui exclurait à tort une saison plus ancienne que
+-- la dernière déjà chargée.
+new_matches AS (
+    SELECT DISTINCT match_id
+    FROM in_player_passes_raw
+    WHERE match_id IN ({{ season_match_ids(this) }})
+    {%- if is_incremental() %}
+      AND match_id NOT IN (SELECT DISTINCT str_match_id FROM {{ this }})
+    {%- endif %}
+),
+{% elif is_incremental() %}
 new_matches AS (
     SELECT DISTINCT match_id
     FROM in_player_passes_raw
@@ -84,7 +99,17 @@ network AS (
         league_source,
 
         COUNT(*)                                                                 AS n_passes,
-        COUNT(*) FILTER (WHERE chain_trigger = 'counter_attack')                AS n_passes_counter_attack,
+        -- Corrige le 07/10/2026 (defaut 12) : le filtre testait
+        -- chain_trigger = 'counter_attack', valeur que le CASE de
+        -- intermediate_possession_chains n'emet jamais -- la colonne valait 0 sur
+        -- les 595 333 aretes. Le drapeau est desormais calcule dans
+        -- intermediate_completed_passes depuis le qualificatif 23 FastBreak.
+        -- ATTENTION : ce compteur n'est plus disjoint des trois autres. Une passe
+        -- de contre-attaque est AUSSI comptee dans son declencheur (le plus
+        -- souvent recovery). L'identite n_passes = counter_attack + open_play +
+        -- recovery + other ne tient donc plus, et c'est voulu : contre-attaque et
+        -- declencheur sont deux dimensions orthogonales.
+        COUNT(*) FILTER (WHERE is_counter_attack)                               AS n_passes_counter_attack,
         COUNT(*) FILTER (WHERE chain_trigger = 'open_play')                     AS n_passes_open_play,
         COUNT(*) FILTER (WHERE chain_trigger = 'recovery')                      AS n_passes_recovery,
         COUNT(*) FILTER (WHERE chain_trigger IN ('corner','free_kick',

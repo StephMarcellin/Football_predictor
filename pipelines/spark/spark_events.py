@@ -47,6 +47,30 @@ from spark_session import get_spark, ROOT_DIR, SPARK_CFG
 IN_DIR  = ROOT_DIR / SPARK_CFG["paths"]["input"]
 OUT_DIR = ROOT_DIR / SPARK_CFG["paths"]["output"]
 
+# Taux de team_id NULL au-dela duquel le job ECHOUE au lieu d'avertir.
+#
+# Pourquoi 0,5 % et pas davantage : l'etat sain est EXACTEMENT 0 — sur
+# 2023-2024, 4 048 666 evenements sur 4 048 666 sont traduits. Un team_id NULL
+# apres le CASE signifie que l'id WhoScored de l'evenement ne correspondait ni
+# au domicile ni a l'exterieur de son match : une erreur dure, pas du bruit.
+# Un seul match casse pese ~0,04 % d'une saison, donc 0,5 % laisse passer une
+# douzaine de matchs aberrants sans bloquer le flux quotidien, tout en arretant
+# net une panne systemique. A 2 % on laisserait filer ~50 matchs sans rien voir.
+#
+# Le 04/10 et le 12/10/2026, ce taux etait a 99,6 % puis 100 % et le pipeline a
+# continue : le compteur existait, il ne faisait qu'avertir.
+TEAM_NULL_FAIL_RATE = 0.005
+
+# Taux d'evenements ECARTES par l'INNER JOIN sur l'index au-dela duquel le job
+# echoue. L'INNER JOIN est delibere (un match absent du registre est ecarte),
+# mais un taux eleve signifie que l'index ne resout plus les matchs — et un
+# taux de 100 % produit une partition VIDE ecrite sans erreur.
+# Un match non resolu pese ~0,04 % d'une saison ; 1 % en laisse passer ~25.
+JOIN_ORPHAN_FAIL_RATE = 0.01
+
+# Rapport du dernier run, consomme par l'orchestrateur (cf. main()).
+RUN_REPORT = OUT_DIR / "_run_report.json"
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # NOMMAGE — convention du projet : préfixe de type en tête de nom
@@ -121,13 +145,158 @@ OUTCOME_SUCCESS = 1
 # SECTION 1 — Lecture
 # ══════════════════════════════════════════════════════════════════════════════
 
-def read_inputs(spark, season: str | None):
+def available_seasons() -> list[str]:
+    """Saisons présentes dans l'ENTRÉE Spark, lues depuis les noms de dossiers."""
+    d = IN_DIR / "events"
+    return sorted(p.name.split("=", 1)[1] for p in d.glob("season=*") if p.is_dir())
+
+
+def output_seasons() -> list[str]:
+    """Saisons déjà présentes dans la SORTIE Spark, d'après les noms de dossiers."""
+    d = OUT_DIR / "int_whoscored_events"
+    if not d.exists():
+        return []
+    return sorted(p.name.split("=", 1)[1] for p in d.glob("str_season=*") if p.is_dir())
+
+
+def write_run_report(seasons: list[str], reprocessed: list[str]) -> None:
+    """
+    Écrit le rapport du run, consommé par l'étape dbt de l'orchestrateur.
+
+    POURQUOI UN FICHIER, alors que seasons_needing_work() refuse justement de
+    s'appuyer sur un état stocké : ce fichier n'est pas une source de vérité
+    sur ce qui RESTE à faire — il décrit ce qui VIENT d'être fait, et il est
+    consommé immédiatement par l'étape suivante du même run. Il est réécrit à
+    chaque exécution, y compris quand il n'y a rien à traiter (listes vides),
+    pour qu'un rapport périmé ne puisse pas déclencher un full-refresh fantôme.
+
+    `reprocessed` = saisons qui étaient DÉJÀ en sortie avant ce run. Pour
+    celles-là, des matchs déjà présents dans les tables dbt ont pu changer de
+    contenu. Or le filtre incrémental des modèles intermediate est un anti-join
+    sur match_id (`WHERE t.match_id IS NULL`) : un match déjà présent est écarté
+    AVANT toute fusion, même sur un modèle à unique_key. Une correction ne se
+    propage donc jamais en incrémental — d'où le --full-refresh.
+    Une saison entièrement NEUVE n'a pas ce problème : tous ses matchs sont
+    absents des tables, l'incrémental les prend normalement.
+    """
+    import json
+    from datetime import datetime, timezone
+
+    RUN_REPORT.parent.mkdir(parents=True, exist_ok=True)
+    RUN_REPORT.write_text(
+        json.dumps(
+            {
+                "written_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                "seasons": seasons,
+                "reprocessed": reprocessed,
+                "needs_intermediate_full_refresh": bool(reprocessed),
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    if reprocessed:
+        logger.warning(
+            f"Saison(s) RECALCULÉE(S) : {', '.join(reprocessed)} → "
+            f"l'étape dbt intermediate basculera en --full-refresh "
+            f"(l'incrémental ne corrige pas un match déjà présent)."
+        )
+
+
+def seasons_needing_work() -> list[str]:
+    """
+    Déduit de la DONNÉE quelles saisons sont à (re)calculer, sans aucun état
+    stocké : une saison est à traiter quand son contenu en ENTRÉE diffère de
+    son contenu en SORTIE.
+
+    Pourquoi pas un fichier d'état ou un `--season` passé à la main :
+      · un manifeste est un artefact de plus, qui peut dériver du réel — et
+        toute la panne du 12/10 est précisément une dérive entre ce que le code
+        croyait traité et ce que la donnée contenait ;
+      · `--season` met la connaissance dans la tête de l'opérateur : une erreur
+        saute une saison ou, en mode `static`, efface les autres.
+    La donnée se décrit elle-même, donc la règle ne peut pas dériver.
+
+    Une seule règle couvre les trois cas :
+      · saison terminée, déjà traitée   → mêmes compteurs  → sautée
+      · saison jamais traitée, ou dont
+        la partition a été effacée      → sortie absente   → traitée
+      · saison en cours, n matchs de plus → compteurs différents → saison
+        ENTIÈRE recalculée (choix assumé : moins efficient qu'un delta, mais
+        sans état à maintenir, et le coût d'une saison est acceptable)
+
+    Comparaison sur (nombre de matchs, nombre de lignes) : le nombre de matchs
+    attrape les ajouts, le nombre de lignes attrape aussi une correction
+    d'événements sur un match déjà présent. Le calcul tourne en DuckDB sur les
+    Parquet, AVANT de démarrer Spark : si rien n'est à faire, Spark ne démarre
+    pas du tout.
+    """
+    import duckdb
+
+    in_glob  = (IN_DIR / "events" / "season=*" / "**" / "*.parquet").as_posix()
+    out_glob = (OUT_DIR / "int_whoscored_events" / "str_season=*" / "**" / "*.parquet").as_posix()
+
+    con = duckdb.connect()
+    # L'entrée identifie le match par ws_match_id (id WhoScored natif) ; la
+    # sortie par str_match_id (le SHA1 forgé par resolve_identity). Les deux ids
+    # ne sont pas comparables, mais leurs COMPTES le sont : ils dénombrent les
+    # mêmes matchs.
+    src = {
+        r[0]: (r[1], r[2])
+        for r in con.sql(
+            f"""SELECT season, COUNT(DISTINCT ws_match_id), COUNT(*)
+                FROM read_parquet('{in_glob}', hive_partitioning = 1)
+                GROUP BY 1"""
+        ).fetchall()
+    }
+    try:
+        dst = {
+            r[0]: (r[1], r[2])
+            for r in con.sql(
+                f"""SELECT str_season, COUNT(DISTINCT str_match_id), COUNT(*)
+                    FROM read_parquet('{out_glob}', hive_partitioning = 1)
+                    GROUP BY 1"""
+            ).fetchall()
+        }
+    except Exception:
+        # Sortie absente (premier run, ou répertoire effacé) : tout est à faire.
+        dst = {}
+    con.close()
+
+    todo = []
+    for season in sorted(src):
+        n_in = src[season]
+        n_out = dst.get(season)
+        if n_out is None:
+            logger.info(f"  {season} : absente en sortie           → À TRAITER")
+            todo.append(season)
+        elif n_in != n_out:
+            logger.info(
+                f"  {season} : entrée {n_in[0]:,} matchs / {n_in[1]:,} lignes "
+                f"vs sortie {n_out[0]:,} / {n_out[1]:,} → À TRAITER"
+            )
+            todo.append(season)
+        else:
+            logger.info(f"  {season} : à jour ({n_in[0]:,} matchs)      → sautée")
+
+    for season in sorted(set(dst) - set(src)):
+        logger.warning(
+            f"  {season} : présente en SORTIE mais absente en entrée. "
+            f"Partition orpheline, laissée en place (ni lue, ni supprimée)."
+        )
+
+    return todo
+
+
+def read_inputs(spark, seasons: list[str] | None):
     """
     Lit les deux jeux Parquet d'entrée.
 
     Args:
-        season : si fourni, ne lit que cette saison (partition pruning —
-                 Spark élimine les dossiers season=… sans ouvrir un fichier).
+        seasons : si fourni, ne lit que ces saisons (partition pruning —
+                  Spark élimine les dossiers season=… sans ouvrir un fichier).
+                  None = toutes.
 
     Returns:
         (events, index) : deux DataFrames.
@@ -148,8 +317,8 @@ def read_inputs(spark, season: str | None):
     # qu'il reconstruise la colonne `season` depuis les noms de dossiers même
     # quand on pointe un sous-chemin.
     events = spark.read.option("basePath", str(events_path)).parquet(str(events_path))
-    if season:
-        events = events.filter(F.col("season") == season)
+    if seasons:
+        events = events.filter(F.col("season").isin(seasons))
 
     index = spark.read.parquet(str(index_path))
 
@@ -164,9 +333,25 @@ def resolve_identity(events, index):
     """
     Attache le match_id unifié et le contexte match aux événements.
 
-    Une seule traduction : ws_match_id → match_id. Les identités d'équipe sont
-    déjà résolues en amont dans silver.stg_whoscored_events — team_id passe
-    donc tel quel, sans CASE de conversion.
+    DEUX traductions, pas une :
+      1. ws_match_id → match_id (jointure sur l'index) ;
+      2. team_id WhoScored → team_id canonique du projet (le CASE plus bas).
+
+    silver.stg_whoscored_events porte des ids d'équipe NATIFS WhoScored, pas
+    les ids canoniques. Vérifié le 05/10/2026 : sur le match 1732025, les
+    événements portent {21, 192} alors que l'index donne {1028, 641} —
+    1028/641 étant les ids de referentiel.team_mapping. Le CASE de traduction
+    est donc INDISPENSABLE, et son otherwise(None) est le seul garde-fou qui
+    signale une équipe non appariée.
+
+    ⚠️ Ce CASE dépend entièrement de str_ws_home_team_id / str_ws_away_team_id
+    de l'index. Si ces colonnes cessent de porter les ids WhoScored, la
+    traduction échoue SILENCIEUSEMENT et team_id sort NULL sur toute la table.
+    C'est arrivé : normalize_team_id_col n'était pas idempotente et écrasait
+    ws_*_team_id par la valeur canonique au second passage (99,6 % de NULL le
+    04/10/2026, propagés jusqu'à possession_chains et aux profils d'événements
+    sans qu'aucun test ne le voie). report_join_quality() surveille ce taux :
+    le lire à chaque run.
 
     La jointure est diffusée (broadcast) : l'index fait quelques milliers de
     lignes, Spark en envoie une copie à chaque tâche qui joint en local.
@@ -176,8 +361,9 @@ def resolve_identity(events, index):
     résolu au registre est écarté — c'est déjà ce que fait int_event_enriched
     via son INNER JOIN match_dates. Le volume écarté est journalisé.
 
-    idx_home_team_id / idx_away_team_id ne servent qu'au contrôle de cohérence
-    de report_join_quality(). Elles sont retirées avant écriture.
+    ws_home / ws_away sont les CIBLES de la traduction d'équipe, et canon_home /
+    canon_away ses valeurs de sortie. Les quatre sont retirées avant écriture :
+    seul le team_id canonique survit dans le Parquet.
     """
     from pyspark.sql import functions as F
 
@@ -190,7 +376,8 @@ def resolve_identity(events, index):
     idx = index.select(
         F.col("str_ws_match_id").alias("ws_match_id"),
         F.col("str_match_id").alias("match_id"),
-        # Les deux équipes du match, côté index — uniquement pour le contrôle.
+        # Ids WhoScored des deux équipes : ce sont eux que le CASE compare au
+        # team_id des événements. Sans eux, aucune traduction n'est possible.
         F.col("str_ws_home_team_id").cast("int").alias("ws_home"),
         F.col("str_ws_away_team_id").cast("int").alias("ws_away"),
         F.col("str_team_id").cast("bigint").alias("canon_home"),
@@ -238,27 +425,73 @@ def report_join_quality(spark, events, resolved) -> None:
 
     logger.info(f"Événements en entrée        : {n_in:,}")
     logger.info(f"Événements après jointure   : {n_out:,}")
-    if n_orph:
-        logger.warning(
-            f"Écartés (match non résolu)  : {n_orph:,} ({n_orph / n_in:.2%})"
+
+    # ── Rien n'a survécu à la jointure ──────────────────────────────────────
+    # Cas limite qu'il faut traiter AVANT tout calcul de taux : avec n_out = 0,
+    # un taux de team_id NULL vaut 0/0, donc 0, et le contrôle d'identité
+    # conclut « 0 / 0 traduites » en SUCCESS. Une partition vide s'écrit alors
+    # sans la moindre erreur. C'est arrivé le 14/10/2026 sur 2022-2023 :
+    # 3 822 202 événements en entrée, 0 en sortie, job en succès.
+    if n_in and n_out == 0:
+        raise RuntimeError(
+            f"La jointure sur l'index a écarté la TOTALITÉ des "
+            f"{n_in:,} événements : rien à écrire.\n"
+            f"Cause probable : str_match_id NULL dans l'index pour ces saisons "
+            f"(l'index filtre isnotnull(str_match_id), donc l'INNER JOIN ne "
+            f"trouve aucune correspondance).\n"
+            f"Contrôle : SELECT str_season, COUNT(*), "
+            f"SUM(CASE WHEN str_match_id IS NULL THEN 1 ELSE 0 END) "
+            f"FROM intermediate.intermediate_whoscored_match_bridge GROUP BY 1;"
         )
 
-    n_team_null = resolved.filter(F.col("team_id").isNull()).count()
-    if n_team_null:
+    if n_orph:
+        taux_orph = n_orph / n_in
+        if taux_orph > JOIN_ORPHAN_FAIL_RATE:
+            raise RuntimeError(
+                f"Écartés par la jointure : {n_orph:,} événements "
+                f"({taux_orph:.2%}) — seuil d'échec "
+                f"{JOIN_ORPHAN_FAIL_RATE:.1%}.\n"
+                f"L'index ne résout plus les matchs de ces saisons."
+            )
         logger.warning(
-            f"team_id NULL                : {n_team_null:,} ({n_team_null / n_out:.2%})"
+            f"Écartés (match non résolu)  : {n_orph:,} ({taux_orph:.2%}) — "
+            f"sous le seuil de {JOIN_ORPHAN_FAIL_RATE:.1%}, on continue."
         )
 
     # ── Contrôle d'espace d'identifiants ──────────────────────────────────
-    # eqNullSafe : un NULL des deux côtés ne doit pas compter comme un match.
     # Après le CASE, un team_id NULL signifie que l'id WhoScored de l'événement
     # ne correspondait NI à ws_home_team_id NI à ws_away_team_id de son match.
+    # Un seul comptage : chaque .count() est une passe complète sur le cache.
     n_team_null = resolved.filter(F.col("team_id").isNull()).count()
+    taux = n_team_null / n_out if n_out else 0.0
+
     if n_team_null == 0:
         logger.success(f"Identités d'équipe          : {n_out:,} / {n_out:,} traduites.")
-    else:
+    elif taux <= TEAM_NULL_FAIL_RATE:
+        # Sous le seuil : on avertit en nommant les matchs touchés, pour que ce
+        # soit actionnable sans avoir à requêter la base.
+        n_matchs = (resolved.filter(F.col("team_id").isNull())
+                            .select("match_id").distinct().count())
         logger.warning(
-            f"team_id non traduit         : {n_team_null:,} ({n_team_null / n_out:.2%})"
+            f"team_id non traduit         : {n_team_null:,} ({taux:.3%}) "
+            f"sur {n_matchs:,} match(s) — sous le seuil de "
+            f"{TEAM_NULL_FAIL_RATE:.1%}, on continue."
+        )
+    else:
+        # Au-delà du seuil : ÉCHEC. Laisser passer, c'est propager des actions
+        # attribuées aux mauvaises équipes dans toute la couche aval, sans
+        # qu'aucun test ne le voie (c'est ce qui s'est produit les 04 et
+        # 12/10/2026). La cause est presque toujours en amont : les colonnes
+        # str_ws_home_team_id / str_ws_away_team_id de l'index ne portent plus
+        # les ids WhoScored natifs.
+        raise RuntimeError(
+            f"team_id non traduit sur {n_team_null:,} événements "
+            f"({taux:.2%}) — seuil d'échec {TEAM_NULL_FAIL_RATE:.1%}.\n"
+            f"Cause probable : silver.stg_whoscored_match_index.ws_home_team_id "
+            f"/ ws_away_team_id ne portent plus les ids WhoScored natifs.\n"
+            f"Contrôle : SELECT season, COUNT(*), "
+            f"SUM(CASE WHEN ws_home_team_id IS NULL THEN 1 ELSE 0 END) "
+            f"FROM silver.stg_whoscored_match_index GROUP BY 1;"
         )
 
     # Cohérence season entre les deux sources.
@@ -442,7 +675,12 @@ def build_event_enriched(resolved, qual_flags):
 
     return joined.select(
         "match_id", "team_id", "player_id", "event_id", "row_num",
-        "expanded_minute", "second", "period",
+        # minute AJOUTEE le 07/10/2026. expanded_minute n'est pas la minute
+        # de jeu : c'est la minute continue de WhoScored, qui absorbe le temps
+        # additionnel de la 1re mi-temps. Ecart mesure en 2e MT : mediane 4,
+        # maximum 28, sur 2 599 matchs. Sans cette colonne, tout seuil absolu
+        # en aval (ex. "apres la 75e") derive d'un montant variable par match.
+        "minute", "expanded_minute", "second", "period",
         "type_id", "type_name", "outcome_id",
         "is_shot", "is_touch",
         "x", "y", "end_x", "end_y",
@@ -525,15 +763,40 @@ def write_out(spark, df, name: str) -> int:
 
 # ══════════════════════════════════════════════════════════════════════════════
 
-def main(season: str | None = None) -> int:
+def main(seasons: list[str] | None = None, all_seasons: bool = False) -> int:
     from pyspark import StorageLevel
+    from pyspark.sql import functions as F
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    # ── Quelles saisons ? ───────────────────────────────────────────────────
+    # Priorité : --all  >  --season explicite  >  détection automatique.
+    if all_seasons:
+        seasons = available_seasons()
+        logger.info(f"--all : {len(seasons)} saison(s) → {', '.join(seasons)}")
+    elif seasons:
+        logger.info(f"--season : {', '.join(seasons)}")
+    else:
+        logger.info("Détection automatique des saisons à traiter :")
+        seasons = seasons_needing_work()
+        if not seasons:
+            logger.success("Rien à traiter : toutes les saisons sont à jour.")
+            # Rapport écrit même à vide : sinon un rapport périmé d'un run
+            # antérieur ferait basculer dbt en full-refresh sans raison.
+            write_run_report([], [])
+            return 0
+        logger.info(f"→ {len(seasons)} saison(s) à traiter : {', '.join(seasons)}")
+
+    # Saisons de ce run qui existaient DÉJÀ en sortie : ce sont celles dont des
+    # matchs peuvent avoir changé de contenu, pas seulement s'être ajoutés.
+    deja_presentes = sorted(set(seasons) & set(output_seasons()))
+    write_run_report(seasons, deja_presentes)
+
     spark = get_spark("3etoiles-events")
     logger.info(f"Spark {spark.version} — UI : {spark.sparkContext.uiWebUrl}")
 
     try:
-        events, index = read_inputs(spark, season)
+        events, index = read_inputs(spark, seasons)
 
         # ── Résolution d'identité ────────────────────────────────────────────
         resolved = resolve_identity(events, index)
@@ -577,7 +840,14 @@ def main(season: str | None = None) -> int:
         write_out(spark, events_qual, "events_qual")
 
         # ── Sortie 3 : int_event_enriched ────────────────────────────────────
-        qual_flags = build_qual_flags(spark.read.parquet(str(OUT_DIR / "events_qual")))
+        # events_qual est relu depuis le DISQUE, donc il contient TOUTES les
+        # saisons déjà écrites. On le restreint aux saisons du run : sans ce
+        # filtre on relirait inutilement les saisons terminées (le join ne les
+        # apparierait pas, mais on paierait la lecture).
+        qual_src = spark.read.parquet(str(OUT_DIR / "events_qual"))
+        if seasons:
+            qual_src = qual_src.filter(F.col("str_season").isin(seasons))
+        qual_flags = build_qual_flags(qual_src)
         enriched = to_final_names(build_event_enriched(resolved, qual_flags),
                                   "int_event_enriched")
         log_plan(enriched, "int_event_enriched")
@@ -598,8 +868,12 @@ if __name__ == "__main__":
                format="{time:YYYY-MM-DD HH:mm:ss} | {level:<8} | {message}")
 
     ap = argparse.ArgumentParser()
-    ap.add_argument("--season", default=None,
-                    help="ne traite qu'une saison, ex: 2023-2024")
+    ap.add_argument("--season", action="append", default=None, metavar="SAISON",
+                    help="traite cette saison (répétable : --season 2022-2023 "
+                         "--season 2023-2024). Sans ce drapeau, les saisons à "
+                         "traiter sont déduites de la donnée.")
+    ap.add_argument("--all", action="store_true", dest="all_seasons",
+                    help="force le recalcul de TOUTES les saisons présentes en entrée.")
     args = ap.parse_args()
 
-    sys.exit(main(season=args.season))
+    sys.exit(main(seasons=args.season, all_seasons=args.all_seasons))

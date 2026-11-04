@@ -44,8 +44,13 @@ models/diagnostics/
 models/backtest_results.csv
 models/predictions_*.csv
 
-# ── Claude ────────────────────────────────────────────────
-.claude/
+# ── Claude (skills versionnés, reste local) ───────────────
+.claude/*
+!.claude/skills/
+
+# ── Temporaires DuckDB ────────────────────────────────────
+.tmp/
+.duckdb_tmp/
 
 # ── MLflow ────────────────────────────────────────────────
 mlruns/
@@ -78,6 +83,7 @@ pipelines/old/
 *.tfstate.backup
 *.tfvars
 !terraform.tfvars.example
+*.tfplan
 
 # ── Notebooks ─────────────────────────────────────────────
 notebooks/.ipynb_checkpoints/

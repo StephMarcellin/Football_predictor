@@ -49,8 +49,22 @@ def model(dbt, session):
     #   2. NetworkX calcule la betweenness centrality exacte
     #      — normalized=True : score entre 0 et 1 quelle que soit
     #        la taille du graphe (divisé par (n-1)*(n-2))
-    #      — weight='weight' : les chemins privilégient les arêtes
-    #        à fort volume de passes
+    #      — weight : ATTENTION, NetworkX traite ce poids comme une
+    #        DISTANCE, pas comme une capacite. Plus le poids est eleve, plus
+    #        l'arete est longue, moins elle appartient a un plus court chemin.
+    #        On passe donc 1/n_passes : un couloir emprunte 40 fois a une
+    #        longueur de 0,025, un couloir emprunte une fois a une longueur
+    #        de 1. 'Court' signifie 'bien emprunte', et les joueurs assis sur
+    #        la circulation reelle de l'equipe sortent centraux -- ce qui est
+    #        l'objet de la betweenness.
+    #
+    #        Corrige le 07/10/2026 (defaut 11). Avant, on passait n_passes
+    #        directement : l'axe le plus emprunte etait le trajet le plus LONG
+    #        du graphe et les plus courts chemins le contournaient. Mesure sur
+    #        Chelsea-City : correlation de rang entre l'ancienne colonne et
+    #        celle-ci de -0,41 (City) et -0,04 (Chelsea) -- anti-correlee, pas
+    #        bruitee. Avec 1/n, le premier de chaque equipe devient son plus
+    #        gros passeur (313171 avec 76 passes, 300426 avec 66).
     #   3. On aplatit le dictionnaire {player_id: score} en lignes DataFrame
     #      et on réattache match_id, team_id, season, league_source
     # ══════════════════════════════════════════════════════════════════════════
@@ -68,7 +82,8 @@ def model(dbt, session):
             G.add_edge(
                 row["passer_id"],
                 row["receiver_id"],
-                weight=row["n_passes"]
+                # DISTANCE, pas capacite : l'inverse du volume (voir ci-dessus)
+                weight=1.0 / row["n_passes"]
             )
 
         # Calcul betweenness exacte

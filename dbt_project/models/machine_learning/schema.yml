@@ -42,8 +42,8 @@ models:
         description: "Distance de la frappe au centre du but adverse, en mètres."
       - name: dec_shot_angle_rad
         description: "Angle de tir (ouverture du but vu depuis la frappe), en radians. Loi des cosinus, but 7.32 m."
-      - name: dec_pre_shot_xg_proxy
-        description: "Proxy de xG pré-tir (chance_creation, non calibré) — repère/entrée additionnelle."
+      - name: dec_shot_outcome_score
+        description: "Score d'issue du tir, PAS un xG : 1,00 pour un but, 0,40 pour un tir cadre arrete, 0,10 pour un tir manque (chance_creation de intermediate_event_values). Calibration mesuree le 07/10/2026 contre np_xg Understat sur 3 426 equipe-matchs : 4,568 contre 1,413 pour 1,407 buts reels, soit un facteur 3,23. La quantite ne peut donc pas etre lue comme une esperance de buts, ni comparee a une source externe. Elle correle mieux avec les buts du match (0,674) que le vrai xG (0,578) : signature du codage sur l'issue. N'est PAS dans FEATURES_NUM de xgot_train.py : colonne portee, pas utilisee comme feature."
     tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns:
@@ -96,8 +96,8 @@ models:
         description: "Distance de la frappe au centre du but adverse, en mètres."
       - name: dec_shot_angle_rad
         description: "Angle de tir (ouverture du but vu depuis la frappe), en radians. Loi des cosinus, but 7.32 m."
-      - name: dec_pre_shot_xg_proxy
-        description: "Proxy de xG pré-tir (chance_creation, non calibré) — repère/entrée additionnelle."
+      - name: dec_shot_outcome_score
+        description: "Score d'issue du tir, PAS un xG : 1,00 pour un but, 0,40 pour un tir cadre arrete, 0,10 pour un tir manque (chance_creation de intermediate_event_values). Calibration mesuree le 07/10/2026 contre np_xg Understat sur 3 426 equipe-matchs : 4,568 contre 1,413 pour 1,407 buts reels, soit un facteur 3,23. La quantite ne peut donc pas etre lue comme une esperance de buts, ni comparee a une source externe. Elle correle mieux avec les buts du match (0,674) que le vrai xG (0,578) : signature du codage sur l'issue. N'est PAS dans FEATURES_NUM de xgot_train.py : colonne portee, pas utilisee comme feature."
     tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns:

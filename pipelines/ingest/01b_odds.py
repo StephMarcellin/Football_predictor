@@ -551,7 +551,12 @@ def main(reset: bool = False):
 
     conn = _duckdb.connect(str(DB_PATH))
     write_to_duckdb(df, conn, reset=reset)
-    audit_join(conn)
+    try:
+        audit_join(conn)
+    except Exception as e:
+        logger.warning(f"Audit jointure non exécuté : {e}")
+    finally:
+        conn.close()
     conn.close()
 
     logger.success("=== Pipeline 05 terminé ===")

@@ -5,6 +5,7 @@
                     'int_period', 'str_score_state', 'str_formation'],
         on_schema_change='sync_all_columns',
         schema='intermediate',
+        tags=['by_season'],
         alias='intermediate_player_zone_transitions'
     )
 }}
@@ -17,7 +18,7 @@
 WITH
 
 -- intermediate_whoscored_event_qualifiers lu sous ses noms refondus, remappé vers les noms de travail du modèle
-in_events_qual AS (
+in_events_qual AS NOT MATERIALIZED (
     SELECT
         str_match_id                                                 AS "match_id",
         CAST(str_team_id AS BIGINT)                                  AS "team_id",
@@ -44,7 +45,7 @@ in_events_qual AS (
 ),
 
 -- intermediate_whoscored_events_enriched lu sous ses noms refondus, remappé vers les noms de travail du modèle
-in_int_event_enriched AS (
+in_int_event_enriched AS NOT MATERIALIZED (
     SELECT
         str_match_id                                                 AS "match_id",
         CAST(str_team_id AS BIGINT)                                  AS "team_id",
@@ -91,7 +92,7 @@ in_int_event_enriched AS (
 ),
 
 -- intermediate_completed_passes lu sous ses noms refondus, remappé vers les noms de travail du modèle
-in_player_passes_raw AS (
+in_player_passes_raw AS NOT MATERIALIZED (
     SELECT
         str_match_id                                                 AS "match_id",
         str_chain_id                                                 AS "chain_id",
@@ -119,7 +120,20 @@ in_player_passes_raw AS (
 mdl_body AS (
 WITH
 
-{% if is_incremental() %}
+{% if var('only_season', none) %}
+-- Mode « une saison » (orchestrateur, boucle par saison) : matchs de la saison
+-- pas encore présents dans la table. Remplace le critère habituel (scraped_at,
+-- jointure sur {{ this }}) qui exclurait à tort une saison plus ancienne que
+-- la dernière déjà chargée.
+new_matches AS (
+    SELECT DISTINCT match_id
+    FROM in_int_event_enriched
+    WHERE match_id IN ({{ season_match_ids(this) }})
+    {%- if is_incremental() %}
+      AND match_id NOT IN (SELECT DISTINCT str_match_id FROM {{ this }})
+    {%- endif %}
+),
+{% elif is_incremental() %}
 new_matches AS (
     SELECT DISTINCT match_id
     FROM in_int_event_enriched
@@ -179,40 +193,89 @@ formation_anchors AS (
 ),
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- FORMATION_LAST
--- Pour chaque événement, on cherche le row_num de la dernière ancre
--- dont anchor_row <= row_num courant — forward fill via MAX.
+-- FORMATION_TARGETS
+-- Les seules lignes dont on a besoin de connaître la formation : celles que
+-- passes_enriched et takeons_enriched vont joindre. L'ancienne version la
+-- résolvait pour les ~58 M d'événements de in_int_event_enriched alors que
+-- ~24 M suffisent (passes réussies + take-ons réussis).
+--
+-- Le prédicat des take-ons (type_id=3, outcome_id=1) est volontairement
+-- dupliqué depuis takeons_raw : ce CTE est défini plus bas dans le WITH et ne
+-- peut donc pas être référencé ici. Toute modification du filtre doit être
+-- reportée aux DEUX endroits.
 -- ══════════════════════════════════════════════════════════════════════════════
-formation_last AS (
-    SELECT
-        ie.match_id,
-        ie.team_id,
-        ie.row_num,
-        MAX(fa.anchor_row)              AS last_anchor_row
-    FROM in_int_event_enriched ie
-    LEFT JOIN formation_anchors fa
-        ON  fa.match_id   = ie.match_id
-        AND fa.team_id    = ie.team_id
-        AND fa.anchor_row <= ie.row_num
-    WHERE ie.match_id IN (SELECT match_id FROM new_matches)
-    GROUP BY ie.match_id, ie.team_id, ie.row_num
+formation_targets AS (
+    SELECT DISTINCT match_id, team_id, row_num
+    FROM (
+        SELECT match_id, team_id, row_num
+        FROM in_player_passes_raw
+        WHERE match_id IN (SELECT match_id FROM new_matches)
+
+        UNION ALL
+
+        SELECT match_id, team_id, row_num
+        FROM in_int_event_enriched
+        WHERE match_id IN (SELECT match_id FROM new_matches)
+          AND type_id    = 3
+          AND outcome_id = 1
+    )
 ),
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- FORMATION_INTERVALS
--- Résout la formation active pour chaque row_num via le last_anchor_row.
+-- FORMATION_RESOLVED
+-- Forward fill de la formation active, par FONCTION DE FENÊTRE.
+--
+-- L'ancienne paire de CTE exprimait ce forward fill par une jointure
+-- d'inégalité (anchor_row <= row_num) suivie d'un MAX() et d'un GROUP BY sur
+-- (match_id, team_id, row_num). Deux coûts :
+--   1. la jointure appariait chaque événement à TOUTES les ancres antérieures
+--      de son équipe, pour n'en garder qu'une ;
+--   2. le GROUP BY avait une cardinalité égale au nombre de lignes — 58 M
+--      groupes d'une ligne chacun, soit une table de hachage de 58 M entrées
+--      qui ne regroupait rien.
+--
+-- Principe : on empile les ancres (porteuses du code) et les lignes cibles
+-- (code NULL), on trie par row_num, et LAST_VALUE(... IGNORE NULLS) propage la
+-- dernière ancre vue. Un seul tri remplace la jointure et l'agrégation.
+--
+-- is_target départage les ex æquo : à row_num égal, l'ancre (0) passe avant la
+-- cible (1), ce qui reproduit le <= de l'ancienne condition (une ancre posée
+-- sur la ligne courante s'applique bien à cette ligne).
+--
+-- MAX() ne conviendrait pas ici, contrairement à resolved_possessor dans
+-- intermediate_possession_chains : plusieurs ancres coexistent dans la fenêtre
+-- et MAX rendrait le code le plus grand, pas le plus récent.
 -- ══════════════════════════════════════════════════════════════════════════════
-formation_intervals AS (
-    SELECT
-        fl.match_id,
-        fl.team_id,
-        fl.row_num,
-        fa.formation_code
-    FROM formation_last fl
-    JOIN formation_anchors fa
-        ON  fa.match_id   = fl.match_id
-        AND fa.team_id    = fl.team_id
-        AND fa.anchor_row = fl.last_anchor_row
+formation_resolved AS (
+    SELECT match_id, team_id, row_num, formation_code
+    FROM (
+        SELECT
+            match_id,
+            team_id,
+            row_num,
+            is_target,
+            LAST_VALUE(formation_code IGNORE NULLS) OVER (
+                PARTITION BY match_id, team_id
+                ORDER BY row_num, is_target
+                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+            ) AS formation_code
+        FROM (
+            SELECT match_id, team_id,
+                   anchor_row        AS row_num,
+                   formation_code,
+                   0                 AS is_target
+            FROM formation_anchors
+
+            UNION ALL
+
+            SELECT match_id, team_id,
+                   row_num,
+                   NULL              AS formation_code,
+                   1                 AS is_target
+            FROM formation_targets
+        )
+    )
+    WHERE is_target = 1
 ),
 
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -242,7 +305,7 @@ passes_enriched AS (
     JOIN in_int_event_enriched ie
         ON  ie.match_id = pr.match_id
         AND ie.row_num  = pr.row_num
-    LEFT JOIN formation_intervals fi
+    LEFT JOIN formation_resolved fi
         ON  fi.match_id = pr.match_id
         AND fi.team_id  = pr.team_id
         AND fi.row_num  = pr.row_num
@@ -252,6 +315,34 @@ passes_enriched AS (
 -- ══════════════════════════════════════════════════════════════════════════════
 -- TAKEONS_RAW
 -- TakeOns réussis avec end_x/end_y via LEAD sur player_id.
+-- ══════════════════════════════════════════════════════════════════════════════
+-- ══════════════════════════════════════════════════════════════════════════════
+-- TAKEONS_RAW
+-- Destination d'un dribble = sa VRAIE prochaine touche, donc LEAD sur TOUS les
+-- evenements du joueur, puis filtre sur les TakeOn.
+--
+-- Corrige le 08/10/2026 (defaut 16). L'ancienne version filtrait
+-- type_id = 3 AND outcome_id = 1 AVANT le LEAD : la fenetre ne balayait que les
+-- dribbles reussis du joueur, et la destination d'un dribble etait donc la
+-- position de son PROCHAIN DRIBBLE REUSSI. Mesure sur la saison :
+--
+--                                      avant        apres
+--   dribbles reussis                   40 922       40 922
+--   avec une destination               15 122 (37%) 40 820 (99,7%)
+--   exclus faute de destination        25 800       102
+--   ecart median dribble -> dest.      847 s        2 s
+--   ecart moyen                        1 173 s      2,4 s
+--
+-- Soit 63 % des dribbles jetes, et pour les 37 % restants une destination
+-- situee en moyenne vingt minutes plus tard et ailleurs sur le terrain.
+--
+-- intermediate_xt_actions fait deja la bonne version et documente le piege :
+-- « la window balaie tous les evenements du joueur (pas seulement les TakeOns) ;
+-- LEAD pointe donc sur sa vraie prochaine touche ». Meme convention ici, borne
+-- de 10 s comprise : au-dela, la touche suivante n'est pas la fin du dribble.
+--
+-- L'ORDER BY passe aussi de row_num seul a (expanded_minute, second, row_num),
+-- la convention du projet : row_num diverge de l'horodatage en 9 407 endroits.
 -- ══════════════════════════════════════════════════════════════════════════════
 takeons_raw AS (
     SELECT
@@ -266,18 +357,27 @@ takeons_raw AS (
         opp_score,
         x,
         y,
-        LEAD(x) OVER (
+        end_x,
+        end_y
+    FROM (
+        SELECT
+            match_id, team_id, player_id, row_num, period, season, league_source,
+            team_score, opp_score, x, y, type_id, outcome_id,
+            expanded_minute, second,
+            LEAD(x)               OVER w AS end_x,
+            LEAD(y)               OVER w AS end_y,
+            LEAD(expanded_minute) OVER w AS next_min,
+            LEAD(second)          OVER w AS next_sec
+        FROM in_int_event_enriched
+        WHERE match_id IN (SELECT match_id FROM new_matches)
+        WINDOW w AS (
             PARTITION BY match_id, player_id
-            ORDER BY row_num
-        )                               AS end_x,
-        LEAD(y) OVER (
-            PARTITION BY match_id, player_id
-            ORDER BY row_num
-        )                               AS end_y
-    FROM in_int_event_enriched
-    WHERE match_id IN (SELECT match_id FROM new_matches)
-      AND type_id    = 3
+            ORDER BY expanded_minute, second, row_num
+        )
+    )
+    WHERE type_id    = 3
       AND outcome_id = 1
+      AND (next_min * 60 + next_sec) - (expanded_minute * 60 + second) <= 10
 ),
 
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -303,7 +403,7 @@ takeons_enriched AS (
         tr.end_x,
         tr.end_y
     FROM takeons_raw tr
-    LEFT JOIN formation_intervals fi
+    LEFT JOIN formation_resolved fi
         ON  fi.match_id = tr.match_id
         AND fi.team_id  = tr.team_id
         AND fi.row_num  = tr.row_num

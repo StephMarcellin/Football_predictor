@@ -58,3 +58,8 @@ seeds:
 models:
   elementary:
     +schema: elementary
+  football_prediction:
+    # Marts désactivés (26/10/2026) : jamais construits par le pipeline ; leurs tests
+    # échouaient en erreur (tables absentes). À réactiver quand une étape les construira.
+    marts:
+      +enabled: true

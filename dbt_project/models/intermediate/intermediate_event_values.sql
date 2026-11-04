@@ -4,6 +4,7 @@
         unique_key=['str_match_id', 'str_team_id', 'str_player_id', 'int_row_num'],
         on_schema_change='sync_all_columns',
         schema='intermediate',
+        tags=['by_season'],
         alias='intermediate_event_values'
     )
 }}
@@ -16,13 +17,16 @@
 WITH
 
 -- intermediate_whoscored_events_enriched lu sous ses noms refondus, remappé vers les noms de travail du modèle
-in_int_event_enriched AS (
+in_int_event_enriched AS NOT MATERIALIZED (
     SELECT
         str_match_id                                                 AS "match_id",
         CAST(str_team_id AS BIGINT)                                  AS "team_id",
         CAST(str_player_id AS INTEGER)                               AS "player_id",
         CAST(str_event_id AS INTEGER)                                AS "event_id",
         int_row_num                                                  AS "row_num",
+        -- minute (reglementaire) LUE le 07/10/2026 : les seuils absolus doivent
+        -- s'appuyer sur elle, pas sur expanded_minute qui derive en 2e mi-temps.
+        int_minute                                                   AS "minute",
         int_expanded_minute                                          AS "expanded_minute",
         int_second                                                   AS "second",
         int_period                                                   AS "period",
@@ -68,7 +72,20 @@ WITH
 -- ══════════════════════════════════════════════════════════════════════════════
 -- FILTRE INCRÉMENTAL SANS SUBQUERY EN RAM
 -- ══════════════════════════════════════════════════════════════════════════════
-{% if is_incremental() %}
+{% if var('only_season', none) %}
+-- Mode « une saison » (orchestrateur, boucle par saison) : matchs de la saison
+-- pas encore présents dans la table. Remplace le critère habituel (scraped_at,
+-- jointure sur {{ this }}) qui exclurait à tort une saison plus ancienne que
+-- la dernière déjà chargée.
+new_matches AS (
+    SELECT DISTINCT match_id
+    FROM in_int_event_enriched
+    WHERE match_id IN ({{ season_match_ids(this) }})
+    {%- if is_incremental() %}
+      AND match_id NOT IN (SELECT DISTINCT str_match_id FROM {{ this }})
+    {%- endif %}
+),
+{% elif is_incremental() %}
 new_matches AS (
     SELECT DISTINCT e.match_id
     FROM in_int_event_enriched e
@@ -130,7 +147,31 @@ calculated_axes AS (
 
         -- AXE 2 : chance_creation
         CASE
+            -- Un tir vaut son ISSUE, pas ce qu'on a fait pour lui. Les trois
+            -- branches de type de tir sont donc evaluees AVANT les drapeaux
+            -- d'assist (corrige le 07/10/2026, defaut 7).
+            --
+            -- Cause : le qualificatif WhoScored 154 IntentionalAssist est pose
+            -- sur les DEUX bouts de l'action -- sur la passe (30 207) ET sur le
+            -- tir qui en resulte (SavedShot 13 978, MissedShots 11 758, Goal
+            -- 3 870, ShotOnPost 624). Sur un tir il ne dit pas "j'ai cree une
+            -- occasion" mais "on m'a servi". Compare au 210 ShotAssist, qui est
+            -- sur Pass uniquement, 47 521 fois sans exception.
+            --
+            -- Avant correction, la branche is_intentional_assist = 1 -> 0.80
+            -- passait avant celles du type : un tir manque servi valait 0.80
+            -- quand un tir cadre non servi valait 0.40. 26 355 tirs sur 67 965
+            -- (38,8 %) etaient concernes, et comme chance_creation est la source
+            -- unique de intermediate_shots.dec_shot_outcome_score (ligne 272) et
+            -- de intermediate_xg_chain_credits.shot_outcome_score, 23 841 chaines sur
+            -- 62 548 portaient une valeur fausse.
+            --
+            -- Les branches 13/14/15 ne testent que type_id : aucun evenement
+            -- hors tir ne peut y tomber, et l'ordre relatif des drapeaux reste
+            -- intact pour tout le reste.
             WHEN s.type_id = 16                         THEN 1.00
+            WHEN s.type_id = 15                         THEN 0.40
+            WHEN s.type_id IN (13, 14)                  THEN 0.10
             WHEN s.is_leading_to_goal         = 1       THEN 0.90
             WHEN s.is_intentional_goal_assist  = 1      THEN 0.85
             WHEN s.is_intentional_assist      = 1       THEN 0.80
@@ -138,8 +179,6 @@ calculated_axes AS (
             WHEN s.is_key_pass                = 1       THEN 0.65
             WHEN s.is_shot_assist             = 1       THEN 0.55
             WHEN s.is_leading_to_attempt      = 1       THEN 0.50
-            WHEN s.type_id = 15                         THEN 0.40
-            WHEN s.type_id IN (13, 14)                  THEN 0.10
             WHEN s.type_id = 3 AND s.outcome_id = 1       THEN 0.30
             WHEN s.type_id = 42                         THEN 0.25
             WHEN s.type_id = 3 AND s.outcome_id != 1      THEN 0.05
@@ -173,11 +212,11 @@ calculated_axes AS (
 
         -- AXE 5 : context_weight
         CASE
-            WHEN s.expanded_minute >= 75 AND s.team_score < s.opp_score               THEN 1.00
-            WHEN s.expanded_minute >= 75 AND s.team_score > s.opp_score               THEN 0.85
-            WHEN s.expanded_minute >= 75 AND s.team_score = s.opp_score AND s.team_score > 0
+            WHEN s.minute >= 75 AND s.team_score < s.opp_score               THEN 1.00
+            WHEN s.minute >= 75 AND s.team_score > s.opp_score               THEN 0.85
+            WHEN s.minute >= 75 AND s.team_score = s.opp_score AND s.team_score > 0
                                                                                       THEN 0.75
-            WHEN s.expanded_minute >= 75 AND s.team_score = 0 AND s.opp_score = 0    THEN 0.60
+            WHEN s.minute >= 75 AND s.team_score = 0 AND s.opp_score = 0    THEN 0.60
             WHEN s.team_score < s.opp_score                                         THEN 0.70
             WHEN s.team_score = s.opp_score AND s.team_score > 0                      THEN 0.50
             WHEN s.team_score > s.opp_score                                         THEN 0.40

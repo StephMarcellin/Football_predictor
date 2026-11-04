@@ -12,7 +12,7 @@ description: >
 source:
   duckdb_path: db/football.duckdb
   query: |
-    SELECT "str_match_id", "int_row_num", "str_season", "dec_offset_center", "dec_height", "dec_corner_dist", "str_placement_col", "str_placement_row", "str_placement_zone", "dec_x", "dec_y", "dec_shot_distance_m", "dec_shot_angle_rad", "dec_pre_shot_xg_proxy", "int_label" FROM machine_learning."xgot_training"
+    SELECT "str_match_id", "int_row_num", "str_season", "dec_offset_center", "dec_height", "dec_corner_dist", "str_placement_col", "str_placement_row", "str_placement_zone", "dec_x", "dec_y", "dec_shot_distance_m", "dec_shot_angle_rad", "dec_shot_outcome_score", "int_label" FROM machine_learning."xgot_training"
 
 expectations:
 
@@ -39,7 +39,7 @@ expectations:
       - dec_y
       - dec_shot_distance_m
       - dec_shot_angle_rad
-      - dec_pre_shot_xg_proxy
+      - dec_shot_outcome_score
       - int_label
     kwargs: { mostly: 1.0 }
     # severity: error
@@ -79,7 +79,7 @@ expectations:
     severity: warn
     meta: { description: "Empirique [0.002723230672061959, 2.8542547428828944], mean=0.508." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: dec_pre_shot_xg_proxy, min_value: 0.34, max_value: 1.06, mostly: 1.0 }
+    kwargs: { column: dec_shot_outcome_score, min_value: 0.34, max_value: 1.06, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [0.40, 1.00], mean=0.722." }
   - type: expect_column_values_to_be_between

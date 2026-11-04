@@ -19,6 +19,13 @@ on:
 jobs:
   dbt-test:
     runs-on: ubuntu-latest
+    
+    # Permissions du jeton GitHub pour ce job
+    # id-token: write → autorise le job à demander une carte d'identité OIDC signée (WIF)
+    # contents: read  → nécessaire à actions/checkout pour lire le code
+    permissions:
+      contents: read
+      id-token: write
 
     steps:
       # 1. Récupère le code du repo sur le runner
@@ -37,25 +44,27 @@ jobs:
         run: |
           pip install dbt-duckdb==1.10.1 google-cloud-storage
 
-      # 4. Écrit le fichier service account GCP depuis le secret GitHub
-      # Le secret GCP_SA_KEY contient le JSON complet du service account
-      - name: Write GCP service account
-        run: |
-          mkdir -p config
-          echo '${{ secrets.GCP_SA_KEY }}' > config/gcp-service-account.json
+      # 4. Authentification à GCP sans clé (Workload Identity Federation)
+      # Le job présente sa carte OIDC GitHub, GCP la vérifie (repo autorisé)
+      # et délivre un jeton du service account ci-3etoiles valable ~1 h.
+      # Valeurs issues de `terraform output` — ce ne sont pas des secrets.
+      - name: Authenticate to Google Cloud (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/182311157769/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: ci-3etoiles@projet-3etoiles.iam.gserviceaccount.com
 
       # 5. Télécharge football_test.duckdb depuis GCS
       # C'est la base de 3.5 Mo extraite de la prod (Premier League 2023-2024)
       - name: Download test database from GCS
         env:
-          GOOGLE_APPLICATION_CREDENTIALS: config/gcp-service-account.json
           GCS_BUCKET_NAME: ${{ secrets.GCS_BUCKET_NAME }}
         run: |
           python - <<'EOF'
           import os
           from google.cloud import storage
 
-          client = storage.Client.from_service_account_json("config/gcp-service-account.json")
+          client = storage.Client()
           bucket = client.bucket(os.environ["GCS_BUCKET_NAME"])
           blob   = bucket.blob("ci/football_test.duckdb")
 

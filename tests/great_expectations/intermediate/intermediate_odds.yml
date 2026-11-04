@@ -18,10 +18,10 @@ expectations:
 
   # ── VOLUMÉTRIE ──
   - type: expect_table_row_count_to_be_between
-    kwargs: { min_value: 28597, max_value: 142986 }
+    kwargs: { min_value: 6000, max_value: 32000 }
     # severity: error
     severity: warn
-    meta: { description: "Empirique = 71,493. Bornes [28,597, 142,986]." }
+    meta: { description: "Empirique = 15 827 (1 ligne par match depuis la correction de jointure ; avant : 71 631 par fan-out). Bornes [6 000, 32 000]." }
 
   # ── COMPLÉTION STRICTE (0 NULL empirique) ──
   - type: expect_column_values_to_not_be_null

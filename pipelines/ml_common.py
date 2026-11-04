@@ -61,10 +61,21 @@ def load_mart(cfg, mart):
     return df
 
 
+def load_odds(cfg):
+    """Cotes Pinnacle (table gold.gold_odds_pinnacle), 1 ligne par match, read-only.
+    Servent au backtest et à la comparaison au marché — jamais des features."""
+    con = duckdb.connect(str(ROOT_DIR / cfg["paths"]["duckdb"]), read_only=True)
+    df = con.sql("select * from gold.gold_odds_pinnacle").df()
+    con.close()
+    return df
+
+
 def prepare_x(df, target, exclude):
     """Retourne X : df moins identifiants, cible et exclusions (config).
-    Booléens → int8, colonnes objet → codes catégoriels (LightGBM veut du
-    numérique)."""
+    Booléens → int8, colonnes objet → dtype pandas `category` (catégorielles
+    natives LightGBM). Aucun code entier n'est fixé ici : le modèle mémorise
+    les modalités vues à l'entraînement et réaligne celles du lot à prédire,
+    donc le résultat ne dépend pas des modalités présentes dans `df`."""
     drop = set(ID_COLS + [target] + list(exclude or []))
     keep = [c for c in df.columns
             if c not in drop and not _is_market_col(c)]
@@ -73,8 +84,24 @@ def prepare_x(df, target, exclude):
         if X[c].dtype == "bool":
             X[c] = X[c].astype("int8")
         elif X[c].dtype == "object":
-            X[c] = X[c].astype("category").cat.codes
+            X[c] = X[c].astype("category")
     return X
+
+
+def align_features(X, feats):
+    """Réaligne X sur les features, dans l'ordre, du modèle à appliquer.
+
+    Lève une erreur si une feature du modèle est absente de X, au lieu de la remplacer
+    par 0 en silence (un modèle qui prédit avec des features inventées donne des
+    probabilités fausses sans aucun signal). Les colonnes de X inconnues du modèle sont
+    ignorées (le mart peut avoir gagné des colonnes depuis l'entraînement)."""
+    missing = [c for c in feats if c not in X.columns]
+    if missing:
+        raise ValueError(
+            f"{len(missing)} feature(s) du modèle absente(s) du jeu à prédire : "
+            f"{missing[:10]}{' …' if len(missing) > 10 else ''}. "
+            "Réentraîne le modèle ou corrige le mart.")
+    return X[list(feats)]
 
 
 def temporal_split(df, cfg):
@@ -93,7 +120,7 @@ def train_lgbm(X, y, tr, va, params):
     return model
 
 
-def calibrate(model, X, y, mask, method="isotonic"):
+def calibrate(model, X, y, mask, method="sigmoid"):
     """Calibre un modèle déjà entraîné sur le jeu de validation (prefit).
     Indispensable au value betting : l'edge n'a de sens que si les probas sont
     justes. Gère l'API sklearn ancienne (cv='prefit') et récente (FrozenEstimator)."""
@@ -104,10 +131,39 @@ def calibrate(model, X, y, mask, method="isotonic"):
         return CalibratedClassifierCV(model, method=method, cv="prefit").fit(X[mask], y[mask])
 
 
+class SeedEnsemble:
+    """Moyenne des probabilités de plusieurs modèles calibrés entraînés avec des graines différentes.
+
+    Un LightGBM seul varie d'environ ±0,02 de logloss d'une graine à l'autre ; la moyenne de
+    plusieurs graines supprime l'essentiel de ce bruit. L'objet se comporte comme un modèle
+    scikit-learn pour le reste du code (classes_, predict_proba, predict)."""
+
+    def __init__(self, models):
+        self.models = list(models)
+        self.classes_ = self.models[0].classes_
+
+    def predict_proba(self, X):
+        return np.mean([m.predict_proba(X) for m in self.models], axis=0)
+
+    def predict(self, X):
+        return self.classes_[self.predict_proba(X).argmax(axis=1)]
+
+
+PROBA_FLOOR = 0.005   # aucune issue n'est jamais annoncée à moins de 0,5 % (garde-fou, non optimisé)
+
+
+def floor_proba(P, floor=PROBA_FLOOR):
+    """Applique un plancher aux probabilités (n_matchs × 3) puis renormalise chaque ligne à 1."""
+    P = np.maximum(P, floor)
+    return P / P.sum(axis=1, keepdims=True)
+
+
 def evaluate(model, X, y, mask, name):
     """Logloss + accuracy (+ AUC si binaire). Affiche et retourne un dict."""
     labels = np.sort(np.unique(y))
     proba = model.predict_proba(X[mask])
+    if proba.shape[1] == 3:                  # 1N2 : plancher de probabilité (cf. floor_proba)
+        proba = floor_proba(proba)
     metrics = {
         "logloss": log_loss(y[mask], proba, labels=labels),
         "accuracy": accuracy_score(y[mask], proba.argmax(1)),

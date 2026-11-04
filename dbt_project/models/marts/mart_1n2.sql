@@ -162,26 +162,7 @@ base as (
         cast(str_opponent_id as bigint)   as opponent_id,
         dt_date                            as date,
         str_season                         as season,
-        str_result_1n2                     as result_1n2,
-
-        -- ── Cotes / probabilités (déjà pivotées par venue dans intermediate_team_match_backbone) ──────
-        -- Passage quasi-direct : faits ponctuels du match, pas d'agrégat glissant.
-        -- Ouverture
-        dec_odds_pinnacle_team, dec_odds_pinnacle_draw, dec_odds_pinnacle_opp,
-        dec_odds_avg_team, dec_odds_avg_draw, dec_odds_avg_opp,
-        dec_pinnacle_prob_team, dec_pinnacle_prob_draw, dec_pinnacle_prob_opp,
-        dec_market_prob_team, dec_market_prob_draw, dec_market_prob_opp,
-        (dec_pinnacle_prob_team - dec_pinnacle_prob_opp) as pinnacle_edge,
-        -- Clôture (les plus "sharp")
-        dec_pinnacle_prob_close_team, dec_pinnacle_prob_close_draw, dec_pinnacle_prob_close_opp,
-        dec_market_prob_close_team,   dec_market_prob_close_draw,   dec_market_prob_close_opp,
-        (dec_pinnacle_prob_close_team - dec_pinnacle_prob_close_opp) as pinnacle_close_edge,
-        -- Drift ouverture→clôture (mouvement de ligne)
-        dec_pinnacle_drift_team, dec_pinnacle_drift_draw, dec_pinnacle_drift_opp,
-        -- Over/Under 2.5 (profil de buts attendu par le marché)
-        dec_pinnacle_prob_over25,       dec_pinnacle_prob_under25,
-        dec_pinnacle_prob_close_over25, dec_pinnacle_prob_close_under25
-
+        str_result_1n2                     as result_1n2
     from {{ ref('intermediate_team_match_backbone') }}
     where str_match_id is not null and str_team_id is not null
 ),
@@ -271,33 +252,6 @@ mdl_out AS (
         CAST(opponent_id AS VARCHAR)                                 AS str_opponent_id,
         "date"                                                       AS dt_date,
         "season"                                                     AS str_season,
-        "dec_odds_pinnacle_team"                                     AS dec_odds_pinnacle_team,
-        "dec_odds_pinnacle_draw"                                     AS dec_odds_pinnacle_draw,
-        "dec_odds_pinnacle_opp"                                      AS dec_odds_pinnacle_opp,
-        "dec_odds_avg_team"                                          AS dec_odds_avg_team,
-        "dec_odds_avg_draw"                                          AS dec_odds_avg_draw,
-        "dec_odds_avg_opp"                                           AS dec_odds_avg_opp,
-        "dec_pinnacle_prob_team"                                     AS dec_pinnacle_prob_team,
-        "dec_pinnacle_prob_draw"                                     AS dec_pinnacle_prob_draw,
-        "dec_pinnacle_prob_opp"                                      AS dec_pinnacle_prob_opp,
-        "dec_market_prob_team"                                       AS dec_market_prob_team,
-        "dec_market_prob_draw"                                       AS dec_market_prob_draw,
-        "dec_market_prob_opp"                                        AS dec_market_prob_opp,
-        "pinnacle_edge"                                              AS dec_pinnacle_edge,
-        "dec_pinnacle_prob_close_team"                               AS dec_pinnacle_prob_close_team,
-        "dec_pinnacle_prob_close_draw"                               AS dec_pinnacle_prob_close_draw,
-        "dec_pinnacle_prob_close_opp"                                AS dec_pinnacle_prob_close_opp,
-        "dec_market_prob_close_team"                                 AS dec_market_prob_close_team,
-        "dec_market_prob_close_draw"                                 AS dec_market_prob_close_draw,
-        "dec_market_prob_close_opp"                                  AS dec_market_prob_close_opp,
-        "pinnacle_close_edge"                                        AS dec_pinnacle_close_edge,
-        "dec_pinnacle_drift_team"                                    AS dec_pinnacle_drift_team,
-        "dec_pinnacle_drift_draw"                                    AS dec_pinnacle_drift_draw,
-        "dec_pinnacle_drift_opp"                                     AS dec_pinnacle_drift_opp,
-        "dec_pinnacle_prob_over25"                                   AS dec_pinnacle_prob_over25,
-        "dec_pinnacle_prob_under25"                                  AS dec_pinnacle_prob_under25,
-        "dec_pinnacle_prob_close_over25"                             AS dec_pinnacle_prob_close_over25,
-        "dec_pinnacle_prob_close_under25"                            AS dec_pinnacle_prob_close_under25,
         "comp_category"                                              AS str_comp_category,
         "int_is_home"                                                AS int_is_home,
         "int_days_since_last_game"                                   AS int_days_since_last_game,

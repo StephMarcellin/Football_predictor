@@ -113,8 +113,15 @@ with_current as (
             when gv_start <  5.0 and abs(gh_start - 5) <= 1.5     then 'DM'
             
             -- gv ∈ [5.0, 6.0] : Milieux Centraux & Au-delà
+            -- Le plafond du rattrapage WM doit etre CELUI de la bande CM (6.0), sinon un
+            -- joueur a gv = 6.0 et gh large ne satisfait plus aucune clause de milieu et
+            -- tombe jusqu'au dernier else -> 'W', donc compte dans n_att.
+            -- 3 134 creneaux concernes, que WhoScored etiquette tous comme milieux
+            -- (MC 1 162, ML 591, MR 591, DML 395, DMR 395). Consequence mesuree dans
+            -- intermediate_team_match_lineup_structure : 1 102 equipe-matchs (21,2 %),
+            -- dont 395 a n_att = 6 et 465 a n_mid = 1. Corrige le 09/10/2026.
             when gv_start <= 6.0 and abs(gh_start - 5) <= 1.5     then 'CM'
-            when gv_start <= 5.5                                then 'WM'
+            when gv_start <= 6.0                                then 'WM'
             
             -- gv ∈ ]6.0, 7.5] : Milieux Offensifs & Ailiers
             when gv_start <= 7.5 and abs(gh_start - 5) <= 1.5     then 'AM'

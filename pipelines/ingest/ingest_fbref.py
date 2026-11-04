@@ -59,6 +59,9 @@ def process_fbref(con: duckdb.DuckDBPyConnection) -> None:
         # 4. Pipeline de validation
         df = standardize_date(df)
         df = standardize_season(df)
+        # Garde-fou : equipe/adversaire Big5 absent de transfermarkt_clubs pour (saison, ligue)
+        # -> erreur AVANT l'ecriture silver et l'upsert du registre (qui ne supprime jamais).
+        check_teams_in_league(df, f"fbref/{cat}")
         df = drop_unused_cols(df)
         # df = apply_cat_c_rejection(df, f"fbref/{cat}")
         df = encode_result_1n2(df)

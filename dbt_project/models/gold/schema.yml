@@ -336,3 +336,83 @@ models:
         tests:
           - not_null:
               config: {severity: warn}
+
+  - name: gold_odds_pinnacle
+    description: >
+      Cotes Pinnacle (ouverture et clôture) au grain MATCH : 1N2 et Over/Under 2.5,
+      cotes + probabilités sans marge. Pinnacle uniquement. Hors features : sert au
+      backtest et à la comparaison modèle/marché, jamais à X. home/away = équipe
+      listée à domicile dans la source. Données de 2017-2018 à mi-janvier 2026.
+    config:
+      alias: gold_odds_pinnacle
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "dec_prob_open_home IS NULL OR ABS(dec_prob_open_home + dec_prob_open_draw + dec_prob_open_away - 1) < 1e-6"
+      - dbt_utils.expression_is_true:
+          expression: "dec_prob_close_home IS NULL OR ABS(dec_prob_close_home + dec_prob_close_draw + dec_prob_close_away - 1) < 1e-6"
+      - dbt_utils.expression_is_true:
+          expression: "dec_prob_open_over25 IS NULL OR ABS(dec_prob_open_over25 + dec_prob_open_under25 - 1) < 1e-6"
+      - dbt_utils.expression_is_true:
+          expression: "dec_prob_close_over25 IS NULL OR ABS(dec_prob_close_over25 + dec_prob_close_under25 - 1) < 1e-6"
+    columns:
+      - name: str_match_id
+        description: "ID du match (clé, 1 ligne par match)"
+        tests:
+          - unique
+          - not_null
+      - name: dt_date
+        description: "Date du match"
+        tests:
+          - not_null
+      - name: str_season
+        tests:
+          - not_null
+      - name: str_league_source
+        tests:
+          - not_null
+      - name: str_home_team_id
+        tests:
+          - not_null
+      - name: str_away_team_id
+        tests:
+          - not_null
+      - name: dec_odds_open_home
+        tests: [is_valid_odds]
+      - name: dec_odds_open_draw
+        tests: [is_valid_odds]
+      - name: dec_odds_open_away
+        tests: [is_valid_odds]
+      - name: dec_odds_close_home
+        tests: [is_valid_odds]
+      - name: dec_odds_close_draw
+        tests: [is_valid_odds]
+      - name: dec_odds_close_away
+        tests: [is_valid_odds]
+      - name: dec_odds_open_over25
+        tests: [is_valid_odds]
+      - name: dec_odds_open_under25
+        tests: [is_valid_odds]
+      - name: dec_odds_close_over25
+        tests: [is_valid_odds]
+      - name: dec_odds_close_under25
+        tests: [is_valid_odds]
+      - name: dec_prob_open_home
+        tests: [is_valid_probability]
+      - name: dec_prob_open_draw
+        tests: [is_valid_probability]
+      - name: dec_prob_open_away
+        tests: [is_valid_probability]
+      - name: dec_prob_close_home
+        tests: [is_valid_probability]
+      - name: dec_prob_close_draw
+        tests: [is_valid_probability]
+      - name: dec_prob_close_away
+        tests: [is_valid_probability]
+      - name: dec_prob_open_over25
+        tests: [is_valid_probability]
+      - name: dec_prob_open_under25
+        tests: [is_valid_probability]
+      - name: dec_prob_close_over25
+        tests: [is_valid_probability]
+      - name: dec_prob_close_under25
+        tests: [is_valid_probability]

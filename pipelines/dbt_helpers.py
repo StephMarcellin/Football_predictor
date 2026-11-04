@@ -67,16 +67,21 @@ def run_dbt_seed(refresh: bool = False) -> None:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def run_dbt_run(
-    select: str = None, exclude: str = None, full_refresh: bool = False
+    select: str = None, exclude: str = None, full_refresh: bool = False,
+    extra_vars: dict | None = None,
 ) -> None:
-    """Lance dbt run depuis dbt_project/. Lève RuntimeError si échec."""
+    """Lance dbt run depuis dbt_project/. Lève RuntimeError si échec.
+
+    extra_vars : variables dbt ajoutées à spark_out_dir (ex. {"only_season": "2023-2024"}).
+    Fusionnées avec DBT_VARS : un second --vars écraserait le premier.
+    """
     dbt_dir = ROOT_DIR / "dbt_project"
     log_path = ROOT_DIR / "logs" / "dbt_run_last.log"
     if not dbt_dir.exists():
         raise FileNotFoundError(f"dbt_project/ introuvable : {dbt_dir}")
 
     cmd = ["dbt", "run", "--profiles-dir", str(dbt_dir)]
-    cmd += ["--vars", DBT_VARS]
+    cmd += ["--vars", json.dumps({**json.loads(DBT_VARS), **(extra_vars or {})})]
     if select:
         cmd += ["--select", select]
     if exclude:
