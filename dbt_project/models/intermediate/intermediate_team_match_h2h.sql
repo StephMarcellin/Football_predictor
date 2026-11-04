@@ -43,7 +43,10 @@ WITH all_matches AS (
 match_flags AS (
     SELECT
         *,
+        -- Terrain neutre : le label H/A est celui du match (identique sur les 2 lignes) et le lieu ne dit
+        -- pas quelle équipe est « Home » → victoire/défaite déduites des BUTS (sinon ni l'une ni l'autre).
         CASE WHEN result_1n2 IS NULL THEN NULL
+             WHEN venue = 'Neutral' THEN CASE WHEN gf > ga THEN 1 ELSE 0 END
              WHEN (result_1n2 = 'H' AND venue = 'Home')
                OR (result_1n2 = 'A' AND venue = 'Away')
              THEN 1 ELSE 0 END AS is_win,
@@ -51,6 +54,7 @@ match_flags AS (
              WHEN result_1n2 = 'D'
              THEN 1 ELSE 0 END AS is_draw,
         CASE WHEN result_1n2 IS NULL THEN NULL
+             WHEN venue = 'Neutral' THEN CASE WHEN gf < ga THEN 1 ELSE 0 END
              WHEN (result_1n2 = 'A' AND venue = 'Home')
                OR (result_1n2 = 'H' AND venue = 'Away')
              THEN 1 ELSE 0 END AS is_loss,
