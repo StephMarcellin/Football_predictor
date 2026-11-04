@@ -16,14 +16,3 @@ models:
         description: "Nom standard du club"
         tests:
           - not_null
-      - name: int_n_club_names
-        description: >
-          Nombre de club_name distincts pour ce team_id dans team_mapping.
-          Doit valoir 1 ; > 1 signale une incohérence du mapping.
-        tests:
-          - accepted_values:
-              arguments:
-                values: [1]
-                quote: false
-              config:
-                severity: warn

@@ -12,7 +12,7 @@ description: >
 source:
   duckdb_path: db/football.duckdb
   query: |
-    SELECT "str_match_id", "str_team_id", "str_player_id", "str_event_id", "int_row_num", "int_expanded_minute", "str_season", "str_league_source", "dt_scraped_at", "str_type_id", "str_type_name", "dec_x", "dec_y", "dec_goal_mouth_y", "dec_goal_mouth_z", "dec_blocked_x", "dec_blocked_y", "bool_is_own_goal", "bool_is_goal", "bool_is_blocked", "bool_is_on_target", "dec_pre_shot_xg_proxy", "dec_offset_center", "dec_height", "str_placement_col", "str_placement_row", "str_placement_zone", "dec_corner_dist" FROM intermediate."intermediate_shots"
+    SELECT "str_match_id", "str_team_id", "str_player_id", "str_event_id", "int_row_num", "int_expanded_minute", "str_season", "str_league_source", "dt_scraped_at", "str_type_id", "str_type_name", "dec_x", "dec_y", "dec_goal_mouth_y", "dec_goal_mouth_z", "dec_blocked_x", "dec_blocked_y", "bool_is_own_goal", "bool_is_goal", "bool_is_blocked", "bool_is_on_target", "dec_shot_outcome_score", "dec_offset_center", "dec_height", "str_placement_col", "str_placement_row", "str_placement_zone", "dec_corner_dist" FROM intermediate."intermediate_shots"
 
 expectations:
 
@@ -45,7 +45,7 @@ expectations:
       - bool_is_goal
       - bool_is_blocked
       - bool_is_on_target
-      - dec_pre_shot_xg_proxy
+      - dec_shot_outcome_score
     kwargs: { mostly: 1.0 }
     # severity: error
     severity: warn
@@ -134,7 +134,7 @@ expectations:
     severity: warn
     meta: { description: "Empirique [0.0, 100.0], mean=50.1." }
   - type: expect_column_values_to_be_between
-    kwargs: { column: dec_pre_shot_xg_proxy, min_value: 0.009999999999999995, max_value: 1.09, mostly: 1.0 }
+    kwargs: { column: dec_shot_outcome_score, min_value: 0.009999999999999995, max_value: 1.09, mostly: 1.0 }
     severity: warn
     meta: { description: "Empirique [0.10, 1.00], mean=0.578." }
   - type: expect_column_values_to_be_between
