@@ -1,7 +1,7 @@
 """
 predict_1n2.py — Prédiction du modèle 1N2 (P(H / D / A)).
 
-Charge models/resultat_1n2.joblib et prédit EXACTEMENT les matchs demandés
+Charge models/<clé>.joblib (défaut resultat_1n2) et prédit EXACTEMENT les matchs demandés
 (--match-ids). Reconstruit X via ml_common.prepare_x (mêmes features, cotes
 exclues) et écrit les probabilités P(H/D/A).
 
@@ -11,6 +11,7 @@ Note grain : mart_1n2 est au grain (str_match_id, str_team_id) → chaque match 
 Sortie :
   - toujours       : reports/predictions_1n2.csv
   - avec --write   : table machine_learning.predictions_1n2 (CREATE OR REPLACE)
+  (autre modèle via --model <clé> : suffixe = la clé, ex. predictions_resultat_1n2_avant_compo)
 
 Lancement :
   python pipelines/predict_1n2.py --match-ids 093f1d...,5bb4dc...
@@ -31,14 +32,20 @@ import joblib
 
 import ml_common as mc
 
-MODEL_KEY = "resultat_1n2"
+MODEL_KEY = "resultat_1n2"                 # clé PAR DÉFAUT dans config/models.yml
 ID_OUT = ["str_match_id", "str_team_id", "str_opponent_id", "str_league_source", "dt_date", "str_season"]
 
 
-def load_model():
+def output_suffix(model_key):
+    """Suffixe des sorties : '1n2' pour le modèle par défaut (noms historiques inchangés),
+    sinon la clé du modèle (évite d'écraser les prédictions d'un autre modèle)."""
+    return "1n2" if model_key == MODEL_KEY else model_key
+
+
+def load_model(model_key=MODEL_KEY):
     """Dépickle le payload de train_1n2 : modèle calibré, features ordonnées,
     label_map {'H':0,'D':1,'A':2}."""
-    payload = joblib.load(mc.MODELS_DIR / "resultat_1n2.joblib")
+    payload = joblib.load(mc.MODELS_DIR / f"{model_key}.joblib")
     return payload["model"], payload["features"], payload["label_map"]
 
 def read_ids_file(path):
@@ -80,8 +87,8 @@ def predict(model, feats, label_map, pred, spec):
     """X reconstruit comme au fit, réaligné sur l'ordre du modèle, puis probas
     → df identifiants + P(H/D/A) + label argmax."""
     X = mc.prepare_x(pred, spec["target"], spec.get("exclude"))
-    X = X.reindex(columns=feats, fill_value=0)       # même ordre/colonnes qu'au fit
-    proba = model.predict_proba(X)
+    X = mc.align_features(X, feats)                  # même ordre/colonnes qu'au fit (erreur si une manque)
+    proba = mc.floor_proba(model.predict_proba(X))   # plancher 0,5 % : pas de probabilité nulle
 
     inv = {v: k for k, v in label_map.items()}       # {0:'H', 1:'D', 2:'A'}
     out = pred[ID_OUT].reset_index(drop=True).copy()
@@ -105,9 +112,12 @@ def write_table(cfg, out, table="machine_learning.predictions_1n2"):
     con.close()
 
 
-def main(match_ids=None, write=False):
+def main(match_ids=None, write=False, model_key=MODEL_KEY):
     cfg, models = mc.load_configs()
-    spec = models[MODEL_KEY]
+    if model_key not in models:
+        raise SystemExit(f"Modèle inconnu '{model_key}' (clés de config/models.yml : {', '.join(models)})")
+    spec = models[model_key]
+    suffix = output_suffix(model_key)
 
     pred = build_predict_frame(cfg, spec, match_ids)
     if pred.empty:
@@ -115,17 +125,17 @@ def main(match_ids=None, write=False):
         return None
     print(f"[predict 1N2] {pred['str_match_id'].nunique()} match(s), {len(pred)} lignes à prédire.")
 
-    model, feats, label_map = load_model()
+    model, feats, label_map = load_model(model_key)
     out = predict(model, feats, label_map, pred, spec)
 
-    csv_path = mc.ROOT_DIR / "reports" / "predictions_1n2.csv"
+    csv_path = mc.ROOT_DIR / "reports" / f"predictions_{suffix}.csv"
     csv_path.parent.mkdir(exist_ok=True)
     out.to_csv(csv_path, index=False)
     print(f"CSV écrit : {csv_path}")
 
     if write:
-        write_table(cfg, out)
-        print("Table écrite : machine_learning.predictions_1n2")
+        write_table(cfg, out, table=f"machine_learning.predictions_{suffix}")
+        print(f"Table écrite : machine_learning.predictions_{suffix}")
     else:
         print("Dry-run : table DuckDB non écrite (ajoute --write pour la produire).")
 
@@ -137,8 +147,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Prédiction 1N2 (mart_1n2 → P(H/D/A)).")
     parser.add_argument("--match-ids", required=True,
                         help="ids de matchs séparés par des virgules")
+    parser.add_argument("--model", default=MODEL_KEY,
+                        help="clé du modèle dans config/models.yml (défaut : resultat_1n2)")
     parser.add_argument("--write", action="store_true",
                         help="écrit la table machine_learning.predictions_1n2")
     args = parser.parse_args()
     ids = [s.strip() for s in args.match_ids.split(",") if s.strip()]
-    main(match_ids=ids, write=args.write)
+    main(match_ids=ids, write=args.write, model_key=args.model)

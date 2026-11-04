@@ -19,6 +19,23 @@ models:
     n_class: 3
     exclude: []
 
+  resultat_1n2_avant_compo:
+    mart: mart_1n2_avant_compo    # sans features de composition : prédiction plusieurs jours avant le match
+    grain: [match_id, team_id]
+    target: str_result_1n2
+    task: multiclass
+    n_class: 3
+    exclude: []
+
+  resultat_1n2_toutes_saisons:
+    mart: mart_1n2_avant_compo_toutes_saisons   # sans compo ni xG/PPDA : toutes saisons d'entraînement
+    grain: [match_id, team_id]
+    target: str_result_1n2
+    task: multiclass
+    n_class: 3
+    n_seeds: 5                    # moyenne de 5 LightGBM (graines différentes) : réduit l'instabilité (~±0,02)
+    exclude: []
+
   buts_equipe:
     mart: mart_goals
     grain: [match_id, team_id]

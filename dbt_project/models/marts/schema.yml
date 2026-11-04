@@ -28,6 +28,48 @@ models:
               arguments:
                 values: ['H', 'D', 'A']
 
+  - name: mart_1n2_avant_compo
+    description: >
+      Variante de mart_1n2 SANS aucune feature dépendant de la composition du match
+      (qualité du onze, formation, zones des joueurs alignés, gardien titulaire) :
+      utilisable plusieurs jours avant le match. Même grain (match_id, team_id), même cible
+      result_1n2 (NULL pour les matchs à venir). Valeurs des 283 colonnes communes identiques
+      à mart_1n2.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [str_match_id, str_team_id]
+    columns:
+      - name: str_match_id
+        tests: [not_null]
+      - name: str_team_id
+        tests: [not_null]
+      - name: str_result_1n2
+        description: "Cible H/D/A (vue match, identique sur les 2 lignes). NULL = match à venir."
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['H', 'D', 'A']
+
+  - name: mart_1n2_avant_compo_toutes_saisons
+    description: >
+      Variante de mart_1n2_avant_compo sans les 62 features absentes avant 2014-15 (xG, PPDA,
+      tirs, fautes, xG/tir de la saison précédente, pressing vs relance, h2h xG). Même grain
+      (match_id, team_id), même cible. Sert à entraîner sur toutes les saisons disponibles.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [str_match_id, str_team_id]
+    columns:
+      - name: str_match_id
+        tests: [not_null]
+      - name: str_team_id
+        tests: [not_null]
+      - name: str_result_1n2
+        description: "Cible H/D/A (vue match, identique sur les 2 lignes). NULL = match à venir."
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['H', 'D', 'A']
+
   - name: mart_goals
     description: "Mart buts marqués — grain (match_id, team_id). Cible team_goals."
     tests:
