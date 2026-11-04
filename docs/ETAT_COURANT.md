@@ -35,6 +35,7 @@ Détours possibles ensuite : entraînement Big5 seul, rating de force type Elo, 
 - Exploration dans le Linux (1 graine, peu de plis) ; confirmations (7 plis, 3-5 graines) sur le PC de Stéphane ; écritures en base sur son PC.
 - Base en lecture seule : `db/football.duckdb` (~80 Go). Le Linux reproduit exactement les résultats du PC (vérifié pli 2024-25, 3 graines) : les expériences y sont comparables aux CSV existants.
 - À chaque session : ré-accorder l'accès au dossier et la permission de suppression (verrous Git).
+- Push/PR : jeton fine-grained dans `.tmp/gh_token` (ignoré par Git, créé le 04/11, expiration ~30 jours : à vérifier sur GitHub). Procédure dans le skill `release-manager`. PR #52 ouverte (continuité + palier 0).
 
 ## À vérifier (ouvert)
 - Doc LightGBM : `subsample_freq=0` désactive-t-il le tirage de lignes ? (E > A observé, mécanisme non confirmé).
