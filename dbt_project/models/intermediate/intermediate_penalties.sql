@@ -4,6 +4,7 @@
         unique_key=['str_match_id', 'int_row_num'],
         on_schema_change='sync_all_columns',
         schema='intermediate',
+        tags=['by_season'],
         alias='intermediate_penalties'
     )
 }}
@@ -11,7 +12,7 @@
 WITH
 
 -- 1. Qualifiers (qual 9 = Penalty, qual 233 = OppositeRelatedEvent, 20 = Right Foot, 72 = Left Foot)
-in_events_qual AS (
+in_events_qual AS NOT MATERIALIZED (
     SELECT
         str_match_id                                                 AS match_id,
         int_row_num                                                  AS row_num,
@@ -21,7 +22,7 @@ in_events_qual AS (
 ),
 
 -- 2. Événements bruts
-in_events AS (
+in_events AS NOT MATERIALIZED (
     SELECT
         str_match_id                                                 AS match_id,
         CAST(str_team_id AS BIGINT)                                  AS team_id,
@@ -40,7 +41,20 @@ in_events AS (
 ),
 
 -- Filtre incrémental
-{% if is_incremental() %}
+{% if var('only_season', none) %}
+-- Mode « une saison » (orchestrateur, boucle par saison) : matchs de la saison
+-- pas encore présents dans la table. Remplace le critère habituel (scraped_at,
+-- jointure sur {{ this }}) qui exclurait à tort une saison plus ancienne que
+-- la dernière déjà chargée.
+new_matches AS (
+    SELECT DISTINCT match_id
+    FROM in_events
+    WHERE match_id IN ({{ season_match_ids(this) }})
+    {%- if is_incremental() %}
+      AND match_id NOT IN (SELECT DISTINCT str_match_id FROM {{ this }})
+    {%- endif %}
+),
+{% elif is_incremental() %}
 max_scraped AS (
     SELECT MAX(CAST(dt_scraped_at AS VARCHAR)) AS last_scraped 
     FROM {{ this }}

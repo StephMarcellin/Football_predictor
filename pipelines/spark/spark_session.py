@@ -116,6 +116,17 @@ def get_spark(app_name: str, shuffle_partitions: int | None = None):
         # skew. Filet de sécurité tant qu'on ne connaît pas les volumes.
         .config("spark.sql.adaptive.enabled", "true")
         .config("spark.sql.adaptive.coalescePartitions.enabled", "true")
+
+        # Ecriture partitionnee : mode DYNAMIQUE.
+        # En mode `static` (le defaut Spark), un write .mode("overwrite") sur un
+        # DataFrame partitionne SUPPRIME TOUT LE REPERTOIRE de sortie avant
+        # d'ecrire, puis n'ecrit que les partitions presentes dans le DataFrame.
+        # Traiter une seule saison effacait donc toutes les autres : c'est ce qui
+        # a fait disparaitre str_season=2022-2023 de data/spark_out.
+        # En mode `dynamic`, seules les partitions presentes dans le DataFrame
+        # sont remplacees ; les autres restent intactes. C'est le prerequis du
+        # traitement saison par saison.
+        .config("spark.sql.sources.partitionOverwriteMode", "dynamic")
         
         # Cache colonnaire (persist) : Spark sérialise chaque partition en
         # batches de colonnes compressées. Pour une colonne STRING il teste un

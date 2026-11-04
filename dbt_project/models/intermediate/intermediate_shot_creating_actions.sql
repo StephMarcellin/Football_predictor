@@ -4,6 +4,7 @@
         unique_key=['str_match_id', 'int_shot_row_num', 'int_sca_order'],
         on_schema_change='sync_all_columns',
         schema='intermediate',
+        tags=['by_season'],
         alias='intermediate_shot_creating_actions'
     )
 }}
@@ -36,7 +37,7 @@
 WITH
 
 -- intermediate_possession_chains lu sous ses noms refondus, remappé vers les noms de travail du modèle
-in_player_possession_chains AS (
+in_player_possession_chains AS NOT MATERIALIZED (
     SELECT
         str_match_id                                                 AS "match_id",
         str_season                                                   AS "season",
@@ -68,7 +69,20 @@ mdl_body AS (
 WITH
 
 -- ── FILTRE INCRÉMENTAL (même patron que intermediate_possession_chains) ──────────────
-{% if is_incremental() %}
+{% if var('only_season', none) %}
+-- Mode « une saison » (orchestrateur, boucle par saison) : matchs de la saison
+-- pas encore présents dans la table. Remplace le critère habituel (scraped_at,
+-- jointure sur {{ this }}) qui exclurait à tort une saison plus ancienne que
+-- la dernière déjà chargée.
+new_matches AS (
+    SELECT DISTINCT match_id
+    FROM in_player_possession_chains
+    WHERE match_id IN ({{ season_match_ids(this) }})
+    {%- if is_incremental() %}
+      AND match_id NOT IN (SELECT DISTINCT str_match_id FROM {{ this }})
+    {%- endif %}
+),
+{% elif is_incremental() %}
 new_matches AS (
     SELECT DISTINCT match_id
     FROM in_player_possession_chains

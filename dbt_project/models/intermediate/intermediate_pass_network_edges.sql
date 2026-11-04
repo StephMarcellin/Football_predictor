@@ -4,6 +4,7 @@
         unique_key=['str_match_id', 'str_team_id', 'str_passer_id', 'str_receiver_id'],
         on_schema_change='sync_all_columns',
         schema='intermediate',
+        tags=['by_season'],
         alias='intermediate_pass_network_edges'
     )
 }}
@@ -16,7 +17,7 @@
 WITH
 
 -- intermediate_completed_passes lu sous ses noms refondus, remappé vers les noms de travail du modèle
-in_player_passes_raw AS (
+in_player_passes_raw AS NOT MATERIALIZED (
     SELECT
         str_match_id                                                 AS "match_id",
         str_chain_id                                                 AS "chain_id",
@@ -45,7 +46,20 @@ in_player_passes_raw AS (
 mdl_body AS (
 WITH
 
-{% if is_incremental() %}
+{% if var('only_season', none) %}
+-- Mode « une saison » (orchestrateur, boucle par saison) : matchs de la saison
+-- pas encore présents dans la table. Remplace le critère habituel (scraped_at,
+-- jointure sur {{ this }}) qui exclurait à tort une saison plus ancienne que
+-- la dernière déjà chargée.
+new_matches AS (
+    SELECT DISTINCT match_id
+    FROM in_player_passes_raw
+    WHERE match_id IN ({{ season_match_ids(this) }})
+    {%- if is_incremental() %}
+      AND match_id NOT IN (SELECT DISTINCT str_match_id FROM {{ this }})
+    {%- endif %}
+),
+{% elif is_incremental() %}
 new_matches AS (
     SELECT DISTINCT match_id
     FROM in_player_passes_raw

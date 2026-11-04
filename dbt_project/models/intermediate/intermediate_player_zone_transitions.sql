@@ -5,6 +5,7 @@
                     'int_period', 'str_score_state', 'str_formation'],
         on_schema_change='sync_all_columns',
         schema='intermediate',
+        tags=['by_season'],
         alias='intermediate_player_zone_transitions'
     )
 }}
@@ -17,7 +18,7 @@
 WITH
 
 -- intermediate_whoscored_event_qualifiers lu sous ses noms refondus, remappé vers les noms de travail du modèle
-in_events_qual AS (
+in_events_qual AS NOT MATERIALIZED (
     SELECT
         str_match_id                                                 AS "match_id",
         CAST(str_team_id AS BIGINT)                                  AS "team_id",
@@ -44,7 +45,7 @@ in_events_qual AS (
 ),
 
 -- intermediate_whoscored_events_enriched lu sous ses noms refondus, remappé vers les noms de travail du modèle
-in_int_event_enriched AS (
+in_int_event_enriched AS NOT MATERIALIZED (
     SELECT
         str_match_id                                                 AS "match_id",
         CAST(str_team_id AS BIGINT)                                  AS "team_id",
@@ -91,7 +92,7 @@ in_int_event_enriched AS (
 ),
 
 -- intermediate_completed_passes lu sous ses noms refondus, remappé vers les noms de travail du modèle
-in_player_passes_raw AS (
+in_player_passes_raw AS NOT MATERIALIZED (
     SELECT
         str_match_id                                                 AS "match_id",
         str_chain_id                                                 AS "chain_id",
@@ -119,7 +120,20 @@ in_player_passes_raw AS (
 mdl_body AS (
 WITH
 
-{% if is_incremental() %}
+{% if var('only_season', none) %}
+-- Mode « une saison » (orchestrateur, boucle par saison) : matchs de la saison
+-- pas encore présents dans la table. Remplace le critère habituel (scraped_at,
+-- jointure sur {{ this }}) qui exclurait à tort une saison plus ancienne que
+-- la dernière déjà chargée.
+new_matches AS (
+    SELECT DISTINCT match_id
+    FROM in_int_event_enriched
+    WHERE match_id IN ({{ season_match_ids(this) }})
+    {%- if is_incremental() %}
+      AND match_id NOT IN (SELECT DISTINCT str_match_id FROM {{ this }})
+    {%- endif %}
+),
+{% elif is_incremental() %}
 new_matches AS (
     SELECT DISTINCT match_id
     FROM in_int_event_enriched

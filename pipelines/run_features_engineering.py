@@ -88,6 +88,7 @@ MOD_XGOT_TRAIN = ROOT_DIR / "pipelines" / "xgot_train.py"
 SPARK_EXPORT = "export_to_parquet.py"
 SPARK_EVENTS = "spark_events.py"
 SPARK_CHECK  = "check_spark_outputs.py"
+SPARK_CHAINS = "spark_possession_chains.py"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -106,7 +107,9 @@ TABLES_UPDATE = [
     "export_to_parquet",                               # export Silver → Parquet
     "spark_events",                                    # calcule les événements (Spark)
     "check_spark_outputs",                             # validation des exports Spark
+    "spark_possession_chains",                         # chaînes de possession (Spark)
     "dbt_intermediate_base",
+    "dbt_intermediate_by_season",                      # modèles par match, saison par saison
     "dbt_ml_features",
     # "validate_intermediate",                          # après matérialisation intermediate
     "xgot_score",
@@ -134,6 +137,196 @@ STEP_NAMES = TABLES_UPDATE + TABLES_YEARLY  # ordre d'exécution complet
 # ══════════════════════════════════════════════════════════════════════════════
 # Étapes
 # ══════════════════════════════════════════════════════════════════════════════
+
+def _seasons_spark_wrote() -> list[str]:
+    """
+    Saisons que spark_events.py vient d'écrire, d'après le rapport de CE run.
+
+    Rapport absent ou illisible → liste vide, donc comportement inchangé. On ne
+    force pas le full-refresh « par précaution » : spark_events écrit ce fichier
+    à chaque exécution, y compris à vide, donc son absence signifie que Spark
+    n'a pas tourné dans ce flux.
+    """
+    import json
+
+    report = ROOT_DIR / "data" / "spark_out" / "_run_report.json"
+    try:
+        return list(json.loads(report.read_text(encoding="utf-8")).get("seasons") or [])
+    except Exception as e:  # fichier absent, JSON tronqué, etc.
+        logger.debug(f"Rapport Spark illisible ({e}) — pas de bascule full-refresh.")
+        return []
+
+
+def _seasons_deja_dans_dbt(seasons: list[str]) -> list[str]:
+    """
+    Parmi `seasons`, celles pour lesquelles la couche intermediate contient DÉJÀ
+    des lignes.
+
+    C'est LE bon critère, et pas « saison déjà présente en sortie Spark » :
+    Spark recalcule une saison ENTIÈRE, donc tout match de cette saison déjà
+    présent dans les tables dbt a pu changer de contenu. Or le filtre
+    incrémental de ces modèles est un anti-join sur match_id
+    (`WHERE t.match_id IS NULL`) : un match déjà présent est écarté AVANT toute
+    fusion, même sur un modèle à unique_key. La correction ne se propage donc
+    jamais, et seul un --full-refresh la fait descendre.
+
+    Table témoin : intermediate_shots, incrémentale et porteuse de str_season.
+    Absente (premier run) → liste vide, pas de bascule : il n'y a rien à
+    corriger dans une table qui n'existe pas.
+    """
+    if not seasons:
+        return []
+
+    import duckdb
+    import yaml
+
+    try:
+        with open(ROOT_DIR / "config.yaml", encoding="utf-8") as f:
+            db = ROOT_DIR / yaml.safe_load(f)["paths"]["db"]
+        con = duckdb.connect(str(db), read_only=True)
+        try:
+            rows = con.sql(
+                "SELECT DISTINCT str_season FROM intermediate.intermediate_shots"
+            ).fetchall()
+        finally:
+            con.close()
+        return sorted(set(seasons) & {r[0] for r in rows})
+    except Exception as e:
+        logger.debug(f"Témoin intermediate_shots illisible ({e}) — pas de bascule.")
+        return []
+
+
+def run_dbt_intermediate_base(select: str, exclude: str, full_refresh: bool) -> None:
+    """
+    Étape `dbt_intermediate_base`, avec bascule automatique en --full-refresh.
+
+    POURQUOI UN WRAPPER plutôt que de calculer la valeur dans build_steps() :
+    le dictionnaire d'étapes est construit AVANT que Spark tourne, donc un
+    `full_refresh` figé là serait décidé trop tôt. Ici la décision est prise à
+    l'appel, après spark_events.
+
+    POURQUOI LA BASCULE : le filtre incrémental des modèles intermediate est un
+    anti-join sur match_id (`WHERE t.match_id IS NULL`). Un match déjà présent
+    est donc écarté AVANT toute fusion, même sur un modèle à unique_key — une
+    CORRECTION de ce match ne se propage jamais en incrémental. C'est le
+    mécanisme qui a laissé 467 544 lignes à team_id NULL dans
+    whoscored_team_match_minute après la correction de la cause en amont.
+    Quand Spark recalcule une saison déjà en sortie, l'aval doit donc être
+    reconstruit, pas complété.
+    """
+    ecrites = _seasons_spark_wrote()
+    forcee  = _seasons_deja_dans_dbt(ecrites)
+
+    if full_refresh:
+        logger.info("--full-refresh demandé explicitement.")
+    elif forcee:
+        logger.warning(
+            f"Spark a recalculé {', '.join(forcee)}, dont la couche intermediate "
+            f"contient déjà des lignes → bascule automatique en --full-refresh. "
+            f"L'incrémental écarterait ces matchs par anti-join et ne "
+            f"propagerait aucune correction."
+        )
+    elif ecrites:
+        logger.info(
+            f"Spark a écrit {', '.join(ecrites)} : aucune de ces saisons n'est "
+            f"déjà dans intermediate → incrémental suffisant."
+        )
+
+    run_dbt_run(select=select, exclude=exclude,
+                full_refresh=full_refresh or bool(forcee))
+
+
+def _by_season_models() -> list[str]:
+    """Noms des modèles dbt tagués `by_season` (lus dans leur config, sans lancer dbt)."""
+    models_dir = ROOT_DIR / "dbt_project" / "models"
+    return sorted(f.stem for f in models_dir.rglob("*.sql")
+                  if "tags=['by_season']" in f.read_text(encoding="utf-8", errors="replace"))
+
+
+def _by_season_tables_missing(names: list[str]) -> list[str]:
+    """Modèles by_season dont la table n'existe pas encore (premier run).
+
+    Sans table, dbt construit tout d'un coup : exactement le cas qui sature la
+    mémoire. On bascule alors en boucle par saison, avec full-refresh à la première.
+    """
+    import duckdb
+    import yaml
+
+    try:
+        with open(ROOT_DIR / "config.yaml", encoding="utf-8") as f:
+            db = ROOT_DIR / yaml.safe_load(f)["paths"]["db"]
+        con = duckdb.connect(str(db), read_only=True)
+        try:
+            rows = con.sql(
+                "SELECT table_name FROM information_schema.tables "
+                "WHERE table_schema = 'intermediate'"
+            ).fetchall()
+        finally:
+            con.close()
+        return sorted(set(names) - {r[0] for r in rows})
+    except Exception as e:
+        logger.debug(f"Base illisible ({e}) — on suppose les tables absentes.")
+        return list(names)
+
+
+def _chain_seasons() -> list[str]:
+    """Saisons disponibles en sortie Spark des chaînes (une partition str_season=... chacune)."""
+    out = ROOT_DIR / "data" / "spark_out" / "int_possession_chains"
+    return sorted(d.name.split("=", 1)[1] for d in out.glob("str_season=*") if d.is_dir())
+
+
+def run_dbt_intermediate_by_season(exclude: str, full_refresh: bool) -> None:
+    """
+    Étape `dbt_intermediate_by_season` : les modèles tagués `by_season`, puis leurs
+    descendants dans `intermediate`.
+
+    POURQUOI : ces modèles sont incrémentaux par match. Les construire sur 18 saisons
+    d'un coup sature la mémoire de DuckDB (shot_creating_actions : 1 h 57) alors qu'une
+    saison prend 2-3 s. On boucle donc sur les saisons avec `only_season`.
+
+    DEUX MODES :
+      - reconstruction (full_refresh demandé, saison déjà en base recalculée par Spark,
+        ou table absente) : une passe par saison ; la PREMIÈRE vide les tables
+        (--full-refresh), les suivantes s'y ajoutent. Un échec ne perd que la saison
+        en cours : les précédentes sont écrites.
+      - quotidien : une seule passe sans `only_season` (critère scraped_at / anti-join
+        habituel). Peu de matchs : pas besoin de découper.
+
+    ORDRE : cette étape suit dbt_intermediate_base (les parents des modèles tagués y
+    sont construits) et précède dbt_ml_features (qui lit `shots`).
+    """
+    modeles = _by_season_models()
+    ecrites = _seasons_spark_wrote()
+    forcee  = _seasons_deja_dans_dbt(ecrites)
+    absents = _by_season_tables_missing(modeles)
+    rebuild = full_refresh or bool(forcee) or bool(absents)
+
+    # Descendants dans intermediate (hors modèles exclus de la base, exécutés plus loin).
+    desc_select  = "path:models/intermediate,tag:by_season+"
+    desc_exclude = f"tag:by_season {exclude}".strip()
+
+    if not rebuild:
+        logger.info("Mode quotidien : une passe sans only_season.")
+        run_dbt_run(select="tag:by_season", full_refresh=False)
+        run_dbt_run(select=desc_select, exclude=desc_exclude, full_refresh=False)
+        return
+
+    raison = ("--full-refresh demandé" if full_refresh else
+              f"Spark a recalculé {', '.join(forcee)}" if forcee else
+              f"tables absentes : {', '.join(absents)}")
+    saisons = _chain_seasons()
+    if not saisons:
+        raise RuntimeError("Aucune saison dans int_possession_chains : lance d'abord "
+                           "l'étape spark_possession_chains.")
+    logger.warning(f"Reconstruction par saison ({raison}) : {len(saisons)} saisons, "
+                   f"{len(modeles)} modèles.")
+    for i, saison in enumerate(saisons, 1):
+        logger.info(f"══ [{i}/{len(saisons)}] {saison} ══")
+        run_dbt_run(select="tag:by_season", full_refresh=(i == 1),
+                    extra_vars={"only_season": saison})
+    # Les descendants lisent les tables complètes : reconstruits UNE fois, à la fin.
+    run_dbt_run(select=desc_select, exclude=desc_exclude, full_refresh=True)
+
 
 def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
     """
@@ -185,11 +378,32 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
             "kwargs": {"script_name": SPARK_CHECK, "extra_args": ["--min-rows", "1000"]},
             "critical": True,
         },
+        # Chaînes de possession (ex-modèle dbt de 2 h 30+). Lit les Parquet de
+        # spark_events ; --from-report ne traite que les saisons que spark_events
+        # vient d'écrire + celles qui manquent en sortie. Doit précéder
+        # dbt_intermediate_base : le modèle dbt relit ce Parquet.
+        "spark_possession_chains": {
+            "fn": run_spark_job,
+            "kwargs": {"script_name": SPARK_CHAINS, "extra_args": ["--from-report"]},
+            "critical": True,
+        },
         # ── 1. Intermédiaires de base (hors dépendances Python/Downstream) ──
         "dbt_intermediate_base": {
-            "fn": run_dbt_run,
+            "fn": run_dbt_intermediate_base,
             "kwargs": {
                 "select": "intermediate.*",
+                "exclude": "tag:by_season+ intermediate_xt_contributions intermediate_keeper_shots_faced intermediate_keeper_season_psxg",
+                "full_refresh": full_refresh,
+            },
+            "critical": True,
+        },
+
+        # ── 1b. Modèles par match, construits SAISON PAR SAISON ─────────────────
+        # 20 modèles tagués by_season + leurs descendants intermediate. Après la base
+        # (leurs parents), avant dbt_ml_features (xgot_features lit shots).
+        "dbt_intermediate_by_season": {
+            "fn": run_dbt_intermediate_by_season,
+            "kwargs": {
                 "exclude": "intermediate_xt_contributions intermediate_keeper_shots_faced intermediate_keeper_season_psxg",
                 "full_refresh": full_refresh,
             },
@@ -339,11 +553,32 @@ def build_table_steps(cfg: dict, full_refresh: bool = False) -> dict:
             "kwargs": {"script_name": SPARK_CHECK, "extra_args": ["--min-rows", "1000"]},
             "critical": True,
         },
+        # Chaînes de possession (ex-modèle dbt de 2 h 30+). Lit les Parquet de
+        # spark_events ; --from-report ne traite que les saisons que spark_events
+        # vient d'écrire + celles qui manquent en sortie. Doit précéder
+        # dbt_intermediate_base : le modèle dbt relit ce Parquet.
+        "spark_possession_chains": {
+            "fn": run_spark_job,
+            "kwargs": {"script_name": SPARK_CHAINS, "extra_args": ["--from-report"]},
+            "critical": True,
+        },
             # ── 1. Intermédiaires de base (hors dépendances Python/Downstream) ──
             "dbt_intermediate_base": {
-                "fn": run_dbt_run,
+                "fn": run_dbt_intermediate_base,
                 "kwargs": {
                     "select": "intermediate.*",
+                    "exclude": "tag:by_season+ intermediate_xt_contributions intermediate_keeper_shots_faced intermediate_keeper_season_psxg",
+                    "full_refresh": full_refresh,
+                },
+                "critical": True,
+            },
+
+            # ── 1b. Modèles par match, construits SAISON PAR SAISON ─────────────────
+            # 20 modèles tagués by_season + leurs descendants intermediate. Après la base
+            # (leurs parents), avant dbt_ml_features (xgot_features lit shots).
+            "dbt_intermediate_by_season": {
+                "fn": run_dbt_intermediate_by_season,
+                "kwargs": {
                     "exclude": "intermediate_xt_contributions intermediate_keeper_shots_faced intermediate_keeper_season_psxg",
                     "full_refresh": full_refresh,
                 },
@@ -561,8 +796,14 @@ def main() -> None:
     if args.step:
         steps_to_run = {args.step: all_steps[args.step]}
     elif args.from_step:
-        idx = STEP_NAMES.index(args.from_step)
-        steps_to_run = {n: all_steps[n] for n in STEP_NAMES[idx:]}
+        # Ordre = celui du dictionnaire d'étapes (= ordre d'un run complet), PAS celui de
+        # STEP_NAMES : celle-ci range xt_grid / xgot_train à la fin et la reprise les
+        # exécuterait après les étapes qui en dépendent.
+        ordre = list(all_steps)
+        if args.from_step not in ordre:
+            parser.error(f"--from {args.from_step} : étape absente de ce mode "
+                         f"({', '.join(ordre)})")
+        steps_to_run = {n: all_steps[n] for n in ordre[ordre.index(args.from_step):]}
     else:
         steps_to_run = all_steps
 

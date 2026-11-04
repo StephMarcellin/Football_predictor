@@ -4,6 +4,7 @@
         unique_key=['str_match_id', 'int_row_num'],
         on_schema_change='sync_all_columns',
         schema='intermediate',
+        tags=['by_season'],
         alias='intermediate_shots'
     )
 }}
@@ -28,7 +29,7 @@
 WITH
 
 -- intermediate_event_values lu sous ses noms refondus, remappé vers les noms de travail du modèle
-in_event_values AS (
+in_event_values AS NOT MATERIALIZED (
     SELECT
         str_match_id                                                 AS "match_id",
         CAST(str_team_id AS BIGINT)                                  AS "team_id",
@@ -57,7 +58,7 @@ in_event_values AS (
 ),
 
 -- intermediate_whoscored_event_qualifiers lu sous ses noms refondus, remappé vers les noms de travail du modèle
-in_events_qual AS (
+in_events_qual AS NOT MATERIALIZED (
     SELECT
         str_match_id                                                 AS "match_id",
         CAST(str_team_id AS BIGINT)                                  AS "team_id",
@@ -84,7 +85,7 @@ in_events_qual AS (
 ),
 
 -- intermediate_whoscored_events_enriched lu sous ses noms refondus, remappé vers les noms de travail du modèle
-in_int_event_enriched AS (
+in_int_event_enriched AS NOT MATERIALIZED (
     SELECT
         str_match_id                                                 AS "match_id",
         CAST(str_team_id AS BIGINT)                                  AS "team_id",
@@ -131,7 +132,7 @@ in_int_event_enriched AS (
 ),
 
 -- intermediate_whoscored_events lu sous ses noms refondus, remappé vers les noms de travail du modèle
-in_int_whoscored_events AS (
+in_int_whoscored_events AS NOT MATERIALIZED (
     SELECT
         str_match_id                                                 AS "match_id",
         CAST(str_team_id AS BIGINT)                                  AS "team_id",
@@ -175,7 +176,20 @@ WITH
 -- Même patron que intermediate_whoscored_events_enriched : on ne traite que les matchs dont le
 -- scraped_at dépasse le dernier déjà présent. Grain « un tir » = append-only
 -- (les tirs passés ne changent pas) → incrémental correct.
-{% if is_incremental() %}
+{% if var('only_season', none) %}
+-- Mode « une saison » (orchestrateur, boucle par saison) : matchs de la saison
+-- pas encore présents dans la table. Remplace le critère habituel (scraped_at,
+-- jointure sur {{ this }}) qui exclurait à tort une saison plus ancienne que
+-- la dernière déjà chargée.
+new_matches AS (
+    SELECT DISTINCT match_id
+    FROM in_int_whoscored_events
+    WHERE match_id IN ({{ season_match_ids(this) }})
+    {%- if is_incremental() %}
+      AND match_id NOT IN (SELECT DISTINCT str_match_id FROM {{ this }})
+    {%- endif %}
+),
+{% elif is_incremental() %}
 max_scraped AS (
     SELECT MAX(scraped_at) AS last_scraped FROM (
     SELECT
