@@ -16,6 +16,9 @@ python pipelines/scrape_fbref.py --league Bundesliga --season 2017-2018
 
 # Sans interface graphique
 python pipelines/scrape_fbref.py --headless
+
+# Re-télécharger une saison déjà en cache (ex. scrapée avant la fin de la saison → trous)
+python pipelines/scrape_fbref.py --season 2025-2026 --force
 """
 
 import argparse
@@ -234,7 +237,13 @@ def main():
     parser.add_argument("--season",   default=None, help="Filtrer sur une saison")
     parser.add_argument("--dry-run",  action="store_true", help="Affiche ce qui serait scrapé sans télécharger")
     parser.add_argument("--headless", action="store_true", help="Lancer Chrome sans interface graphique")
+    parser.add_argument("--force",    action="store_true",
+                        help="Ignore le cache HTML et re-télécharge (exige --season ; --league optionnel)")
     args = parser.parse_args()
+
+    # Garde-fou : sans --season, --force re-téléchargerait TOUTES les saisons de config.yaml.
+    if args.force and not args.season:
+        parser.error("--force exige --season (ex. --season 2025-2026)")
 
     # Charger le référentiel pour construire la liste ligue × saison
     if not DB_PATH.exists():
@@ -303,7 +312,8 @@ def main():
             to_download = []
             for team in teams:
                 team_slug = team["team_slug"]
-                missing   = [st for st in stat_types if not is_cached(team_slug, season_code, st)]
+                # --force : tout est « manquant », donc re-téléchargé et le HTML existant est écrasé
+                missing   = [st for st in stat_types if args.force or not is_cached(team_slug, season_code, st)]
                 if missing:
                     to_download.append({"team": team, "missing_stats": missing})
                 else:
