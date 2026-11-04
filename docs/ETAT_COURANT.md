@@ -17,8 +17,8 @@ Rappel : égaler le marché ne rapporte rien (ROI ≈ −marge). Il faut de l'in
 ## Paliers (arrêt + compte rendu au PMO après chacun)
 | # | Contenu | Statut |
 |---|---|---|
-| 0 | Audit fuite `h2h_win_rate_cutoff` / `h2h_loss_rate_cutoff` ; reproduire la référence A dans le Linux | À FAIRE |
-| 1 | Adopter E (`subsample_freq=1` dans train_1n2.py et rolling_eval.py) ; script versionné du tableau d'écart au marché | À faire |
+| 0 | Audit fuite `h2h_win_rate_cutoff` / `h2h_loss_rate_cutoff` ; reproduire la référence A dans le Linux | TERMINÉ 04/11 : aucune fuite (10 355 lignes recalculées, 0 écart) ; reproduction exacte (écart max 0,0000) |
+| 1 | Adopter E (`subsample_freq=1` dans train_1n2.py et rolling_eval.py) ; script versionné du tableau d'écart au marché | PROCHAIN |
 | 2 | DÉTOUR diagnostic : probas Pinnacle en feature (jamais en production) pour mesurer ce que nos features ajoutent au marché | À faire |
 | 3 | Réparer la chaîne de buts ; Poisson/Dixon-Coles dérivé vs 1N2 direct ; mélange simple (poids choisi sur la saison de validation) ; go/no-go | À faire |
 | 4 | Si go : λ hors échantillon en fenêtre croissante par saison (λ de S issu d'un modèle < S, NaN avant), features λ_dom, λ_ext, écart, total | À faire |
@@ -33,7 +33,7 @@ Détours possibles ensuite : entraînement Big5 seul, rating de force type Elo, 
 ## Contraintes d'environnement
 - Linux de l'appareil : 2 cœurs, 3,9 Go RAM, 180 s par appel, aucun processus ne survit entre deux appels → découper en tâches avec sauvegarde (fichier par pli × graine). Env : `bash tools/vm_bootstrap.sh` (timeout ≥ 175 s).
 - Exploration dans le Linux (1 graine, peu de plis) ; confirmations (7 plis, 3-5 graines) sur le PC de Stéphane ; écritures en base sur son PC.
-- Base en lecture seule : `db/football.duckdb` (~80 Go).
+- Base en lecture seule : `db/football.duckdb` (~80 Go). Le Linux reproduit exactement les résultats du PC (vérifié pli 2024-25, 3 graines) : les expériences y sont comparables aux CSV existants.
 - À chaque session : ré-accorder l'accès au dossier et la permission de suppression (verrous Git).
 
 ## À vérifier (ouvert)
@@ -45,10 +45,10 @@ Détours possibles ensuite : entraînement Big5 seul, rating de force type Elo, 
 - `config.yaml` mergé avec des réglages locaux (base prod, saison unique) ; CI : chemin `02_process.py` inexistant ; `dbt_project.yml` : temp_directory codé en dur ; `PIPELINE_ORDER.md` périmé.
 
 ## Prochaine action
-Palier 0 : lire `intermediate_team_match_h2h.sql`, vérifier que les colonnes *_cutoff n'utilisent que le passé strict ; puis reproduire A (log-loss poolé attendu 1,0054, 3 graines) dans le Linux.
+Palier 1 : (a) ajouter `subsample_freq=1` à `PARAMS` de rolling_eval.py et au dictionnaire `params` de `main` dans train_1n2.py ; (b) écrire `tools/market_benchmark.py` (tableau d'écart au marché par saison, à partir d'un CSV rolling_eval + gold_odds_pinnacle) ; (c) PC de Stéphane : réentraîner les 3 modèles (`python pipelines/models/train_1n2.py --model <clé>`) puis relancer `predict_matches.py` par modèle. Exploration dans le Linux avec `tools/rolling_chunk.py` (1 tâche = 1 pli x 1 graine ≈ 80 s ; banc complet 7 x 3 = 21 tâches).
 
 ## Budget consommé
-Palier 0 : 0 / 40 appels.
+Palier 0 : 12 / 40 appels (terminé). Palier 1 : 0 / 40.
 
 ## Fichiers clés
 `docs/JOURNAL_RESULTATS.md` (résultats déjà obtenus, à lire avant toute expérience) · `pipelines/models/rolling_eval.py` · `pipelines/models/train_1n2.py` · `pipelines/ml_common.py` · `reports/rolling_eval_*.csv` (non suivis par Git) · `config/models.yml`.
