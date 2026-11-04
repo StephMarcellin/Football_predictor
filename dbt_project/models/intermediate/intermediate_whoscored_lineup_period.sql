@@ -90,6 +90,11 @@ exploded AS (
         (p.pids[i] = p.captain_player_id) AS is_captain
     FROM parsed p, range(1, len(p.pids) + 1) AS t(i)
     WHERE p.slots[i] > 0          -- titulaires seulement (0 = banc)
+      -- Joueur non identifié par WhoScored (player_id = 0) : exclu. Remplaçant dont l'id n'a pas été
+      -- résolu dans la source (137 matchs, surtout avant 2017). Conservé, il fusionnerait tous ces
+      -- inconnus en un seul faux joueur dans les modèles par joueur, et casse l'unicité
+      -- (match, équipe, formation, joueur) quand deux inconnus jouent ensemble (2 matchs).
+      AND p.pids[i] <> 0
 )
 
 SELECT
