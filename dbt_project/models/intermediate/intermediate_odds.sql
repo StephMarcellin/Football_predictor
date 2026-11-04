@@ -18,7 +18,12 @@ WITH source AS (
     SELECT * FROM {{ source('silver', 'odds') }}
 ),
 
+-- Noms d'équipes reconnus = alias ET club_name : silver.odds mélange les deux
+-- ("Ein Frankfurt" est un alias, "Bayern Munich" un club_name sans alias identique).
 team_mapping AS (
+    SELECT DISTINCT alias AS team_name, team_id
+    FROM {{ source('referentiel', 'team_mapping') }}
+    UNION
     SELECT DISTINCT club_name, team_id
     FROM {{ source('referentiel', 'team_mapping') }}
 ),
@@ -27,7 +32,10 @@ registry AS (
     SELECT * FROM {{ source('intermediate', 'match_registry') }}
 ),
 
--- Jointure identifiants + passage de TOUTES les colonnes de silver.odds
+-- Jointure identifiants + passage de TOUTES les colonnes de silver.odds.
+-- Le registre est joint sur date + ligue + saison + équipe DOMICILE + équipe EXTÉRIEURE.
+-- Sans les deux équipes, tous les matchs d'une même journée correspondent et chaque ligne de
+-- cotes était dupliquée (15 827 lignes sources → 71 631). Grain attendu : 1 ligne par match.
 joined AS (
     SELECT
         r.match_id,
@@ -35,12 +43,14 @@ joined AS (
         tm_opp.team_id AS opponent_id,
         s.* EXCLUDE (home_team, away_team)
     FROM source s
-    LEFT JOIN team_mapping tm_team ON s.home_team = tm_team.club_name
-    LEFT JOIN team_mapping tm_opp  ON s.away_team = tm_opp.club_name
+    LEFT JOIN team_mapping tm_team ON s.home_team = tm_team.team_name
+    LEFT JOIN team_mapping tm_opp  ON s.away_team = tm_opp.team_name
     LEFT JOIN registry r
         ON  s.date          = r.match_date
         AND s.league_source = r.league_source
         AND s.season        = r.season
+        AND r.home_team_id  = tm_team.team_id
+        AND r.away_team_id  = tm_opp.team_id
 ),
 
 -- Probabilités implicites calculées (marge retirée) sur les nouveaux marchés

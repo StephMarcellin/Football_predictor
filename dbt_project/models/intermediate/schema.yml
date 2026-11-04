@@ -5,7 +5,7 @@ models:
     description: >
       Table pivot centrale — 1 ligne par équipe par match (base intermediate_fbref_schedule,
       matchs à venir inclus). Jointure des int_fbref_* (schedule, keeper, shooting, misc),
-      intermediate_understat_match_stats et intermediate_odds, produite par dbt en mode incremental. Uniquement des
+      intermediate_understat_match_stats, produite par dbt en mode incremental. Aucune cote ici (cf. gold.gold_odds_pinnacle). Uniquement des
       faits au grain match : les agrégats de saison WhoScored (grain équipe × saison) sont
       joints en gold, décalés en N-1 (cf. gold.gold_team_match). Schéma intermediate — consommée par les modèles gold.* et marts.*.
       Noms de colonnes préfixés par type (docs/proposition_nommage_definitif.csv) ;
@@ -13,7 +13,6 @@ models:
 
       Segmentation Big5-only :
       - Colonnes Understat (dec_np_xg, dec_ppda, dec_np_xg_diff_match) : 100 % NULL hors Big5
-      - Colonnes Odds : 100 % NULL hors Big5, avec sparsité résiduelle en Big5
     config:
       alias: intermediate_team_match_backbone
     tests:
@@ -61,24 +60,6 @@ models:
       - dbt_utils.expression_is_true:
           arguments:
             expression: "dec_save_pct IS NULL OR (dec_save_pct >= 0 AND dec_save_pct <= 1)"
-          config:
-            severity: error
-      # ── Somme des probabilités Pinnacle 1n2 = 1 (0 violation) ──
-      - dbt_utils.expression_is_true:
-          arguments:
-            expression: "dec_pinnacle_prob_team IS NULL OR ABS(dec_pinnacle_prob_team + dec_pinnacle_prob_draw + dec_pinnacle_prob_opp - 1) < 0.001"
-          config:
-            severity: error
-      # ── Somme des probabilités marché moyen 1n2 = 1 (0 violation) ──
-      - dbt_utils.expression_is_true:
-          arguments:
-            expression: "dec_market_prob_team IS NULL OR ABS(dec_market_prob_team + dec_market_prob_draw + dec_market_prob_opp - 1) < 0.001"
-          config:
-            severity: error
-      # ── Somme over25 + under25 = 1 (0 violation) ──
-      - dbt_utils.expression_is_true:
-          arguments:
-            expression: "dec_pinnacle_prob_over25 IS NULL OR ABS(dec_pinnacle_prob_over25 + dec_pinnacle_prob_under25 - 1) < 0.001"
           config:
             severity: error
       # ── Match joué ⇔ résultat et score renseignés (0 violation empirique) ──
@@ -250,173 +231,6 @@ models:
 
       - name: dec_np_xg_diff_match
         description: "Différentiel npxG du match (np_xg - np_xg_conceded) — peut être négatif. NULL hors Big5."
-
-      # ── Cotes Pinnacle (odds) — NULL hors Big5 + sparsité résiduelle Big5 ────
-      - name: dec_odds_pinnacle_team
-        description: "Cote Pinnacle victoire de l'équipe (H si Home, A si Away)"
-        tests:
-          - is_valid_odds:
-              config:
-                severity: warn
-
-      - name: dec_odds_pinnacle_draw
-        description: "Cote Pinnacle match nul"
-        tests:
-          - is_valid_odds:
-              config:
-                severity: warn
-
-      - name: dec_odds_pinnacle_opp
-        description: "Cote Pinnacle victoire de l'adversaire"
-        tests:
-          - is_valid_odds:
-              config:
-                severity: warn
-
-      - name: dec_odds_avg_team
-        description: "Cote moyenne marché victoire de l'équipe"
-        tests:
-          - is_valid_odds:
-              config:
-                severity: warn
-
-      - name: dec_odds_avg_draw
-        description: "Cote moyenne marché match nul"
-        tests:
-          - is_valid_odds:
-              config:
-                severity: warn
-
-      - name: dec_odds_avg_opp
-        description: "Cote moyenne marché victoire adversaire"
-        tests:
-          - is_valid_odds:
-              config:
-                severity: warn
-
-      # ── Probabilités implicites (ouverture) ─────────────────────────────────
-      - name: dec_pinnacle_prob_team
-        description: "Probabilité implicite Pinnacle victoire de l'équipe (ouverture)"
-        tests:
-          - is_valid_probability:
-              config:
-                severity: warn
-
-      - name: dec_pinnacle_prob_draw
-        description: "Probabilité implicite Pinnacle match nul (ouverture)"
-        tests:
-          - is_valid_probability:
-              config:
-                severity: warn
-
-      - name: dec_pinnacle_prob_opp
-        description: "Probabilité implicite Pinnacle victoire adversaire (ouverture)"
-        tests:
-          - is_valid_probability:
-              config:
-                severity: warn
-
-      - name: dec_market_prob_team
-        description: "Probabilité implicite marché moyen victoire de l'équipe (ouverture)"
-        tests:
-          - is_valid_probability:
-              config:
-                severity: warn
-
-      - name: dec_market_prob_draw
-        description: "Probabilité implicite marché moyen match nul (ouverture)"
-        tests:
-          - is_valid_probability:
-              config:
-                severity: warn
-
-      - name: dec_market_prob_opp
-        description: "Probabilité implicite marché moyen victoire adversaire (ouverture)"
-        tests:
-          - is_valid_probability:
-              config:
-                severity: warn
-
-      # ── Probabilités implicites (closing) — ajoutées 2026-09-09 ──────────────
-      - name: dec_pinnacle_prob_close_team
-        description: "Probabilité implicite Pinnacle victoire de l'équipe (closing)"
-        tests:
-          - is_valid_probability:
-              config:
-                severity: warn
-
-      - name: dec_pinnacle_prob_close_draw
-        description: "Probabilité implicite Pinnacle match nul (closing)"
-        tests:
-          - is_valid_probability:
-              config:
-                severity: warn
-
-      - name: dec_pinnacle_prob_close_opp
-        description: "Probabilité implicite Pinnacle victoire adversaire (closing)"
-        tests:
-          - is_valid_probability:
-              config:
-                severity: warn
-
-      - name: dec_market_prob_close_team
-        description: "Probabilité implicite marché moyen victoire équipe (closing)"
-        tests:
-          - is_valid_probability:
-              config:
-                severity: warn
-
-      - name: dec_market_prob_close_draw
-        description: "Probabilité implicite marché moyen match nul (closing)"
-        tests:
-          - is_valid_probability:
-              config:
-                severity: warn
-
-      - name: dec_market_prob_close_opp
-        description: "Probabilité implicite marché moyen victoire adversaire (closing)"
-        tests:
-          - is_valid_probability:
-              config:
-                severity: warn
-
-      # ── Drifts (mouvements de la cote entre ouverture et closing) ───────────
-      # Peuvent être négatifs — bornes empiriques [-0.2, +0.3].
-      - name: dec_pinnacle_drift_team
-        description: "Drift Pinnacle victoire équipe (close - open). Peut être négatif."
-      - name: dec_pinnacle_drift_draw
-        description: "Drift Pinnacle match nul (close - open). Peut être négatif."
-      - name: dec_pinnacle_drift_opp
-        description: "Drift Pinnacle victoire adversaire (close - open). Peut être négatif."
-
-      # ── Probabilités Over/Under 2.5 buts ────────────────────────────────────
-      - name: dec_pinnacle_prob_over25
-        description: "Probabilité implicite Pinnacle Over 2.5 buts (ouverture)"
-        tests:
-          - is_valid_probability:
-              config:
-                severity: warn
-
-      - name: dec_pinnacle_prob_under25
-        description: "Probabilité implicite Pinnacle Under 2.5 buts (ouverture)"
-        tests:
-          - is_valid_probability:
-              config:
-                severity: warn
-
-      - name: dec_pinnacle_prob_close_over25
-        description: "Probabilité implicite Pinnacle Over 2.5 buts (closing)"
-        tests:
-          - is_valid_probability:
-              config:
-                severity: warn
-
-      - name: dec_pinnacle_prob_close_under25
-        description: "Probabilité implicite Pinnacle Under 2.5 buts (closing)"
-        tests:
-          - is_valid_probability:
-              config:
-                severity: warn
 
   - name: intermediate_whoscored_event_qualifiers
     description: >
@@ -1319,7 +1133,8 @@ models:
       (possession certaine vs indéterminée), puis marque le déclencheur de
       chaque chaîne via chain_trigger (corner, free_kick, counter_attack,
       open_play, recovery, throw_in, goal_kick...).
-      Source : intermediate_whoscored_events_enriched. Incrémentale sur match_id.
+      Calculée par Spark (pipelines/spark/spark_possession_chains.py) à partir des Parquet
+      int_event_enriched et events_qual ; ce modèle relit simplement le Parquet.
       Brique de base de intermediate_corner_profiles, intermediate_completed_passes et intermediate_xg_chain_credits.
       Une ligne par action.
     columns:
@@ -2321,12 +2136,14 @@ models:
 
   - name: intermediate_odds
     description: >
-      Cotes bookmakers (Pinnacle et moyennes marché) rematchées sur match_id
-      + team_id/opponent_id. Alimente les colonnes odds_* et les probabilités
-      implicites de intermediate_team_match_backbone.
+      Cotes bookmakers (Pinnacle, moyennes marché, autres) rattachées au match_id
+      (jointure registre sur date + ligue + saison + équipe domicile + équipe extérieur).
+      Grain : 1 ligne par match. Source de gold.gold_odds_pinnacle.
     columns:
       - name: str_match_id
-        description: "Identifiant unifié du match (SHA1), rattaché via match_registry."
+        description: "Identifiant unifié du match (SHA1), rattaché via match_registry. Unique (1 ligne par match)."
+        tests:
+          - unique
       - name: str_team_id
         description: "Id canonique de l'équipe à DOMICILE (via team_mapping sur home_team)."
       - name: str_opponent_id
@@ -5051,7 +4868,7 @@ models:
           - accepted_values:
               values: ['GK', 'CB', 'FB', 'DM', 'CM', 'WM', 'AM', 'W', 'ST']
               config:
-                where: "role_fin_lag IS NOT NULL"
+                where: "str_role_fin_lag IS NOT NULL"
       - name: str_role_fin_current
         description: "Rôle calculé sur la coord slot de CE match."
         tests:
@@ -5183,3 +5000,33 @@ models:
         description: "concat(family_self, '_vs_', family_opp). Max 16 modalités, typiquement 6-9."
         tests:
           - not_null
+
+  - name: intermediate_matchs_sans_score
+    description: >
+      Liste de contrôle, 1 ligne par match : matchs du backbone sans aucun score connu.
+      str_statut = 'passe_sans_score' (date passée : résultat non ingéré, match annulé ou donnée
+      absente) ou 'a_venir'. Sert à décider quoi ré-ingérer ; aucune feature n'en dépend.
+      Le statut dépend de CURRENT_DATE au moment du dbt run.
+    columns:
+      - name: str_match_id
+        description: "ID du match (clé, 1 ligne par match)"
+        tests:
+          - unique
+          - not_null
+      - name: str_ws_match_id
+        description: "Identifiant WhoScored du match (via intermediate_whoscored_match_bridge). NULL si le match est absent de l'index WhoScored."
+      - name: str_home_team_id
+        tests: [not_null]
+      - name: str_away_team_id
+        tests: [not_null]
+      - name: str_home_team_name
+        description: "Nom canonique (club_name de team_mapping) de l'équipe à domicile"
+      - name: str_away_team_name
+        description: "Nom canonique de l'équipe à l'extérieur"
+      - name: dt_match_date
+        tests: [not_null]
+      - name: str_statut
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['passe_sans_score', 'a_venir']
