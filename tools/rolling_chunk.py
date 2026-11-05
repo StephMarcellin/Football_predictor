@@ -22,18 +22,23 @@ import ml_common as mc
 import rolling_eval as re_
 
 
-def prepare(model_key):
+def prepare(model_key, market="none"):
     cfg, models = mc.load_configs()
     spec = models[model_key]
     df = mc.load_mart(cfg, spec["mart"])
     df = df[df[spec["target"]].notna()].reset_index(drop=True)
     y = df[spec["target"]].map(re_.LABEL_MAP).astype(int)
     X = mc.prepare_x(df, spec["target"], spec.get("exclude"))
+    if market != "none":
+        # DIAGNOSTIC UNIQUEMENT (palier 2) : jamais en production. Probas Pinnacle, même valeur sur les 2 lignes d'un match.
+        odds = mc.load_odds(cfg).set_index("str_match_id")
+        for o in ("home", "draw", "away"):
+            X[f"mkt_{market}_{o}"] = df["str_match_id"].map(odds[f"dec_prob_{market}_{o}"]).values
     return spec, df, X, y, sorted(df["str_season"].unique())
 
 
-def run_task(model_key, test_season, k, overrides, tag):
-    spec, df, X, y, seasons = prepare(model_key)
+def run_task(model_key, test_season, k, overrides, tag, market="none"):
+    spec, df, X, y, seasons = prepare(model_key, market)
     params = {**re_.PARAMS, **(overrides or {})}
     i = seasons.index(test_season)
     tr = df["str_season"].isin(seasons[:i - 1])
@@ -84,6 +89,8 @@ if __name__ == "__main__":
     ap.add_argument("--seed-index", type=int, default=0)
     ap.add_argument("--param", action="append", default=[], metavar="CLE=VALEUR")
     ap.add_argument("--tag", required=True)
+    ap.add_argument("--market", choices=["none", "open", "close"], default="none",
+                    help="diagnostic : ajoute les probas Pinnacle comme features (jamais en production)")
     ap.add_argument("--aggregate", action="store_true")
     ap.add_argument("--first-test", default="2019-2020")
     ap.add_argument("--last-test", default="2025-2026")
@@ -92,4 +99,4 @@ if __name__ == "__main__":
     if a.aggregate:
         aggregate(a.model, a.first_test, a.last_test, a.n_seeds, a.tag)
     else:
-        run_task(a.model, a.test_season, a.seed_index, re_.parse_overrides(a.param), a.tag)
+        run_task(a.model, a.test_season, a.seed_index, re_.parse_overrides(a.param), a.tag, a.market)

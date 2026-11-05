@@ -19,7 +19,7 @@ Rappel : égaler le marché ne rapporte rien (ROI ≈ −marge). Il faut de l'in
 |---|---|---|
 | 0 | Audit fuite `h2h_win_rate_cutoff` / `h2h_loss_rate_cutoff` ; reproduire la référence A dans le Linux | TERMINÉ 04/11 : aucune fuite (10 355 lignes recalculées, 0 écart) ; reproduction exacte (écart max 0,0000) |
 | 1 | Adopter E (`subsample_freq=1` dans train_1n2.py et rolling_eval.py) ; script versionné du tableau d'écart au marché | CODE FAIT 05/11 (reste : réentraîner les 3 modèles sur le PC de Stéphane, voir ci-dessous) |
-| 2 | DÉTOUR diagnostic : probas Pinnacle en feature (jamais en production) pour mesurer ce que nos features ajoutent au marché | À faire |
+| 2 | DÉTOUR diagnostic : probas Pinnacle en feature (jamais en production) pour mesurer ce que nos features ajoutent au marché | TERMINÉ 05/11 : aucun mélange modèle/marché ne bat Pinnacle ouverture ; voir JOURNAL |
 | 3 | Réparer la chaîne de buts ; Poisson/Dixon-Coles dérivé vs 1N2 direct ; mélange simple (poids choisi sur la saison de validation) ; go/no-go | À faire |
 | 4 | Si go : λ hors échantillon en fenêtre croissante par saison (λ de S issu d'un modèle < S, NaN avant), features λ_dom, λ_ext, écart, total | À faire |
 Détours possibles ensuite : entraînement Big5 seul, rating de force type Elo, modélisation des nuls.
