@@ -51,6 +51,7 @@ models/predictions_*.csv
 # ── Temporaires DuckDB ────────────────────────────────────
 .tmp/
 .duckdb_tmp/
+reports/chunks/
 
 # ── MLflow ────────────────────────────────────────────────
 mlruns/

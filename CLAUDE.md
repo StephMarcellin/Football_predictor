@@ -23,7 +23,7 @@ Football 1N2 prediction + value betting, Big5. Solo project. Goals: real pre-mat
 Bronze (Parquet `data/raw/`) → Silver (Python/Polars `pipelines/ingest/ingest_*.py` → DuckDB `silver.*`) → dbt `intermediate` → `gold` → `marts` → ML. Also schemas `prediction`, `machine_learning`, `referentiel` (seeds), `audits`.
 - Spark side-branch (heavy models): `export_to_parquet` → `spark_events` → `check_spark_outputs` → `spark_possession_chains` → dbt tables. Output `data/spark_out/`.
 - Hybrid Python→dbt chains (dbt cannot see the dependency; order is enforced by orchestrator): xT (`intermediate_xt_actions` → `features/xt_grid.py` → `machine_learning.xt_grid` → `intermediate_xt_contributions`); PSxG (`xgot_features` → `features/xgot_score.py` → `xgot_predictions` → keeper models). Verify names with grep before relying.
-- DBs: `db/football.duckdb` (prod, 21GB+), `football_dev.duckdb`, `football_test.duckdb` (CI). **dbt default target = prod. Use `--target dev` for experiments.**
+- DBs: `db/football.duckdb` (prod, ~80GB), `football_dev.duckdb`, `football_test.duckdb` (CI). **dbt default target = prod. Use `--target dev` for experiments.**
 - Orchestrators (Prefect, subprocess per phase): `pipelines/run_pipeline_main.py` (`--daily|--weekly|--yearly`), `scrapping/run_scrapping.py`, `ingest/run_ingest.py`, `run_features_engineering.py` (`--flow daily|yearly`), `run_ml.py`, `run_predict.py`. Common flags: `--step X`, `--from X`, `--dry-run`, `--list` (features also `--full-refresh`).
 - `pipelines/legacy/` = dead. `PIPELINE_ORDER.md` is STALE (cites `run_pipeline.py`, `04_train.py`): never trust it.
 - Marts intentionally outside the orchestrator (always keep a usable mart for ML).
@@ -51,6 +51,14 @@ Bronze (Parquet `data/raw/`) → Silver (Python/Polars `pipelines/ingest/ingest_
 - Windows: MLflow URI `"file:///" + path.replace("\\","/")`; `argparse` only under `if __name__ == "__main__":`; numeric-prefixed scripts via `importlib.util.spec_from_file_location`; `os.chdir` must be restored in `try/finally` (see `orchestrator_common.run_step`).
 - Spark: set `SPARK_LOCAL_HOSTNAME=localhost`, `SPARK_LOCAL_IP=127.0.0.1` and `PYSPARK_SUBMIT_ARGS="--driver-memory Xg pyspark-shell"` BEFORE importing pyspark.
 - Known drift (À vérifier/corriger on touch): `dbt_project.yml` hardcodes `temp_directory='C:/Users/marce/...'`; CI triggers on missing `pipelines/02_process.py`; marts comment says disabled but `+enabled: true`.
+
+## SESSION
+- Start: read `docs/ETAT_COURANT.md` first, then `docs/JOURNAL_RESULTATS.md` before any experiment; continue from "Prochaine action". Training env on the device Linux: `bash tools/vm_bootstrap.sh` (timeout >= 175 s).
+- End of palier/session: skill `session-handoff`.
+- Device Linux limits: 2 cores, 3.9GB RAM, 180 s/call, no background process survives a call → chunk work + checkpoint files. Explore there (few seeds/folds); full confirmations (7 folds, 3-5 seeds) and DB writes run on Stéphane's PC.
+
+## BUDGET (PMO-approved 04/11/2026)
+Per palier: <=40 tool calls, <=3 experiment variants, <=2 attempts per blocker. Truncate outputs, no subagents. At the limit: stop, report, ask. Report calls used at each palier.
 
 ## GIT
 Conventional Commits in French, atomic (skill `release-manager`). Feature branches; push + PR via `gh`; Stéphane merges. Never commit data, DBs, `.tmp/`, secrets.

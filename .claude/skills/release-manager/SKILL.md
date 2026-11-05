@@ -27,7 +27,9 @@ description: Autonomous Git release management for Projet 3-Étoiles — atomic 
 - Name: `feature/<name>` or `fix/<name>`. Create before work starts. Never commit on `main`.
 - Push the branch, then `gh pr create` with French title + body (Résumé / Impact / Tests / Risques). PR body ends with the attribution line supplied by the harness.
 - Stéphane merges. Never merge, never force-push, never rewrite pushed history, never `--no-verify`.
-- If push or `gh` fails (auth, network), stop and report; do not retry blindly.
+- Auth: fine-grained token in `.tmp/gh_token` (gitignored, placed by Stéphane via Notepad, expires ~30 days). Push: `git -c http.extraHeader="Authorization: Basic $(printf 'x-access-token:%s' "$TOK" | base64 -w0)" push -u origin <branche>`. PR: REST `POST /repos/StephMarcellin/Football_predictor/pulls` with python urllib (`gh` is not installed on the device).
+- NEVER print the token, never `ls` a folder that may hold it (use `wc -c`/`test -s` on the exact path), never pass it on a visible command line without masking output, never paste it in chat. If a token is exposed: tell Stéphane to revoke it.
+- If push fails (auth, network), stop and report; do not retry blindly.
 
 ## Hygiene
 - Fix `.gitignore` when an artifact type leaks (`.tmp/` must be ignored).
