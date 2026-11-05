@@ -32,7 +32,7 @@ MODEL_KEY = "resultat_1n2_toutes_saisons"
 LABEL_MAP = {"H": 0, "D": 1, "A": 2}
 # Mêmes paramètres que train_1n2.py (à garder alignés si on les change là-bas).
 PARAMS = dict(objective="multiclass", num_class=3, n_estimators=600, learning_rate=0.03,
-              num_leaves=31, subsample=0.8, colsample_bytree=0.8, random_state=42, verbose=-1)
+              num_leaves=31, subsample=0.8, subsample_freq=1, colsample_bytree=0.8, random_state=42, verbose=-1)
 
 
 def run_fold(df, X, y, test_season, seasons, n_seeds, params):

@@ -44,7 +44,7 @@ def main(n_estimators=600, learning_rate=0.03, model_key=MODEL_KEY, n_seeds=None
 
     params = dict(objective="multiclass", num_class=3,
                   n_estimators=n_estimators, learning_rate=learning_rate,
-                  num_leaves=31, subsample=0.8, colsample_bytree=0.8,
+                  num_leaves=31, subsample=0.8, subsample_freq=1, colsample_bytree=0.8,
                   random_state=42, verbose=-1)
 
     print(f"[{model_key}] train={int(tr.sum()):,}  val={int(va.sum()):,}  "
