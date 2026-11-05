@@ -18,7 +18,7 @@ Rappel : égaler le marché ne rapporte rien (ROI ≈ −marge). Il faut de l'in
 | # | Contenu | Statut |
 |---|---|---|
 | 0 | Audit fuite `h2h_win_rate_cutoff` / `h2h_loss_rate_cutoff` ; reproduire la référence A dans le Linux | TERMINÉ 04/11 : aucune fuite (10 355 lignes recalculées, 0 écart) ; reproduction exacte (écart max 0,0000) |
-| 1 | Adopter E (`subsample_freq=1` dans train_1n2.py et rolling_eval.py) ; script versionné du tableau d'écart au marché | PROCHAIN |
+| 1 | Adopter E (`subsample_freq=1` dans train_1n2.py et rolling_eval.py) ; script versionné du tableau d'écart au marché | CODE FAIT 05/11 (reste : réentraîner les 3 modèles sur le PC de Stéphane, voir ci-dessous) |
 | 2 | DÉTOUR diagnostic : probas Pinnacle en feature (jamais en production) pour mesurer ce que nos features ajoutent au marché | À faire |
 | 3 | Réparer la chaîne de buts ; Poisson/Dixon-Coles dérivé vs 1N2 direct ; mélange simple (poids choisi sur la saison de validation) ; go/no-go | À faire |
 | 4 | Si go : λ hors échantillon en fenêtre croissante par saison (λ de S issu d'un modèle < S, NaN avant), features λ_dom, λ_ext, écart, total | À faire |
@@ -46,10 +46,10 @@ Détours possibles ensuite : entraînement Big5 seul, rating de force type Elo, 
 - `config.yaml` mergé avec des réglages locaux (base prod, saison unique) ; CI : chemin `02_process.py` inexistant ; `dbt_project.yml` : temp_directory codé en dur ; `PIPELINE_ORDER.md` périmé.
 
 ## Prochaine action
-Palier 1 : (a) ajouter `subsample_freq=1` à `PARAMS` de rolling_eval.py et au dictionnaire `params` de `main` dans train_1n2.py ; (b) écrire `tools/market_benchmark.py` (tableau d'écart au marché par saison, à partir d'un CSV rolling_eval + gold_odds_pinnacle) ; (c) PC de Stéphane : réentraîner les 3 modèles (`python pipelines/models/train_1n2.py --model <clé>`) puis relancer `predict_matches.py` par modèle. Exploration dans le Linux avec `tools/rolling_chunk.py` (1 tâche = 1 pli x 1 graine ≈ 80 s ; banc complet 7 x 3 = 21 tâches).
+Palier 1 : FAIT dans le code : `subsample_freq=1` ajouté (rolling_eval.py PARAMS, train_1n2.py params) ; `tools/market_benchmark.py <rolling_eval_*.csv>` versionné (reproduit E : 51,5 % / RPS 0,2049 / LL 1,0010 vs clôture 0,1951 / 0,9687). RESTE sur le PC de Stéphane : `python pipelines/models/train_1n2.py --model <clé>` pour resultat_1n2_toutes_saisons, resultat_1n2_avant_compo, resultat_1n2 ; puis `pipelines/prediction/predict_matches.py` par modèle. Mécanisme confirmé empiriquement 05/11 (LightGBM 4.6.0) : `subsample=0.8` seul = aucun tirage de lignes (écart entre graines 0,0) ; avec `subsample_freq=1` = actif (écart 0,27). Citation de la doc officielle non obtenue.
 
 ## Budget consommé
-Palier 0 : 12 / 40 appels (terminé). Palier 1 : 0 / 40.
+Palier 0 : 12 / 40 appels (terminé). Palier 1 : ~14 / 40 (code terminé, en attente du réentraînement PC).
 
 ## Fichiers clés
 `docs/JOURNAL_RESULTATS.md` (résultats déjà obtenus, à lire avant toute expérience) · `pipelines/models/rolling_eval.py` · `pipelines/models/train_1n2.py` · `pipelines/ml_common.py` · `reports/rolling_eval_*.csv` (non suivis par Git) · `config/models.yml`.
