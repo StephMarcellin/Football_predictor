@@ -38,8 +38,7 @@ def _lambdas(cfg, con, match_ids, season):
         df = df[df["str_match_id"].isin(match_ids)].copy()
     elif season:
         df = df[df["str_season"] == season].copy()
-    X = mc.prepare_x(df, spec["target"], spec.get("exclude")).reindex(
-        columns=pay["features"], fill_value=0)
+    X = mc.align_features(mc.prepare_x(df, spec["target"], spec.get("exclude")), pay["features"])
     df = df[["str_match_id", "str_team_id"]].copy()
     df["mu"] = pay["model"].predict(X)
     bb = con.execute("select str_match_id, str_team_id, str_venue "

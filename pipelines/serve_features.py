@@ -257,8 +257,7 @@ def predict_served(con, match_id, compo, xi_positions, payload, spec):
     import numpy as np
     import ml_common as mc
     df = serve_match(con, match_id, compo, xi_positions)
-    X = mc.prepare_x(df, spec["target"], spec.get("exclude")).reindex(
-        columns=payload["features"], fill_value=0)
+    X = mc.align_features(mc.prepare_x(df, spec["target"], spec.get("exclude")), payload["features"])
     proba = payload["model"].predict_proba(X)
     if float(proba.std(axis=0).mean()) < 1e-6:
         raise RuntimeError("Probas uniformes : calibration dégénérée — vérifie la "
