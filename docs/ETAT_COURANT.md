@@ -23,11 +23,13 @@ Rappel : égaler le marché ne rapporte rien (ROI ≈ −marge). Il faut de l'in
 | 3 | Réparer la chaîne de buts ; Poisson/Dixon-Coles dérivé vs 1N2 direct ; mélange simple (poids choisi sur la saison de validation) ; go/no-go | TERMINÉ 05/11 : GO pour améliorer le 1N2 (Dixon-Coles bat le direct), NO-GO pour un avantage face au marché ; décision PMO sur le palier 4 en attente ; `buts_equipe.joblib` à réentraîner sur le PC |
 | 4 | Si go : λ hors échantillon en fenêtre croissante par saison (λ de S issu d'un modèle < S, NaN avant), features λ_dom, λ_ext, écart, total | À faire |
 | 5 | Rendement historique « cote bookmaker contre Pinnacle démarginé », sans modèle (`tools/odds_edge_backtest.py`, CSV bruts football-data) | TERMINÉ 06/11 : NO-GO, pas d'avantage structurel robuste (voir JOURNAL) |
+| 6 | Elo + classement avant chaque match (`tools/elo_features.py`, option `--extra` de `rolling_chunk.py`), test contre la variante E | TERMINÉ 06/11 : GO. Gain log-loss +0,0101 IC95 [+0,0074 ; +0,0130], 7/7 saisons. Reste à industrialiser (dbt + script Python) : palier 7 |
 Détours possibles ensuite : entraînement Big5 seul, rating de force type Elo, modélisation des nuls.
 
 ## Décisions actées
 - Palier 2 (marché en feature) autorisé en diagnostic uniquement.
 - Palier 5 : aucun bookmaker de l'historique ne bat Pinnacle de façon robuste ; seul Interwetten montre un gain, concentré sur 2017-19 puis disparu. Ne pas bâtir de stratégie de paris sur cette piste.
+- Palier 6 : Elo et classement avant match améliorent nettement le 1N2 (écart à Pinnacle clôture : log-loss 0,0323 -> 0,0219, RPS 0,0097 -> 0,0064). Les features de force à mémoire longue étaient le trou principal. Paramètres Elo figés avant mesure (K=20, avantage du terrain 70, regression 25 %) et non optimisés.
 - Git : commit + push + PR par Claude ; Stéphane seul merge. Branche par thème (`feature/...`).
 - Limites de coût : par palier ≤ 40 appels d'outils, ≤ 3 variantes d'expérience, ≤ 2 tentatives par blocage ; sorties tronquées ; pas de sous-agents ; à la limite : stop, point, question.
 - Le détail des règles de données est dans `CLAUDE.md` (ne pas dupliquer ici).
