@@ -33,8 +33,7 @@ def _pairs_lambda(cfg, seasons):
     pay = joblib.load(mc.MODELS_DIR / "buts_equipe.joblib")
     df = mc.load_mart(cfg, spec["mart"])
     df = df[df[spec["target"]].notna()].copy()
-    X = mc.prepare_x(df, spec["target"], spec.get("exclude")).reindex(
-        columns=pay["features"], fill_value=0)
+    X = mc.align_features(mc.prepare_x(df, spec["target"], spec.get("exclude")), pay["features"])
     df = df[["str_match_id", "str_team_id", "str_season"]].copy()
     df["mu"] = pay["model"].predict(X)
 
@@ -59,8 +58,7 @@ def _direct_probs(cfg, seasons):
     pay = joblib.load(mc.MODELS_DIR / "resultat_1n2.joblib")
     df = mc.load_mart(cfg, spec["mart"])
     df = df[df["str_season"].isin(seasons)].copy()
-    X = mc.prepare_x(df, spec["target"], spec.get("exclude")).reindex(
-        columns=pay["features"], fill_value=0)
+    X = mc.align_features(mc.prepare_x(df, spec["target"], spec.get("exclude")), pay["features"])
     proba = pay["model"].predict_proba(X)
     if float(proba.std(axis=0).mean()) < 1e-6:
         raise RuntimeError("Probas uniformes : calibration dégénérée — vérifie la "

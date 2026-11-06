@@ -40,8 +40,7 @@ models:
     mart: mart_goals
     grain: [match_id, team_id]
     target: int_team_goals       # buts marqués par l'équipe — source intermediate_team_match_backbone.int_gf
-    task: multiclass             # 0 / 1 / 2 / 3+
-    n_class: 4
+    task: poisson                # λ = buts attendus (LightGBM poisson, train_goals.py) ; marchés dérivés par poisson_markets.py
     derives: [over_under_2_5, over_under_3_5, btts, clean_sheet, team_over_under]
     exclude: []
 

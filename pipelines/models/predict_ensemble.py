@@ -45,8 +45,7 @@ def derived_probs(cfg, con, match_ids=None, season=None, rho=None):
     spec = mc.load_configs()[1]["buts_equipe"]
     pay = joblib.load(mc.MODELS_DIR / "buts_equipe.joblib")
     df = _filter(mc.load_mart(cfg, spec["mart"]), match_ids, season)
-    X = mc.prepare_x(df, spec["target"], spec.get("exclude")).reindex(
-        columns=pay["features"], fill_value=0)
+    X = mc.align_features(mc.prepare_x(df, spec["target"], spec.get("exclude")), pay["features"])
     df = df[["str_match_id", "str_team_id"]].copy()
     df["mu"] = pay["model"].predict(X)
     bb = con.execute("select str_match_id, str_team_id, str_venue "
@@ -70,8 +69,7 @@ def direct_probs(cfg, match_ids=None, season=None):
     spec = mc.load_configs()[1]["resultat_1n2"]
     pay = joblib.load(mc.MODELS_DIR / "resultat_1n2.joblib")
     df = _filter(mc.load_mart(cfg, spec["mart"]), match_ids, season)
-    X = mc.prepare_x(df, spec["target"], spec.get("exclude")).reindex(
-        columns=pay["features"], fill_value=0)
+    X = mc.align_features(mc.prepare_x(df, spec["target"], spec.get("exclude")), pay["features"])
     proba = pay["model"].predict_proba(X)
     if float(proba.std(axis=0).mean()) < 1e-6:
         raise RuntimeError("Probas uniformes : calibration dégénérée — version sklearn ?")
