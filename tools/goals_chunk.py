@@ -24,7 +24,7 @@ PARAMS = dict(objective="poisson", n_estimators=800, learning_rate=0.03, num_lea
               subsample_freq=1, colsample_bytree=0.8, random_state=42, verbose=-1)
 
 
-def prepare(features):
+def prepare(features, extra=None):
     cfg, models = mc.load_configs()
     spec = models["buts_equipe"]
     df = mc.load_mart(cfg, spec["mart"])
@@ -34,11 +34,20 @@ def prepare(features):
         ref = models["resultat_1n2_toutes_saisons"]
         ref_cols = set(mc.prepare_x(mc.load_mart(cfg, ref["mart"]), ref["target"], ref.get("exclude")).columns)
         X = X[[c for c in X.columns if c in ref_cols]]
+    for path in (extra or []):
+        # Features externes calculées avant chaque match (tools/elo_features.py), jointes sur (match, équipe).
+        E = pd.read_csv(path, dtype={"str_match_id": str, "str_team_id": str})
+        cols = [c for c in E.columns if c not in ("str_match_id", "str_team_id")]
+        keys = df[["str_match_id", "str_team_id"]].astype(str)
+        Mx = keys.merge(E, how="left", on=["str_match_id", "str_team_id"])
+        assert len(Mx) == len(df), "jointure non univoque"
+        for c in cols:
+            X[c] = Mx[c].values
     return df, X, df[spec["target"]].astype(float), sorted(df["str_season"].unique())
 
 
-def run(season, k, features, tag):
-    df, X, y, seasons = prepare(features)
+def run(season, k, features, tag, extra=None):
+    df, X, y, seasons = prepare(features, extra)
     i = seasons.index(season)
     tr = df["str_season"].isin(seasons[:i - 1]).values
     va = (df["str_season"] == seasons[i - 1]).values
@@ -63,6 +72,7 @@ if __name__ == "__main__":
     ap.add_argument("--test-season", required=True)
     ap.add_argument("--seed-index", type=int, default=0)
     ap.add_argument("--features", choices=["shared", "all"], default="shared")
+    ap.add_argument("--extra", nargs="+", default=None, help="CSV de features externes (Elo/classement)")
     ap.add_argument("--tag", required=True)
     a = ap.parse_args()
-    run(a.test_season, a.seed_index, a.features, a.tag)
+    run(a.test_season, a.seed_index, a.features, a.tag, a.extra)
