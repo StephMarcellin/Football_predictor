@@ -25,6 +25,7 @@ Rappel : égaler le marché ne rapporte rien (ROI ≈ −marge). Il faut de l'in
 | 5 | Rendement historique « cote bookmaker contre Pinnacle démarginé », sans modèle (`tools/odds_edge_backtest.py`, CSV bruts football-data) | TERMINÉ 06/11 : NO-GO, pas d'avantage structurel robuste (voir JOURNAL) |
 | 6 | Elo + classement avant chaque match (`tools/elo_features.py`, option `--extra` de `rolling_chunk.py`), test contre la variante E | TERMINÉ 06/11 : GO. Gain log-loss +0,0101 IC95 [+0,0074 ; +0,0130], 7/7 saisons. Reste à industrialiser (dbt + script Python) : palier 7 |
 | 7 | Features v2 en trois groupes (`tools/features_v2.py`) comparés à F1 : A mémoire longue/forme vs attendu, B forme selon le lieu, C calendrier + enjeu | TERMINÉ 06/11 : A NO-GO (−0,0001), B NO-GO (−0,0005), C GO mais faible (+0,0009 IC95 [+0,0003 ; +0,0015], 7/7). Industrialisation Elo + classement (+ éventuellement C) = palier 8 |
+| 8 | Industrialiser Elo + classement : `pipelines/features/team_elo.py` (écrit machine_learning.elo_team_match), source + modèle dbt `gold_team_match_elo`, jointure dans les 3 marts 1N2, étape `elo_features` dans `run_features_engineering.py`, tests unitaires anti-fuite | CODE FAIT 06/11, validé en lecture seule (mêmes lignes, 0 collision, +13 colonnes, 4 tests réussis, écart 0 avec les features évaluées) ; exécution et réentraînement sur le PC en attente |
 Détours possibles ensuite : entraînement Big5 seul, rating de force type Elo, modélisation des nuls.
 
 ## Décisions actées
@@ -52,10 +53,10 @@ Détours possibles ensuite : entraînement Big5 seul, rating de force type Elo, 
 - `config.yaml` mergé avec des réglages locaux (base prod, saison unique) ; CI : chemin `02_process.py` inexistant ; `dbt_project.yml` : temp_directory codé en dur ; `PIPELINE_ORDER.md` périmé.
 
 ## Prochaine action
-Palier 1 : FAIT dans le code : `subsample_freq=1` ajouté (rolling_eval.py PARAMS, train_1n2.py params) ; `tools/market_benchmark.py <rolling_eval_*.csv>` versionné (reproduit E : 51,5 % / RPS 0,2049 / LL 1,0010 vs clôture 0,1951 / 0,9687). RESTE sur le PC de Stéphane : `python pipelines/models/train_1n2.py --model <clé>` pour resultat_1n2_toutes_saisons, resultat_1n2_avant_compo, resultat_1n2 ; puis `pipelines/prediction/predict_matches.py` par modèle. Mécanisme confirmé empiriquement 05/11 (LightGBM 4.6.0) : `subsample=0.8` seul = aucun tirage de lignes (écart entre graines 0,0) ; avec `subsample_freq=1` = actif (écart 0,27). Citation de la doc officielle non obtenue.
+Palier 8 : CODE FAIT (PR à merger), reste à exécuter sur le PC de Stéphane, dans l'ordre : `git switch main; git pull` ; `.venv\Scripts\Activate.ps1` ; `python pipelines/features/team_elo.py` (écrit machine_learning.elo_team_match) ; `cd dbt_project` ; `dbt run --profiles-dir . --select gold_team_match_elo mart_1n2 mart_1n2_avant_compo mart_1n2_avant_compo_toutes_saisons` ; `dbt test --profiles-dir . --select gold_team_match_elo` ; `cd ..` ; puis `python pipelines/models/train_1n2.py --model <clé>` pour resultat_1n2_toutes_saisons, resultat_1n2_avant_compo, resultat_1n2 ; puis `python pipelines/prediction/predict_matches.py --model <clé>` par modèle. Vérifier : `dbt run` sans `--vars` (le pipeline passe DBT_VARS).
 
 ## Budget consommé
-Palier 0 : 12 / 40 appels (terminé). Palier 1 : ~14 / 40 (code terminé, en attente du réentraînement PC).
+Appels d'outils par palier (environ) : 0 : 12 · 1 : 14 · 2 : 13 · 3 : 22 · 5 : 12 · 6 : 18 · 7 : 37 · 8 : 20 (code terminé). Limite : 40 par palier.
 
 ## Fichiers clés
 `docs/JOURNAL_RESULTATS.md` (résultats déjà obtenus, à lire avant toute expérience) · `pipelines/models/rolling_eval.py` · `pipelines/models/train_1n2.py` · `pipelines/ml_common.py` · `reports/rolling_eval_*.csv` (non suivis par Git) · `config/models.yml`.

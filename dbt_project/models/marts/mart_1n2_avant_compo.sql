@@ -401,4 +401,7 @@ mdl_out AS (
     FROM mdl_body
 )
 
-SELECT * FROM mdl_out
+SELECT mo.*, el.* EXCLUDE (str_match_id, str_team_id)
+FROM mdl_out mo
+LEFT JOIN {{ ref('gold_team_match_elo') }} el
+    ON el.str_match_id = mo.str_match_id AND el.str_team_id = mo.str_team_id

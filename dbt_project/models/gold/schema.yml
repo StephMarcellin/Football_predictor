@@ -416,3 +416,25 @@ models:
         tests: [is_valid_probability]
       - name: dec_prob_close_under25
         tests: [is_valid_probability]
+
+  - name: gold_team_match_elo
+    description: >
+      Elo et classement AVANT le match, grain (str_match_id, str_team_id). Construit depuis
+      machine_learning.elo_team_match (pipelines/features/team_elo.py). Consommé par les marts 1N2.
+      Évalué : gain de log-loss +0,0101 (IC95 [+0,0074 ; +0,0130], 7 saisons sur 7) sur la variante E.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [str_match_id, str_team_id]
+    columns:
+      - name: str_match_id
+        tests: [not_null]
+      - name: str_team_id
+        tests: [not_null]
+      - name: dec_elo
+        tests: [not_null]
+      - name: dec_opp_elo
+        tests: [not_null]
+      - name: dec_elo_win_exp
+        tests: [is_valid_probability]
+      - name: dec_s_rank_pct
+        tests: [is_valid_probability]

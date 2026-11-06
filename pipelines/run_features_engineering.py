@@ -78,6 +78,7 @@ logger.add(
 
 MOD_XGOT_SCORE = ROOT_DIR / "pipelines" / "features" / "xgot_score.py"
 MOD_KNN        = ROOT_DIR / "pipelines" / "features" / "03_knn_impute.py"
+MOD_ELO        = ROOT_DIR / "pipelines" / "features" / "team_elo.py"
 MOD_XT_GRID    = ROOT_DIR / "pipelines" / "features" / "xt_grid.py"
 MOD_XGOT_TRAIN = ROOT_DIR / "pipelines" / "xgot_train.py"
 
@@ -110,6 +111,7 @@ TABLES_UPDATE = [
     "spark_possession_chains",                         # chaînes de possession (Spark)
     "dbt_intermediate_base",
     "dbt_intermediate_by_season",                      # modèles par match, saison par saison
+    "elo_features",                                   # Elo + classement avant match (Python), lit le backbone
     "dbt_ml_features",
     # "validate_intermediate",                          # après matérialisation intermediate
     "xgot_score",
@@ -339,6 +341,7 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
     mod_xgot_train = import_from_path("xgot_train_mod", MOD_XGOT_TRAIN)
     mod_xgot_score = import_from_path("xgot_score_mod", MOD_XGOT_SCORE)
     mod_knn        = import_from_path("knn_impute_mod", MOD_KNN)
+    mod_elo        = import_from_path("team_elo_mod", MOD_ELO)
 
     return {
         # ── 0. Gate d'entrée (validation Silver) ───────────────────────────────
@@ -407,6 +410,13 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
                 "exclude": "intermediate_xt_contributions intermediate_keeper_shots_faced intermediate_keeper_season_psxg",
                 "full_refresh": full_refresh,
             },
+            "critical": True,
+        },
+
+        # ── Elo + classement (Py) : lit le backbone, écrit machine_learning.elo_team_match ──
+        "elo_features": {
+            "fn": mod_elo.main,
+            "kwargs": {"write": True},
             "critical": True,
         },
 
@@ -514,6 +524,7 @@ def build_table_steps(cfg: dict, full_refresh: bool = False) -> dict:
     mod_xgot_train = import_from_path("xgot_train_mod", MOD_XGOT_TRAIN)
     mod_xgot_score = import_from_path("xgot_score_mod", MOD_XGOT_SCORE)
     mod_knn        = import_from_path("knn_impute_mod", MOD_KNN)
+    mod_elo        = import_from_path("team_elo_mod", MOD_ELO)
 
     return {
         # ── flow daily (TABLES_UPDATE) ───────────────────────────────────────
@@ -582,6 +593,13 @@ def build_table_steps(cfg: dict, full_refresh: bool = False) -> dict:
                     "exclude": "intermediate_xt_contributions intermediate_keeper_shots_faced intermediate_keeper_season_psxg",
                     "full_refresh": full_refresh,
                 },
+                "critical": True,
+            },
+
+            # ── Elo + classement (Py) : lit le backbone, écrit machine_learning.elo_team_match ──
+            "elo_features": {
+                "fn": mod_elo.main,
+                "kwargs": {"write": True},
                 "critical": True,
             },
     
