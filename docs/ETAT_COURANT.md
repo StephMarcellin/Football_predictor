@@ -24,12 +24,14 @@ Rappel : égaler le marché ne rapporte rien (ROI ≈ −marge). Il faut de l'in
 | 4 | Si go : λ hors échantillon en fenêtre croissante par saison (λ de S issu d'un modèle < S, NaN avant), features λ_dom, λ_ext, écart, total | À faire |
 | 5 | Rendement historique « cote bookmaker contre Pinnacle démarginé », sans modèle (`tools/odds_edge_backtest.py`, CSV bruts football-data) | TERMINÉ 06/11 : NO-GO, pas d'avantage structurel robuste (voir JOURNAL) |
 | 6 | Elo + classement avant chaque match (`tools/elo_features.py`, option `--extra` de `rolling_chunk.py`), test contre la variante E | TERMINÉ 06/11 : GO. Gain log-loss +0,0101 IC95 [+0,0074 ; +0,0130], 7/7 saisons. Reste à industrialiser (dbt + script Python) : palier 7 |
+| 7 | Features v2 en trois groupes (`tools/features_v2.py`) comparés à F1 : A mémoire longue/forme vs attendu, B forme selon le lieu, C calendrier + enjeu | TERMINÉ 06/11 : A NO-GO (−0,0001), B NO-GO (−0,0005), C GO mais faible (+0,0009 IC95 [+0,0003 ; +0,0015], 7/7). Industrialisation Elo + classement (+ éventuellement C) = palier 8 |
 Détours possibles ensuite : entraînement Big5 seul, rating de force type Elo, modélisation des nuls.
 
 ## Décisions actées
 - Palier 2 (marché en feature) autorisé en diagnostic uniquement.
 - Palier 5 : aucun bookmaker de l'historique ne bat Pinnacle de façon robuste ; seul Interwetten montre un gain, concentré sur 2017-19 puis disparu. Ne pas bâtir de stratégie de paris sur cette piste.
 - Palier 6 : Elo et classement avant match améliorent nettement le 1N2 (écart à Pinnacle clôture : log-loss 0,0323 -> 0,0219, RPS 0,0097 -> 0,0064). Les features de force à mémoire longue étaient le trou principal. Paramètres Elo figés avant mesure (K=20, avantage du terrain 70, regression 25 %) et non optimisés.
+- Palier 7 : l'Elo capture déjà la mémoire longue et la forme (groupes A et B sans gain). Seul l'enjeu de classement (écart au leader, à la 4e place, à la relégation, matchs restants) apporte un gain faible, +0,0009 de log-loss. Les prochains gains ne viendront probablement pas de nouvelles statistiques de forme d'équipe.
 - Git : commit + push + PR par Claude ; Stéphane seul merge. Branche par thème (`feature/...`).
 - Limites de coût : par palier ≤ 40 appels d'outils, ≤ 3 variantes d'expérience, ≤ 2 tentatives par blocage ; sorties tronquées ; pas de sous-agents ; à la limite : stop, point, question.
 - Le détail des règles de données est dans `CLAUDE.md` (ne pas dupliquer ici).
