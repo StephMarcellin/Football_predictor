@@ -23,11 +23,16 @@ Rappel : égaler le marché ne rapporte rien (ROI ≈ −marge). Il faut de l'in
 | 3 | Réparer la chaîne de buts ; Poisson/Dixon-Coles dérivé vs 1N2 direct ; mélange simple (poids choisi sur la saison de validation) ; go/no-go | TERMINÉ 05/11 : GO pour améliorer le 1N2 (Dixon-Coles bat le direct), NO-GO pour un avantage face au marché ; décision PMO sur le palier 4 en attente ; `buts_equipe.joblib` à réentraîner sur le PC |
 | 4 | Si go : λ hors échantillon en fenêtre croissante par saison (λ de S issu d'un modèle < S, NaN avant), features λ_dom, λ_ext, écart, total | À faire |
 | 5 | Rendement historique « cote bookmaker contre Pinnacle démarginé », sans modèle (`tools/odds_edge_backtest.py`, CSV bruts football-data) | TERMINÉ 06/11 : NO-GO, pas d'avantage structurel robuste (voir JOURNAL) |
+| 6 | Elo + classement avant chaque match (`tools/elo_features.py`, option `--extra` de `rolling_chunk.py`), test contre la variante E | TERMINÉ 06/11 : GO. Gain log-loss +0,0101 IC95 [+0,0074 ; +0,0130], 7/7 saisons. Reste à industrialiser (dbt + script Python) : palier 7 |
+| 7 | Features v2 en trois groupes (`tools/features_v2.py`) comparés à F1 : A mémoire longue/forme vs attendu, B forme selon le lieu, C calendrier + enjeu | TERMINÉ 06/11 : A NO-GO (−0,0001), B NO-GO (−0,0005), C GO mais faible (+0,0009 IC95 [+0,0003 ; +0,0015], 7/7). Industrialisation Elo + classement (+ éventuellement C) = palier 8 |
+| 8 | Industrialiser Elo + classement : `pipelines/features/team_elo.py` (écrit machine_learning.elo_team_match), source + modèle dbt `gold_team_match_elo`, jointure dans les 3 marts 1N2, étape `elo_features` dans `run_features_engineering.py`, tests unitaires anti-fuite | CODE FAIT 06/11, validé en lecture seule (mêmes lignes, 0 collision, +13 colonnes, 4 tests réussis, écart 0 avec les features évaluées) ; exécution et réentraînement sur le PC en attente |
 Détours possibles ensuite : entraînement Big5 seul, rating de force type Elo, modélisation des nuls.
 
 ## Décisions actées
 - Palier 2 (marché en feature) autorisé en diagnostic uniquement.
 - Palier 5 : aucun bookmaker de l'historique ne bat Pinnacle de façon robuste ; seul Interwetten montre un gain, concentré sur 2017-19 puis disparu. Ne pas bâtir de stratégie de paris sur cette piste.
+- Palier 6 : Elo et classement avant match améliorent nettement le 1N2 (écart à Pinnacle clôture : log-loss 0,0323 -> 0,0219, RPS 0,0097 -> 0,0064). Les features de force à mémoire longue étaient le trou principal. Paramètres Elo figés avant mesure (K=20, avantage du terrain 70, regression 25 %) et non optimisés.
+- Palier 7 : l'Elo capture déjà la mémoire longue et la forme (groupes A et B sans gain). Seul l'enjeu de classement (écart au leader, à la 4e place, à la relégation, matchs restants) apporte un gain faible, +0,0009 de log-loss. Les prochains gains ne viendront probablement pas de nouvelles statistiques de forme d'équipe.
 - Git : commit + push + PR par Claude ; Stéphane seul merge. Branche par thème (`feature/...`).
 - Limites de coût : par palier ≤ 40 appels d'outils, ≤ 3 variantes d'expérience, ≤ 2 tentatives par blocage ; sorties tronquées ; pas de sous-agents ; à la limite : stop, point, question.
 - Le détail des règles de données est dans `CLAUDE.md` (ne pas dupliquer ici).
@@ -51,7 +56,7 @@ Détours possibles ensuite : entraînement Big5 seul, rating de force type Elo, 
 Palier 8 : CODE FAIT (PR à merger), reste à exécuter sur le PC de Stéphane, dans l'ordre : `git switch main; git pull` ; `.venv\Scripts\Activate.ps1` ; `python pipelines/features/team_elo.py` (écrit machine_learning.elo_team_match) ; `cd dbt_project` ; `dbt run --profiles-dir . --select gold_team_match_elo mart_1n2 mart_1n2_avant_compo mart_1n2_avant_compo_toutes_saisons` ; `dbt test --profiles-dir . --select gold_team_match_elo` ; `cd ..` ; puis `python pipelines/models/train_1n2.py --model <clé>` pour resultat_1n2_toutes_saisons, resultat_1n2_avant_compo, resultat_1n2 ; puis `python pipelines/prediction/predict_matches.py --model <clé>` par modèle. Vérifier : `dbt run` sans `--vars` (le pipeline passe DBT_VARS).
 
 ## Budget consommé
-Palier 0 : 12 / 40 appels (terminé). Palier 1 : ~14 / 40 (code terminé, en attente du réentraînement PC).
+Appels d'outils par palier (environ) : 0 : 12 · 1 : 14 · 2 : 13 · 3 : 22 · 5 : 12 · 6 : 18 · 7 : 37 · 8 : 20 (code terminé). Limite : 40 par palier.
 
 ## Fichiers clés
 `docs/JOURNAL_RESULTATS.md` (résultats déjà obtenus, à lire avant toute expérience) · `pipelines/models/rolling_eval.py` · `pipelines/models/train_1n2.py` · `pipelines/ml_common.py` · `reports/rolling_eval_*.csv` (non suivis par Git) · `config/models.yml`.

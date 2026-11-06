@@ -22,7 +22,7 @@ import ml_common as mc
 import rolling_eval as re_
 
 
-def prepare(model_key, market="none"):
+def prepare(model_key, market="none", extra=None, include="all"):
     cfg, models = mc.load_configs()
     spec = models[model_key]
     df = mc.load_mart(cfg, spec["mart"])
@@ -34,11 +34,23 @@ def prepare(model_key, market="none"):
         odds = mc.load_odds(cfg).set_index("str_match_id")
         for o in ("home", "draw", "away"):
             X[f"mkt_{market}_{o}"] = df["str_match_id"].map(odds[f"dec_prob_{market}_{o}"]).values
+    for path in ([extra] if isinstance(extra, str) else (extra or [])):
+        # Features externes calculées avant chaque match (tools/elo_features.py, tools/features_v2.py), jointes sur (match, équipe).
+        E = pd.read_csv(path, dtype={"str_match_id": str, "str_team_id": str})
+        elo = ["dec_elo", "dec_opp_elo", "dec_elo_diff", "dec_elo_win_exp"]
+        cols = [c for c in E.columns if c not in ("str_match_id", "str_team_id")]
+        if str(path).endswith("elo_features.csv"):
+            cols = elo if include == "elo" else [c for c in cols if c not in elo] if include == "std" else cols
+        keys = df[["str_match_id", "str_team_id"]].astype(str)
+        Mx = keys.merge(E[["str_match_id", "str_team_id"] + cols], how="left", on=["str_match_id", "str_team_id"])
+        assert len(Mx) == len(df), "jointure non univoque"
+        for c in cols:
+            X[c] = Mx[c].values
     return spec, df, X, y, sorted(df["str_season"].unique())
 
 
-def run_task(model_key, test_season, k, overrides, tag, market="none"):
-    spec, df, X, y, seasons = prepare(model_key, market)
+def run_task(model_key, test_season, k, overrides, tag, market="none", extra=None, include="all"):
+    spec, df, X, y, seasons = prepare(model_key, market, extra, include)
     params = {**re_.PARAMS, **(overrides or {})}
     i = seasons.index(test_season)
     tr = df["str_season"].isin(seasons[:i - 1])
@@ -91,6 +103,8 @@ if __name__ == "__main__":
     ap.add_argument("--tag", required=True)
     ap.add_argument("--market", choices=["none", "open", "close"], default="none",
                     help="diagnostic : ajoute les probas Pinnacle comme features (jamais en production)")
+    ap.add_argument("--extra", nargs="+", default=None, help="CSV de features externes (tools/elo_features.py)")
+    ap.add_argument("--extra-include", choices=["elo", "std", "all"], default="all")
     ap.add_argument("--aggregate", action="store_true")
     ap.add_argument("--first-test", default="2019-2020")
     ap.add_argument("--last-test", default="2025-2026")
@@ -99,4 +113,4 @@ if __name__ == "__main__":
     if a.aggregate:
         aggregate(a.model, a.first_test, a.last_test, a.n_seeds, a.tag)
     else:
-        run_task(a.model, a.test_season, a.seed_index, re_.parse_overrides(a.param), a.tag, a.market)
+        run_task(a.model, a.test_season, a.seed_index, re_.parse_overrides(a.param), a.tag, a.market, a.extra, a.extra_include)
