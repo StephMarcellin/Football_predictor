@@ -1106,6 +1106,43 @@ sources:
 
     tables:
 
+      - name: elo_team_match
+        description: >
+          Elo et classement avant chaque match, écrits par pipelines/features/team_elo.py
+          (CREATE OR REPLACE à chaque run) depuis intermediate_team_match_backbone. Lus par gold_team_match_elo.
+          Grain : (str_match_id, str_team_id).
+        columns:
+          - name: str_match_id
+            description: "Identifiant unifié du match (SHA1)."
+          - name: str_team_id
+            description: "Identifiant de l'équipe."
+          - name: dec_elo
+            description: "Elo de l'équipe avant le match (départ 1500 Big5 / 1400 autres, K=20, avantage du terrain 70, multiplicateur d'écart de buts, régression de 25 % à chaque saison)."
+          - name: dec_opp_elo
+            description: "Elo de l'adversaire avant le match."
+          - name: dec_elo_diff
+            description: "dec_elo - dec_opp_elo."
+          - name: dec_elo_win_exp
+            description: "Résultat attendu de l'équipe d'après l'Elo (victoire = 1, nul = 0,5), avantage du terrain compris. Dans [0,1]."
+          - name: dec_s_ppg
+            description: "Points par match de l'équipe dans la compétition et saison en cours, avant le match (Big5 et D2 seulement, sinon NULL)."
+          - name: dec_s_gd_pg
+            description: "Différence de buts par match de l'équipe dans la saison en cours, avant le match."
+          - name: dec_s_rank_pct
+            description: "Rang au classement avant le match en percentile (0 = leader, 1 = dernier). NULL si l'équipe n'a pas encore joué."
+          - name: int_s_played
+            description: "Matchs joués par l'équipe dans la compétition et saison, avant le match."
+          - name: dec_opp_s_ppg
+            description: "dec_s_ppg de l'adversaire."
+          - name: dec_opp_s_gd_pg
+            description: "dec_s_gd_pg de l'adversaire."
+          - name: dec_opp_s_rank_pct
+            description: "dec_s_rank_pct de l'adversaire."
+          - name: int_opp_s_played
+            description: "int_s_played de l'adversaire."
+          - name: dec_s_ppg_diff
+            description: "dec_s_ppg - dec_opp_s_ppg."
+
       - name: xt_grid
         description: >
           Grille Expected Threat (xT) 16×12 = 192 cases, estimée par
