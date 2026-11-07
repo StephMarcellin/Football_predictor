@@ -29,7 +29,14 @@
 --     entre deux duels : le second duel a alors pour type de ballon 'passe_tete'.
 --   · Conclusion : type de l'événement suivant le duel et tirs / buts de chaque équipe
 --     dans les 10 secondes suivantes. L'événement suivant est TOUJOURS celui de l'équipe
---     gagnante (100 % observé sur 2023-2024) : il décrit ce que fait le vainqueur.
+--     gagnante (100 % observé sur 2023-2024) et, dans 99,9 % des cas, du joueur qui a
+--     gagné le duel : il décrit ce que fait le vainqueur de son ballon (type, réussite,
+--     coordonnées dans le repère de l'équipe gagnante, tête ou non). Sur la ligne du
+--     perdant, ces colonnes décrivent donc le geste de son adversaire.
+--     Le danger créé (xT) n'est pas calculé ici : la grille xT est estimée par une étape
+--     Python postérieure aux modèles par saison. int_duel_last_row_num et
+--     int_next_event_row_num permettent de joindre intermediate_xt_actions et
+--     machine_learning.xt_grid dans un modèle aval.
 --   · Le rôle (offensif / défensif) est celui de WhoScored, pas dérivé de la source :
 --     l'équipe qui a envoyé le ballon n'est « offensive » que dans 76 % des cas.
 --
@@ -79,6 +86,7 @@ ev AS (
         int_row_num                               AS row_num,
         str_type_id,
         str_type_name,
+        str_outcome_id,
         bool_is_shot,
         dec_x, dec_y, dec_end_x, dec_end_y,
         int_expanded_minute * 60 + int_second     AS ts
@@ -155,10 +163,25 @@ src_qual AS (
 nxt AS (
     SELECT
         d.str_match_id, d.row_min,
-        n.str_type_name AS next_type, n.team_id AS next_team_id, n.ts AS next_ts
+        n.str_type_name AS next_type, n.team_id AS next_team_id, n.ts AS next_ts,
+        n.row_num AS next_row, n.player_id AS next_player_id, n.str_outcome_id AS next_outcome,
+        n.dec_x AS next_x, n.dec_y AS next_y, n.dec_end_x AS next_end_x, n.dec_end_y AS next_end_y
     FROM duels d
     ASOF LEFT JOIN (SELECT * FROM ev WHERE str_type_id <> '44') n
         ON d.str_match_id = n.str_match_id AND d.row_max < n.row_num
+),
+
+-- Le geste suivant est-il une tête ? (qualifier 3 = passe de la tête, 15 = tir de la tête)
+next_qual AS (
+    SELECT
+        x.str_match_id, x.row_min,
+        MAX(CASE WHEN q.str_qual_type_id IN ('3', '15') THEN 1 ELSE 0 END) AS f_header
+    FROM nxt x
+    JOIN {{ ref('intermediate_whoscored_event_qualifiers') }} q
+      ON q.str_match_id = x.str_match_id AND q.int_row_num = x.next_row
+    WHERE q.str_match_id IN (SELECT str_match_id FROM new_matches)
+      AND q.str_qual_type_id IN ('3', '15')
+    GROUP BY x.str_match_id, x.row_min
 ),
 
 -- Tirs et buts dans les 10 s qui suivent, par équipe
@@ -188,6 +211,9 @@ full_duel AS (
         COALESCE(sq.f_corner, 0)   AS f_corner,   COALESCE(sq.f_throwin, 0)  AS f_throwin,
         COALESCE(sq.f_goalkick, 0) AS f_goalkick, COALESCE(sq.f_chipped, 0)  AS f_chipped,
         n.next_type, n.next_team_id, n.next_ts,
+        n.next_row, n.next_player_id, n.next_outcome,
+        n.next_x, n.next_y, n.next_end_x, n.next_end_y,
+        COALESCE(nq.f_header, 0) AS f_next_header,
         COALESCE(sh.shots_a, 0) AS shots_a, COALESCE(sh.shots_b, 0) AS shots_b,
         COALESCE(sh.goals_a, 0) AS goals_a, COALESCE(sh.goals_b, 0) AS goals_b,
         -- Distance entre la fin de la passe et le duel, dans le repère de l'équipe émettrice
@@ -215,6 +241,7 @@ full_duel AS (
     LEFT JOIN src s          ON s.str_match_id  = d.str_match_id AND s.row_min  = d.row_min
     LEFT JOIN src_qual sq    ON sq.str_match_id = d.str_match_id AND sq.row_min = d.row_min
     LEFT JOIN nxt n          ON n.str_match_id  = d.str_match_id AND n.row_min  = d.row_min
+    LEFT JOIN next_qual nq   ON nq.str_match_id = d.str_match_id AND nq.row_min = d.row_min
     LEFT JOIN shots10 sh     ON sh.str_match_id = d.str_match_id AND sh.row_min = d.row_min
 ),
 
@@ -229,7 +256,8 @@ sides AS (
         shots_a AS own_shots, shots_b AS opp_shots, goals_a AS own_goals, goals_b AS opp_goals,
         row_min, row_max, src_row, src_team_id, src_player_id, src_type, src_y, src_end_dist, src_ts,
         f_longball, f_cross, f_headpass, f_freekick, f_corner, f_throwin,
-        f_goalkick, f_chipped, ball_type, next_type, next_team_id, next_ts, duel_ts
+        f_goalkick, f_chipped, ball_type, next_type, next_team_id, next_ts, duel_ts,
+        next_row, next_player_id, next_outcome, next_x, next_y, next_end_x, next_end_y, f_next_header
     FROM full_duel
     UNION ALL
     SELECT
@@ -241,7 +269,8 @@ sides AS (
         shots_b, shots_a, goals_b, goals_a,
         row_min, row_max, src_row, src_team_id, src_player_id, src_type, src_y, src_end_dist, src_ts,
         f_longball, f_cross, f_headpass, f_freekick, f_corner, f_throwin,
-        f_goalkick, f_chipped, ball_type, next_type, next_team_id, next_ts, duel_ts
+        f_goalkick, f_chipped, ball_type, next_type, next_team_id, next_ts, duel_ts,
+        next_row, next_player_id, next_outcome, next_x, next_y, next_end_x, next_end_y, f_next_header
     FROM full_duel
 ),
 
@@ -285,6 +314,17 @@ mdl_out AS (
         CAST(src_end_dist AS DOUBLE)                               AS dec_source_end_dist,
         next_type                                                  AS str_next_event_type,
         CAST(next_ts - duel_ts AS INTEGER)                         AS int_next_event_gap_s,
+        CAST(row_max AS INTEGER)                                   AS int_duel_last_row_num,
+        CAST(next_row AS INTEGER)                                  AS int_next_event_row_num,
+        CAST(next_player_id AS VARCHAR)                            AS str_next_event_player_id,
+        (next_player_id = player_id)                               AS bool_next_event_is_own_player,
+        (next_outcome = '1')                                       AS bool_next_event_success,
+        (f_next_header = 1)                                        AS bool_next_event_is_header,
+        CAST(next_x AS DOUBLE)                                     AS dec_next_event_x,
+        CAST(next_y AS DOUBLE)                                     AS dec_next_event_y,
+        CAST(next_end_x AS DOUBLE)                                 AS dec_next_event_end_x,
+        CAST(next_end_y AS DOUBLE)                                 AS dec_next_event_end_y,
+        CAST(next_end_x - next_x AS DOUBLE)                        AS dec_next_event_progress,
         CAST(own_shots AS INTEGER)                                 AS int_own_shots_10s,
         CAST(opp_shots AS INTEGER)                                 AS int_opp_shots_10s,
         (own_goals > 0)                                            AS bool_own_goal_10s,
