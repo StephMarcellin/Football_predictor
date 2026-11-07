@@ -16,12 +16,13 @@ SQL_PATH = (Path(__file__).resolve().parents[2]
             / "dbt_project/models/intermediate/intermediate_aerial_duel_players.sql")
 
 EVENT_COLS = ("str_match_id, str_team_id, str_player_id, str_event_id, int_row_num, str_type_id, "
-              "str_type_name, bool_is_shot, dec_x, dec_y, dec_end_x, dec_end_y, "
+              "str_type_name, str_outcome_id, bool_is_shot, dec_x, dec_y, dec_end_x, dec_end_y, "
               "int_expanded_minute, int_second")
 
 
-def _event(row, team, player, eid, type_id, type_name, minute, sec, x=50, y=50, ex=None, ey=None, shot=False):
-    return (f"('m1','{team}','{player}','{eid}',{row},'{type_id}','{type_name}',{str(shot).lower()},"
+def _event(row, team, player, eid, type_id, type_name, minute, sec, x=50, y=50, ex=None, ey=None, shot=False, outcome=None):
+    out = "NULL" if outcome is None else f"'{outcome}'"
+    return (f"('m1','{team}','{player}','{eid}',{row},'{type_id}','{type_name}',{out},{str(shot).lower()},"
             f"{x},{y},{'NULL' if ex is None else ex},{'NULL' if ey is None else ey},{minute},{sec})")
 
 
@@ -32,22 +33,21 @@ def result():
         _event(1, 1, 10, 1, 1, "Pass", 10, 0, x=10, y=10, ex=80, ey=50),
         _event(2, 1, 11, 2, 44, "Aerial", 10, 2, x=80, y=50),
         _event(3, 2, 20, 1, 44, "Aerial", 10, 2, x=20, y=50),
-        _event(4, 2, 20, 2, 1, "Pass", 10, 4),                       # id 2 aussi côté équipe 2
+        _event(4, 2, 20, 2, 1, "Pass", 10, 4, x=50, y=50, ex=65, ey=50, outcome=0),                       # id 2 aussi côté équipe 2
         _event(5, 2, 21, 3, 13, "MissedShots", 10, 8, shot=True),    # dans les 10 s
         _event(6, 2, 21, 4, 16, "Goal", 10, 20, shot=True),          # hors fenêtre
         # Duel 2 : corner de l'équipe 1, gagné par son attaquant, puis but
         _event(7, 1, 10, 5, 1, "Pass", 30, 0, x=100, y=0, ex=94, ey=45),
         _event(8, 1, 12, 6, 44, "Aerial", 30, 2, x=94, y=45),
         _event(9, 2, 22, 7, 44, "Aerial", 30, 2, x=6, y=55),
-        _event(10, 1, 12, 8, 16, "Goal", 30, 5, shot=True),
+        _event(10, 1, 12, 8, 16, "Goal", 30, 5, x=90, y=50, shot=True, outcome=1),
     ]
+    # (ligne, type d'événement, qualifier) : 2 centre, 6 corner, 285/286 rôle, 3 passe de la tête, 15 tir de la tête
     quals = [
-        (1, "44", "2", None), (2, "44", "286", None), (3, "44", "285", None),
-        (7, "1", "6", None), (8, "44", "286", None), (9, "44", "285", None),
+        (1, "1", "2"), (2, "44", "286"), (3, "44", "285"), (4, "1", "3"),
+        (7, "1", "6"), (8, "44", "286"), (9, "44", "285"), (10, "16", "15"),
     ]
-    # les qualifiers de la passe ont le type d'événement de la passe ('1'), ceux des aériens '44'
-    quals = [(r, ("1" if r in (1, 7) else "44"), q, v) for r, _, q, v in quals]
-    q_sql = ",".join(f"('m1',{r},'{t}','{q}',NULL)" for r, t, q, _ in quals)
+    q_sql = ",".join(f"('m1',{r},'{t}','{q}',NULL)" for r, t, q in quals)
 
     con = duckdb.connect()
     con.execute("create schema intermediate")
@@ -101,3 +101,15 @@ def test_corner_suivi_d_un_but(result):
     assert r.bool_own_goal_10s and not r.bool_opp_goal_10s
     assert result.loc["22"].bool_opp_goal_10s
     assert r.str_cross_lane is None or r.str_cross_lane != r.str_cross_lane  # NULL hors centre
+
+
+def test_geste_suivant_du_gagnant(result):
+    w, l = result.loc["20"], result.loc["11"]
+    assert w.str_next_event_player_id == "20" and w.bool_next_event_is_own_player
+    assert not l.bool_next_event_is_own_player and l.str_next_event_player_id == "20"
+    assert w.int_duel_last_row_num == 3 and w.int_next_event_row_num == 4
+    assert not w.bool_next_event_success                  # passe de la tête ratée (issue 0)
+    assert w.bool_next_event_is_header
+    assert w.dec_next_event_progress == pytest.approx(15.0)
+    c = result.loc["12"]
+    assert c.str_next_event_type == "Goal" and c.bool_next_event_success and c.bool_next_event_is_header
