@@ -3428,6 +3428,26 @@ models:
               values: ['exterieur', 'interieur']
       - name: str_next_event_type
         description: "Type de l'événement suivant le duel : toujours celui de l'équipe gagnante."
+      - name: str_next_event_player_id
+        description: "Joueur du geste suivant le duel : dans 99,9 % des cas le gagnant lui-même."
+      - name: bool_next_event_is_own_player
+        description: "Vrai si le geste suivant est celui de ce joueur (donc vrai surtout pour le gagnant)."
+      - name: bool_next_event_success
+        description: "Réussite du geste suivant (outcome 1). Passe de la tête : environ 38 % de réussite. Toujours vrai pour dégagements et tirs : l'outcome n'y est pas informatif."
+      - name: bool_next_event_is_header
+        description: "Le geste suivant est une tête (qualifier passe de la tête ou tir de la tête). Vrai à 98 % pour passes, dégagements et tirs."
+      - name: dec_next_event_x
+        description: "Position de départ du geste suivant, repère de l'équipe gagnante (0-100)."
+      - name: dec_next_event_end_x
+        description: "Position d'arrivée en x du geste suivant (passes), repère de l'équipe gagnante."
+      - name: dec_next_event_end_y
+        description: "Position d'arrivée en y du geste suivant (passes), repère de l'équipe gagnante."
+      - name: dec_next_event_progress
+        description: "Gain en x du geste suivant (fin moins départ), positif vers le but adverse. Moyenne 6,7 pour les passes de la tête en 2023-2024."
+      - name: int_duel_last_row_num
+        description: "Numéro de ligne du dernier événement aérien du duel : clé de jointure pour les modèles aval (xT, chaînes de possession)."
+      - name: int_next_event_row_num
+        description: "Numéro de ligne du geste suivant : clé de jointure vers intermediate_xt_actions et intermediate_event_values."
       - name: int_own_shots_10s
         description: "Tirs de l'équipe du joueur dans les 10 s suivant le duel."
       - name: int_opp_shots_10s
