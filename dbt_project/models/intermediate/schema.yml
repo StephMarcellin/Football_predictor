@@ -3378,6 +3378,61 @@ models:
       - name: dec_betweenness_exact
         description: "Centralité d'intermédiarité EXACTE du joueur, calculée par NetworkX (betweenness_centrality) sur le réseau de passes DIRIGÉ de l'équipe (arêtes passeur->receveur pondérées par n_passes), normalisée dans [0,1], arrondie à 6 décimales. Modèle dbt Python."
 
+  - name: intermediate_aerial_duel_players
+    description: >
+      Duels aériens, UNE LIGNE PAR DUEL ET PAR JOUEUR (2 lignes par duel), depuis 2013-2014
+      (période où le pairage existe). Pour chaque joueur : son adversaire, son rôle, le type
+      de ballon reçu (corner, coup franc, six mètres, touche, centre intérieur/extérieur,
+      dégagement, passe de la tête, longue balle, passe lobée), l'issue (gagné / perdu) et la
+      conclusion de l'action (type de l'événement suivant, tirs et buts dans les 10 s).
+      Construit depuis intermediate_duel_pairs, intermediate_whoscored_events_enriched et
+      intermediate_whoscored_event_qualifiers. Seuils par hypothèse : centre « extérieur » si
+      la passe part de y <= 21 ou y >= 79 ; fenêtre de conclusion 10 s.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [str_match_id, str_team_id, int_event_id, int_opp_event_id]
+    columns:
+      - name: str_match_id
+        tests: [not_null]
+      - name: str_team_id
+        tests: [not_null]
+      - name: str_player_id
+        tests: [not_null]
+      - name: str_opp_player_id
+        description: "Joueur adverse du duel (pairage par le qualifier 233)."
+        tests: [not_null]
+      - name: int_event_id
+        description: "Id d'événement du joueur ; propre à l'équipe, à combiner avec str_team_id."
+        tests: [not_null]
+      - name: bool_is_won
+        description: "Vrai pour le gagnant du duel (un seul gagnant par duel)."
+        tests: [not_null]
+      - name: str_role
+        description: "Rôle WhoScored (qualifiers 286 / 285) : offensif, defensif ou inconnu."
+        tests:
+          - accepted_values:
+              values: ['offensif', 'defensif', 'inconnu']
+      - name: str_ball_type
+        description: >
+          Type de ballon, par priorité : corner, coup_franc, six_metres, touche, centre,
+          degagement, passe_tete, longue_balle, passe_lobee, passe_autre, autre, sans_source.
+        tests:
+          - accepted_values:
+              values: ['corner', 'coup_franc', 'six_metres', 'touche', 'centre', 'degagement',
+                       'passe_tete', 'longue_balle', 'passe_lobee', 'passe_autre', 'autre',
+                       'sans_source']
+      - name: str_cross_lane
+        description: "Pour les centres : exterieur ou interieur, selon le y de départ de la passe."
+        tests:
+          - accepted_values:
+              values: ['exterieur', 'interieur']
+      - name: str_next_event_type
+        description: "Type de l'événement suivant le duel : toujours celui de l'équipe gagnante."
+      - name: int_own_shots_10s
+        description: "Tirs de l'équipe du joueur dans les 10 s suivant le duel."
+      - name: int_opp_shots_10s
+        description: "Tirs de l'équipe adverse dans les 10 s suivant le duel."
+
   - name: intermediate_duel_pairs
     description: >
       Apparie les duels adverses via le qualifier 233 (miroir d'événement) pour
