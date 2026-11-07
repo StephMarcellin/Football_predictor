@@ -438,3 +438,63 @@ models:
         tests: [is_valid_probability]
       - name: dec_s_rank_pct
         tests: [is_valid_probability]
+
+  - name: gold_player_aerial_profile
+    description: >
+      Profil aérien d'un joueur sur une fenêtre de 3 saisons glissantes (s-2, s-1, s), depuis
+      intermediate_aerial_duel_players. Grain (str_player_id, str_season), str_season étant la
+      DERNIÈRE saison de la fenêtre : un modèle qui prédit la saison s doit lire s-1 (la fenêtre
+      inclut s). Victoire au-dessus de l'attendu (rôle x type de ballon), tirs de la tête, style et
+      qualité du geste suivant, xT des passes de la tête. Mesures rétrécies vers la moyenne
+      (K = 30 duels, K = 20 passes) : un petit volume reste proche de la moyenne. Stabilité d'une
+      saison à l'autre : victoire au-dessus de l'attendu 0,73 ; tirs de la tête 0,66 ; précision,
+      progression et xT de la passe de la tête 0,2 (bruit). Corrélation avec la taille : 0,47.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [str_player_id, str_season]
+    columns:
+      - name: str_player_id
+        tests: [not_null]
+      - name: str_season
+        description: "Dernière saison de la fenêtre de 3 saisons."
+        tests: [not_null]
+      - name: int_n_seasons_window
+        description: "Nombre de saisons de la fenêtre où le joueur a des duels (1 à 3)."
+      - name: int_n_duels
+        description: "Duels aériens sur la fenêtre. Profil fiable à partir de 80 duels."
+        tests: [not_null]
+      - name: dec_win_rate
+        description: "Taux de victoire brut, sans correction du rôle ni du type de ballon."
+        tests: [is_valid_probability]
+      - name: dec_woe
+        description: "Victoire au-dessus de l'attendu, tous rôles, rétrécie (K = 30)."
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: -0.6
+              max_value: 0.6
+      - name: dec_woe_off
+        description: "Victoire au-dessus de l'attendu en rôle offensif, rétrécie (K = 30)."
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: -0.6
+              max_value: 0.6
+      - name: dec_woe_def
+        description: "Victoire au-dessus de l'attendu en rôle défensif, rétrécie (K = 30)."
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: -0.6
+              max_value: 0.6
+      - name: dec_share_off
+        description: "Part des duels disputés en rôle offensif (style : attaquant ou défenseur dans les airs)."
+        tests: [is_valid_probability]
+      - name: dec_head_shot_rate
+        description: >
+          Tirs de la tête par duel aérien offensif, rétréci (K = 30). Les têtes sans duel comptent :
+          le taux n'est pas borné par 1.
+      - name: dec_follow_pass_accuracy
+        description: "Réussite de la passe de la tête du gagnant, rétrécie (K = 20) : à ces volumes, surtout du bruit."
+        tests: [is_valid_probability]
+      - name: dec_follow_xt_per_pass
+        description: "xT moyen ajouté par la passe de la tête du gagnant, rétréci (K = 20) : à ces volumes, surtout du bruit."
+      - name: dec_shot_after_win_off
+        description: "Part des victoires offensives suivies d'un tir de l'équipe dans les 10 s (brut)."
