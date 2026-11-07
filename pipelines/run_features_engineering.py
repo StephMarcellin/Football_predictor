@@ -79,6 +79,7 @@ logger.add(
 MOD_XGOT_SCORE = ROOT_DIR / "pipelines" / "features" / "xgot_score.py"
 MOD_KNN        = ROOT_DIR / "pipelines" / "features" / "03_knn_impute.py"
 MOD_ELO        = ROOT_DIR / "pipelines" / "features" / "team_elo.py"
+MOD_AERIAL     = ROOT_DIR / "pipelines" / "features" / "aerial_clusters.py"
 MOD_XT_GRID    = ROOT_DIR / "pipelines" / "features" / "xt_grid.py"
 MOD_XGOT_TRAIN = ROOT_DIR / "pipelines" / "xgot_train.py"
 
@@ -118,6 +119,7 @@ TABLES_UPDATE = [
     "dbt_intermediate_downstream",
     "validate_intermediate",                          # après matérialisation intermediate
     "dbt_gold_base",
+    "aerial_clusters",                                # clusters de profils aériens (Python), lit gold_player_aerial_profile
     "knn_impute",
     "dbt_joueur_match",
     "dbt_test",
@@ -342,6 +344,7 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
     mod_xgot_score = import_from_path("xgot_score_mod", MOD_XGOT_SCORE)
     mod_knn        = import_from_path("knn_impute_mod", MOD_KNN)
     mod_elo        = import_from_path("team_elo_mod", MOD_ELO)
+    mod_aerial     = import_from_path("aerial_clusters_mod", MOD_AERIAL)
 
     return {
         # ── 0. Gate d'entrée (validation Silver) ───────────────────────────────
@@ -478,6 +481,13 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
             "critical": True,
         },
 
+        # ── 8 bis. Clusters de profils aériens (Py) : lit gold_player_aerial_profile, écrit machine_learning.aerial_player_clusters ──
+        "aerial_clusters": {
+            "fn": mod_aerial.main,
+            "kwargs": {"write": True},
+            "critical": False,
+        },
+
         # ── 9. Imputation KNN (Py) ───────────────────────────────────────────
         "knn_impute": {
             "fn": mod_knn.main,
@@ -525,6 +535,7 @@ def build_table_steps(cfg: dict, full_refresh: bool = False) -> dict:
     mod_xgot_score = import_from_path("xgot_score_mod", MOD_XGOT_SCORE)
     mod_knn        = import_from_path("knn_impute_mod", MOD_KNN)
     mod_elo        = import_from_path("team_elo_mod", MOD_ELO)
+    mod_aerial     = import_from_path("aerial_clusters_mod", MOD_AERIAL)
 
     return {
         # ── flow daily (TABLES_UPDATE) ───────────────────────────────────────
@@ -651,6 +662,13 @@ def build_table_steps(cfg: dict, full_refresh: bool = False) -> dict:
                 "critical": True,
             },
     
+            # ── 8 bis. Clusters de profils aériens (Py) : lit gold_player_aerial_profile, écrit machine_learning.aerial_player_clusters ──
+            "aerial_clusters": {
+                "fn": mod_aerial.main,
+                "kwargs": {"write": True},
+                "critical": False,
+            },
+
             # ── 9. Imputation KNN (Py) ───────────────────────────────────────────
             "knn_impute": {
                 "fn": mod_knn.main,
