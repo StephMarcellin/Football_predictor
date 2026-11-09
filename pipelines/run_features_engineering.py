@@ -80,6 +80,7 @@ MOD_XGOT_SCORE = ROOT_DIR / "pipelines" / "features" / "xgot_score.py"
 MOD_KNN        = ROOT_DIR / "pipelines" / "features" / "03_knn_impute.py"
 MOD_ELO        = ROOT_DIR / "pipelines" / "features" / "team_elo.py"
 MOD_AERIAL     = ROOT_DIR / "pipelines" / "features" / "aerial_clusters.py"
+MOD_AERIAL_MATCHUP = ROOT_DIR / "pipelines" / "features" / "aerial_matchup.py"
 MOD_XT_GRID    = ROOT_DIR / "pipelines" / "features" / "xt_grid.py"
 MOD_XGOT_TRAIN = ROOT_DIR / "pipelines" / "xgot_train.py"
 
@@ -120,6 +121,7 @@ TABLES_UPDATE = [
     "validate_intermediate",                          # après matérialisation intermediate
     "dbt_gold_base",
     "aerial_clusters",                                # clusters de profils aériens (Python), lit gold_player_aerial_profile
+    "aerial_matchup",                                 # probabilité attendue de chaque duel aérien (Python), lit gold_player_aerial_profile
     "knn_impute",
     "dbt_joueur_match",
     "dbt_test",
@@ -345,6 +347,7 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
     mod_knn        = import_from_path("knn_impute_mod", MOD_KNN)
     mod_elo        = import_from_path("team_elo_mod", MOD_ELO)
     mod_aerial     = import_from_path("aerial_clusters_mod", MOD_AERIAL)
+    mod_aerial_matchup = import_from_path("aerial_matchup_mod", MOD_AERIAL_MATCHUP)
 
     return {
         # ── 0. Gate d'entrée (validation Silver) ───────────────────────────────
@@ -488,6 +491,13 @@ def build_steps(cfg: dict, full_refresh: bool = False) -> dict:
             "critical": False,
         },
 
+        # ── 8 ter. Confrontation aérienne (Py) : lit gold_player_aerial_profile, écrit machine_learning.aerial_duel_matchup ──
+        "aerial_matchup": {
+            "fn": mod_aerial_matchup.main,
+            "kwargs": {"write": True},
+            "critical": False,
+        },
+
         # ── 9. Imputation KNN (Py) ───────────────────────────────────────────
         "knn_impute": {
             "fn": mod_knn.main,
@@ -536,6 +546,7 @@ def build_table_steps(cfg: dict, full_refresh: bool = False) -> dict:
     mod_knn        = import_from_path("knn_impute_mod", MOD_KNN)
     mod_elo        = import_from_path("team_elo_mod", MOD_ELO)
     mod_aerial     = import_from_path("aerial_clusters_mod", MOD_AERIAL)
+    mod_aerial_matchup = import_from_path("aerial_matchup_mod", MOD_AERIAL_MATCHUP)
 
     return {
         # ── flow daily (TABLES_UPDATE) ───────────────────────────────────────
@@ -665,6 +676,13 @@ def build_table_steps(cfg: dict, full_refresh: bool = False) -> dict:
             # ── 8 bis. Clusters de profils aériens (Py) : lit gold_player_aerial_profile, écrit machine_learning.aerial_player_clusters ──
             "aerial_clusters": {
                 "fn": mod_aerial.main,
+                "kwargs": {"write": True},
+                "critical": False,
+            },
+
+            # ── 8 ter. Confrontation aérienne (Py) : lit gold_player_aerial_profile, écrit machine_learning.aerial_duel_matchup ──
+            "aerial_matchup": {
+                "fn": mod_aerial_matchup.main,
                 "kwargs": {"write": True},
                 "critical": False,
             },
