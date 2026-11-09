@@ -535,3 +535,68 @@ models:
         description: "xT moyen ajouté par la passe de la tête du gagnant, rétréci (K = 20) : à ces volumes, surtout du bruit."
       - name: dec_shot_after_win_off
         description: "Part des victoires offensives suivies d'un tir de l'équipe dans les 10 s (brut)."
+
+  - name: gold_team_match_aerial_lineup
+    description: >
+      Profil aérien de la composition de départ (titulaires à la minute 0), grain (str_match_id,
+      str_team_id). Sans fuite : compétences lues sur la dernière ligne de gold_player_aerial_profile
+      dont la saison de fin est s-1 ou s-2 (la fenêtre de 3 saisons n'inclut jamais la saison du match).
+      Un joueur sans profil est compté dans int_n_starters mais pas dans int_n_profiled : lire
+      int_n_profiled avant d'interpréter les sommes. Tailles : valeur courante de la fiche WhoScored.
+      Poste : poste macro habituel. Écarts dec_edge_* : positif = avantage de l'équipe. Dépend de la
+      composition, connue environ une heure avant le coup d'envoi. Mesure du 09/11/2026 (hors
+      échantillon, 2022-23 à 2025-26) : les cinq écarts expliquent 4,9 % de la variance de la part de
+      duels aériens gagnés dans le match (3,7 % pour l'ancienne colonne de taux de victoire, 5,9 % les
+      deux ensemble ; plafond d'environ 22 % à cause du hasard sur 36 duels par équipe).
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [str_match_id, str_team_id]
+    columns:
+      - name: str_match_id
+        tests: [not_null]
+      - name: str_team_id
+        tests: [not_null]
+      - name: int_n_starters
+        description: "Titulaires de la composition (11 attendus ; 84 cas à 10 ou plus de 11 sur 67 692, dont un à 22)."
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 9
+              max_value: 14
+              config:
+                severity: warn
+      - name: int_n_profiled
+        description: "Titulaires ayant un profil aérien en s-1 ou s-2."
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 14
+      - name: dec_xi_height_mean
+        description: "Taille moyenne (cm) des joueurs de champ titulaires."
+      - name: dec_xi_height_top3
+        description: "Taille moyenne (cm) des trois plus grands joueurs de champ."
+      - name: dec_xi_height_def
+        description: "Taille moyenne (cm) des défenseurs titulaires (poste habituel)."
+      - name: dec_xi_height_att
+        description: "Taille moyenne (cm) des attaquants titulaires (poste habituel)."
+      - name: dec_xi_woe_net_def_def
+        description: "Moyenne de la compétence aérienne défensive nette de la taille des défenseurs titulaires."
+      - name: dec_xi_woe_net_off_att
+        description: "Moyenne de la compétence aérienne offensive nette de la taille des attaquants titulaires."
+      - name: dec_xi_woe_net_mean
+        description: "Moyenne de la compétence aérienne nette de la taille des joueurs de champ titulaires."
+      - name: dec_xi_duels_per_match_sum
+        description: "Somme des duels aériens par match des joueurs de champ titulaires profilés (présence aérienne attendue)."
+      - name: dec_xi_head_shots_setpiece_sum
+        description: "Somme des tirs de la tête par match sur coup de pied arrêté des titulaires profilés (menace sur CPA)."
+      - name: dec_xi_head_shots_open_sum
+        description: "Somme des tirs de la tête par match en jeu ouvert des titulaires profilés."
+      - name: dec_edge_height_mean
+        description: "Taille moyenne des joueurs de champ moins celle de l'adversaire (cm)."
+      - name: dec_edge_att_height
+        description: "Taille moyenne des attaquants moins celle des défenseurs adverses (cm)."
+      - name: dec_edge_att_skill
+        description: "Compétence offensive nette des attaquants moins compétence défensive nette des défenseurs adverses."
+      - name: dec_edge_def_height
+        description: "Taille moyenne des défenseurs moins celle des attaquants adverses (cm)."
+      - name: dec_edge_def_skill
+        description: "Compétence défensive nette des défenseurs moins compétence offensive nette des attaquants adverses."
