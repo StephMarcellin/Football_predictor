@@ -32,6 +32,22 @@
 --     volumes (stabilité 0,2) → rétrécis vers la moyenne avec K = 20 passes.
 --   · dec_shot_after_win_off : part des victoires offensives suivies d'un tir de l'équipe
 --     dans les 10 s (brut, non rétréci ; dépend du type de ballon et du contexte d'équipe).
+--   · dec_woe_net / _off / _def : victoire au-dessus de l'attendu NET DE LA TAILLE. L'attendu est
+--     le taux de victoire de la saison pour (rôle, groupe de type de ballon, écart de taille
+--     entre le joueur et son adversaire par tranches de 4 cm). Un grand joueur n'est plus
+--     crédité d'être grand. Rétréci avec K = 30. Mesuré le 09/11/2026 sur la table construite
+--     (profils s et s+3, fenêtres SANS recouvrement, au moins 150 duels, 4 208 paires) :
+--     stabilité 0,69 attaque et 0,75 défense (0,74 et 0,80 sans correction de taille).
+--     Corrélation à la taille : attaque -0,20 (0,37 avant), défense 0,01 (0,54 avant).
+--     Résidu négatif en attaque : la correction par tranches de 4 cm sur-corrige un peu les
+--     très grands attaquants.
+--     dec_height_diff_mean : écart de taille moyen avec les adversaires affrontés (cm).
+--   · dec_head_shots_setpiece_per_match / _open_per_match : tirs de la tête sur corner ou
+--     coup franc (qualifiers 24, 25) contre tirs de la tête en jeu ouvert, par match.
+--     Mesuré le 09/11/2026 : stabilité d'une saison à l'autre 0,64 (CPA) et 0,68 (jeu ouvert),
+--     corrélation entre les deux 0,18 (profils s et s+3 sur la table : 0,72 et 0,81).
+-- Taille : valeur COURANTE de la fiche WhoScored (voir intermediate_whoscored_player_team_season),
+-- valeurs <= 150 cm traitées comme manquantes ; MAX sur toutes les saisons du joueur.
 -- xT : intermediate_xt_contributions (gain xT du déplacement), jointure sur le numéro de
 -- ligne du geste suivant, passes de la tête du gagnant uniquement.
 -- ══════════════════════════════════════════════════════════════════════════════
@@ -40,6 +56,12 @@
 {% set k_passes = 20 %}
 
 WITH
+
+player_height AS (
+    SELECT str_player_id, MAX(CASE WHEN int_height > 150 THEN int_height END) AS h
+    FROM {{ ref('intermediate_whoscored_player_team_season') }}
+    GROUP BY str_player_id
+),
 
 duels AS (
     SELECT
@@ -56,8 +78,18 @@ duels AS (
         d.str_next_event_type,
         d.bool_next_event_success,
         d.dec_next_event_progress,
-        d.int_next_event_row_num
+        d.int_next_event_row_num,
+        ph.h                                                 AS own_h,
+        po.h                                                 AS opp_h,
+        CASE WHEN ph.h IS NULL OR po.h IS NULL THEN 99
+             ELSE LEAST(GREATEST(CAST(ROUND((ph.h - po.h) / 4.0) AS INTEGER), -4), 4) END AS hbucket,
+        CASE WHEN d.str_ball_type IN ('corner', 'coup_franc') THEN 'cpa'
+             WHEN d.str_ball_type = 'centre' THEN 'centre'
+             WHEN d.str_ball_type IN ('six_metres', 'longue_balle', 'passe_lobee', 'degagement') THEN 'long'
+             ELSE 'autre' END                                AS ball_group
     FROM {{ ref('intermediate_aerial_duel_players') }} d
+    LEFT JOIN player_height ph ON ph.str_player_id = d.str_player_id
+    LEFT JOIN player_height po ON po.str_player_id = d.str_opp_player_id
     WHERE d.str_season >= '2014-2015'
       AND d.str_role IN ('offensif', 'defensif')
 ),
@@ -67,6 +99,14 @@ baseline AS (
     SELECT str_season, str_role, str_ball_type, AVG(won) AS p_win
     FROM duels
     GROUP BY str_season, str_role, str_ball_type
+),
+
+-- Taux de victoire attendu NET DE LA TAILLE : saison, rôle, groupe de ballon, tranche d'écart de taille
+-- (tranche 99 = taille manquante pour l'un des deux joueurs)
+baseline_net AS (
+    SELECT str_season, str_role, ball_group, hbucket, AVG(won) AS p_net
+    FROM duels
+    GROUP BY str_season, str_role, ball_group, hbucket
 ),
 
 -- xT des seules passes de la tête des gagnants : on part de la petite table des gestes
@@ -84,11 +124,14 @@ xt_follow AS (
 ),
 
 duels_x AS (
-    SELECT d.*, b.p_win,
+    SELECT d.*, b.p_win, bn.p_net,
            CASE WHEN d.own_follow AND d.str_next_event_type = 'Pass' THEN xf.dec_xt_added END AS dec_xt_added
     FROM duels d
     JOIN baseline b
       ON b.str_season = d.str_season AND b.str_role = d.str_role AND b.str_ball_type = d.str_ball_type
+    JOIN baseline_net bn
+      ON bn.str_season = d.str_season AND bn.str_role = d.str_role
+     AND bn.ball_group = d.ball_group AND bn.hbucket = d.hbucket
     LEFT JOIN xt_follow xf
       ON xf.str_match_id = d.str_match_id AND xf.row_num = d.int_next_event_row_num
 ),
@@ -104,6 +147,10 @@ per_season AS (
         SUM(won) FILTER (WHERE str_role = 'defensif')                              AS won_def,
         COALESCE(SUM(won - p_win) FILTER (WHERE str_role = 'offensif'), 0)         AS woe_off,
         COALESCE(SUM(won - p_win) FILTER (WHERE str_role = 'defensif'), 0)         AS woe_def,
+        COALESCE(SUM(won - p_net) FILTER (WHERE str_role = 'offensif'), 0)         AS woe_net_off,
+        COALESCE(SUM(won - p_net) FILTER (WHERE str_role = 'defensif'), 0)         AS woe_net_def,
+        COUNT(own_h - opp_h)                                                       AS n_hdiff,
+        COALESCE(SUM(own_h - opp_h), 0)                                            AS hdiff_sum,
         COUNT(*) FILTER (WHERE str_ball_type IN ('corner', 'coup_franc'))          AS n_setpiece,
         COUNT(*) FILTER (WHERE str_ball_type = 'centre')                           AS n_cross,
         COUNT(*) FILTER (WHERE str_ball_type IN ('six_metres', 'longue_balle', 'degagement')) AS n_long,
@@ -129,14 +176,26 @@ head_q AS (
     WHERE str_qual_type_id = '15' AND str_season >= '2014-2015'
 ),
 
+-- Tirs sur coup de pied arrêté (qualifiers 24 SetPiece, 25 FromCorner)
+sp_q AS (
+    SELECT DISTINCT str_match_id, int_row_num
+    FROM {{ ref('intermediate_whoscored_event_qualifiers') }}
+    WHERE str_qual_type_id IN ('24', '25') AND str_season >= '2014-2015'
+),
+
 head_shots AS (
     SELECT s.str_player_id, s.str_season,
-           COUNT(*)                                AS head_shots,
-           COUNT(*) FILTER (WHERE s.bool_is_goal)  AS head_goals
+           COUNT(*)                                                 AS head_shots,
+           COUNT(*) FILTER (WHERE s.bool_is_goal)                   AS head_goals,
+           COUNT(*) FILTER (WHERE sp.int_row_num IS NOT NULL)       AS head_shots_sp,
+           COUNT(*) FILTER (WHERE sp.int_row_num IS NULL)           AS head_shots_open
     FROM {{ ref('intermediate_shots') }} s
     JOIN head_q q
       ON  q.str_match_id = s.str_match_id
       AND q.int_row_num  = s.int_row_num
+    LEFT JOIN sp_q sp
+      ON  sp.str_match_id = s.str_match_id
+      AND sp.int_row_num  = s.int_row_num
     WHERE s.str_season >= '2014-2015'
       AND NOT COALESCE(s.bool_is_own_goal, FALSE)
     GROUP BY s.str_player_id, s.str_season
@@ -158,6 +217,8 @@ season_full AS (
         p.*,
         COALESCE(h.head_shots, 0)  AS head_shots,
         COALESCE(h.head_goals, 0)  AS head_goals,
+        COALESCE(h.head_shots_sp, 0)   AS head_shots_sp,
+        COALESCE(h.head_shots_open, 0) AS head_shots_open,
         COALESCE(m.n_matches, 0)   AS n_matches
     FROM per_season p
     LEFT JOIN head_shots h    ON h.str_player_id = p.str_player_id AND h.str_season = p.str_season
@@ -187,6 +248,10 @@ win AS (
         SUM(b.won_def)           AS won_def,
         SUM(b.woe_off)           AS woe_off,
         SUM(b.woe_def)           AS woe_def,
+        SUM(b.woe_net_off)       AS woe_net_off,
+        SUM(b.woe_net_def)       AS woe_net_def,
+        SUM(b.n_hdiff)           AS n_hdiff,
+        SUM(b.hdiff_sum)         AS hdiff_sum,
         SUM(b.n_setpiece)        AS n_setpiece,
         SUM(b.n_cross)           AS n_cross,
         SUM(b.n_long)            AS n_long,
@@ -203,6 +268,8 @@ win AS (
         SUM(b.off_wins_shot)     AS off_wins_shot,
         SUM(b.head_shots)        AS head_shots,
         SUM(b.head_goals)        AS head_goals,
+        SUM(b.head_shots_sp)     AS head_shots_sp,
+        SUM(b.head_shots_open)   AS head_shots_open,
         SUM(b.n_matches)         AS n_matches
     FROM season_full a
     JOIN season_full b
@@ -230,6 +297,10 @@ mdl_out AS (
         (w.woe_off + w.woe_def) / (w.n + {{ k_duels }})                       AS dec_woe,
         w.woe_off / (w.n_off + {{ k_duels }})                                 AS dec_woe_off,
         w.woe_def / (w.n_def + {{ k_duels }})                                 AS dec_woe_def,
+        (w.woe_net_off + w.woe_net_def) / (w.n + {{ k_duels }})               AS dec_woe_net,
+        w.woe_net_off / (w.n_off + {{ k_duels }})                             AS dec_woe_net_off,
+        w.woe_net_def / (w.n_def + {{ k_duels }})                             AS dec_woe_net_def,
+        w.hdiff_sum * 1.0 / NULLIF(w.n_hdiff, 0)                              AS dec_height_diff_mean,
         w.n_off * 1.0 / w.n                                                   AS dec_share_off,
         w.n_setpiece * 1.0 / w.n                                              AS dec_share_setpiece,
         w.n_cross * 1.0 / w.n                                                 AS dec_share_cross,
@@ -238,6 +309,10 @@ mdl_out AS (
         CAST(w.head_goals AS INTEGER)                                         AS int_n_head_goals,
         (w.head_shots + {{ k_duels }} * pr.p_head_shot) / (w.n_off + {{ k_duels }}) AS dec_head_shot_rate,
         w.head_shots * 1.0 / NULLIF(w.n_matches, 0)                           AS dec_head_shots_per_match,
+        CAST(w.head_shots_sp AS INTEGER)                                      AS int_n_head_shots_setpiece,
+        CAST(w.head_shots_open AS INTEGER)                                    AS int_n_head_shots_open,
+        w.head_shots_sp * 1.0 / NULLIF(w.n_matches, 0)                        AS dec_head_shots_setpiece_per_match,
+        w.head_shots_open * 1.0 / NULLIF(w.n_matches, 0)                      AS dec_head_shots_open_per_match,
         CAST(w.n_follow AS INTEGER)                                           AS int_n_follow,
         w.n_f_pass * 1.0 / NULLIF(w.n_follow, 0)                              AS dec_follow_pass_share,
         w.n_f_clear * 1.0 / NULLIF(w.n_follow, 0)                             AS dec_follow_clear_share,

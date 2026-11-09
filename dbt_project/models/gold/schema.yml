@@ -449,6 +449,8 @@ models:
       (K = 30 duels, K = 20 passes) : un petit volume reste proche de la moyenne. Stabilité d'une
       saison à l'autre : victoire au-dessus de l'attendu 0,73 ; tirs de la tête 0,66 ; précision,
       progression et xT de la passe de la tête 0,2 (bruit). Corrélation avec la taille : 0,47.
+      Colonnes nettes de la taille (dec_woe_net*) : victoire au-dessus d'un attendu qui tient compte
+      de l'écart de taille avec l'adversaire. Têtes séparées en coups de pied arrêtés et jeu ouvert.
     tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns: [str_player_id, str_season]
@@ -484,6 +486,41 @@ models:
           - dbt_utils.accepted_range:
               min_value: -0.6
               max_value: 0.6
+      - name: dec_woe_net
+        description: >
+          Victoire au-dessus de l'attendu NET DE LA TAILLE, tous rôles, rétrécie (K = 30). L'attendu
+          dépend du rôle, du groupe de ballon et de l'écart de taille avec l'adversaire (tranches de
+          4 cm). Taille manquante : tranche à part.
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: -0.6
+              max_value: 0.6
+      - name: dec_woe_net_off
+        description: "Victoire au-dessus de l'attendu net de la taille, rôle offensif, rétrécie (K = 30)."
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: -0.6
+              max_value: 0.6
+      - name: dec_woe_net_def
+        description: "Victoire au-dessus de l'attendu net de la taille, rôle défensif, rétrécie (K = 30)."
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: -0.6
+              max_value: 0.6
+      - name: dec_height_diff_mean
+        description: "Écart de taille moyen (cm) entre le joueur et ses adversaires de duel. Manquant si aucune taille n'est connue."
+      - name: dec_head_shots_setpiece_per_match
+        description: "Tirs de la tête sur corner ou coup franc (qualifiers 24 et 25) par match joué."
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 5
+      - name: dec_head_shots_open_per_match
+        description: "Tirs de la tête hors coup de pied arrêté par match joué."
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 5
       - name: dec_share_off
         description: "Part des duels disputés en rôle offensif (style : attaquant ou défenseur dans les airs)."
         tests: [is_valid_probability]
