@@ -75,7 +75,7 @@ Détours possibles ensuite : entraînement Big5 seul, rating de force type Elo, 
 - `config.yaml` mergé avec des réglages locaux (base prod, saison unique) ; CI : chemin `02_process.py` inexistant ; `dbt_project.yml` : temp_directory codé en dur ; `PIPELINE_ORDER.md` périmé.
 
 ## Prochaine action
-Axes aérien, duels au sol et composition par types : fermés côté 1N2 / secteur (NO-GO). Décision du PMO : nouvel axe. Pistes non testées : désignation de l'arbitre à l'avance et marchés cartons / fautes (stabilité arbitre 0,50) ; modèle de buts et de score ; modèles d'événements ; analyses graphiques des profils joueurs ; intégration en production du mélange buts + Elo Dixon-Coles (+0,0049, décision en attente) ; CI dbt laissé en échec par décision du PMO.
+Axes aérien, duels au sol et composition par types : fermés côté 1N2 / secteur (NO-GO). Types par traits (toutes positions mêlées) : produits (`trait_types.py`), sans interaction attaquant x défenseur ni duo mesurable (duels aériens, trois cibles de duos) ; la qualité individuelle reste additive. Décision du PMO : nouvel axe. Pistes non testées : désignation de l'arbitre à l'avance et marchés cartons / fautes (stabilité arbitre 0,50) ; modèle de buts et de score ; modèles d'événements ; analyses graphiques des profils joueurs ; intégration en production du mélange buts + Elo Dixon-Coles (+0,0049, décision en attente) ; CI dbt laissé en échec par décision du PMO.
 
 ## Budget consommé
 Appels d'outils par palier (environ) : 0 : 12 · 1 : 14 · 2 : 13 · 3 : 22 · 5 : 12 · 6 : 18 · 7 : 37 · 8 : 20 · 9 : ~35. Limite : 40 par palier · duels aériens : ~35 · itération 2 : ~30 · composition : ~25 · gain 1N2 et gardien : ~45.

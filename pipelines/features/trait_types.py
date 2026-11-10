@@ -11,12 +11,13 @@ Méthode :
     tête pour son poste », le poste étant connu à côté. Sans cela, les types retrouveraient le poste ;
   · un k-means par famille, sur tous les joueurs de champ ensemble (gardiens exclus), centres figés sur les fenêtres
     terminant de 2016-2017 à 2018-2019 (aucune information des saisons à prédire à partir de 2019-2020) ;
-  · k = 3 par famille : le nombre de types qui maximise la persistance (kappa) entre fenêtres sans recouvrement,
-    de 0,31 (duels au sol) à 0,37 (sacrifice, distribution), et qui baisse avec k. Les z-scores continus tiennent mieux
-    (0,3 à 0,65) : les types sont des étiquettes lisibles, pas des variables plus informatives.
+  · k = 3 par famille : la persistance (kappa entre fenêtres sans recouvrement s / s+3, 6 484 paires) est de 0,32 (duels au
+    sol) à 0,38 (création, distribution) à k = 3 et baisse avec k. Les types sont des étiquettes lisibles, pas des variables
+    plus informatives que les z-scores continus : sur les duels aériens, les types gardent 90 % du gain des z-scores
+    (+0,0296 contre +0,0329 de log-loss).
   · seuls les joueurs avec au moins 450 minutes sur la fenêtre (bool_is_peer) reçoivent des types.
 
-Contrôle : l'information mutuelle normalisée entre type et poste est de 0,001 à 0,012 (0 = type indépendant du poste).
+Contrôle : l'information mutuelle normalisée entre type et poste est de 0,001 à 0,003 (0 = type indépendant du poste).
 Le dernier homme (LastMan) est écarté : stabilité 0,08 en z-score, bruit.
 
 Sorties : player_trait_types (un type par famille, distance au centre) et player_trait_type_labels (description
