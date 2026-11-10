@@ -635,3 +635,128 @@ models:
           - dbt_utils.accepted_range:
               min_value: 0
               max_value: 6
+
+  - name: gold_player_ground_profile
+    description: >
+      Profil « duels au sol » d'un joueur (dribbles, tacles, dépossessions, fautes) sur une fenêtre
+      de 3 saisons glissantes (s-2, s-1, s), depuis intermediate_ground_duel_players. Grain
+      (str_player_id, str_season), str_season étant la DERNIÈRE saison de la fenêtre : un modèle
+      qui prédit la saison s doit lire s-1 (la fenêtre inclut s). Volumes et taux bruts, taux au-dessus
+      de l'attendu (même saison, famille, rôle, zone 5x5) rétrécis vers 0 (K = 30), ajustement par
+      l'adversaire pour les dribbles, danger à 10 s net du contexte, xT après duel gagné, fautes,
+      cartons et penaltys. Stabilité entre fenêtres sans recouvrement (s et s+3, mesurée le
+      10/11/2026) : dribbleur 0,58 (brut 0,60, ajusté par l'adversaire 0,55), défenseur face aux
+      dribbles 0,68, dépossessions 0,75, fautes commises 0,73 et subies 0,83, jaunes par faute 0,54 ;
+      tacle sur dépossession 0,14 et danger net 0,09 à 0,16 (bruit). La correction par zone
+      n'améliore pas la stabilité. Seuls les dribbles appariés à un défenseur comptent.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [str_player_id, str_season]
+    columns:
+      - name: str_player_id
+        tests: [not_null]
+      - name: str_season
+        description: "Dernière saison de la fenêtre de 3 saisons."
+        tests: [not_null]
+      - name: int_n_seasons_window
+        description: "Nombre de saisons de la fenêtre où le joueur a des duels au sol (1 à 3)."
+      - name: int_n_ground_duels
+        description: "Duels au sol du joueur sur la fenêtre, toutes familles."
+        tests: [not_null]
+      - name: int_n_dribbles
+        description: "Dribbles appariés tentés sur la fenêtre. Profil fiable à partir de 100."
+      - name: dec_dribble_win_rate
+        description: "Taux de dribbles réussis parmi les appariés, brut (biaisé à la hausse : les ratés sans défenseur identifié sont absents)."
+        tests: [is_valid_probability]
+      - name: dec_dribble_woe
+        description: "Réussite du dribbleur au-dessus de l'attendu de la zone, rétrécie (K = 30)."
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: -0.6
+              max_value: 0.6
+      - name: dec_dribble_woe_adj
+        description: "Idem, après décalage de l'attendu par la force du défenseur affronté (un tour, sans le duel lui-même)."
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: -0.6
+              max_value: 0.6
+      - name: dec_defended_woe
+        description: "Dribbles stoppés au-dessus de l'attendu de la zone, rétrécis (K = 30)."
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: -0.6
+              max_value: 0.6
+      - name: dec_defended_woe_adj
+        description: "Idem, après décalage par la force du dribbleur affronté."
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: -0.6
+              max_value: 0.6
+      - name: dec_dribble_danger_net
+        description: "Écart de tirs (propres moins adverses) dans les 10 s, net de la moyenne du contexte, rétréci (K = 30). Faible stabilité (0,16)."
+      - name: dec_dribble_xt_after_win
+        description: "xT du geste suivant (passe ou conduite) du dribbleur après un dribble réussi, rétréci (K = 30 gestes)."
+      - name: dec_dispossessed_share
+        description: "Part de dépossessions parmi les dribbles et dépossessions, rétrécie (K = 30)."
+        tests: [is_valid_probability]
+      - name: dec_foul_committed_share
+        description: "Fautes commises rapportées aux duels défensifs au sol et fautes, rétrécies (K = 40)."
+        tests: [is_valid_probability]
+      - name: dec_foul_drawn_share
+        description: "Fautes subies rapportées aux duels offensifs au sol et fautes, rétrécies (K = 40)."
+        tests: [is_valid_probability]
+      - name: dec_yellow_per_foul
+        description: "Part des fautes commises suivies d'un jaune dans les 120 s, rétrécie (K = 20)."
+        tests: [is_valid_probability]
+      - name: int_n_penalties_conceded
+        description: "Penaltys concédés (fautes de l'auteur menant à un penalty) sur la fenêtre."
+      - name: int_n_penalties_drawn
+        description: "Penaltys obtenus sur la fenêtre."
+
+  - name: gold_referee_profile
+    description: >
+      Profil d'un arbitre sur une fenêtre de 3 saisons glissantes (s-2, s-1, s). Grain
+      (str_referee_id, str_season), str_season étant la DERNIÈRE saison de la fenêtre : un modèle qui
+      prédit la saison s doit lire s-1. Jaunes, rouges, fautes et penaltys par match, bruts et nets
+      de la moyenne de la ligue et de la saison, rétrécis (K = 10 matchs) ; avantage du domicile en
+      buts et en jaunes. Stabilité entre fenêtres sans recouvrement (au moins 30 matchs, mesurée le
+      10/11/2026) : jaunes 0,50, fautes 0,50, écart de jaunes domicile moins extérieur 0,49 (peut
+      refléter les désignations selon l'affiche) ; rouges 0,10, penaltys 0,05, avantage du domicile
+      en buts -0,06 (bruit). L'arbitre d'un match est connu à l'avance, mais la source actuelle est
+      scrapée après le match.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [str_referee_id, str_season]
+    columns:
+      - name: str_referee_id
+        tests: [not_null]
+      - name: str_season
+        description: "Dernière saison de la fenêtre de 3 saisons."
+        tests: [not_null]
+      - name: int_n_matches
+        description: "Matchs dirigés sur la fenêtre. Profil fiable à partir de 30."
+        tests: [not_null]
+      - name: dec_yellow_per_match
+        description: "Jaunes par match, brut."
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 12
+      - name: dec_fouls_per_match
+        description: "Fautes par match, brutes (duels appariés)."
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 60
+      - name: dec_penalties_per_match
+        description: "Penaltys par match, bruts."
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 3
+      - name: dec_yellow_net
+        description: "Jaunes par match au-dessus de la moyenne de la ligue-saison, rétrécis (K = 10)."
+      - name: dec_fouls_net
+        description: "Fautes par match au-dessus de la moyenne de la ligue-saison, rétrécies (K = 10)."
+      - name: dec_home_goal_diff_net
+        description: "Écart de buts domicile moins extérieur net de la ligue-saison, rétréci (K = 10). Non stable d'une fenêtre à l'autre."
