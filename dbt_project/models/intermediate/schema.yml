@@ -5222,3 +5222,18 @@ models:
         tests: [not_null]
       - name: int_def_actions_own_box
         description: Actions défensives dans la surface de réparation propre.
+
+  - name: intermediate_player_match_finishing
+    description: >
+      Finition et coups de pied arrêtés tirés, UNE LIGNE PAR JOUEUR ET PAR MATCH (joueurs ayant tiré ou tiré un corner
+      ou un coup franc). Tirs de jeu (Goal, SavedShot, MissedShots, ShotOnPost ; penaltys et csc écartés) : cadrés,
+      buts, bloqués, de la tête, dans la surface (x >= 84, 20 <= y <= 80), grosses occasions, distance moyenne au
+      but ; penaltys tirés (qualifier Penalty, séances de tirs au but à vérifier) ; corners (CornerTaken), coups
+      francs joués (FreekickTaken) et tirs de coup franc direct. Seuils posés par hypothèse.
+    columns:
+      - name: str_match_id
+        tests: [not_null]
+      - name: str_team_id
+        tests: [not_null]
+      - name: str_player_id
+        tests: [not_null]

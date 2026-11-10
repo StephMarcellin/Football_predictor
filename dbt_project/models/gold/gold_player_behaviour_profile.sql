@@ -16,8 +16,9 @@
 -- ⚠️ FUITE : la fenêtre INCLUT la saison str_season. Pour prédire un match de la saison s,
 --    un modèle doit lire la ligne str_season = s-1 (convention « lag » des autres profils).
 --
--- Thèmes : occupation du terrain (9 secteurs : 3 profondeurs × 3 couloirs), finition,
--- création, distribution (passes de jeu ouvert), défense, aérien, duels au sol, fautes.
+-- Thèmes : occupation du terrain (9 secteurs : 3 profondeurs × 3 couloirs), finition (volume, cadrage, lieu,
+-- distance, coups de pied arrêtés tirés), création, distribution (passes de jeu ouvert), défense et sacrifice,
+-- erreurs, rôle dans le réseau de passes, aérien, duels au sol, fautes.
 --
 -- NORMALISATION (les définitions d'événements dérivent d'une saison à l'autre : interceptions
 -- 1,4 → 0,5 par joueur et par match entre 2009 et 2025). Chaque métrique existe en deux colonnes :
@@ -58,7 +59,13 @@
     ('yellow_cards', 'int_n_yellow_cards'),
     ('shots_blocked', 'int_shots_blocked'), ('passes_blocked', 'int_passes_blocked'),
     ('crosses_blocked', 'int_crosses_blocked'), ('last_man_actions', 'int_last_man_actions'),
-    ('def_actions', 'int_def_actions'), ('def_actions_own_box', 'int_def_actions_own_box')
+    ('def_actions', 'int_def_actions'), ('def_actions_own_box', 'int_def_actions_own_box'),
+    ('goals_open', 'int_goals_open'), ('shots_on_target', 'int_shots_on_target'),
+    ('shots_in_box', 'int_shots_in_box'), ('shots_outside_box', 'int_shots_outside_box'),
+    ('shots_big_chance', 'int_shots_big_chance'), ('corners_taken', 'int_corners_taken'),
+    ('freekicks_played', 'int_freekicks_played'), ('freekicks_direct_shots', 'int_freekicks_direct_shots'),
+    ('penalties_taken', 'int_penalties_taken'),
+    ('errors_lead_to_goal', 'int_n_errors_lead_to_goal'), ('errors_lead_to_shot', 'int_n_errors_lead_to_shot')
 ] %}
 {% set ratios = [
     ('pass_accuracy', 'int_passes_open_completed', 'int_passes_open', 100),
@@ -74,7 +81,16 @@
     ('xt_per_pass', 'dec_xt_created', 'int_passes_open', 100),
     ('tackle_win_rate', 'int_n_tackles_won', 'int_n_tackles', 30),
     ('aerial_win_rate', 'int_n_aerial_won', 'int_n_aerial_duels', 30),
-    ('def_own_box_share', 'int_def_actions_own_box', 'int_def_actions', 30)
+    ('def_own_box_share', 'int_def_actions_own_box', 'int_def_actions', 30),
+    ('shot_on_target_rate', 'int_shots_on_target', 'int_shots_open', 30),
+    ('goal_conversion', 'int_goals_open', 'int_shots_open', 60),
+    ('shot_outside_share', 'int_shots_outside_box', 'int_shots_open', 30),
+    ('shot_head_share', 'int_shots_head', 'int_shots_open', 30),
+    ('shot_big_chance_share', 'int_shots_big_chance', 'int_shots_open', 30),
+    ('shot_dist_mean', 'dec_shot_dist_sum', 'int_shots_open', 30),
+    ('net_pass_share', 'dec_net_pass_share', 'int_one_match', 10),
+    ('net_creative_rate', 'dec_net_creative_rate', 'int_one_match', 10),
+    ('net_betweenness', 'dec_net_betweenness', 'int_one_match', 10)
 ] %}
 {# métriques déjà rétrécies, issues des profils sol (g) et aérien (a) : (nom, source, colonne) #}
 {% set joined = [
@@ -138,6 +154,24 @@ pm AS (
         COALESCE(cm.int_last_man_actions, 0) AS int_last_man_actions,
         COALESCE(cm.int_def_actions, 0) AS int_def_actions,
         COALESCE(cm.int_def_actions_own_box, 0) AS int_def_actions_own_box,
+        COALESCE(e.int_n_errors_lead_to_goal, 0) AS int_n_errors_lead_to_goal,
+        COALESCE(e.int_n_errors_lead_to_shot, 0) AS int_n_errors_lead_to_shot,
+        COALESCE(f.int_shots_open, 0) AS int_shots_open,
+        COALESCE(f.int_shots_on_target, 0) AS int_shots_on_target,
+        COALESCE(f.int_goals_open, 0) AS int_goals_open,
+        COALESCE(f.int_shots_head, 0) AS int_shots_head,
+        COALESCE(f.int_shots_in_box, 0) AS int_shots_in_box,
+        COALESCE(f.int_shots_outside_box, 0) AS int_shots_outside_box,
+        COALESCE(f.int_shots_big_chance, 0) AS int_shots_big_chance,
+        COALESCE(f.dec_shot_dist_mean * f.int_shots_open, 0) AS dec_shot_dist_sum,
+        COALESCE(f.int_freekicks_direct_shots, 0) AS int_freekicks_direct_shots,
+        COALESCE(f.int_penalties_taken, 0) AS int_penalties_taken,
+        COALESCE(f.int_corners_taken, 0) AS int_corners_taken,
+        COALESCE(f.int_freekicks_played, 0) AS int_freekicks_played,
+        COALESCE(n.dec_pass_share, 0) AS dec_net_pass_share,
+        COALESCE(n.dec_creative_rate, 0) AS dec_net_creative_rate,
+        COALESCE(n.dec_betweenness_proxy, 0) AS dec_net_betweenness,
+        1 AS int_one_match,
         {% for dn, dl in zone_depths.items() %}{% for cn, cl in zone_corr.items() %}
         e.int_n_touches * ({% for z in dl %}{% for c in cl %}COALESCE(e.dec_pct_z{{ z }}_c{{ c }}, 0) + {% endfor %}{% endfor %} 0) AS dec_sec_{{ dn }}_{{ cn }},
         {% endfor %}{% endfor %}
@@ -147,6 +181,10 @@ pm AS (
       ON p.str_match_id = e.str_match_id AND p.str_team_id = e.str_team_id AND p.str_player_id = e.str_player_id
     LEFT JOIN {{ ref('intermediate_player_match_commitment') }} cm
       ON cm.str_match_id = e.str_match_id AND cm.str_team_id = e.str_team_id AND cm.str_player_id = e.str_player_id
+    LEFT JOIN {{ ref('intermediate_player_match_finishing') }} f
+      ON f.str_match_id = e.str_match_id AND f.str_team_id = e.str_team_id AND f.str_player_id = e.str_player_id
+    LEFT JOIN {{ ref('intermediate_pass_network_player_centrality') }} n
+      ON n.str_match_id = e.str_match_id AND n.str_team_id = e.str_team_id AND n.str_player_id = e.str_player_id
     LEFT JOIN {{ ref('intermediate_player_match_role') }} r
       ON r.str_match_id = e.str_match_id AND r.str_team_id = e.str_team_id AND r.str_player_id = e.str_player_id
     WHERE e.int_minutes_played > 0
