@@ -19,6 +19,8 @@ PASS_COLS = ["int_passes_open", "int_passes_open_completed", "int_passes_short",
              "int_passes_from_own_third", "int_passes_from_attacking_third", "int_passes_into_final_third"]
 G_COLS = ["dec_dribbles_per_90", "dec_dribble_woe_adj", "dec_dribble_win_rate", "dec_defended_woe_adj",
           "dec_dispossessed_share", "dec_fouls_committed_per_90", "dec_fouls_drawn_per_90", "dec_yellow_per_foul"]
+CM_COLS = ["int_def_actions", "int_def_actions_own_box", "int_shots_blocked", "int_passes_blocked",
+           "int_crosses_blocked", "int_last_man_actions"]
 A_COLS = ["dec_woe_net_off", "dec_woe_net_def", "dec_duels_per_match", "dec_head_shots_per_match"]
 
 
@@ -31,7 +33,7 @@ def _load(con, name, df):
 def _build(rows):
     """rows : (joueur, saison, match, tirs, passes de jeu ouvert). 90 minutes, rôle ST, même ligue."""
     con = duckdb.connect()
-    es, ps, ro = [], [], []
+    es, ps, ro, cm = [], [], [], []
     for player, season, match, shots, passes in rows:
         key = dict(str_match_id=match, str_team_id="1", str_player_id=player)
         e = dict(key, str_season=season, str_league_source="L1", int_minutes_played=90, dec_xg_contribution=0.0)
@@ -44,9 +46,11 @@ def _build(rows):
         p.update(int_passes_open=passes, int_passes_open_completed=passes, dec_pass_length_mean=15.0, dec_xt_created=0.0)
         ps.append(p)
         ro.append(dict(key, str_season=season, str_role_fin_resolved="ST"))
+        cm.append(dict(key, **{c: 0 for c in CM_COLS}))
     _load(con, "es", pd.DataFrame(es))
     _load(con, "ps", pd.DataFrame(ps))
     _load(con, "ro", pd.DataFrame(ro))
+    _load(con, "cm", pd.DataFrame(cm))
     players = sorted({r[0] for r in rows})
     seasons = sorted({r[1] for r in rows})
     gp = pd.DataFrame([dict(str_player_id=p, str_season=s, str_player_name=f"nom_{p}", **{c: None for c in G_COLS})
@@ -59,7 +63,7 @@ def _build(rows):
     _load(con, "gp", gp)
     _load(con, "ap", ap)
     refs = {"intermediate_player_match_event_stats": "es", "intermediate_player_match_passes": "ps",
-            "intermediate_player_match_role": "ro", "gold_player_ground_profile": "gp", "gold_player_aerial_profile": "ap"}
+            "intermediate_player_match_role": "ro", "intermediate_player_match_commitment": "cm", "gold_player_ground_profile": "gp", "gold_player_aerial_profile": "ap"}
     sql = jinja2.Environment().from_string(SQL_PATH.read_text(encoding="utf-8")).render(
         config=lambda **k: "", ref=lambda n: refs[n])
     return con.execute(sql).fetchdf()

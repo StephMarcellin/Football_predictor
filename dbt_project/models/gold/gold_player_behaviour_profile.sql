@@ -55,7 +55,10 @@
     ('interceptions', 'int_n_interceptions'), ('recoveries', 'int_n_ball_recoveries'),
     ('clearances', 'int_n_clearances'), ('challenges', 'int_n_challenges'),
     ('aerial_duels', 'int_n_aerial_duels'), ('touches', 'int_n_touches'),
-    ('yellow_cards', 'int_n_yellow_cards')
+    ('yellow_cards', 'int_n_yellow_cards'),
+    ('shots_blocked', 'int_shots_blocked'), ('passes_blocked', 'int_passes_blocked'),
+    ('crosses_blocked', 'int_crosses_blocked'), ('last_man_actions', 'int_last_man_actions'),
+    ('def_actions', 'int_def_actions'), ('def_actions_own_box', 'int_def_actions_own_box')
 ] %}
 {% set ratios = [
     ('pass_accuracy', 'int_passes_open_completed', 'int_passes_open', 100),
@@ -70,7 +73,8 @@
     ('pass_length_mean', 'dec_pass_length_sum', 'int_passes_open', 100),
     ('xt_per_pass', 'dec_xt_created', 'int_passes_open', 100),
     ('tackle_win_rate', 'int_n_tackles_won', 'int_n_tackles', 30),
-    ('aerial_win_rate', 'int_n_aerial_won', 'int_n_aerial_duels', 30)
+    ('aerial_win_rate', 'int_n_aerial_won', 'int_n_aerial_duels', 30),
+    ('def_own_box_share', 'int_def_actions_own_box', 'int_def_actions', 30)
 ] %}
 {# métriques déjà rétrécies, issues des profils sol (g) et aérien (a) : (nom, source, colonne) #}
 {% set joined = [
@@ -128,6 +132,12 @@ pm AS (
         COALESCE(p.int_passes_into_final_third, 0) AS int_passes_into_final_third,
         COALESCE(p.dec_pass_length_mean * p.int_passes_open, 0) AS dec_pass_length_sum,
         COALESCE(p.dec_xt_created, 0) AS dec_xt_created,
+        COALESCE(cm.int_shots_blocked, 0) AS int_shots_blocked,
+        COALESCE(cm.int_passes_blocked, 0) AS int_passes_blocked,
+        COALESCE(cm.int_crosses_blocked, 0) AS int_crosses_blocked,
+        COALESCE(cm.int_last_man_actions, 0) AS int_last_man_actions,
+        COALESCE(cm.int_def_actions, 0) AS int_def_actions,
+        COALESCE(cm.int_def_actions_own_box, 0) AS int_def_actions_own_box,
         {% for dn, dl in zone_depths.items() %}{% for cn, cl in zone_corr.items() %}
         e.int_n_touches * ({% for z in dl %}{% for c in cl %}COALESCE(e.dec_pct_z{{ z }}_c{{ c }}, 0) + {% endfor %}{% endfor %} 0) AS dec_sec_{{ dn }}_{{ cn }},
         {% endfor %}{% endfor %}
@@ -135,6 +145,8 @@ pm AS (
     FROM {{ ref('intermediate_player_match_event_stats') }} e
     LEFT JOIN {{ ref('intermediate_player_match_passes') }} p
       ON p.str_match_id = e.str_match_id AND p.str_team_id = e.str_team_id AND p.str_player_id = e.str_player_id
+    LEFT JOIN {{ ref('intermediate_player_match_commitment') }} cm
+      ON cm.str_match_id = e.str_match_id AND cm.str_team_id = e.str_team_id AND cm.str_player_id = e.str_player_id
     LEFT JOIN {{ ref('intermediate_player_match_role') }} r
       ON r.str_match_id = e.str_match_id AND r.str_team_id = e.str_team_id AND r.str_player_id = e.str_player_id
     WHERE e.int_minutes_played > 0

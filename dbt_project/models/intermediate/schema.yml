@@ -5204,3 +5204,21 @@ models:
         description: Passes de remise en jeu tentées (touche, corner, coup franc, six mètres, relance main).
       - name: dec_xt_created
         description: Somme du xT ajouté par les passes réussies du joueur (intermediate_xt_contributions).
+
+  - name: intermediate_player_match_commitment
+    description: >
+      Sacrifice défensif, UNE LIGNE PAR JOUEUR ET PAR MATCH (joueurs ayant au moins une action défensive).
+      Tirs bloqués par un joueur de champ (Save avec qualifier OutfielderBlock), passes bloquées
+      (BlockedPass), centres bloqués (Clearance avec BlockedCross), actions de dernier homme (qualifier
+      LastMan, environ 1 750 par saison : rare), actions défensives (Tackle, Interception, Clearance,
+      BlockedPass, tirs bloqués) dont celles dans la surface propre (x <= 17, 20 <= y <= 80 en repère
+      équipe). Seuils posés par hypothèse.
+    columns:
+      - name: str_match_id
+        tests: [not_null]
+      - name: str_team_id
+        tests: [not_null]
+      - name: str_player_id
+        tests: [not_null]
+      - name: int_def_actions_own_box
+        description: Actions défensives dans la surface de réparation propre.
