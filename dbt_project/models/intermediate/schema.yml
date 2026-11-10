@@ -5105,3 +5105,80 @@ models:
           - accepted_values:
               arguments:
                 values: ['passe_sans_score', 'a_venir']
+
+  - name: intermediate_ground_duel_players
+    description: >
+      Duels au sol, UNE LIGNE PAR DUEL ET PAR JOUEUR (2 lignes par duel), depuis 2013-2014.
+      Trois familles lues dans intermediate_duel_pairs : dribble (TakeOn contre Challenge si
+      réussi, contre Tackle si raté ; environ 74 % des dribbles ratés ont un défenseur apparié),
+      dispossession (Dispossessed contre Tackle, apparié à 100 %) et faute (victime contre auteur).
+      Pour chaque joueur : son rôle (attaquant / defenseur, ou victime / auteur), l'issue
+      (bool_is_won), la zone du duel dans le repère de l'attaquant (zone 5x5, profondeur, couloir),
+      les tirs et buts de chaque équipe dans les 10 s, et pour une faute le carton du fautif dans
+      les 120 s et le penalty. Construit depuis intermediate_duel_pairs,
+      intermediate_whoscored_events_enriched et intermediate_fouls_drawn. Seuils par hypothèse :
+      fenêtre de conclusion 10 s, fenêtre carton 120 s. Le danger xT se joint en aval avec
+      int_duel_last_row_num et int_next_event_row_num.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [str_match_id, str_team_id, int_event_id, int_opp_event_id]
+    columns:
+      - name: str_match_id
+        tests: [not_null]
+      - name: str_team_id
+        tests: [not_null]
+      - name: str_player_id
+        tests: [not_null]
+      - name: str_opp_player_id
+        description: "Joueur adverse du duel (pairage par le qualifier 233)."
+        tests: [not_null]
+      - name: int_event_id
+        description: "Id d'événement du joueur ; propre à l'équipe, à combiner avec str_team_id."
+        tests: [not_null]
+      - name: str_duel_family
+        description: "Famille du duel : dribble, dispossession ou faute."
+        tests:
+          - accepted_values:
+              values: ['dribble', 'dispossession', 'faute']
+      - name: str_role
+        description: "attaquant / defenseur pour dribble et dispossession ; victime / auteur pour la faute."
+        tests:
+          - accepted_values:
+              values: ['attaquant', 'defenseur', 'victime', 'auteur']
+      - name: bool_is_won
+        description: >
+          Issue favorable au joueur. Dribble : attaquant = dribble réussi, défenseur = dribble raté de
+          l'attaquant. Dispossession : attaquant = faux (a perdu le ballon), défenseur = son tacle
+          récupère le ballon. Faute : victime = vrai, auteur = faux.
+        tests: [not_null]
+      - name: bool_ball_recovered
+        description: "Défenseur sur un dribble raté (événement Tackle) : le tacle récupère le ballon. NULL sinon."
+      - name: dec_x
+        description: "Position du duel dans le repère propre du joueur (0-100). Le côté B est le miroir du côté A."
+      - name: str_zone_5x5
+        description: "Zone du duel dans le repère de l'attaquant ou de la victime, format zX_cY (c1-c2 gauche, c3 axe, c4-c5 droite), identique pour les deux lignes du duel."
+        tests: [not_null]
+      - name: str_zone_depth
+        description: "Tiers du terrain dans le repère de l'attaquant : tiers_def, milieu, tiers_off."
+        tests:
+          - accepted_values:
+              values: ['tiers_def', 'milieu', 'tiers_off']
+      - name: str_zone_corridor
+        description: "Couloir dans le repère de l'attaquant : gauche, axe, droit."
+        tests:
+          - accepted_values:
+              values: ['gauche', 'axe', 'droit']
+      - name: int_own_shots_10s
+        description: "Tirs de l'équipe du joueur dans les 10 s qui suivent le duel."
+      - name: int_opp_shots_10s
+        description: "Tirs de l'équipe adverse dans les 10 s qui suivent le duel."
+      - name: bool_yellow_card_120s
+        description: "Faute seulement : le fautif reçoit un jaune dans les 120 s (environ 14 % des fautes en 2023-2024). NULL hors faute."
+      - name: bool_red_card_120s
+        description: "Faute seulement : le fautif reçoit un rouge ou un second jaune dans les 120 s. NULL hors faute."
+      - name: bool_leads_to_penalty
+        description: "Faute seulement : la faute donne un penalty (intermediate_fouls_drawn). NULL hors faute."
+      - name: int_duel_last_row_num
+        description: "Numéro de ligne du dernier événement du duel, pour joindre intermediate_xt_actions."
+      - name: int_next_event_row_num
+        description: "Numéro de ligne de l'événement suivant le duel, pour joindre intermediate_xt_contributions."
