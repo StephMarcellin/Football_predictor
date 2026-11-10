@@ -760,3 +760,24 @@ models:
         description: "Fautes par match au-dessus de la moyenne de la ligue-saison, rétrécies (K = 10)."
       - name: dec_home_goal_diff_net
         description: "Écart de buts domicile moins extérieur net de la ligue-saison, rétréci (K = 10). Non stable d'une fenêtre à l'autre."
+
+  - name: gold_player_behaviour_profile
+    description: >
+      Profil de comportement unifié d'un joueur sur une fenêtre de 3 saisons glissantes (s-2, s-1, s),
+      grain (str_player_id, str_season) avec str_season = dernière saison de la fenêtre. Réunit
+      l'occupation du terrain (9 secteurs : 3 profondeurs x 3 couloirs), la finition, la création, la
+      distribution, la défense, l'aérien, les duels au sol et les fautes. Chaque métrique existe en
+      valeur rétrécie vers la moyenne des pairs (dec_<m>) et en z-score contre les pairs de la même
+      saison, de la même ligue et de la même famille de poste (dec_z_<m>) : les z-scores sont
+      comparables entre saisons, les valeurs brutes non (dérive des définitions d'événements).
+      Pairs = au moins 450 minutes sur la fenêtre. FUITE : la fenêtre inclut str_season, un modèle
+      qui prédit la saison s lit la ligne s-1.
+    columns:
+      - name: str_player_id
+        tests: [not_null]
+      - name: str_season
+        tests: [not_null]
+      - name: str_macro_role
+        description: Famille de poste modale sur la fenêtre (GK, CB, FB, MID, WIDE, ST).
+      - name: bool_is_peer
+        description: Au moins 450 minutes sur la fenêtre ; sert de population de référence pour les z-scores.
