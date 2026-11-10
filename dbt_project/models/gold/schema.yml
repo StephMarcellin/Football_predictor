@@ -600,3 +600,38 @@ models:
         description: "Taille moyenne des défenseurs moins celle des attaquants adverses (cm)."
       - name: dec_edge_def_skill
         description: "Compétence défensive nette des défenseurs moins compétence offensive nette des attaquants adverses."
+
+  - name: gold_keeper_aerial_profile
+    description: >
+      Jeu aérien du gardien sur une fenêtre de 3 saisons glissantes (s-2, s-1, s), grain (str_player_id,
+      str_season) avec str_season = DERNIÈRE saison de la fenêtre : pour prédire la saison s, lire s-1.
+      Captés, boxés et sorties hors surface par match (événements Claim, Punch, KeeperSweeper). Décrit un
+      STYLE (volume, capter ou boxer, sortir) et non un taux de réussite : le nombre de centres subis est
+      inconnu et dépend de l'équipe. Stabilité sur profils s et s+3 : 0,30 à 0,37. Complète
+      gold_keeper_season_lag (arrêts).
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [str_player_id, str_season]
+    columns:
+      - name: str_player_id
+        tests: [not_null]
+      - name: str_season
+        tests: [not_null]
+      - name: int_n_matches
+        description: "Matchs joués en tant que gardien sur la fenêtre."
+        tests: [not_null]
+      - name: dec_aerial_actions_per_match
+        description: "Ballons captés et boxés par match."
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 6
+      - name: dec_claim_share
+        description: "Part de ballons captés parmi captés + boxés, rétrécie vers la moyenne (K = 20 actions)."
+        tests: [is_valid_probability]
+      - name: dec_sweeper_per_match
+        description: "Sorties hors surface par match."
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 6
