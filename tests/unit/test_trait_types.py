@@ -42,10 +42,10 @@ def res():
 
 def test_les_trois_niveaux_sont_separes_et_ordonnes(res):
     types, _ = res
-    t = types.assign(level=types.str_player_id.str[1].astype(int))
-    pur = t.groupby("level").int_type_aerien.agg(lambda s: s.value_counts(normalize=True).iloc[0])
+    t = types.assign(niveau=types.str_player_id.str[1].astype(int))
+    pur = t.groupby("niveau").int_type_aerien.agg(lambda s: s.value_counts(normalize=True).iloc[0])
     assert (pur > 0.99).all()
-    assert t.groupby("level").int_type_aerien.mean().is_monotonic_increasing    # type 0 = le plus faible
+    assert t.groupby("niveau").int_type_aerien.mean().is_monotonic_increasing    # type 0 = le plus faible
 
 
 def test_le_type_est_independant_du_poste(res):
@@ -58,10 +58,21 @@ def test_les_gardiens_sont_exclus_et_les_colonnes_presentes(res):
     types, labels = res
     assert "gk" not in set(types.str_player_id)
     assert {f"int_type_{f}" for f in tt.FAMILIES} <= set(types.columns)
-    assert len(labels) == len(tt.FAMILIES) * tt.N_TYPES
+    assert len(labels) == len(tt.FAMILIES) * tt.N_TYPES + tt.N_GLOBAL
+    assert "int_type_global" in types.columns and types.int_type_global.nunique() <= tt.N_GLOBAL
     assert labels.str_description.str.startswith("haut :").all()
 
 
 def test_aucune_variable_de_position_dans_les_familles():
     feats = {f for v in tt.FAMILIES.values() for f in v}
     assert not any(f.startswith("sec_") or f.startswith("pass_from_") for f in feats)
+
+
+def test_type_global_separe_les_groupes_et_ignore_le_poste(res):
+    types, _ = res
+    t = types.assign(niveau=types.str_player_id.str[1].astype(int))
+    # trois niveaux de jeu de tête très marqués : chaque type global ne contient (presque) qu'un seul niveau
+    pur = t.groupby("int_type_global")["niveau"].agg(lambda x: x.value_counts(normalize=True).iloc[0])
+    assert (pur > 0.95).all()
+    ct = pd.crosstab(t.int_type_global, t.str_macro_role, normalize="columns")
+    assert (ct.loc[:, "CB"] - ct.loc[:, "ST"]).abs().max() < 0.06

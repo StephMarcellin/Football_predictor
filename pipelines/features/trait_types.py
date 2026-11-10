@@ -1,5 +1,7 @@
 """Types de joueurs par TRAITS de jeu (toutes positions mêlées) -> machine_learning.player_trait_types.
 
+Deux niveaux : un type par famille de capacités (8 familles) et un type GLOBAL sur toutes les capacités réunies.
+
 Idée du PMO : décrire COMMENT un joueur joue (jeu de tête, sacrifice défensif, duels au sol, création, distribution),
 pas où il joue. Un défenseur et un attaquant forts de la tête peuvent donc partager le même type ; le poste et les
 coordonnées restent une information séparée.
@@ -15,10 +17,13 @@ Méthode :
     sol) à 0,38 (création, distribution) à k = 3 et baisse avec k. Les types sont des étiquettes lisibles, pas des variables
     plus informatives que les z-scores continus : sur les duels aériens, les types gardent 90 % du gain des z-scores
     (+0,0296 contre +0,0329 de log-loss).
+  · type global : k-means à 8 types sur les 56 z-scores de toutes les familles (chaque famille pèse autant, z écrêtés à ±4) ;
+    kappa de persistance 0,32 (0,42 à 4 types, 0,25 à 16), information mutuelle avec le poste 0,03 ;
   · seuls les joueurs avec au moins 450 minutes sur la fenêtre (bool_is_peer) reçoivent des types.
 
 Contrôle : l'information mutuelle normalisée entre type et poste est de 0,001 à 0,003 (0 = type indépendant du poste).
-Le dernier homme (LastMan) est écarté : stabilité 0,08 en z-score, bruit.
+Écartés (stabilité s / s+3 des z-scores) : dernier homme 0,08 ; erreurs menant à un tir ou à un but 0,06 à 0,09 ;
+bruit. Finition : le style (distance, lieu, tête) est stable (0,5 à 0,7), la réussite (conversion 0,21, cadrage 0,22) non.
 
 Sorties : player_trait_types (un type par famille, distance au centre) et player_trait_type_labels (description
 automatique de chaque type par ses écarts les plus marqués : description de données, pas une étiquette validée).
@@ -36,6 +41,8 @@ SRC_DEFAULT = "gold.gold_player_behaviour_profile"
 OUT_SCHEMA, OUT_TYPES, OUT_LABELS = "machine_learning", "player_trait_types", "player_trait_type_labels"
 FIT_FIRST_YEAR, FIT_LAST_YEAR = 2016, 2018
 N_TYPES = 3
+N_GLOBAL = 8
+Z_CLIP = 4.0
 SEED = 0
 KEY = ["str_player_id", "str_season"]
 
@@ -50,6 +57,10 @@ FAMILIES = {
     "distribution": ["passes_open", "pass_accuracy", "pass_forward_share", "pass_long_share", "pass_short_share",
                      "pass_length_mean", "progressive_passes", "longballs", "xt_per_pass", "passes_into_final_third",
                      "touches"],
+    "finition": ["shots_in_box", "shots_outside_box", "shot_dist_mean", "shot_head_share", "shot_big_chance_share",
+                 "shots_on_target", "goal_conversion", "shot_on_target_rate"],
+    "coups_arretes": ["corners_taken", "freekicks_played", "freekicks_direct_shots", "penalties_taken"],
+    "reseau": ["net_pass_share", "net_creative_rate", "net_betweenness"],
 }
 
 
@@ -76,6 +87,25 @@ def fit_family(df, fam, cols, n_types=N_TYPES, seed=SEED):
     return t, dist.min(axis=1), labels
 
 
+def fit_global(df, n_types=N_GLOBAL, seed=SEED):
+    """Type global : toutes les variables des familles, chaque famille pesant autant (poids 1/racine du nombre de
+    variables), z écrêtés à +-Z_CLIP. Types numérotés par taille décroissante sur les lignes d'apprentissage."""
+    feats = [(f"dec_z_{n}", 1.0 / np.sqrt(len(ns))) for ns in FAMILIES.values() for n in ns]
+    cols, w = [c for c, _ in feats], np.array([x for _, x in feats])
+    X = df[cols].fillna(0.0).clip(-Z_CLIP, Z_CLIP).values * w
+    fit = df["bool_fit"].values
+    km = KMeans(n_types, n_init=10, random_state=seed).fit(X[fit])
+    raw = km.predict(X)
+    order = np.argsort(-np.bincount(raw[fit], minlength=n_types))
+    rank = np.empty(n_types, dtype=int)
+    rank[order] = np.arange(n_types)
+    centers = km.cluster_centers_ / w
+    dist = np.linalg.norm(X - km.cluster_centers_[raw], axis=1)
+    labels = pd.DataFrame({"str_family": "global", "int_type": rank,
+                           "str_description": [describe_center(centers[i], cols, n_hi=5, n_lo=3) for i in range(n_types)]})
+    return rank[raw], dist, labels
+
+
 def build(df):
     """df : gold_player_behaviour_profile. Retourne (types, labels)."""
     df = df[df["bool_is_peer"] & df["str_macro_role"].notna() & (df["str_macro_role"] != "GK")].copy()
@@ -87,6 +117,9 @@ def build(df):
         t, dist, lab = fit_family(df, fam, cols)
         out[f"int_type_{fam}"], out[f"dec_dist_{fam}"] = t, dist
         labels.append(lab)
+    t, dist, lab = fit_global(df)
+    out["int_type_global"], out["dec_dist_global"] = t, dist
+    labels.append(lab)
     return out.reset_index(drop=True), pd.concat(labels, ignore_index=True)
 
 
@@ -101,7 +134,7 @@ def main(source=SRC_DEFAULT, write=True):
     df = con.execute(f"SELECT * FROM {source}").df()
     con.close()
     types, labels = build(df)
-    logger.info(f"{len(types)} joueurs-saisons typés sur {len(FAMILIES)} familles")
+    logger.info(f"{len(types)} joueurs-saisons typés sur {len(FAMILIES)} familles et en type global")
     if not write:
         logger.info("dry-run : rien n'est écrit")
         return types, labels
