@@ -87,12 +87,18 @@ def fit_family(df, fam, cols, n_types=N_TYPES, seed=SEED):
     return t, dist.min(axis=1), labels
 
 
+def global_features(df):
+    """Matrice du type global : z-scores des 8 familles, écrêtés à +-Z_CLIP, chaque famille pesant autant (poids
+    1 / racine du nombre de variables). Sert au k-means et à la recherche de joueurs similaires (même espace)."""
+    feats = [(f"dec_z_{n}", 1.0 / np.sqrt(len(ns))) for ns in FAMILIES.values() for n in ns]
+    cols, w = [c for c, _ in feats], np.array([x for _, x in feats])
+    return df[cols].fillna(0.0).clip(-Z_CLIP, Z_CLIP).values * w, cols, w
+
+
 def fit_global(df, n_types=N_GLOBAL, seed=SEED):
     """Type global : toutes les variables des familles, chaque famille pesant autant (poids 1/racine du nombre de
     variables), z écrêtés à +-Z_CLIP. Types numérotés par taille décroissante sur les lignes d'apprentissage."""
-    feats = [(f"dec_z_{n}", 1.0 / np.sqrt(len(ns))) for ns in FAMILIES.values() for n in ns]
-    cols, w = [c for c, _ in feats], np.array([x for _, x in feats])
-    X = df[cols].fillna(0.0).clip(-Z_CLIP, Z_CLIP).values * w
+    X, cols, w = global_features(df)
     fit = df["bool_fit"].values
     km = KMeans(n_types, n_init=10, random_state=seed).fit(X[fit])
     raw = km.predict(X)
