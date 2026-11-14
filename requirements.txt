@@ -43,5 +43,10 @@ tqdm==4.67.3
 numpy==2.4.4
 scipy==1.17.1
 
+# ── Applications (explorateur de joueurs, Feature Health) ─────────────────
+# Versions minimales (testé avec streamlit 1.67 / plotly 7.1). Vérifier après installation : pip show streamlit plotly
+streamlit>=1.40
+plotly>=5.20
+
 # ── Cloud ─────────────────────────────────────────────────────────────────
 # google-cloud-storage  ← à ajouter pour le bloc GCS

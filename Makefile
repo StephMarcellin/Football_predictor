@@ -61,6 +61,7 @@ help:
 	@echo  Outils
 	@echo    make agent             Agent Gemini interactif
 	@echo    make mlflow-ui         Interface MLflow (localhost:5000)
+	@echo    make players           Explorateur de joueurs Streamlit (localhost:8501)
 	@echo    make dbt-docs          Docs dbt (localhost:8080)
 	@echo    make install           Installe les dependances pip
 	@echo    make check-env         Verifie que .env existe
@@ -149,6 +150,9 @@ agent: check-env
 mlflow-ui:
 	mlflow ui --backend-store-uri mlruns
 
+players:
+	$(PYTHON) -m streamlit run app\player_explorer.py
+
 dbt-docs:
 	cd dbt_project && dbt docs generate && dbt docs serve --port 8080
 
@@ -178,6 +182,6 @@ check-env:
         serve-daily serve-weekly serve-yearly \
         scrapping ingest ingest-events features features-daily features-yearly ml \
         fbref understat \
-        agent mlflow-ui dbt-docs install \
+        agent mlflow-ui players dbt-docs install \
         docker-build docker-up docker-down \
         check-env
