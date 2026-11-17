@@ -78,20 +78,48 @@ def translate_description(text: str) -> str:
     return text.replace("haut :", "valeurs les plus hautes :").replace("bas :", "valeurs les plus basses :")
 
 
+def describe_type_fr(text: str, seuil: float = 0.25) -> str:
+    """Description d'un type en français : variables au-dessus / en dessous de la moyenne des joueurs du même poste.
+    Les listes « haut / bas » de la base contiennent aussi des valeurs négatives ou nulles : on les reclasse par signe."""
+    items = {n: float(v) for n, v in re.findall(r"([A-Za-z_0-9]+) ([+-]\d+(?:\.\d+)?)", text)}
+    pos = sorted(((n, v) for n, v in items.items() if v >= seuil), key=lambda x: -x[1])
+    neg = sorted(((n, v) for n, v in items.items() if v <= -seuil), key=lambda x: x[1])
+    fmt = lambda xs: ", ".join(f"{FEATURES_FR.get(n, n)} {v:+.1f}" for n, v in xs)
+    parts = ([f"au-dessus de la moyenne du poste : {fmt(pos)}"] if pos else []) + ([f"en dessous : {fmt(neg)}"] if neg else [])
+    return " | ".join(parts) if parts else "proche de la moyenne du poste sur les variables listées"
+
+
 # ── Catalogue ─────────────────────────────────────────────────────────────────────────────────
 def load_catalog(con) -> pd.DataFrame:
-    """Une ligne par (saison, championnat, club, joueur) : minutes et matchs joués."""
+    """Une ligne par (saison, championnat, club, joueur) : minutes et matchs joués.
+
+    Le nom du club vient du référentiel (team_mapping, référentiel des équipes, nom WhoScored) rapproché des noms
+    Transfermarkt : un club sans nom présent dans transfermarkt_clubs est EXCLU (jamais de nom de repli inventé).
+    Le nom Transfermarkt de la saison et du championnat est préféré ; à défaut, un nom du club connu de Transfermarkt."""
     return con.execute("""
-        SELECT e.str_season AS season, e.str_league_source AS league, e.str_team_id AS team_id,
-               COALESCE(MAX(t.str_team_name), 'Club ' || e.str_team_id) AS team,
-               e.str_player_id AS player_id,
-               COALESCE(MAX(t.str_player_name), 'Joueur ' || e.str_player_id) AS player,
-               SUM(e.int_minutes_played) AS minutes, COUNT(*) AS matches
-        FROM intermediate.intermediate_player_match_event_stats e
-        LEFT JOIN intermediate.intermediate_whoscored_player_team_season t
-          ON t.str_player_id = e.str_player_id AND t.str_season = e.str_season AND t.str_team_id = e.str_team_id
-        WHERE e.int_minutes_played > 0
-        GROUP BY e.str_season, e.str_league_source, e.str_team_id, e.str_player_id
+        WITH cand AS (
+            SELECT CAST(team_id AS VARCHAR) AS tid, club_name AS n FROM referentiel.team_mapping
+            UNION SELECT str_team_id, str_club_name FROM referentiel.referentiel_teams
+            UNION SELECT DISTINCT str_team_id, str_team_name FROM intermediate.intermediate_whoscored_player_team_season),
+        tm AS (SELECT DISTINCT club_name, league, season FROM referentiel.transfermarkt_clubs),
+        exact AS (SELECT c.tid, tm.league, tm.season, MIN(tm.club_name) AS n
+                  FROM cand c JOIN tm ON tm.club_name = c.n GROUP BY c.tid, tm.league, tm.season),
+        anyn AS (SELECT c.tid, MIN(c.n) AS n FROM cand c WHERE c.n IN (SELECT club_name FROM tm) GROUP BY c.tid),
+        base AS (
+            SELECT e.str_season AS season, e.str_league_source AS league, e.str_team_id AS team_id,
+                   e.str_player_id AS player_id,
+                   COALESCE(MAX(t.str_player_name), 'Joueur ' || e.str_player_id) AS player,
+                   SUM(e.int_minutes_played) AS minutes, COUNT(*) AS matches
+            FROM intermediate.intermediate_player_match_event_stats e
+            LEFT JOIN intermediate.intermediate_whoscored_player_team_season t
+              ON t.str_player_id = e.str_player_id AND t.str_season = e.str_season AND t.str_team_id = e.str_team_id
+            WHERE e.int_minutes_played > 0
+            GROUP BY e.str_season, e.str_league_source, e.str_team_id, e.str_player_id)
+        SELECT b.season, b.league, b.team_id, COALESCE(x.n, a.n) AS team, b.player_id, b.player, b.minutes, b.matches
+        FROM base b
+        LEFT JOIN exact x ON x.tid = b.team_id AND x.league = b.league AND x.season = b.season
+        LEFT JOIN anyn a ON a.tid = b.team_id
+        WHERE COALESCE(x.n, a.n) IS NOT NULL
     """).df()
 
 
@@ -212,21 +240,34 @@ def load_profiles(con) -> pd.DataFrame:
 
 def load_type_labels(con) -> pd.DataFrame:
     d = con.execute("SELECT str_family, int_type, str_description FROM machine_learning.player_trait_type_labels").df()
-    d["description_fr"] = d["str_description"].map(translate_description)
+    d["description_fr"] = d["str_description"].map(describe_type_fr)
+    d["name"] = [tt.type_name(f, t, desc) for f, t, desc in zip(d.str_family, d.int_type, d.str_description)]
     return d
 
 
-def player_types(row: pd.Series, labels: pd.DataFrame) -> pd.DataFrame:
-    """Types du joueur dans chaque famille et en global, avec la description française du type."""
+def type_fit(profiles: pd.DataFrame, row: pd.Series, fam: str) -> str:
+    """Ressemblance du joueur à son type : rang de sa distance au centre parmi les joueurs du même type et de la même saison."""
+    d = profiles[(profiles.str_season == row["str_season"]) & (profiles[f"int_type_{fam}"] == row[f"int_type_{fam}"])
+                 & (profiles.str_macro_role != "GK")][f"dec_dist_{fam}"].dropna()
+    own = row.get(f"dec_dist_{fam}")
+    if len(d) < 20 or own is None or pd.isna(own):
+        return "n.c."
+    pct = float((d <= own).mean())
+    return "forte" if pct <= 0.5 else ("moyenne" if pct <= 0.9 else "faible (profil atypique)")
+
+
+def player_types(row: pd.Series, labels: pd.DataFrame, profiles: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Types du joueur dans chaque famille et en global : nom, ressemblance au type (si les profils sont fournis), description."""
     out = []
     for fam in list(tt.FAMILIES) + ["global"]:
         t = row.get(f"int_type_{fam}")
         if t is None or pd.isna(t):
             continue
         lab = labels[(labels.str_family == fam) & (labels.int_type == int(t))]
-        out.append({"Famille": FAMILIES_FR[fam], "Type": int(t),
+        out.append({"Famille": FAMILIES_FR[fam], "Type": lab["name"].iloc[0] if len(lab) else tt.type_name(fam, t),
+                    "Ressemblance": type_fit(profiles, row, fam) if profiles is not None else "n.c.",
                     "Description": lab.description_fr.iloc[0] if len(lab) else ""})
-    return pd.DataFrame(out, columns=["Famille", "Type", "Description"])
+    return pd.DataFrame(out, columns=["Famille", "Type", "Ressemblance", "Description"])
 
 
 def family_scores(row: pd.Series) -> pd.DataFrame:

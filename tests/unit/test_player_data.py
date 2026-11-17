@@ -29,12 +29,22 @@ def con():
         ev.append(e)
     e0 = dict(ev[0], str_match_id="m9", str_player_id="2", str_team_id="T2", int_minutes_played=0)   # 0 minute : ignoré
     ev.append(e0)
+    ev.append(dict(ev[0], str_match_id="m8", str_player_id="10", str_team_id="T1"))     # joueur absent de player_team_season, club connu
+    ev.append(dict(ev[0], str_match_id="m7", str_player_id="11", str_team_id="T9"))     # club absent de Transfermarkt : exclu
     c.register("df", pd.DataFrame(ev)); c.execute("CREATE TABLE intermediate.intermediate_player_match_event_stats AS SELECT * FROM df")
     c.register("df", pd.DataFrame([dict(str_match_id=f"m{m}", str_team_id="T1", str_player_id="1", int_passes_open=40,
                                         int_passes_open_completed=30, dec_xt_created=0.4) for m in range(2)]))
     c.execute("CREATE TABLE intermediate.intermediate_player_match_passes AS SELECT * FROM df")
     c.register("df", pd.DataFrame([dict(str_match_id="m0", str_team_id="T1", str_player_id="1", int_shots_on_target=2)]))
     c.execute("CREATE TABLE intermediate.intermediate_player_match_finishing AS SELECT * FROM df")
+    # référentiels : T1 reconnu par Transfermarkt (sous un nom légèrement différent du nom WhoScored) ; T9 absent de Transfermarkt
+    c.execute("CREATE SCHEMA referentiel")
+    c.register("df", pd.DataFrame([dict(team_id="T1", club_name="Club Un FC"), dict(team_id="T9", club_name="Inconnu FC")]))
+    c.execute("CREATE TABLE referentiel.team_mapping AS SELECT * FROM df")
+    c.register("df", pd.DataFrame([dict(str_team_id="T1", str_club_name="Club Un FC")]))
+    c.execute("CREATE TABLE referentiel.referentiel_teams AS SELECT * FROM df")
+    c.register("df", pd.DataFrame([dict(club_name="Club Un FC", league="L1", season=SEASON, club_tm_id=1)]))
+    c.execute("CREATE TABLE referentiel.transfermarkt_clubs AS SELECT * FROM df")
     c.register("df", pd.DataFrame([dict(str_player_id="1", str_season=SEASON, str_team_id="T1", str_team_name="Club Un",
                                         str_player_name="Joueur Un", str_macro_position="ATT", int_height=180, int_weight=75,
                                         int_n_matchs=2, int_n_starts=2)]))
@@ -91,8 +101,16 @@ def cat(con):
 
 
 def test_catalogue_ignore_les_matchs_sans_minute(con):
-    c = pdta.load_catalog(con)
-    assert len(c) == 1 and c.iloc[0].player == "Joueur Un" and c.iloc[0].minutes == 180 and c.iloc[0].matches == 2
+    c = pdta.load_catalog(con).set_index("player_id")
+    assert c.loc["1"].player == "Joueur Un" and c.loc["1"].minutes == 180 and c.loc["1"].matches == 2
+    assert "2" not in c.index                                   # 0 minute
+
+
+def test_catalogue_clubs_transfermarkt_uniquement_et_sans_nom_de_repli(con):
+    c = pdta.load_catalog(con).set_index("player_id")
+    assert set(c.index) == {"1", "10"}                          # le joueur 11 (club hors Transfermarkt) est exclu
+    assert set(c.team) == {"Club Un FC"}                        # nom Transfermarkt, jamais « Club <identifiant> »
+    assert c.loc["10"].player == "Joueur 10"                    # le joueur sans fiche garde un repli, pas son club
 
 
 def test_infos_age_taille_poste(con):
@@ -138,8 +156,34 @@ def test_types_et_traduction(con):
     row = prof[prof.str_player_id == "1"].iloc[0]
     t = pdta.player_types(row, lab)
     assert len(t) == len(pdta.tt.FAMILIES) + 1 and "Duels aériens gagnés (%)" in t.Description.iloc[0]
-    assert "aerial_win_rate" not in t.Description.iloc[0] and "valeurs les plus hautes" in t.Description.iloc[0]
+    assert "aerial_win_rate" not in t.Description.iloc[0] and "au-dessus de la moyenne du poste" in t.Description.iloc[0]
+    assert t.Type.iloc[0] == "Gagnant aérien sélectif"          # nom (aerien, 1), ancre aerial_win_rate présente
     assert len(pdta.family_scores(row)) == sum(len(v) for v in pdta.tt.FAMILIES.values())
+
+
+def test_noms_de_types_complets_et_garde_fou():
+    n = len(pdta.tt.FAMILIES) * pdta.tt.N_TYPES + pdta.tt.N_GLOBAL
+    assert len(pdta.tt.TYPE_NAMES) == n
+    assert all((f, k) in pdta.tt.TYPE_NAMES for f in pdta.tt.FAMILIES for k in range(pdta.tt.N_TYPES))
+    assert all(("global", k) in pdta.tt.TYPE_NAMES for k in range(pdta.tt.N_GLOBAL))
+    assert all(a in pdta.FEATURES_FR for _, a in pdta.tt.TYPE_NAMES.values())          # ancres = variables connues
+    assert pdta.tt.type_name("aerien", 2, "haut : a_head_shots_per_match +1.8") == "Dominant aérien"
+    assert pdta.tt.type_name("aerien", 2, "haut : tackles +1.0").endswith("(à revalider)")   # numéros décalés : alerte
+    assert pdta.tt.type_name("aerien", 9) == "Type 9"
+
+
+def test_ressemblance_au_type():
+    prof = pd.DataFrame({"str_season": "S", "str_macro_role": "ST", "int_type_global": 1, "dec_dist_global": np.arange(100) / 10})
+    assert pdta.type_fit(prof, prof.iloc[10], "global") == "forte"
+    assert pdta.type_fit(prof, prof.iloc[70], "global") == "moyenne"
+    assert pdta.type_fit(prof, prof.iloc[97], "global").startswith("faible")
+    assert pdta.type_fit(prof.head(5), prof.iloc[0], "global") == "n.c."          # échantillon trop petit
+
+
+def test_description_par_signe():
+    d = pdta.describe_type_fr("haut : tackles -0.3, challenges +0.1 | bas : aerial_win_rate -0.8")
+    assert d.startswith("en dessous : Duels aériens gagnés (%) -0.8, Tacles -0.3")
+    assert pdta.describe_type_fr("haut : tackles +0.1").startswith("proche de la moyenne")
 
 
 def test_traduction_ne_touche_pas_les_mots_composes():

@@ -178,11 +178,12 @@ with tab_card:
             st.plotly_chart(zbar(top, "Points forts et points faibles (8 plus hauts, 8 plus bas)"), **STRETCH)
         with right:
             st.plotly_chart(occupation(row), **STRETCH)
-            st.dataframe(pdta.player_types(row, lab)[["Famille", "Type"]], hide_index=True, **STRETCH)
+            st.dataframe(pdta.player_types(row, lab, prof)[["Famille", "Type", "Ressemblance"]], hide_index=True, **STRETCH)
         with st.expander("Description des types de ce joueur"):
-            st.dataframe(pdta.player_types(row, lab), hide_index=True, **STRETCH)
-            st.caption("Le numéro d'un type n'a pas de sens en soi. La description donne ses variables les plus hautes et les plus basses "
-                       "(écarts en écarts-types).")
+            st.dataframe(pdta.player_types(row, lab, prof), hide_index=True, **STRETCH)
+            st.caption("Le nom résume le type ; la description donne ses variables au-dessus et en dessous de la moyenne des joueurs du même "
+                       "poste (écarts en écarts-types). « Ressemblance » : proximité du joueur au centre de son type, comparée aux autres "
+                       "joueurs du type ; « faible » = profil atypique, le nom du type décrit mal ce joueur.")
         for fam, ns in pdta.tt.FAMILIES.items():
             with st.expander(f"{pdta.FAMILIES_FR[fam]} : détail"):
                 d = fs[fs.name.isin(ns)]
@@ -198,6 +199,8 @@ with tab_card:
                                        "int_type_global": "Type global", "points_communs": "Points communs",
                                        "plus_grands_ecarts": "Plus grands écarts"}).drop(columns="str_player_id")
             show["Poste"] = show["Poste"].map(pdta.ROLES_FR)
+            gl = lab[lab.str_family == "global"]
+            show["Type global"] = show["Type global"].map(dict(zip(gl.int_type, gl["name"])))
             cfg = {"Joueur": st.column_config.TextColumn(width="medium"), "Club": st.column_config.TextColumn(width="medium"),
                    "Points communs": st.column_config.TextColumn(width="large"),
                    "Plus grands écarts": st.column_config.TextColumn(width="large")}
@@ -214,7 +217,7 @@ with tab_types:
     lb = lab[lab.str_family == fam].sort_values("int_type")
     mix = pdta.type_role_mix(prof, season, fam)
     for t in lb.int_type:
-        with st.expander(f"Type {t} : {pdta.FAMILIES_FR[fam]}", expanded=False):
+        with st.expander(f"{lb[lb.int_type == t]['name'].iloc[0]} ({pdta.FAMILIES_FR[fam]})", expanded=False):
             st.write(lb[lb.int_type == t].description_fr.iloc[0])
             if t in mix.index:
                 m = mix.loc[t].rename(index=pdta.ROLES_FR).sort_values(ascending=False)
