@@ -22,18 +22,12 @@ import app.player_data as pdta
 
 tt = pdta.tt
 
-# Axes du radar : (libellé, variables). Toutes les variables sont orientées « plus = davantage de cette aptitude ».
-AXES = {
-    "tir": ("Tir", ["shots", "shots_on_target", "shots_in_box", "xg_contribution"]),
-    "creation": ("Création", ["key_passes", "chances_created", "xt_created", "throughballs"]),
-    "circulation": ("Circulation", ["passes_open", "touches", "progressive_passes", "passes_into_final_third"]),
-    "centralite": ("Centralité", ["net_pass_share", "net_betweenness"]),
-    "recuperation": ("Récupération", ["tackles", "interceptions", "recoveries", "clearances"]),
-    "aerien": ("Jeu aérien", ["aerial_duels", "aerial_win_rate", "a_head_shots_per_match"]),
-    "duels": ("Dribbles et duels", ["g_dribbles_per_90", "challenges"]),
-    "coups_arretes": ("Coups de pied arrêtés", ["corners_taken", "freekicks_played", "penalties_taken"]),
-}
-MIN_RELIABILITY = 0.4          # sous ce seuil, la variable n'entre pas dans les points forts / faibles de la fiche
+# Axes du radar : (libellé, variables), définis dans trait_types (ce sont aussi les axes du type global v2).
+AXES = tt.AXES
+# Sous ce seuil, la variable n'entre pas dans les points forts / faibles de la fiche ni dans les types v2.
+# ⚠️ Seuil abaissé de 0,4 à 0,35 après coup (17/11/2026) : à 0,4 trop de variables utiles tombaient ; choix posé APRÈS avoir vu les
+# fiabilités, donc à ne pas présenter comme un seuil fixé a priori.
+MIN_RELIABILITY = tt.MIN_RELIABILITY
 GROUP_THRESHOLD = 0.75         # corrélation absolue au-delà de laquelle deux variables sont « la même information »
 MIN_PEERS = 20
 
@@ -147,6 +141,7 @@ def type_quality(profiles: pd.DataFrame, sample: int = 5000, seed: int = 0, lag:
     distance au centre le plus proche (distances divisées par la racine du nombre de variables). Rétention : part des joueurs du
     type qui sont dans le même type trois saisons plus tard, comparée à la part du type (élévation)."""
     d0 = profiles[profiles.str_macro_role != "GK"].reset_index(drop=True)
+    version = pdta.types_version(profiles)
     seasons = sorted(d0.str_season.unique())
     rng = np.random.default_rng(seed)
     rows = []
@@ -154,11 +149,10 @@ def type_quality(profiles: pd.DataFrame, sample: int = 5000, seed: int = 0, lag:
         d = d0[d0[f"int_type_{fam}"].notna()].reset_index(drop=True)
         if d.empty:
             continue
-        if fam == "global":
-            X = np.asarray(tt.global_features(d)[0])
-        else:
-            X = d[[f"dec_z_{n}" for n in tt.FAMILIES[fam]]].fillna(0.0).clip(-tt.Z_CLIP, tt.Z_CLIP).values
+        X, _ = tt.cluster_matrix(d, fam, version)  # espace réel de clustering : v2 = variables stables, 8 aptitudes pour le global
         t = d[f"int_type_{fam}"].astype(int).values
+        marge = d[f"dec_margin_{fam}"].values if version == "v2" else np.full(len(d), np.nan)
+        coeur = marge < tt.CORE_RATIO
         types = np.unique(t)
         cen = {k: X[t == k].mean(axis=0) for k in types}
         idx = rng.choice(len(d), min(sample, len(d)), replace=False)
@@ -175,6 +169,8 @@ def type_quality(profiles: pd.DataFrame, sample: int = 5000, seed: int = 0, lag:
             sep = min((np.linalg.norm(cen[k] - cen[j]) for j in types if j != k), default=np.nan)
             rows.append({"family": fam, "type": int(k), "n": int((t == k).sum()), "part": part,
                          "silhouette": float(sil[t[idx] == k].mean()) if (t[idx] == k).any() else np.nan,
+                         "part_coeur": float(coeur[t == k].mean()) if version == "v2" else np.nan,
+                         "silhouette_coeur": float(sil[(t[idx] == k) & coeur[idx]].mean()) if ((t[idx] == k) & coeur[idx]).any() else np.nan,
                          "cohesion": float(np.linalg.norm(X[t == k] - cen[k], axis=1).mean() / root),
                          "separation": float(sep / root), "retention": ret, "elevation": ret / part if part > 0 else np.nan})
     q = pd.DataFrame(rows)

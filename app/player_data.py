@@ -67,6 +67,9 @@ SIDES = [("right", "Gauche"), ("centre", "Centre"), ("left", "Droite")]
 MIN_PEER_MINUTES = 450
 
 
+FEATURES_FR.update({f"apt_{k}": lab for k, (lab, _) in tt.AXES.items()})  # aptitudes (espace du type global v2)
+
+
 def feature_label(name: str) -> str:
     return FEATURES_FR.get(name, name)
 
@@ -233,7 +236,10 @@ def load_profiles(con) -> pd.DataFrame:
     """Profil de comportement (fenêtre de 3 saisons terminant en `str_season`) + types, une ligne par joueur et saison."""
     z = ", ".join(f"p.{c}" for c in _z_cols() + _raw_cols())
     sec = ", ".join(f"p.dec_sec_{d}_{s}" for d, _ in SECTORS for s, _ in SIDES)
-    ty = ", ".join(f"t.int_type_{f}, t.dec_dist_{f}" for f in list(tt.FAMILIES) + ["global"])
+    have = {r[0] for r in con.execute("DESCRIBE machine_learning.player_trait_types").fetchall()}
+    # dec_margin_* n'existe que dans les tables v2 : une table v1 reste lisible
+    ty = ", ".join(f"t.int_type_{f}, t.dec_dist_{f}" + (f", t.dec_margin_{f}" if f"dec_margin_{f}" in have else "")
+                   for f in list(tt.FAMILIES) + ["global"])
     return con.execute(f"""
         SELECT p.str_player_id, p.str_season, p.str_macro_role, p.str_league_source, p.int_minutes, p.int_n_matches,
                p.bool_is_peer, {z}, {sec}, {ty}
@@ -241,6 +247,11 @@ def load_profiles(con) -> pd.DataFrame:
         LEFT JOIN machine_learning.player_trait_types t
           ON t.str_player_id = p.str_player_id AND t.str_season = p.str_season
     """).df()
+
+
+def types_version(profiles: pd.DataFrame) -> str:
+    """« v2 » si la table de types contient les rapports de marge, « v1 » sinon (à recalculer avec trait_types.py)."""
+    return "v2" if "dec_margin_global" in profiles.columns else "v1"
 
 
 def load_type_labels(con) -> pd.DataFrame:
