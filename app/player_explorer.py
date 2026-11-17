@@ -23,6 +23,7 @@ import yaml
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))
+import app.cluster_view as cv  # noqa: E402
 import app.player_data as pdta  # noqa: E402
 import app.player_insights as ins  # noqa: E402
 
@@ -171,7 +172,7 @@ per_league = st.sidebar.slider("Joueurs similaires par championnat", 1, 3, 1)
 if season >= "2026-2027":
     st.sidebar.warning("Saison en cours : peu de matchs, profils incomplets.")
 
-tab_card, tab_types = st.tabs(["Fiche joueur", "Types et contrôle"])
+tab_card, tab_clusters, tab_types = st.tabs(["Fiche joueur", "Clusters", "Types et contrôle"])
 
 # ── Fiche joueur ──────────────────────────────────────────────────────────────────────────────
 with tab_card:
@@ -270,6 +271,127 @@ with tab_card:
                        "au-dessus / en dessous des joueurs de leur poste. Même saison, joueurs de champ avec au moins 450 minutes. "
                        "Le « type global » est flou (voir l'onglet « Types et contrôle ») : à lire comme un repère.")
 
+# ── Clusters ──────────────────────────────────────────────────────────────────────────────────
+with tab_clusters:
+    st.subheader("Les clusters sont-ils distincts ou mélangés ?")
+    version = pdta.types_version(prof)
+    if version == "v1":
+        st.warning("La table de types est ancienne (v1) : relancer `python pipelines/features/trait_types.py` pour la version v2 "
+                   "(variables stables, type global sur 8 aptitudes, indicateur « au cœur »).")
+    st.caption(f"Saison choisie dans la barre latérale : **{season}**. Chaque point est un joueur (joueurs de champ, au moins 450 minutes). "
+               "Chaque ellipse contient 80 % des joueurs de son cluster (tous les joueurs du cluster, pas seulement ceux dont le point est affiché).")
+    c1, c2, c3, c4, c5 = st.columns([1.5, 1, 1.4, 1, 1.3])
+    fam_c = c1.selectbox("Caractéristique à visualiser", list(pdta.FAMILIES_FR), index=list(pdta.FAMILIES_FR).index("global"),
+                         format_func=lambda f: pdta.FAMILIES_FR[f], key="cl_fam")
+    n_per = int(c2.number_input("Joueurs par cluster", min_value=1, max_value=300, value=cv.DEFAULT_PER_CLUSTER, step=1, key="cl_n",
+                                help=f"Le clic sur un point n'est actif que jusqu'à {cv.CLICK_MAX} joueurs par cluster."))
+    mode = c3.selectbox("Joueurs affichés", list(cv.MODES), format_func=cv.MODES.get, key="cl_mode",
+                        help="« Au hasard » montre le mélange réel ; « les plus typiques » montre le cœur de chaque cluster (flatteur).")
+    role_c = c4.selectbox("Poste", ["Tous", "CB", "FB", "MID", "WIDE", "ST"],
+                          format_func=lambda r: r if r == "Tous" else pdta.ROLES_FR.get(r, r), key="cl_role")
+    league_c = c5.selectbox("Championnat", ["Tous"] + sorted(prof[prof.str_season == season].str_league_source.dropna().unique()), key="cl_league")
+    pts = cv.season_points(prof, season, fam_c, None if role_c == "Tous" else role_c, None if league_c == "Tous" else league_c)
+    if pts is None:
+        st.info("Pas assez de joueurs typés pour cette combinaison saison / poste / championnat.")
+    else:
+        D, names = pts["df"], cv.names_for_season(cat, season)
+        lb_c = lab[lab.str_family == fam_c].set_index("int_type")
+        tnames = {int(t): lb_c.loc[t, "name"] for t in lb_c.index}
+        present = sorted(D.type.unique())
+        chosen = st.multiselect("Clusters affichés", present, default=present, format_func=lambda t: tnames.get(t, f"Type {t}"), key=f"cl_types_{fam_c}")
+        if not chosen:
+            st.info("Choisir au moins un cluster.")
+        else:
+            shown = cv.pick_players(D, n_per, mode, allowed_ids=names.player_id, types=chosen)
+            can_click = cv.clickable(n_per)
+            ss = st.session_state
+            ss.setdefault("cl_cmp", False); ss.setdefault("cl_picks", []); ss.setdefault("cl_bump", 0); ss.setdefault("cl_last", ())
+            b1, b2, b3 = st.columns([1.2, 1, 3])
+            if b1.button("Quitter la comparaison" if ss["cl_cmp"] else "Comparer deux joueurs", key="cl_cmp_btn", type="primary" if ss["cl_cmp"] else "secondary"):
+                ss["cl_cmp"] = not ss["cl_cmp"]; ss["cl_picks"] = []; ss["cl_last"] = (); ss["cl_bump"] += 1; st.rerun()
+            if ss["cl_cmp"] and b2.button("Réinitialiser", key="cl_reset"):
+                ss["cl_picks"] = []; ss["cl_last"] = (); ss["cl_bump"] += 1; st.rerun()
+            if not can_click:
+                b3.info(f"Clic désactivé : {n_per} joueurs par cluster (maximum {cv.CLICK_MAX} pour cliquer). Réduire le nombre pour pouvoir cliquer.")
+            elif ss["cl_cmp"]:
+                b3.info("Mode comparaison : cliquer sur deux joueurs (A puis B). Un troisième clic remplace le plus ancien.")
+            else:
+                b3.caption("Cliquer sur un point pour voir le joueur et son club.")
+            fig, trace_ids = cv.build_figure(D[D.type.isin(chosen)], shown, tnames, names, picks=ss["cl_picks"] if ss["cl_cmp"] else (), n_per=n_per)
+            sig = f"{season}|{fam_c}|{role_c}|{league_c}|{n_per}|{mode}|{','.join(map(str, chosen))}|{ss['cl_bump']}"
+            cfg = {"displayModeBar": False, "scrollZoom": False}
+            clicked = []
+            if can_click:
+                ev = st.plotly_chart(fig, key=f"cl_map_{sig}", on_select="rerun", selection_mode="points", config=cfg, **STRETCH)
+                clicked = cv.clicked_players(((ev or {}).get("selection") or {}).get("points", []), trace_ids)
+            else:
+                st.plotly_chart(fig, key=f"cl_map_static_{sig}", config=cfg, **STRETCH)
+            st.caption(f"Carte en 2 dimensions : elle restitue {100 * pts['var2d']:.0f} % de l'information de l'espace réel des types. "
+                       f"{100 * cv.overlap_share(D[D.type.isin(chosen)]):.0f} % des joueurs sont, sur la carte, plus près du centre d'un autre cluster "
+                       "que du leur. Une projection déforme les distances : deux clusters qui se recouvrent ici peuvent être séparés dans l'espace réel ; "
+                       "la netteté du tableau ci-dessous est la mesure de référence.")
+            sel = tuple(clicked)
+            if sel != ss["cl_last"]:
+                ss["cl_last"] = sel
+                if ss["cl_cmp"] and sel:
+                    ss["cl_picks"] = cv.update_picks(ss["cl_picks"], list(sel))
+                    st.rerun()
+            nm_idx = names.set_index("player_id")
+
+            def who(i):
+                r = nm_idx.loc[i] if i in nm_idx.index else None
+                return (r.player, r.team, r.championnat) if r is not None else (f"Joueur {i}", "club inconnu", "")
+
+            if not ss["cl_cmp"]:
+                if clicked:
+                    i = clicked[0]; nm_, club_, lg_ = who(i)
+                    row = cv.profile_row(prof, i, season)
+                    st.markdown(f"### {nm_}")
+                    st.markdown(f"**Club : {club_}**" + (f" · {lg_}" if lg_ else ""))
+                    if row is not None:
+                        st.caption(f"{pdta.ROLES_FR.get(row.str_macro_role, row.str_macro_role)} · {int(row.int_minutes)} minutes · cluster : "
+                                   f"{tnames.get(int(row[f'int_type_{fam_c}']), '?')}"
+                                   + ("" if pd.isna(row.get(f'dec_margin_{fam_c}')) else
+                                      (" (au cœur du cluster)" if row[f'dec_margin_{fam_c}'] < pdta.tt.CORE_RATIO else " (profil entre deux clusters)")))
+            else:
+                a_, b_ = (ss["cl_picks"] + [None, None])[:2]
+                st.markdown("#### Comparaison")
+                if a_ is None or b_ is None:
+                    st.caption("Joueur A : " + (who(a_)[0] if a_ else "à cliquer") + " · Joueur B : " + (who(b_)[0] if b_ else "à cliquer"))
+                else:
+                    ra, rb = cv.profile_row(prof, a_, season), cv.profile_row(prof, b_, season)
+                    (na, ca, la), (nb, cb, lb_) = who(a_), who(b_)
+                    h1, h2 = st.columns(2)
+                    for col, (nn, cc, ll, rr, tag) in zip((h1, h2), ((na, ca, la, ra, "A"), (nb, cb, lb_, rb, "B"))):
+                        col.markdown(f"**{tag} ({"bleu" if tag == "A" else "orange"}) · {nn}**  \n{cc} · {ll}  \n{pdta.ROLES_FR.get(rr.str_macro_role, rr.str_macro_role)} · {int(rr.int_minutes)} minutes")
+                    rel, grp = reliability(S)
+                    ax = cv.compare_axes(prof, ra, rb, rel)
+                    g1, g2 = st.columns([1, 1.5])
+                    g1.plotly_chart(cv.compare_radar(ax, na, nb), **STRETCH)
+                    ta, tb = pdta.player_types(ra, lab, prof), pdta.player_types(rb, lab, prof)
+                    tt_ = ta[["Famille", "Type", "Ressemblance"]].merge(tb[["Famille", "Type", "Ressemblance"]], on="Famille", how="outer", suffixes=(" A", " B"))
+                    g2.dataframe(tt_, hide_index=True, **STRETCH)
+                    cmpv = cv.compare_variables(prof, ra, rb, rel, grp)
+                    fiable = cmpv[cmpv.fiabilite >= ins.MIN_RELIABILITY].sort_values("ecart", ascending=False)
+                    fmt = lambda d: d.assign(**{"Variable": d.Variable, "A (valeur)": d.valeur_a.round(2), "A (percentile)": d.percentile_a.round(0),
+                                                "B (valeur)": d.valeur_b.round(2), "B (percentile)": d.percentile_b.round(0),
+                                                "Écart de percentile": d.ecart.round(0)})[["Famille", "Variable", "A (valeur)", "A (percentile)", "B (valeur)", "B (percentile)", "Écart de percentile"]]
+                    st.markdown("**Les 12 plus gros écarts entre A et B (variables fiables)**")
+                    st.dataframe(fmt(fiable.head(12)), hide_index=True, **STRETCH)
+                    with st.expander("Toutes les variables"):
+                        st.dataframe(fmt(cmpv.sort_values("ecart", ascending=False)), hide_index=True, **STRETCH)
+                    st.caption("Les percentiles de chaque joueur sont calculés face aux joueurs de SON poste, de sa ligue et de la même saison : "
+                               "deux joueurs de postes différents se comparent donc chacun à leurs pairs, pas l'un à l'autre.")
+
+            st.markdown("#### Caractéristiques des clusters affichés")
+            Qc = quality(S)
+            st.table(cv.cluster_table(D, lab, Qc, fam_c, chosen).set_index("Cluster"))
+            M = cv.centre_matrix(D, pts["cols"], pts["X"], chosen)
+            st.plotly_chart(cv.centre_figure(M, tnames), **STRETCH)
+            st.caption("z moyen des joueurs de chaque cluster sur les variables qui ont servi à former les types (0 = moyenne des joueurs du même poste ; "
+                       "rouge = au-dessus, bleu = en dessous). « Au cœur du type » : part des joueurs nettement plus proches du centre de leur cluster "
+                       "que du deuxième ; les autres sont des profils intermédiaires.")
+
 # ── Types et contrôle ─────────────────────────────────────────────────────────────────────────
 with tab_types:
     st.subheader("Que contiennent les types ?")
@@ -283,15 +405,19 @@ with tab_types:
                "Un type flou recouvre les autres : son nom décrit le centre du groupe, pas une famille de joueurs bien séparée. "
                "Rétention : part des joueurs du type qui sont dans le même type trois saisons plus tard (élévation = rapport à la part du type, "
                "1 = hasard).")
-    if fam == "global":
-        st.warning("Les 8 types globaux sont tous flous : ce sont des découpes d'un continuum de profils. À lire comme des repères, pas "
-                   "comme des familles de joueurs ; préférer le radar d'aptitudes et les types par famille.")
+    if pdta.types_version(prof) == "v1":
+        st.warning("Table de types ancienne (v1) : relancer `python pipelines/features/trait_types.py` pour obtenir la version v2.")
+    elif fam == "global":
+        st.warning("Le type global reste un découpage d'un continuum de profils : à lire comme un repère. Il est plus net que dans la version "
+                   "précédente (silhouette moyenne 0,16 contre 0,05 mesurée sur la version précédente), surtout pour les joueurs « au cœur » du type.")
     ov = qf.reset_index().merge(lb[["int_type", "name"]], left_on="type", right_on="int_type")
     ov = ov.assign(**{"Type": ov["name"], "Part des joueurs": (100 * ov.part).round(0).astype(int).astype(str) + " %",
                       "Netteté": ov.nettete, "Silhouette": ov.silhouette.round(2), "Cohésion": ov.cohesion.round(2),
+                      "Au cœur": ov.part_coeur.map(lambda v: "n.c." if pd.isna(v) else f"{100 * v:.0f} %"),
+                      "Silhouette (au cœur)": ov.silhouette_coeur.round(2),
                       "Séparation": ov.separation.round(2), "Rétention": (100 * ov.retention).round(0).astype(str) + " %",
                       "Élévation": ov.elevation.round(1)})
-    st.dataframe(ov[["Type", "Part des joueurs", "Netteté", "Silhouette", "Cohésion", "Séparation", "Rétention", "Élévation"]],
+    st.dataframe(ov[["Type", "Part des joueurs", "Netteté", "Silhouette", "Au cœur", "Silhouette (au cœur)", "Cohésion", "Séparation", "Rétention", "Élévation"]],
                  hide_index=True, **STRETCH)
     for t in lb.int_type:
         with st.expander(f"{lb[lb.int_type == t]['name'].iloc[0]} ({pdta.FAMILIES_FR[fam]}) · netteté {ins.sharpness(Q, fam, t)}",
