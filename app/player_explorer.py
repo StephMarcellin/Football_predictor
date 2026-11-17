@@ -24,6 +24,7 @@ import yaml
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 import app.player_data as pdta  # noqa: E402
+import app.player_insights as ins  # noqa: E402
 
 st.set_page_config(page_title="3-Étoiles · Joueurs", page_icon="⚽", layout="wide")
 
@@ -79,18 +80,51 @@ def stats(_stamp, pid, season, team):
     return run(pdta.season_stats, pid, season, team)
 
 
+@st.cache_data(show_spinner="Calcul de la fiabilité des variables…")
+def reliability(_stamp):
+    return ins.feature_reliability(profiles(_stamp)), ins.feature_groups(profiles(_stamp))
+
+
+@st.cache_data(show_spinner="Calcul de la netteté des types (une fois, environ une minute)…")
+def quality(_stamp):
+    return ins.type_quality(profiles(_stamp))
+
+
 @st.cache_data(show_spinner="Calcul de la cohérence…")
 def coherence(_stamp, season):
     return pdta.neighbour_coherence(profiles(_stamp), season)
 
 
-def zbar(df: pd.DataFrame, title: str, height: int = None):
-    d = df.sort_values("z")
-    fig = go.Figure(go.Bar(x=d.z.clip(-3.5, 3.5), y=d.Variable, orientation="h",
-                           marker_color=[POS if v >= 0 else NEG for v in d.z], customdata=d.z.round(2),
-                           hovertemplate="%{y}<br>écart aux pairs : %{customdata}<extra></extra>"))
-    fig.update_layout(title=title, height=height or 60 + 26 * len(d), margin=dict(l=10, r=10, t=50, b=30),
-                      xaxis=dict(range=[-3.6, 3.6], title="écart aux joueurs du même poste (en écarts-types)"))
+def reliability_label(v) -> str:
+    return "n.c." if v is None or pd.isna(v) else ("bonne" if v >= 0.55 else ("moyenne" if v >= ins.MIN_RELIABILITY else "faible (instable)"))
+
+
+def pbar(df: pd.DataFrame, title: str, height: int = None):
+    """Barres de percentile (0 à 100, centre = médiane des pairs). Les variables peu fiables sont estompées."""
+    d = df.dropna(subset=["percentile"]).sort_values("percentile")
+    fig = go.Figure(go.Bar(
+        x=d.percentile - 50, y=d.Variable, orientation="h", text=[f"{v:.0f}" for v in d.percentile], textposition="outside", cliponaxis=False,
+        marker_color=[POS if v >= 50 else NEG for v in d.percentile],
+        marker_opacity=[1.0 if (f >= ins.MIN_RELIABILITY) else 0.3 for f in d.fiabilite.fillna(0)],
+        customdata=list(zip(d.percentile.round(0), d.valeur.round(2), d.mediane.round(2), d.fiabilite.round(2))),
+        hovertemplate="%{y}<br>percentile : %{customdata[0]}<br>valeur : %{customdata[1]} (médiane des pairs %{customdata[2]})"
+                      "<br>fiabilité : %{customdata[3]}<extra></extra>"))
+    fig.update_layout(title=title, height=height or 70 + 28 * len(d), margin=dict(l=10, r=10, t=50, b=30),
+                      xaxis=dict(range=[-58, 58], tickvals=[-50, -25, 0, 25, 50], ticktext=["0", "25", "50", "75", "100"],
+                                 title="percentile (barre estompée = variable peu fiable)"))
+    return fig
+
+
+def radar(ax: pd.DataFrame):
+    d = ax.dropna(subset=["percentile"])
+    th = list(d.Aptitude) + [d.Aptitude.iloc[0]]
+    fig = go.Figure()
+    fig.add_trace(go.Scatterpolar(r=[50] * len(th), theta=th, mode="lines", line=dict(color=GREY, dash="dot", width=1),
+                                  hoverinfo="skip", name="médiane des pairs"))
+    fig.add_trace(go.Scatterpolar(r=list(d.percentile) + [d.percentile.iloc[0]], theta=th, fill="toself", name="joueur",
+                                  line=dict(color=POS), hovertemplate="%{theta}<br>percentile %{r:.0f}<extra></extra>"))
+    fig.update_layout(title="Aptitudes (percentile parmi les joueurs du même poste)", height=380, showlegend=False,
+                      margin=dict(l=40, r=40, t=50, b=20), polar=dict(radialaxis=dict(range=[0, 100], tickvals=[25, 50, 75])))
     return fig
 
 
@@ -171,23 +205,48 @@ with tab_card:
                    f"({int(row.int_minutes)} minutes). Écarts calculés contre les joueurs du même poste, de la même ligue et de la même saison.")
         if not row.bool_is_peer:
             st.warning("Moins de 450 minutes sur la fenêtre : profil indicatif, pas de type attribué.")
+        REL, GRP = reliability(S)
+        Q = quality(S)
+        tb = ins.variable_table(prof, row, REL, GRP)
+        forts, faibles = ins.headline(tb)
+        axes = ins.axis_table(prof, row, REL)
+        types = pdta.player_types(row, lab, prof)
+        types["Netteté du type"] = [ins.sharpness(Q, f, t) for f, t in zip(types.famille_cle, types.type_id)]
+        role_label = pdta.ROLES_FIN_FR.get(inf["role_fin"], pdta.ROLES_FR.get(row.str_macro_role))
+        st.info(ins.summary_sentence(row, role_label, forts, faibles, types, Q, lab))
+        st.caption(f"Pairs : {len(ins.peers_of(prof, row))} joueurs du même poste, de la même saison et de la ligue de référence du "
+                   f"profil, {row.str_league_source} (la ligue où le joueur a le plus joué sur les 3 saisons de la fenêtre, "
+                   "parfois différente de celle du club actuel), avec 450 minutes ou plus. Seules les variables fiables (corrélation d'une fenêtre à la suivante "
+                   f">= {ins.MIN_RELIABILITY:.1f}) entrent dans la synthèse et dans les points forts et faibles.")
         left, right = st.columns([3, 2])
         with left:
-            fs = pdta.family_scores(row).dropna(subset=["z"])
-            top = pd.concat([fs.nlargest(8, "z"), fs.nsmallest(8, "z")]).drop_duplicates("name")
-            st.plotly_chart(zbar(top, "Points forts et points faibles (8 plus hauts, 8 plus bas)"), **STRETCH)
+            st.plotly_chart(radar(axes), **STRETCH)
+            if len(forts) or len(faibles):
+                pts = pd.concat([forts, faibles])
+                st.plotly_chart(pbar(pts, "Points forts et points faibles (variables fiables, une par groupe de variables proches)"),
+                                **STRETCH)
         with right:
             st.plotly_chart(occupation(row), **STRETCH)
-            st.dataframe(pdta.player_types(row, lab, prof)[["Famille", "Type", "Ressemblance"]], hide_index=True, **STRETCH)
+        st.markdown("**Types du joueur**")
+        st.dataframe(types[["Famille", "Type", "Netteté du type", "Ressemblance"]], hide_index=True, **STRETCH)
         with st.expander("Description des types de ce joueur"):
-            st.dataframe(pdta.player_types(row, lab, prof), hide_index=True, **STRETCH)
+            st.dataframe(types[["Famille", "Type", "Netteté du type", "Ressemblance", "Description"]], hide_index=True, **STRETCH)
             st.caption("Le nom résume le type ; la description donne ses variables au-dessus et en dessous de la moyenne des joueurs du même "
                        "poste (écarts en écarts-types). « Ressemblance » : proximité du joueur au centre de son type, comparée aux autres "
-                       "joueurs du type ; « faible » = profil atypique, le nom du type décrit mal ce joueur.")
+                       "joueurs du type ; « faible » = profil atypique, le nom du type décrit mal ce joueur. « Netteté du type » : un type "
+                       "flou recouvre les autres types, son nom décrit un centre et non un groupe distinct (voir l'onglet « Types et contrôle »).")
+        with st.expander("Toutes les variables (valeur, médiane des pairs, percentile, fiabilité)"):
+            full = tb.assign(Fiabilité=tb.fiabilite.map(reliability_label), Valeur=tb.valeur.round(2),
+                             **{"Médiane des pairs": tb.mediane.round(2), "Percentile": tb.percentile.round(0), "z": tb.z.round(2),
+                                "Corrélation s / s+3": tb.fiabilite.round(2)})
+            st.dataframe(full[["Famille", "Variable", "Valeur", "Médiane des pairs", "Percentile", "z", "Fiabilité", "Corrélation s / s+3"]],
+                         hide_index=True, **STRETCH)
+            st.caption("Valeur : par 90 minutes, taux ou part, rétrécie vers la moyenne des pairs quand les minutes sont faibles. "
+                       "Les valeurs brutes ne se comparent pas d'une saison à l'autre (les définitions d'événements dérivent) : "
+                       "le percentile, oui.")
         for fam, ns in pdta.tt.FAMILIES.items():
             with st.expander(f"{pdta.FAMILIES_FR[fam]} : détail"):
-                d = fs[fs.name.isin(ns)]
-                st.plotly_chart(zbar(d, pdta.FAMILIES_FR[fam]), **STRETCH)
+                st.plotly_chart(pbar(tb[tb.name.isin(ns)], pdta.FAMILIES_FR[fam]), **STRETCH)
 
         st.subheader("Joueurs similaires")
         sim = pdta.similar_players(prof, cat, pid, season, same_role, per_league)
@@ -204,10 +263,12 @@ with tab_card:
             cfg = {"Joueur": st.column_config.TextColumn(width="medium"), "Club": st.column_config.TextColumn(width="medium"),
                    "Points communs": st.column_config.TextColumn(width="large"),
                    "Plus grands écarts": st.column_config.TextColumn(width="large")}
+            cfg["Type global"] = st.column_config.TextColumn(width="large")
             st.dataframe(show.round({"Distance": 2, "Plus proche que (% des candidats)": 1}), hide_index=True,
                          column_config=cfg, **STRETCH)
             st.caption("Distance dans l'espace des 56 variables des 8 familles (chaque famille pèse autant). ▲ / ▼ : les deux joueurs sont "
-                       "au-dessus / en dessous des joueurs de leur poste. Même saison, joueurs de champ avec au moins 450 minutes.")
+                       "au-dessus / en dessous des joueurs de leur poste. Même saison, joueurs de champ avec au moins 450 minutes. "
+                       "Le « type global » est flou (voir l'onglet « Types et contrôle ») : à lire comme un repère.")
 
 # ── Types et contrôle ─────────────────────────────────────────────────────────────────────────
 with tab_types:
@@ -216,8 +277,25 @@ with tab_types:
     fam = st.selectbox("Famille", fams, format_func=lambda f: pdta.FAMILIES_FR[f])
     lb = lab[lab.str_family == fam].sort_values("int_type")
     mix = pdta.type_role_mix(prof, season, fam)
+    Q = quality(S)
+    qf = Q[Q.family == fam].set_index("type")
+    st.caption("Netteté d'un type (silhouette, de -1 à 1) : « nette » à partir de 0,25, « moyenne » à partir de 0,12, sinon « floue ». "
+               "Un type flou recouvre les autres : son nom décrit le centre du groupe, pas une famille de joueurs bien séparée. "
+               "Rétention : part des joueurs du type qui sont dans le même type trois saisons plus tard (élévation = rapport à la part du type, "
+               "1 = hasard).")
+    if fam == "global":
+        st.warning("Les 8 types globaux sont tous flous : ce sont des découpes d'un continuum de profils. À lire comme des repères, pas "
+                   "comme des familles de joueurs ; préférer le radar d'aptitudes et les types par famille.")
+    ov = qf.reset_index().merge(lb[["int_type", "name"]], left_on="type", right_on="int_type")
+    ov = ov.assign(**{"Type": ov["name"], "Part des joueurs": (100 * ov.part).round(0).astype(int).astype(str) + " %",
+                      "Netteté": ov.nettete, "Silhouette": ov.silhouette.round(2), "Cohésion": ov.cohesion.round(2),
+                      "Séparation": ov.separation.round(2), "Rétention": (100 * ov.retention).round(0).astype(str) + " %",
+                      "Élévation": ov.elevation.round(1)})
+    st.dataframe(ov[["Type", "Part des joueurs", "Netteté", "Silhouette", "Cohésion", "Séparation", "Rétention", "Élévation"]],
+                 hide_index=True, **STRETCH)
     for t in lb.int_type:
-        with st.expander(f"{lb[lb.int_type == t]['name'].iloc[0]} ({pdta.FAMILIES_FR[fam]})", expanded=False):
+        with st.expander(f"{lb[lb.int_type == t]['name'].iloc[0]} ({pdta.FAMILIES_FR[fam]}) · netteté {ins.sharpness(Q, fam, t)}",
+                         expanded=False):
             st.write(lb[lb.int_type == t].description_fr.iloc[0])
             if t in mix.index:
                 m = mix.loc[t].rename(index=pdta.ROLES_FR).sort_values(ascending=False)

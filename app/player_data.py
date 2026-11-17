@@ -224,9 +224,14 @@ def _z_cols() -> list[str]:
     return [f"dec_z_{n}" for ns in tt.FAMILIES.values() for n in ns]
 
 
+def _raw_cols() -> list[str]:
+    """Valeurs brutes (par 90 minutes, taux ou parts, rétrécies vers la moyenne des pairs) : une colonne dec_<variable>."""
+    return [f"dec_{n}" for ns in tt.FAMILIES.values() for n in ns]
+
+
 def load_profiles(con) -> pd.DataFrame:
     """Profil de comportement (fenêtre de 3 saisons terminant en `str_season`) + types, une ligne par joueur et saison."""
-    z = ", ".join(f"p.{c}" for c in _z_cols())
+    z = ", ".join(f"p.{c}" for c in _z_cols() + _raw_cols())
     sec = ", ".join(f"p.dec_sec_{d}_{s}" for d, _ in SECTORS for s, _ in SIDES)
     ty = ", ".join(f"t.int_type_{f}, t.dec_dist_{f}" for f in list(tt.FAMILIES) + ["global"])
     return con.execute(f"""
@@ -264,10 +269,11 @@ def player_types(row: pd.Series, labels: pd.DataFrame, profiles: pd.DataFrame | 
         if t is None or pd.isna(t):
             continue
         lab = labels[(labels.str_family == fam) & (labels.int_type == int(t))]
-        out.append({"Famille": FAMILIES_FR[fam], "Type": lab["name"].iloc[0] if len(lab) else tt.type_name(fam, t),
+        out.append({"famille_cle": fam, "type_id": int(t),
+                    "Famille": FAMILIES_FR[fam], "Type": lab["name"].iloc[0] if len(lab) else tt.type_name(fam, t),
                     "Ressemblance": type_fit(profiles, row, fam) if profiles is not None else "n.c.",
                     "Description": lab.description_fr.iloc[0] if len(lab) else ""})
-    return pd.DataFrame(out, columns=["Famille", "Type", "Ressemblance", "Description"])
+    return pd.DataFrame(out, columns=["famille_cle", "type_id", "Famille", "Type", "Ressemblance", "Description"])
 
 
 def family_scores(row: pd.Series) -> pd.DataFrame:

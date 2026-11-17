@@ -71,6 +71,7 @@ def con():
         r = dict(str_player_id=pid, str_season=SEASON, str_macro_role="ST", str_league_source=league[pid], int_minutes=2000,
                  int_n_matches=30, bool_is_peer=True)
         r.update({f"dec_z_{n}": v + rng.normal(0, 0.01) for n in names})
+        r.update({f"dec_{n}": 2.0 + v for n in names})
         r.update({f"dec_sec_{d}_{s}": 1 / 9 for d, _ in pdta.SECTORS for s, _ in pdta.SIDES})
         for f in list(pdta.tt.FAMILIES) + ["global"]:
             r[f"int_type_{f}"], r[f"dec_dist_{f}"] = (1 if pid != "4" else 0), 0.5
