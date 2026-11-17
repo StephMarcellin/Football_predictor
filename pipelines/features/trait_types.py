@@ -64,6 +64,56 @@ FAMILIES = {
 }
 
 
+# Noms lisibles des types : (famille, numéro) -> (nom, variable-ancre). L'ancre est une variable qui DOIT figurer dans la description
+# du type ; si les numéros changent après un nouvel entraînement, l'ancre ne correspond plus et l'application signale « à revalider ».
+# Noms établis le 17/11/2026 d'après les centres figés (profils en z) et les joueurs les plus proches du centre.
+TYPE_NAMES = {
+    ("aerien", 0): ("Faible dans les airs", "aerial_win_rate"),
+    ("aerien", 1): ("Gagnant aérien sélectif", "aerial_win_rate"),
+    ("aerien", 2): ("Dominant aérien", "a_head_shots_per_match"),
+    ("sacrifice", 0): ("Peu d'actions devant son but", "def_actions_own_box"),
+    ("sacrifice", 1): ("Récupérateur (tacles, interceptions)", "tackles"),
+    ("sacrifice", 2): ("Défenseur de sa surface", "def_actions_own_box"),
+    ("duel_sol", 0): ("Évite les duels au sol", "g_dribbles_per_90"),
+    ("duel_sol", 1): ("Combatif en duel défensif", "challenges"),
+    ("duel_sol", 2): ("Dribbleur provocateur", "g_dribbles_per_90"),
+    ("creation", 0): ("Peu offensif", "shots"),
+    ("creation", 1): ("Menace de tir", "xg_contribution"),
+    ("creation", 2): ("Créateur", "xt_created"),
+    ("distribution", 0): ("Passeur court", "pass_short_share"),
+    ("distribution", 1): ("Passeur long et direct", "pass_long_share"),
+    ("distribution", 2): ("Passeur de volume", "passes_open"),
+    ("finition", 0): ("Tireur rare", "shots_on_target"),
+    ("finition", 1): ("Tireur de loin", "shots_outside_box"),
+    ("finition", 2): ("Finisseur de surface", "shot_big_chance_share"),
+    ("coups_arretes", 0): ("Ne tire pas les coups de pied arrêtés", "corners_taken"),
+    ("coups_arretes", 1): ("Tireur de penaltys", "penalties_taken"),
+    ("coups_arretes", 2): ("Tireur de corners et coups francs", "corners_taken"),
+    ("reseau", 0): ("Périphérique dans le réseau de passes", "net_betweenness"),
+    ("reseau", 1): ("Passeur créatif peu central", "net_creative_rate"),
+    ("reseau", 2): ("Pivot du réseau de passes", "net_betweenness"),
+    ("global", 0): ("Joueur en retrait (peu de touches)", "net_betweenness"),
+    ("global", 1): ("Passeur court et sûr", "pass_accuracy"),
+    ("global", 2): ("Replié devant sa surface", "def_actions_own_box"),
+    ("global", 3): ("Centreur créateur", "xt_per_pass"),
+    ("global", 4): ("Menace aérienne dans la surface", "a_head_shots_per_match"),
+    ("global", 5): ("Meneur de circulation (gros volume de passes)", "passes_open"),
+    ("global", 6): ("Attaquant à gros volume de tirs", "shots_on_target"),
+    ("global", 7): ("Offensif complet (création, tir, coups de pied arrêtés)", "corners_taken"),
+}
+
+
+def type_name(family: str, type_id, description: str | None = None) -> str:
+    """Nom lisible d'un type. Si la description est fournie et ne contient pas la variable-ancre, le nom est suffixé « (à revalider) »."""
+    try:
+        name, anchor = TYPE_NAMES[(family, int(type_id))]
+    except (KeyError, TypeError, ValueError):
+        return f"Type {type_id}"
+    if description is not None and anchor not in description:
+        return f"{name} (à revalider)"
+    return name
+
+
 def describe_center(center, cols, n_hi=3, n_lo=2):
     s = pd.Series(center, index=[c[len("dec_z_"):] for c in cols]).sort_values()
     hi = ", ".join(f"{i} {v:+.1f}" for i, v in s.tail(n_hi)[::-1].items())
